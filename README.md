@@ -150,6 +150,8 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889 docker compose --profi
 Open http://localhost:18888, pay with card 4242 0000 0000 0059, and open the `POST /api/v1/orders/{number}/payments`
 trace: the first try errors, the automatic retry is approved, each with its SQL.
 
+<img src="docs/images/trace-0059.png" alt="Card 0059 in the Aspire dashboard: a card charge span that errors, then the automatic retry" width="640">
+
 ## Changing it live
 
 Hot reload for the API and web app against the compose database and stand-ins:
