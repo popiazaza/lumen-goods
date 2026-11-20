@@ -1,12 +1,12 @@
 {
   "/api": {
-    "target": "http://localhost:5080",
+    "target": "http://127.0.0.1:5080",
     "secure": false,
     "changeOrigin": false,
     "logLevel": "warn"
   },
   "/media": {
-    "target": "http://localhost:5080",
+    "target": "http://127.0.0.1:5080",
     "secure": false,
     "changeOrigin": false,
     "logLevel": "warn"

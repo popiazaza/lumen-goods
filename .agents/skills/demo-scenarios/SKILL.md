@@ -49,17 +49,7 @@ Kestrel decides an order 10–30 s after accepting it, so set its stock to 0 bef
 
 ## Test cards
 
-Any name, a future expiry and any 3-digit CVC.
-
-| Card | Result |
-|---|---|
-| 4111 1111 1111 1111 | Approved |
-| 4242 0000 0000 0018 | Declined: insufficient funds (named to the customer) |
-| 4242 0000 0000 0026 | Declined: card reported stolen (customer sees "Your card was declined"; the admin order page shows the reason) |
-| 4242 0000 0000 0034 | One-time code: `123456` approves, anything else declines, expires after 5 min |
-| 4242 0000 0000 0042 | "Confirming your payment…" for 20 s, then approved; safe to refresh |
-| 4242 0000 0000 0059 | Gateway error, retried once automatically with the same payment, approved; one charge |
-
+The cards and what each does are listed once, in the [README](../../../README.md#test-cards).
 Pay from the wallet with the same order; a refund of a wallet-paid line goes back to the wallet.
 
 ## Check what happened

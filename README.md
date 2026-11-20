@@ -12,6 +12,28 @@ mock card gateway and wallet · `docker compose up` runs all of it.
 | ![Cart with items from three shops and a price-drop notice](docs/images/cart.png) | ![A price changed between review and Place order](docs/images/price-changed.png) |
 | ![Order detail: a Kestrel line not supplied and refunded](docs/images/order-detail.png) | ![Admin order: payment events with the real decline reason](docs/images/admin-order.png) |
 
+At phone width:
+
+<img src="docs/images/catalogue-mobile.jpg" width="260" alt="Catalogue on a phone, filters behind one button"> <img src="docs/images/price-changed-mobile.png" width="260" alt="Your order changed, on a phone: old and new price">
+
+## Reviewing in 15 minutes
+
+1. [`PlaceOrderService.cs`](src/Lumen.Api/Checkout/PlaceOrderService.cs): `PlaceAsync` checks partners live with no transaction open, re-prices (any change is a 409), then reserves own stock with conditional `UPDATE`s.
+2. [`PaymentService.cs`](src/Lumen.Api/Payments/PaymentService.cs), [`CardChargeProcess.cs`](src/Lumen.Api/Payments/CardChargeProcess.cs), [`MockPaymentGateway.cs`](src/Lumen.Api/Payments/MockPaymentGateway.cs): an atomic claim, the payment id as gateway key, and card 0059's one retry that still charges once.
+3. [`PartnerOrderProcessor.cs`](src/Lumen.Api/Orders/PartnerOrderProcessor.cs): one partner order per line; at 30 minutes a line is refunded only if no send can have reached the partner, else an admin decides.
+4. [`RefundCalculator.cs`](src/Lumen.Domain/Orders/RefundCalculator.cs): exact refunds: the line and its tax, plus the shipping fee only when nothing else ships from that seller.
+5. [`PlaceOrderTests.cs`](tests/Lumen.IntegrationTests/Checkout/PlaceOrderTests.cs#L113): two customers race for the last unit on real PostgreSQL; one order, one 409.
+6. [`docs/BUSINESS-RULES.md`](docs/BUSINESS-RULES.md): every rule with Given/When/Then scenarios and links to its tests.
+
+## Deviations from the brief
+
+- .NET 10 LTS and PostgreSQL 18, not the newest majors, whose ecosystems are not stable yet ([ADR 0007](docs/adr/0007-dotnet-10-lts-and-postgresql-18.md)).
+- Open questions answered with written assumptions, not emails ([ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
+- The payment gateway is a mock inside the API process, behind `IPaymentGateway` ([ADR 0005](docs/adr/0005-payments-charge-then-refund-one-partner-order-per-line.md)).
+- Kestrel prices are as fresh as its 3-minute feed: it has no per-item price endpoint, so Place order checks only its stock live ([ADR 0004](docs/adr/0004-checkout-consistency-the-order-is-the-price-lock.md)).
+
+What I would change next, and when: [DESIGN.md §10](DESIGN.md#10-decisions-id-revisit).
+
 ## Run it
 
 Prerequisite: Docker (Docker Desktop on Windows/macOS). From the repository root:
@@ -20,8 +42,8 @@ Prerequisite: Docker (Docker Desktop on Windows/macOS). From the repository root
 docker compose up --build
 ```
 
-The first build downloads images and packages and takes a few minutes; later starts take seconds.
-Migrations and seed data run at start-up. Everything listens on `127.0.0.1` only.
+The first build takes a few minutes; later starts take seconds. Migrations and seed data run at start-up.
+Everything listens on `127.0.0.1` only.
 
 | What | URL | Credentials |
 |---|---|---|
@@ -30,8 +52,7 @@ Migrations and seed data run at start-up. Everything listens on `127.0.0.1` only
 | Harbor Supply Co. sandbox | http://localhost:8081 | header `X-Harbor-Key: harbor-dev-key-123` |
 | Kestrel Outfitters sandbox | http://localhost:8082 | HTTP Basic `lumen` / `kestrel-secret` |
 
-Ports can be changed with `WEB_PORT`, `HARBOR_PORT` and `KESTREL_PORT` (see `.env.example`).
-Reset all data: `docker compose down --volumes`.
+Ports: `WEB_PORT`, `HARBOR_PORT`, `KESTREL_PORT` (see `.env.example`). Reset all data: `docker compose down --volumes`.
 
 ### Seeded accounts
 
@@ -42,45 +63,47 @@ Reset all data: `docker compose down --volumes`.
 
 New registrations start with a $500.00 wallet.
 
+### Test cards
+
+Any name, a future expiry and any 3-digit CVC.
+
+| Card | Result |
+|---|---|
+| 4111 1111 1111 1111 | Approved |
+| 4242 0000 0000 0018 | Declined: insufficient funds |
+| 4242 0000 0000 0026 | Declined: card reported stolen (the customer sees a generic decline, the admin the reason) |
+| 4242 0000 0000 0034 | Asks for a one-time code: `123456` approves, anything else declines, expires after 5 minutes |
+| 4242 0000 0000 0042 | "Confirming your payment…" for 20 seconds, then approved; refreshing is safe |
+| 4242 0000 0000 0059 | Gateway error, retried once automatically with the same payment, then approved; one charge |
+| Any other Luhn-valid number | Approved |
+
 ## A five-minute tour
 
-1. **Shop.** Search, filter by category, seller, price or stock, and sort. The URL keeps the state. Products from all
-   three shops sit side by side, in USD (Kestrel's EUR prices are converted).
+1. **Shop.** Search, filter (category, seller, price, stock) and sort; the URL keeps the state. All three shops'
+   products appear together in USD (Kestrel's EUR converted).
 2. **Cart.** Add items from all three shops and sign in: a guest cart merges into the account. Each shop is its own
    shipment. If a partner changes a price or stock, the line says so.
-3. **Checkout.** Address, then shipping per shop (Express only for Lumen's own items), then review, then pay.
+3. **Checkout.** Address, shipping per shop (Express only for Lumen's own items), review, pay.
    If anything changed since the review, Place order stops and shows old → new.
-4. **Pay** by card or wallet. Any name, a future expiry and any 3-digit CVC:
-
-   | Card | Result |
-   |---|---|
-   | 4111 1111 1111 1111 | Approved |
-   | 4242 0000 0000 0018 | Declined: insufficient funds |
-   | 4242 0000 0000 0026 | Declined: card reported stolen (the customer sees a generic decline, the admin the reason) |
-   | 4242 0000 0000 0034 | Asks for a one-time code: `123456` approves, anything else declines, expires after 5 minutes |
-   | 4242 0000 0000 0042 | "Confirming your payment…" for 20 seconds, then approved; refreshing is safe |
-   | 4242 0000 0000 0059 | Gateway error, retried once automatically with the same payment, then approved; one charge |
-   | Any other Luhn-valid number | Approved |
-
-5. **Follow the order** on *Orders*. Partner lines move from "Awaiting …" to "Confirmed by …". To see a partner
-   fail to supply part of a paid order, set a Kestrel item's stock to 0 after Place order, before paying:
+4. **Pay** by card (test cards above) or wallet.
+5. **Follow the order** on *Orders*: partner lines move from "Awaiting …" to "Confirmed by …". To see a partner
+   fail to supply a paid line, set a Kestrel item's stock to 0 after Place order, before paying:
 
    ```bash
    docker compose exec kestrel dotnet KestrelOutfitters.StandIn.dll list
    docker compose exec kestrel dotnet KestrelOutfitters.StandIn.dll set-stock K-7735 0
    ```
 
-   That line becomes "Not supplied, refunded $X" (the line and its tax; the shipment fee too if nothing else ships
+   That line becomes "Not supplied, refunded $X" (the line and its tax, plus the shipment fee if nothing else ships
    from that shop); the rest of the order goes ahead.
-6. **Admin** (sign in as the admin): orders with payment events and partner orders, a "needs attention" filter,
-   own products (price and stock), and partner sync status with *Refresh now*.
+6. **Admin**: orders with payment events and partner orders, a "needs attention" filter, own products (price and
+   stock), and partner sync status with *Refresh now*.
 
-Every other scenario (price changes, removed products, Harbor commands) is in the
-[demo-scenarios skill](.agents/skills/demo-scenarios/SKILL.md).
+More scenarios (price changes, removed products, Harbor): the [demo-scenarios skill](.agents/skills/demo-scenarios/SKILL.md).
 
 ## Where each requirement is met
 
-| Requirement | Where to see it | Rules and tests |
+| Requirement | Where to see it | [Rules and tests](docs/BUSINESS-RULES.md) |
 |---|---|---|
 | Search, filters, sort and paging, kept in the URL | Catalogue | BR-CAT-03 |
 | One cart across three shops, one payment | Cart, checkout | BR-CART-01..03, BR-SHIP-01, BR-PAY-01 |
@@ -96,8 +119,6 @@ Every other scenario (price changes, removed products, Harbor commands) is in th
 | Keep working when a partner is slow or down | Pages read Lumen's database; partner status page | BR-SYNC-02, BR-ORD-04 |
 | Partner changes visible within 15 minutes | Harbor every 60 s, Kestrel feed every 3 min | BR-SYNC-01 |
 
-Each rule, its scenarios and links to its tests: [docs/BUSINESS-RULES.md](docs/BUSINESS-RULES.md).
-
 ## Tests
 
 ```bash
@@ -106,18 +127,24 @@ dotnet test --solution LumenGoods.slnx --filter-trait "BR=BR-PAY-05"  # the test
 cd src/web && npm ci && npm test                                    # Angular unit tests
 ```
 
-| Suite | What it proves |
-|---|---|
-| `tests/Lumen.UnitTests` | Domain rules (money, pricing, transitions, card behaviours), partner adapters against stub HTTP, sync policies, architecture (stand-ins share no code) |
-| `tests/Lumen.IntegrationTests` | The real API on PostgreSQL 18 (Testcontainers): constraints, races (two payments, last unit, double click), jobs with fake partners and a fake clock |
-| `tests/*.StandIn.Tests` | Each stand-in's raw status codes, headers and bodies against its partner contract |
-| `src/web` (Vitest) | Components, URL state, cart and checkout state, payment page states |
+What each suite proves (the integration tests run the real API on PostgreSQL 18): [DESIGN.md §6](DESIGN.md#6-crosscutting-concepts).
+CI runs them all plus a `docker compose up` smoke test on every pull request that changes code. Outside Docker you
+need .NET SDK 10.0.404 (`global.json`), Node.js 26.13 or later, and Docker running.
 
-CI (`.github/workflows/ci.yml`) runs all of them plus a `docker compose up` smoke test on every pull request that
-changes code (docs-only pull requests skip it).
+## Changing it live
 
-Prerequisites for running the tests outside Docker: .NET SDK 10.0.404 (`global.json`), Node.js 26.13 or later, and
-Docker running (the integration tests start PostgreSQL with Testcontainers).
+Hot reload for the API and web app against the compose database and stand-ins:
+
+```bash
+docker compose -f docker-compose.yml -f compose.dev.yaml up --build -d   # also publishes API :5080, PostgreSQL :5432
+docker compose -f docker-compose.yml -f compose.dev.yaml stop api        # frees 5080 for your own API
+# second terminal; the compose stand-ins listen on 8081 and 8082
+Partners__Harbor__BaseUrl=http://127.0.0.1:8081 Partners__Kestrel__BaseUrl=http://127.0.0.1:8082 dotnet watch --project src/Lumen.Api
+# third terminal: http://localhost:4200 proxies /api and /media to 127.0.0.1:5080
+cd src/web && npm ci && npm start
+```
+
+Once per clone, `git config core.hooksPath .githooks` adds the Conventional Commit check and fast pre-push tests.
 
 ## Exact versions
 
@@ -133,12 +160,10 @@ Docker running (the integration tests start PostgreSQL with Testcontainers).
 | xUnit v3 / Testcontainers | 4.0.3 / 4.17.0 |
 
 Every NuGet version is pinned in `Directory.Packages.props`, npm versions in `src/web/package-lock.json`.
-Why .NET 10 LTS and PostgreSQL 18 rather than the newest majors: [ADR 0007](docs/adr/0007-dotnet-10-lts-and-postgresql-18.md).
 
 ## Assumptions
 
-The spec leaves some things open; each reading is listed with an ID in [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
-The ones that shape behaviour most:
+[docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) lists each, with an ID. The ones that shape behaviour most:
 
 | ID | Assumption |
 |---|---|
@@ -151,40 +176,14 @@ The ones that shape behaviour most:
 | A-43 | A partner that never accepts within 30 minutes: refunded if it cannot have the order, otherwise an admin decides |
 | A-44 | No cancellation after payment (partners offer none) |
 
-## Known limits
-
-- **Kestrel prices are as fresh as its feed** (synced every 3 minutes). Place order checks Harbor's price and stock
-  and Kestrel's stock live, but Kestrel has no per-item price endpoint ([ADR 0004](docs/adr/0004-checkout-consistency-the-order-is-the-price-lock.md)).
-- **Charge, then refund** what a partner can't supply, because the mock gateway has no separate authorise and
-  capture ([ADR 0005](docs/adr/0005-payments-charge-then-refund-one-partner-order-per-line.md)).
-- **One API replica**: rate limiters, the sync lock and the image cache live in the process. The path to the
-  two-year volumes is in [DESIGN.md §7](DESIGN.md#7-scale-path).
-
 ## Documentation
 
 | Read | For |
 |---|---|
-| [DESIGN.md](DESIGN.md) | Structure, flows, data model, idempotency and concurrency, scale path, Azure, where to change what |
+| [DESIGN.md](DESIGN.md) | Structure, flows, data model, concurrency, scale path, Azure, where to change what, decisions I'd revisit |
 | [docs/adr/](docs/adr/README.md) | Why each significant decision was made, with the alternatives |
-| [docs/BUSINESS-RULES.md](docs/BUSINESS-RULES.md) | Every rule with Given/When/Then scenarios and links to its tests |
+| [docs/BUSINESS-RULES.md](docs/BUSINESS-RULES.md) | Every rule with its scenarios and tests |
 | [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) | How the gaps in the spec were filled |
 | [docs/AI-USAGE.md](docs/AI-USAGE.md) | How AI was used, what a person decided, and where AI was wrong |
-| [AGENTS.md](AGENTS.md), [.agents/skills/](.agents/skills) | Instructions and skills for coding agents (and humans) working in this repo |
+| [AGENTS.md](AGENTS.md), [.agents/skills/](.agents/skills) | Layout, rules and skills for coding agents and humans |
 | [Harbor](src/StandIns/HarborSupply.StandIn/README.md), [Kestrel](src/StandIns/KestrelOutfitters.StandIn/README.md) stand-ins | Each partner's contract as implemented, and its demo CLI |
-
-## Working on it
-
-Changes land through pull requests with CI. Local git hooks give the same signal earlier:
-
-```bash
-git config core.hooksPath .githooks   # once per clone: Conventional Commit check + fast pre-push tests
-```
-
-| Path | What |
-|---|---|
-| `src/Lumen.Api` | Back end: minimal APIs, EF Core, hosted jobs, mock payment gateway |
-| `src/Lumen.Domain` | Pure domain code: money, pricing, refunds, status transitions |
-| `src/web` | Storefront and admin (Angular) |
-| `src/StandIns/*` | The two partner stand-ins, each with its own SQLite database |
-| `tests/` | xUnit v3 test projects |
-| `docs/` | ADRs, business rules, assumptions, AI usage |
