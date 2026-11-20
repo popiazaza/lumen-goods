@@ -1,0 +1,69 @@
+<header class="header">
+  <div class="bar">
+    <button
+      #menuToggle
+      matIconButton
+      type="button"
+      class="menu-toggle"
+      aria-label="Menu"
+      aria-controls="primary-menu"
+      [attr.aria-expanded]="menuOpen()"
+      (click)="toggleMenu()"
+    >
+      <mat-icon [svgIcon]="menuOpen() ? 'close' : 'menu'" />
+    </button>
+
+    <a class="brand" routerLink="/">Lumen Goods</a>
+
+    <form class="search" role="search" [formGroup]="searchForm" (ngSubmit)="search()">
+      <label for="site-search" class="cdk-visually-hidden">Search products</label>
+      <input
+        id="site-search"
+        type="search"
+        formControlName="q"
+        placeholder="Search products"
+        autocomplete="off"
+        enterkeyhint="search"
+      />
+      <button matIconButton type="submit" aria-label="Search">
+        <mat-icon svgIcon="search" />
+      </button>
+    </form>
+
+    <nav id="primary-menu" class="menu" aria-label="Main" [class.open]="menuOpen()">
+      <ul class="links">
+        <li>
+          <a
+            routerLink="/"
+            routerLinkActive="active"
+            ariaCurrentWhenActive="page"
+            [routerLinkActiveOptions]="shopLinkMatch"
+            >Shop</a
+          >
+        </li>
+        <li>
+          <a routerLink="/orders" routerLinkActive="active" ariaCurrentWhenActive="page">Orders</a>
+        </li>
+        <li class="account">
+          <a routerLink="/sign-in" routerLinkActive="active" ariaCurrentWhenActive="page">
+            <mat-icon svgIcon="account" />
+            <span>Sign in</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <a
+      matIconButton
+      class="cart"
+      routerLink="/cart"
+      routerLinkActive="active"
+      ariaCurrentWhenActive="page"
+      [attr.aria-label]="cartLabel()"
+      [matBadge]="itemCount()"
+      [matBadgeHidden]="itemCount() === 0"
+    >
+      <mat-icon svgIcon="cart" />
+    </a>
+  </div>
+</header>
