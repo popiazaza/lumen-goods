@@ -125,8 +125,13 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
 
         responses.Select(r => r.StatusCode).Should().BeEquivalentTo([HttpStatusCode.Created, HttpStatusCode.Conflict]);
         var problem = await responses.Single(r => r.StatusCode == HttpStatusCode.Conflict).ReadAsync<PriceChangedProblem>();
-        problem.Changes.Should().ContainSingle().Which.Should().BeEquivalentTo(
-            new { ProductId = lastUnit.Id, Kind = CheckoutChangeKind.QuantityLimited, Available = 0, Message = "Only 0 left" });
+        var change = problem.Changes.Should().ContainSingle().Subject;
+        (change.ProductId, change.Available).Should().Be((lastUnit.Id, 0));
+
+        // Which check refuses the loser depends on timing, and both are right: its own reservation ("Only 0 left"), or,
+        // when the winner had already committed, the check before it ("Out of stock").
+        (change.Kind, change.Message).Should().BeOneOf(
+            (CheckoutChangeKind.QuantityLimited, "Only 0 left"), (CheckoutChangeKind.Unavailable, "Out of stock"));
         problem.CanConfirm.Should().BeFalse();
         var product = await host.ProductAsync(lastUnit.Id);
         (product.OnHand, product.Reserved).Should().Be((1, 1));
@@ -332,6 +337,28 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var problem = await response.ReadAsync<PriceChangedProblem>();
         (problem.Changes.Count, problem.NewTotal, problem.CanConfirm).Should().Be((0, preview.Total, true));
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CHK-01")]
+    public async Task BR_CHK_01_a_place_order_without_the_reviewed_total_is_a_validation_error_not_a_409()
+    {
+        var shopper = await host.NewShopperAsync();
+        await shopper.AddToCartAsync(await host.OwnProductAsync(10.00m), 1);
+        var preview = await shopper.PreviewAsync();
+        var line = preview.Shipments.Single().Lines.Single();
+        var body = new
+        {
+            checkoutKey = Guid.NewGuid(),
+            lines = new[] { new { productId = line.ProductId, quantity = line.Quantity, unitPrice = line.UnitPrice } },
+            shippingAddress = CheckoutHost.Address,
+            shippingMethod = "standard",
+        };
+
+        var response = await CheckoutHost.SendJsonAsync(shopper.Session, HttpMethod.Post, "/api/v1/checkout/orders", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.ReadJsonAsync()).GetProperty("errors").EnumerateObject().Select(p => p.Name).Should().Equal("expectedTotal");
     }
 
     [Fact]
