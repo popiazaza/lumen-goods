@@ -7,8 +7,9 @@ using HarborSupply.StandIn.Orders;
 using HarborSupply.StandIn.Persistence;
 
 // Stand-in for Harbor Supply Co.'s published JSON REST API (the partner's sandbox).
-// "dotnet HarborSupply.StandIn.dll set-stock HSC-10021 0" and friends run the demo-data CLI instead of the server.
-if (AdminCli.IsCommand(args))
+// "dotnet HarborSupply.StandIn.dll set-stock HSC-10021 0" and friends run the demo-data CLI instead of the server;
+// any other command word prints the CLI usage. No command (settings only, or nothing) starts the server.
+if (AdminCli.IsCliInvocation(args))
 {
     return await AdminCli.RunAsync(args, Console.Out, Console.Error);
 }

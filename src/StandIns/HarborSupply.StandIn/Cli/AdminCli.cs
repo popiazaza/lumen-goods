@@ -10,7 +10,7 @@ namespace HarborSupply.StandIn.Cli;
 /// Demo-data commands run by the same binary against the same database, so partner data can change
 /// "at any time" during a demo without adding a single HTTP endpoint to the contract.
 /// <code>dotnet HarborSupply.StandIn.dll set-stock HSC-10021 0</code>
-/// Settings use the --Section:Key=value form, for example --Harbor:DatabasePath=/tmp/harbor.db.
+/// Settings may come before or after the command, for example --Harbor:DatabasePath=/tmp/harbor.db.
 /// </summary>
 internal static class AdminCli
 {
@@ -25,12 +25,20 @@ internal static class AdminCli
 
     private static readonly HashSet<string> Commands = new(StringComparer.Ordinal) { "list", "set-stock", "set-price", "set-discontinued" };
 
-    public static bool IsCommand(string[] args) => args.Length > 0 && Commands.Contains(args[0]);
+    /// <summary>
+    /// True when the arguments name a command, known or not. Settings alone (or nothing) mean "run the server",
+    /// so a typo prints the usage instead of starting a second server on a port that is already taken.
+    /// </summary>
+    public static bool IsCliInvocation(string[] args) => SplitArguments(args).Command.Length > 0;
 
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
     {
-        var settings = args.Where(a => a.StartsWith("--", StringComparison.Ordinal)).ToArray();
-        var command = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+        var (command, settings) = SplitArguments(args);
+        if (command is not [var name, ..] || !Commands.Contains(name))
+        {
+            await error.WriteLineAsync(Usage);
+            return 2;
+        }
 
         var builder = Host.CreateApplicationBuilder(settings);
         builder.Logging.ClearProviders();
@@ -58,6 +66,37 @@ internal static class AdminCli
                 await error.WriteLineAsync(Usage);
                 return 2;
         }
+    }
+
+    /// <summary>
+    /// Reads arguments the way the .NET command-line configuration provider does: "--Key=value", "--Key value"
+    /// and "Key=value" are settings (so "--urls http://+:8080" still starts the server); the rest is the command.
+    /// </summary>
+    internal static (string[] Command, string[] Settings) SplitArguments(string[] args)
+    {
+        var command = new List<string>();
+        var settings = new List<string>();
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i].StartsWith("--", StringComparison.Ordinal))
+            {
+                settings.Add(args[i]);
+                if (!args[i].Contains('=') && i + 1 < args.Length)
+                {
+                    settings.Add(args[++i]);
+                }
+            }
+            else if (args[i].Contains('='))
+            {
+                settings.Add(args[i]);
+            }
+            else
+            {
+                command.Add(args[i]);
+            }
+        }
+
+        return ([.. command], [.. settings]);
     }
 
     private static async Task<int> UpdateAsync(HarborDbContext db, string itemCode, Action<CatalogItem> change, TextWriter output, TextWriter error)

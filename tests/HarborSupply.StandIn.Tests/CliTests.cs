@@ -40,6 +40,53 @@ public sealed class CliTests(HarborFactory factory) : IClassFixture<HarborFactor
         output.Should().Contain("HSC-10021").And.Contain("Waxed Canvas Tote");
     }
 
+    public static TheoryData<string[], bool> Invocations => new()
+    {
+        { [], false },
+        { ["--Harbor:DatabasePath=/tmp/harbor.db"], false },
+        { ["--urls", "http://+:8080"], false },
+        { ["Harbor:RequestsPerMinute=5"], false },
+        { ["list"], true },
+        { ["--Harbor:DatabasePath=/tmp/harbor.db", "set-stock", "HSC-10021", "0"], true },
+        { ["bogus"], true },
+        { ["--urls", "http://+:8080", "lsit"], true },
+    };
+
+    [Theory]
+    [MemberData(nameof(Invocations))]
+    public void Any_command_word_selects_the_CLI_and_settings_alone_start_the_server(string[] args, bool isCli) =>
+        AdminCli.IsCliInvocation(args).Should().Be(isCli);
+
+    [Fact]
+    public async Task A_setting_before_the_command_is_applied()
+    {
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        var exitCode = await AdminCli.RunAsync(["--Harbor:DatabasePath=" + factory.DatabasePath, "list"], output, error);
+
+        exitCode.Should().Be(0, error.ToString());
+        output.ToString().Should().Contain("HSC-10021");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Unknown_command_prints_usage_and_exits_2_without_starting_the_server(bool settingFirst)
+    {
+        // Through the real entry point: before the fix this started a second web server and crashed on the port.
+        var databasePath = Path.Combine(Path.GetTempPath(), "harbor-cli-" + Guid.NewGuid().ToString("N"), "harbor.db");
+        var setting = "--Harbor:DatabasePath=" + databasePath;
+        string[] args = settingFirst ? [setting, "bogus"] : ["bogus", setting];
+        var main = typeof(Program).Assembly.EntryPoint!;
+
+        // The timeout turns a regression (a server that never returns) into a failure instead of a hung run.
+        var exitCode = await Task.Run(() => (int)main.Invoke(null, [args])!, HttpTestExtensions.Ct).WaitAsync(TimeSpan.FromSeconds(30), HttpTestExtensions.Ct);
+
+        exitCode.Should().Be(2);
+        File.Exists(databasePath).Should().BeFalse("an unknown command touches nothing");
+    }
+
     [Theory]
     [InlineData("set-stock", "HSC-99999", "1")]
     [InlineData("set-stock", "HSC-10022", "-1")]
