@@ -42,6 +42,8 @@ public sealed class LumenDbContext(DbContextOptions<LumenDbContext> options)
 
     public DbSet<Refund> Refunds => Set<Refund>();
 
+    public DbSet<RefundLine> RefundLines => Set<RefundLine>();
+
     public DbSet<Wallet> Wallets => Set<Wallet>();
 
     public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();

@@ -158,6 +158,7 @@ public sealed class WalletPersistenceTests(LumenApiFactory factory)
         var refund = new Lumen.Api.Orders.Refund
         {
             OrderId = order.Id, PaymentId = payment.Id, Amount = 39.96m, Reason = "Not supplied", CreatedUtc = OrderingTestData.Now,
+            Lines = [new Lumen.Api.Orders.RefundLine { OrderId = order.Id, OrderLineId = order.Lines[0].Id, Amount = 39.96m }],
         };
         WalletTransaction Credit() => new()
         {

@@ -167,40 +167,14 @@ public sealed class OrderPersistenceTests(LumenApiFactory factory)
     }
 
     [Fact]
-    [Trait("BR", "BR-ORD-03")]
-    public async Task BR_ORD_03_a_refund_keeps_its_line_ids_as_a_jsonb_array_and_is_never_zero()
-    {
-        var order = await factory.NewSavedOrderAsync();
-        var payment = OrderingTestData.NewPayment(order.Id, PaymentStatus.Succeeded);
-        var lineIds = new List<Guid> { order.Lines[0].Id, Guid.NewGuid() };
-        var refund = new Refund
-        {
-            OrderId = order.Id, PaymentId = payment.Id, Amount = 39.96m, Reason = "Not supplied", LineIds = lineIds,
-            CreatedUtc = OrderingTestData.Now,
-        };
-        await factory.SaveAsync(payment, refund);
-
-        await using (var db = factory.NewContext())
-        {
-            (await db.Refunds.AsNoTracking().SingleAsync(r => r.Id == refund.Id, Ct)).LineIds.Should().Equal(lineIds);
-            var type = await db.Database
-                .SqlQuery<string>($"SELECT jsonb_typeof(\"LineIds\") AS \"Value\" FROM \"Refunds\" WHERE \"Id\" = {refund.Id}")
-                .SingleAsync(Ct);
-            type.Should().Be("array");
-        }
-
-        var zero = new Refund { OrderId = order.Id, PaymentId = payment.Id, Amount = 0m, Reason = "Nothing", CreatedUtc = OrderingTestData.Now };
-        (await factory.SaveRejectedAsync(zero)).ShouldBeCheckViolation("CK_Refunds_AmountPositive");
-    }
-
-    [Fact]
-    public async Task The_admin_list_and_order_history_have_their_indexes()
+    public async Task The_admin_list_its_date_filter_and_order_history_have_their_indexes()
     {
         await using var db = factory.NewContext();
         var indexes = await db.Database
             .SqlQuery<string>($"SELECT indexname AS \"Value\" FROM pg_indexes WHERE tablename = 'Orders'")
             .ToListAsync(Ct);
 
-        indexes.Should().Contain(["IX_Orders_Status_CreatedUtc", "IX_Orders_CustomerId_CreatedUtc", "IX_Orders_Unpaid_HoldExpiresUtc"]);
+        indexes.Should().Contain(
+            ["IX_Orders_Status_CreatedUtc", "IX_Orders_CustomerId_CreatedUtc", "IX_Orders_CreatedUtc", "IX_Orders_Unpaid_HoldExpiresUtc"]);
     }
 }

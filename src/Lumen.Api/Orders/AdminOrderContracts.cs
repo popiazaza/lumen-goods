@@ -8,7 +8,9 @@ namespace Lumen.Api.Orders;
 
 /// <summary>
 /// One row of the admin orders list (<c>GET /api/v1/admin/orders?status=&amp;from=&amp;to=&amp;page=&amp;pageSize=</c>,
-/// a <c>PagedResult</c>, newest first; <c>from</c>/<c>to</c> are dates, filtering on when the order was placed).
+/// a <c>PagedResult</c>, newest first). <c>status</c> takes the wire (snake_case) values of <see cref="OrderStatus"/>,
+/// repeatable for several: awaiting_payment | payment_processing | paid | completed | partially_refunded | refunded |
+/// expired. <c>from</c>/<c>to</c> are dates (yyyy-MM-dd, inclusive, UTC) on when the order was placed.
 /// </summary>
 /// <param name="NeedsAttention">A line waits for an admin decision (BR-ORD-04): accepted by its partner, no decision for 24 hours.</param>
 /// <param name="PaymentMethod">The latest payment's method; null before any payment.</param>
@@ -99,8 +101,18 @@ public sealed record PartnerOrderDto(
 /// attention (the goods are coming) or rejects it (it is refunded, BR-ORD-03). Its partner order is closed, so polling
 /// stops. 409 when the line does not need attention. Answers with the updated <see cref="AdminOrderDto"/>.
 /// </summary>
-/// <param name="Decision">confirmed | rejected.</param>
-/// <example><code>{ "decision": "rejected", "note": "Kestrel support: item lost in the warehouse" }</code></example>
+/// <param name="Decision">confirm | reject.</param>
+/// <example><code>{ "decision": "reject", "note": "Kestrel support: item lost in the warehouse" }</code></example>
 public sealed record ResolveOrderLineRequest(
-    [Required] OrderLineStatus? Decision,
+    [Required] LineResolution? Decision,
     [MaxLength(500)] string? Note);
+
+/// <summary>An admin's decision on a line that needs attention (wire: confirm | reject).</summary>
+public enum LineResolution
+{
+    /// <summary>The goods are coming: the line becomes Confirmed.</summary>
+    Confirm,
+
+    /// <summary>The goods are not coming: the line becomes Rejected and is refunded (BR-ORD-03).</summary>
+    Reject,
+}

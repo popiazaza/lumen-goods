@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Lumen.Api.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(LumenDbContext))]
-    [Migration("20261120083710_OrderingSchema")]
+    [Migration("20261120090629_OrderingSchema")]
     partial class OrderingSchema
     {
         /// <inheritdoc />
@@ -436,6 +436,8 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                     b.HasIndex("CheckoutKey")
                         .IsUnique();
 
+                    b.HasIndex("CreatedUtc");
+
                     b.HasIndex("HoldExpiresUtc")
                         .HasDatabaseName("IX_Orders_Unpaid_HoldExpiresUtc")
                         .HasFilter("\"Status\" IN ('AwaitingPayment', 'PaymentProcessing')");
@@ -689,10 +691,6 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<string>("LineIds")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
                     b.Property<DateTimeOffset?>("NextAttemptUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -706,6 +704,13 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("ShipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("ShippingAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -722,7 +727,14 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.HasIndex("OrderId");
 
-                    b.HasIndex("PaymentId");
+                    b.HasIndex("ShipmentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Refunds_ShipmentId_Unique")
+                        .HasFilter("\"ShipmentId\" IS NOT NULL");
+
+                    b.HasIndex("PaymentId", "OrderId");
+
+                    b.HasIndex("ShipmentId", "OrderId");
 
                     b.HasIndex("Status", "NextAttemptUtc");
 
@@ -731,6 +743,41 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                             t.HasCheckConstraint("CK_Refunds_AmountPositive", "\"Amount\" > 0");
 
                             t.HasCheckConstraint("CK_Refunds_Attempts", "\"Attempts\" >= 0");
+
+                            t.HasCheckConstraint("CK_Refunds_ShippingAmountWithShipment", "(\"ShipmentId\" IS NULL AND \"ShippingAmount\" = 0) OR (\"ShipmentId\" IS NOT NULL AND \"ShippingAmount\" > 0)");
+                        });
+                });
+
+            modelBuilder.Entity("Lumen.Api.Orders.RefundLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrderLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RefundId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderLineId")
+                        .IsUnique();
+
+                    b.HasIndex("OrderLineId", "OrderId");
+
+                    b.HasIndex("RefundId", "OrderId");
+
+                    b.ToTable("RefundLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_RefundLines_AmountNotNegative", "\"Amount\" >= 0");
                         });
                 });
 
@@ -975,6 +1022,8 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.HasIndex("OrderId", "CreatedUtc");
 
+                    b.HasIndex("Status", "StatusChangedUtc");
+
                     b.ToTable("Payments", t =>
                         {
                             t.HasCheckConstraint("CK_Payments_AmountNotNegative", "\"Amount\" >= 0");
@@ -1016,9 +1065,9 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PaymentId");
-
                     b.HasIndex("OrderId", "OccurredUtc");
+
+                    b.HasIndex("PaymentId", "OrderId");
 
                     b.ToTable("PaymentEvents");
                 });
@@ -1322,8 +1371,32 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.HasOne("Lumen.Api.Payments.Payment", null)
                         .WithMany()
-                        .HasForeignKey("PaymentId")
+                        .HasForeignKey("PaymentId", "OrderId")
+                        .HasPrincipalKey("Id", "OrderId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Lumen.Api.Orders.OrderShipment", null)
+                        .WithMany()
+                        .HasForeignKey("ShipmentId", "OrderId")
+                        .HasPrincipalKey("Id", "OrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Lumen.Api.Orders.RefundLine", b =>
+                {
+                    b.HasOne("Lumen.Api.Orders.OrderLine", null)
+                        .WithMany()
+                        .HasForeignKey("OrderLineId", "OrderId")
+                        .HasPrincipalKey("Id", "OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Lumen.Api.Orders.Refund", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("RefundId", "OrderId")
+                        .HasPrincipalKey("Id", "OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -1355,7 +1428,8 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.HasOne("Lumen.Api.Payments.Payment", null)
                         .WithMany()
-                        .HasForeignKey("PaymentId")
+                        .HasForeignKey("PaymentId", "OrderId")
+                        .HasPrincipalKey("Id", "OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1463,6 +1537,11 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
             modelBuilder.Entity("Lumen.Api.Orders.OrderLine", b =>
                 {
                     b.Navigation("PartnerOrder");
+                });
+
+            modelBuilder.Entity("Lumen.Api.Orders.Refund", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }
