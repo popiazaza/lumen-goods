@@ -140,8 +140,8 @@ stateDiagram-v2
     Error --> Processing: automatic retry, same payment id
     Error --> Failed: retry errored too, or never ran
     Failed --> Processing: Try again by the customer, same payment id
-    Failed --> Succeeded: gateway status: it was charged
-    Failed --> Declined: gateway status: never charged
+    Failed --> Succeeded: gateway status#58; it was charged
+    Failed --> Declined: gateway status#58; never charged
     Succeeded --> [*]
     Declined --> [*]
     Expired --> [*]
@@ -178,8 +178,9 @@ The expiry job, for each order awaiting payment or with a payment processing:
 A refund is stored (Pending, with its amount and lines) in the transaction that rejects the lines, and sent to the
 original payment method outside it, because no payment I/O may run inside a database transaction. **The refund id is the
 gateway idempotency key**: a Failed refund is retried with the same id (Failed → Pending → sent again), never replaced
-by a new refund, so the customer is never paid back twice. Wallet refunds credit the balance in the recording
-transaction, so they go straight from Pending to Succeeded.
+by a new refund, so the customer is never paid back twice. Wallet refunds are sent by the same refund job:
+the credit, its wallet transaction (unique per refund) and Succeeded are written in one transaction, so a wallet
+refund never fails half-way and never credits twice.
 
 ```mermaid
 stateDiagram-v2
