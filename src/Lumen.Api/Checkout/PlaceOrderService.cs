@@ -35,7 +35,8 @@ internal abstract record PlaceOrderOutcome
 /// <summary>
 /// Place order: the step where what the customer reviewed becomes an order they can pay.
 /// - BR-PAY-01 (a): idempotent by checkout key for this customer. A repeat (double click, retry after a timeout)
-///   returns the first order; concurrent repeats are serialised on the key, so they never both create.
+///   returns the first order; of two concurrent repeats the unique key lets one create it, and the other (refused by
+///   the index, or out of stock because the first reserved it) answers with that same order (ADR 0004: no locks).
 /// - BR-CART-03 / BR-CHK-02: lines that cannot be supplied as they are stop the order: from Lumen's data first, then
 ///   a live check of every partner line (one 5 s budget), before any database transaction. What the live check
 ///   learns (price, stock, not sold any more) is written to the product rows first, so the 409's new total, the cart,
@@ -250,19 +251,18 @@ internal sealed class PlaceOrderService(
         {
             var now = time.GetUtcNow();
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-
-            // BR-PAY-01 (a): concurrent requests with the same key wait here; the second then finds the first's order.
-            await db.Database.ExecuteSqlAsync(
-                $"SELECT pg_advisory_xact_lock(hashtextextended({checkoutKey.ToString()}, 0))", cancellationToken);
-            if (await FindOrderAsync(customerId, checkoutKey, cancellationToken) is { } placed)
-            {
-                return new PlaceOrderOutcome.AlreadyPlaced(placed);
-            }
-
             var notReserved = await ReserveOwnStockAsync(lines, cancellationToken);
             if (notReserved.Count > 0)
             {
                 await transaction.RollbackAsync(cancellationToken);
+
+                // BR-PAY-01 (a): a concurrent request with the same key may have taken the last units. Its reservation
+                // held the product rows until it committed, so its order is visible now: answer with it.
+                if (await FindOrderAsync(customerId, checkoutKey, cancellationToken) is { } placed)
+                {
+                    return new PlaceOrderOutcome.AlreadyPlaced(placed);
+                }
+
                 return new PlaceOrderOutcome.Changed(new PriceChangedProblem(ChangedLinesDetail, await OnlyLeftAsync(notReserved, cancellationToken), null));
             }
 

@@ -84,12 +84,14 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         saved.Lines.Should().OnlyContain(l => l.Status == OrderLineStatus.Pending);
     }
 
-    [Fact]
+    [Theory]
     [Trait("BR", "BR-PAY-01")]
-    public async Task BR_PAY_01_a_double_clicked_place_order_creates_one_order_and_both_get_it()
+    [InlineData(10)] // enough stock for both: the unique checkout key refuses the second order
+    [InlineData(3)] // only enough for one: the second cannot reserve, and finds the first's order
+    public async Task BR_PAY_01_a_double_clicked_place_order_creates_one_order_and_both_get_it(int onHand)
     {
         var shopper = await host.NewShopperAsync();
-        var mug = await host.OwnProductAsync(onHand: 10);
+        var mug = await host.OwnProductAsync(onHand: onHand);
         await shopper.AddToCartAsync(mug, 3);
         var preview = await shopper.PreviewAsync();
         var key = Guid.NewGuid();
