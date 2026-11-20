@@ -47,7 +47,6 @@ internal static class CheckoutFeature
         services.AddScoped<CheckoutCart>();
         services.AddScoped<CheckoutPreviewService>();
         services.AddScoped<PlaceOrderService>();
-        services.AddScoped<OrderDetailMapper>();
         return services;
     }
 

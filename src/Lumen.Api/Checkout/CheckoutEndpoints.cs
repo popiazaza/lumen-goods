@@ -1,5 +1,6 @@
 using Lumen.Api.Carts;
 using Lumen.Api.Catalog;
+using Lumen.Api.Orders;
 using Lumen.Domain.Pricing;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
@@ -69,7 +70,7 @@ internal static class CheckoutEndpoints
         PlaceOrderRequest request,
         HttpContext http,
         PlaceOrderService orders,
-        OrderDetailMapper details,
+        OrderDetailReader details,
         IOptions<CheckoutOptions> checkout,
         IOptions<CatalogOptions> catalog,
         CancellationToken cancellationToken)
@@ -150,10 +151,11 @@ internal static class CheckoutEndpoints
         switch (outcome)
         {
             case PlaceOrderOutcome.Created created:
-                var order = (await details.LoadAsync(created.OrderId, mediaBase, cancellationToken))!;
+                // The same OrderDetailDto as GET /orders/{number}, from the same reader.
+                var order = (await details.ByIdAsync(created.OrderId, mediaBase, cancellationToken))!;
                 return TypedResults.Created($"/api/v1/orders/{order.Number}", order);
             case PlaceOrderOutcome.AlreadyPlaced placed:
-                return TypedResults.Ok(await details.LoadAsync(placed.OrderId, mediaBase, cancellationToken));
+                return TypedResults.Ok(await details.ByIdAsync(placed.OrderId, mediaBase, cancellationToken));
             case PlaceOrderOutcome.Changed changed:
                 return TypedResults.Json(changed.Problem, statusCode: StatusCodes.Status409Conflict, contentType: "application/problem+json");
             case PlaceOrderOutcome.EmptyCart:
