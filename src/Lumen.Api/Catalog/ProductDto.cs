@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Serialization;
 using Lumen.Api.Infrastructure.Json;
 using Lumen.Domain.Catalog;
@@ -45,12 +47,23 @@ public static class ProductMapping
             Description: product.Description,
             Category: product.Category,
             Price: product.PriceUsd is { } usd ? new PriceDto(MoneyMath.RoundToCents(usd), "USD") : null,
-            Images: [.. product.Images.Select((image, index) => new ImageDto($"{mediaBaseUrl}/media/{product.Id}/{index}", image.IsPrimary))],
+            Images: [.. product.Images.Select((image, index) => new ImageDto(ImageUrl(mediaBaseUrl, product.Id, index, image.SourceUrl), image.IsPrimary))],
             Attributes: product.Attributes,
             Availability: new AvailabilityDto(ToWire(availability.Status), availability.Quantity),
             Sellable: product.IsSellable,
             LastUpdatedUtc: product.LastUpdatedUtc.UtcDateTime);
     }
+
+    /// <summary>
+    /// The browser-facing image URL. It carries a version derived from where the image comes from, so the media
+    /// endpoint can let browsers cache for a day: when a product's image changes, its URL changes too.
+    /// </summary>
+    public static string ImageUrl(string mediaBaseUrl, Guid productId, int index, string sourceUrl) =>
+        $"{mediaBaseUrl}/media/{productId}/{index}?v={ImageVersion(sourceUrl)}";
+
+    /// <summary>First 12 hex characters of SHA-256 of the image's source URL.</summary>
+    public static string ImageVersion(string sourceUrl) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(sourceUrl)))[..12];
 
     public static string ToWire(AvailabilityStatus status) => status switch
     {

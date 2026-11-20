@@ -36,6 +36,9 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
         // The test client talks plain HTTP, so cookies must not require HTTPS.
         builder.UseSetting("Auth:CookieSecurePolicy", "SameAsRequest");
         builder.UseSetting("Seed:Enabled", "true");
+        // No background partner sync in tests: it would call whatever answers on the dev partner ports and could unlist
+        // rows the catalogue tests insert. Partner tests run the jobs explicitly (PartnerTestHost, RunOnceAsync).
+        builder.UseSetting("Jobs:Enabled", "false");
     }
 
     public ApiSession CreateSession() => new(CreateClient());
