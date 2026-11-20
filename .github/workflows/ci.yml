@@ -27,7 +27,13 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet restore LumenGoods.slnx
-      - run: dotnet build LumenGoods.slnx --no-restore -c Release
+      # The command lists known-vulnerable packages but exits 0 either way, so the step fails on its output.
+      - name: No known-vulnerable NuGet packages, direct or transitive
+        run: |
+          set -euo pipefail
+          dotnet list LumenGoods.slnx package --vulnerable --include-transitive | tee vulnerable.txt
+          if grep -q 'has the following vulnerable packages' vulnerable.txt; then exit 1; fi
+      - run: dotnet build LumenGoods.slnx --no-restore -c Release -warnaserror
       # Integration tests start PostgreSQL with Testcontainers (Docker is available on ubuntu runners).
       - run: dotnet test LumenGoods.slnx --no-build -c Release
 
@@ -46,6 +52,7 @@ jobs:
           cache: npm
           cache-dependency-path: src/web/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm test
       - run: npm run build
