@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
 using Lumen.Api.Carts;
@@ -20,6 +21,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
@@ -48,6 +50,8 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
     /// <summary>The API's gateway: the mock, with a switch to make its status lookup fail for chosen payments.</summary>
     public TestGateway Gateway { get; } = new();
 
+    public OrderClaimHook Claims { get; } = new();
+
     public WebApplicationFactory<Program> App { get; private set; } = null!;
 
     public static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -75,6 +79,7 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(Clock);
+                services.ConfigureDbContext<LumenDbContext>(options => options.AddInterceptors(Claims));
                 services.AddSingleton<MockPaymentGateway>();
                 services.AddSingleton<IPaymentGateway>(sp =>
                 {
@@ -251,26 +256,72 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
     private static DateTimeOffset WholeSecond(DateTimeOffset value) => new(value.UtcTicks - value.UtcTicks % TimeSpan.TicksPerSecond, TimeSpan.Zero);
 }
 
-/// <summary>The mock gateway, except that <see cref="StatusUnavailable"/> payments get no answer to a status lookup.</summary>
+/// <summary>
+/// The mock gateway, except that <see cref="StatusUnavailable"/> payments get no answer to a status lookup. It also
+/// counts charge calls per payment id and can run a step during a status lookup (a slow gateway).
+/// </summary>
 public sealed class TestGateway : IPaymentGateway
 {
+    private readonly ConcurrentDictionary<Guid, int> _chargeCalls = new();
+    private readonly ConcurrentDictionary<Guid, Action> _duringNextLookup = new();
+
     public IPaymentGateway Inner { get; set; } = null!;
 
     public ConcurrentBag<Guid> StatusUnavailable { get; } = [];
 
-    public Task<GatewayChargeResult> ChargeAsync(GatewayChargeRequest request, CancellationToken cancellationToken) =>
-        Inner.ChargeAsync(request, cancellationToken);
+    /// <summary>How many charge calls the gateway received for this payment id (first try and every retry).</summary>
+    public int ChargeCalls(Guid paymentId) => _chargeCalls.GetValueOrDefault(paymentId);
+
+    /// <summary>Runs <paramref name="step"/> during the next status lookup for this payment, e.g. the clock moving on.</summary>
+    public void DuringNextStatusLookup(Guid paymentId, Action step) => _duringNextLookup[paymentId] = step;
+
+    public Task<GatewayChargeResult> ChargeAsync(GatewayChargeRequest request, CancellationToken cancellationToken)
+    {
+        _chargeCalls.AddOrUpdate(request.PaymentId, 1, (_, calls) => calls + 1);
+        return Inner.ChargeAsync(request, cancellationToken);
+    }
 
     public Task<GatewayChargeResult> SubmitOneTimeCodeAsync(Guid paymentId, string code, CancellationToken cancellationToken) =>
         Inner.SubmitOneTimeCodeAsync(paymentId, code, cancellationToken);
 
-    public Task<GatewayChargeResult> GetChargeAsync(Guid paymentId, CancellationToken cancellationToken) =>
-        StatusUnavailable.Contains(paymentId)
+    public Task<GatewayChargeResult> GetChargeAsync(Guid paymentId, CancellationToken cancellationToken)
+    {
+        if (_duringNextLookup.TryRemove(paymentId, out var step))
+        {
+            step();
+        }
+
+        return StatusUnavailable.Contains(paymentId)
             ? throw new HttpRequestException("Gateway status lookup unavailable (test).")
             : Inner.GetChargeAsync(paymentId, cancellationToken);
+    }
 
     public Task<GatewayRefundResult> RefundAsync(GatewayRefundRequest request, CancellationToken cancellationToken) =>
         Inner.RefundAsync(request, cancellationToken);
+}
+
+/// <summary>
+/// Runs a step just before the API's next order claim (the conditional <c>UPDATE "Orders"</c> that starts a payment), so
+/// a test can put another writer exactly between a request's checks and its claim. Registered on every
+/// <see cref="LumenDbContext"/> of the host; does nothing unless armed.
+/// </summary>
+public sealed class OrderClaimHook : DbCommandInterceptor
+{
+    private Func<Task>? _beforeNextClaim;
+
+    public void BeforeNextClaim(Func<Task> step) => _beforeNextClaim = step;
+
+    public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.StartsWith("UPDATE \"Orders\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _beforeNextClaim, null) is { } step)
+        {
+            await step();
+        }
+
+        return result;
+    }
 }
 
 /// <summary>A signed-in customer driving the checkout and payment API like the storefront does.</summary>

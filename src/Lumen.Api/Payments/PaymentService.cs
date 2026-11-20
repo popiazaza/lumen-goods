@@ -108,6 +108,10 @@ internal sealed class PaymentService(
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        // BR-STOCK-01: the gateway status call above may have taken a while; the claim checks the hold against the clock
+        // as it is now, so nothing is charged after the hold has ended.
+        now = time.GetUtcNow();
         var claimedStatus = OrderTransitions.Order.Move(OrderStatus.AwaitingPayment, OrderStatus.PaymentProcessing);
         var maxAttempts = window.MaxAttempts;
         var claimed = await db.Orders
@@ -155,19 +159,32 @@ internal sealed class PaymentService(
     private async Task<Payment> StartPaymentAsync(
         Order order, Guid? failedPaymentId, PaymentMethod method, CardNumber? card, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        Payment payment;
-        string sentDetail;
+        Payment? payment = null;
+        var sentDetail = "First try";
         if (failedPaymentId is { } id)
         {
             // Try again of a Failed payment the gateway could not settle: same row, same id, so the gateway answers this
-            // charge at most once (BR-PAY-05).
-            payment = await db.Payments.SingleAsync(p => p.Id == id, cancellationToken);
-            payment.CompletedUtc = null;
-            payment.DeclineReason = null;
-            payment.AutomaticRetryUsed = false;
-            sentDetail = "Try again by the customer, same payment id";
+            // charge at most once (BR-PAY-05). The job or a status poll may have settled it after this request asked the
+            // gateway and before the claim. Charged would have paid the order, and the claim would have failed; so a
+            // payment that is no longer Failed was settled as never charged (Declined, final), and BR-PAY-05 then lets
+            // any method pay: a new payment starts below.
+            var reused = await db.Payments.SingleAsync(p => p.Id == id, cancellationToken);
+            if (reused.Status == PaymentStatus.Failed)
+            {
+                payment = reused;
+                payment.CompletedUtc = null;
+                payment.DeclineReason = null;
+                payment.AutomaticRetryUsed = false;
+                sentDetail = "Try again by the customer, same payment id";
+            }
+            else
+            {
+                logger.LogInformation("Failed payment {Payment} was settled as {Status} just before the claim; starting a new payment",
+                    id, reused.Status);
+            }
         }
-        else
+
+        if (payment is null)
         {
             payment = new Payment
             {
@@ -183,7 +200,6 @@ internal sealed class PaymentService(
             db.Payments.Add(payment);
             await writer.AddEventAsync(payment, PaymentEventType.Started, now, payment.Amount,
                 card is null ? "Wallet payment" : $"Card payment, {card}", cancellationToken);
-            sentDetail = "First try";
         }
 
         payment.AttemptNumber = order.FailedPaymentAttempts + 1;
