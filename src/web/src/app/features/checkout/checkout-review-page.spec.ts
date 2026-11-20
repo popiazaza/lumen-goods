@@ -1,0 +1,252 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Component } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import {
+  CHECKOUT_CHANGED_PROBLEM,
+  CheckoutChangedProblem,
+  CheckoutLineChangeDto,
+  CheckoutPreviewDto,
+} from '../../core/api/checkout.api';
+import { CheckoutStore } from '../../core/checkout/checkout-store';
+import { provideAppIcons } from '../../core/icons/app-icons';
+import { US_ADDRESS, aCart, aPreview, anOrder } from '../../testing/fixtures';
+import { CheckoutReviewPage } from './checkout-review-page';
+
+@Component({ template: '<h1>Elsewhere</h1>' })
+class StubPage {}
+
+const PREVIEW_URL = '/api/v1/checkout/preview?shippingMethod=express';
+
+function aChange(overrides: Partial<CheckoutLineChangeDto> = {}): CheckoutLineChangeDto {
+  return {
+    cartLineId: 'line-socks',
+    productId: 'kestrel-K-7731',
+    name: 'Merino Trail Socks',
+    sellerName: 'Kestrel Outfitters',
+    kind: 'price_changed',
+    from: 16.22,
+    to: 17.31,
+    quantityFrom: null,
+    quantityTo: null,
+    available: null,
+    message: 'Price changed from $16.22 to $17.31',
+    ...overrides,
+  };
+}
+
+function conflict(
+  changes: CheckoutLineChangeDto[],
+  newTotal: number | null,
+  canConfirm: boolean,
+): CheckoutChangedProblem {
+  return {
+    type: CHECKOUT_CHANGED_PROBLEM,
+    title: 'Your order changed',
+    status: 409,
+    detail: 'A price changed since you reviewed your order. Check the new total and confirm again.',
+    changes,
+    newTotal,
+    canConfirm,
+  };
+}
+
+describe('CheckoutReviewPage', () => {
+  let fixture: ComponentFixture<CheckoutReviewPage>;
+  let http: HttpTestingController;
+  let store: CheckoutStore;
+
+  const host = () => fixture.nativeElement as HTMLElement;
+  const text = (selector: string) =>
+    host().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+  const placeButton = () =>
+    host().querySelector<HTMLButtonElement>('button.place') as HTMLButtonElement;
+
+  async function open(preview: CheckoutPreviewDto = aPreview()): Promise<void> {
+    fixture = TestBed.createComponent(CheckoutReviewPage);
+    fixture.detectChanges();
+    await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(preview));
+    await fixture.whenStable();
+  }
+
+  async function placeAndConflict(problem: CheckoutChangedProblem): Promise<void> {
+    placeButton().click();
+    http
+      .expectOne('/api/v1/checkout/orders')
+      .flush(problem, { status: 409, statusText: 'Conflict' });
+    await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(aPreview({ total: 68.63 })));
+    await fixture.whenStable();
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([
+          { path: 'checkout/payment', component: StubPage },
+          { path: 'cart', component: StubPage },
+        ]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideAppIcons(),
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    store = TestBed.inject(CheckoutStore);
+    store.setAddress(US_ADDRESS);
+    store.setShippingMethod('express');
+  });
+
+  afterEach(() => {
+    http.verify();
+    sessionStorage.clear();
+  });
+
+  it('shows the address, method, items by seller and the server’s totals', async () => {
+    await open();
+
+    expect(text('.summary-list div:first-child dd')).toBe(
+      'Ada Lovelace, 1200 NW Naito Pkwy, Portland, Oregon 97209, United States',
+    );
+    expect(
+      [...host().querySelectorAll('section.group h3')].map((h) => h.textContent?.trim()),
+    ).toEqual(['Sold by Lumen Goods', 'Sold by Kestrel Outfitters']);
+    expect(text('.review-total')).toBe('$67.46');
+  });
+
+  it('places exactly what was reviewed with the checkout key, then opens payment', async () => {
+    await open();
+
+    placeButton().click();
+    const request = http.expectOne('/api/v1/checkout/orders');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({
+      checkoutKey: store.checkoutKey(),
+      lines: [
+        { productId: 'lumen-mug', quantity: 2, unitPrice: 18.5 },
+        { productId: 'kestrel-K-7731', quantity: 1, unitPrice: 16.22 },
+      ],
+      expectedTotal: 67.46,
+      shippingAddress: US_ADDRESS,
+      shippingMethod: 'express',
+    });
+    request.flush(anOrder({ number: 'LG-NEW1' }), { status: 201, statusText: 'Created' });
+    http.expectOne('/api/v1/cart').flush(aCart([]));
+    await fixture.whenStable();
+
+    expect(store.orderNumber()).toBe('LG-NEW1');
+    expect(TestBed.inject(Router).url).toBe('/checkout/payment?order=LG-NEW1');
+  });
+
+  it('on a 409, shows each price change (old → new) and the new total, and confirms them', async () => {
+    await open();
+    const key = store.checkoutKey();
+
+    await placeAndConflict(conflict([aChange()], 68.63, true));
+
+    const banner = host().querySelector<HTMLElement>('.banner.changed') as HTMLElement;
+    expect(document.activeElement).toBe(banner);
+    expect(text('.changes li')).toBe(
+      'Merino Trail Socks (Kestrel Outfitters): price changed from was $16.22 to $17.31',
+    );
+    expect(banner.querySelector('del')?.textContent).toContain('$16.22');
+    expect(text('.new-total')).toBe('$68.63');
+    expect(host().querySelector('button.place')).toBeNull();
+
+    host().querySelector<HTMLButtonElement>('button.confirm')?.click();
+    const retry = http.expectOne('/api/v1/checkout/orders');
+    expect(retry.request.body).toMatchObject({
+      checkoutKey: key,
+      expectedTotal: 68.63,
+      lines: [
+        { productId: 'lumen-mug', quantity: 2, unitPrice: 18.5 },
+        { productId: 'kestrel-K-7731', quantity: 1, unitPrice: 17.31 },
+      ],
+    });
+    retry.flush(anOrder({ number: 'LG-NEW2' }), { status: 201, statusText: 'Created' });
+    http.expectOne('/api/v1/cart').flush(aCart([]));
+    await fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/checkout/payment?order=LG-NEW2');
+  });
+
+  it('sends the shopper to the cart when a line cannot be supplied in full', async () => {
+    await open();
+
+    await placeAndConflict(
+      conflict(
+        [
+          aChange({
+            kind: 'quantity_limited',
+            from: null,
+            to: null,
+            available: 1,
+            message: 'Only 1 available',
+          }),
+        ],
+        null,
+        false,
+      ),
+    );
+
+    expect(text('.changes li')).toBe('Merino Trail Socks (Kestrel Outfitters): Only 1 available');
+    expect(host().querySelector('button.confirm')).toBeNull();
+    expect(host().querySelector('.banner.changed a')?.getAttribute('href')).toBe('/cart');
+  });
+
+  it('offers a fresh review when the cart changed in another tab', async () => {
+    await open();
+
+    await placeAndConflict(
+      conflict(
+        [
+          aChange({
+            kind: 'cart_changed',
+            cartLineId: null,
+            from: null,
+            to: null,
+            quantityFrom: 0,
+            quantityTo: 1,
+            message: 'Added to your cart since you reviewed it',
+          }),
+        ],
+        null,
+        false,
+      ),
+    );
+    expect(text('.changes li')).toBe(
+      'Merino Trail Socks (Kestrel Outfitters): Added to your cart since you reviewed it',
+    );
+
+    host().querySelector<HTMLButtonElement>('button.review-again')?.click();
+    await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(aPreview()));
+    await fixture.whenStable();
+
+    expect(host().querySelector('.banner.changed')).toBeNull();
+    expect(placeButton()).toBeTruthy();
+  });
+
+  it('cannot place the order while the preview has blockers', async () => {
+    await open(
+      aPreview({ blockers: [aChange({ kind: 'unavailable', message: 'No longer available' })] }),
+    );
+
+    expect(placeButton().getAttribute('aria-disabled')).toBe('true');
+    expect(text('#place-blocked')).toBe('Update your cart before placing the order.');
+    placeButton().click();
+    http.expectNone('/api/v1/checkout/orders');
+  });
+
+  it('says nothing was charged when Place order fails for another reason', async () => {
+    await open();
+
+    placeButton().click();
+    http
+      .expectOne('/api/v1/checkout/orders')
+      .flush('down', { status: 503, statusText: 'Unavailable' });
+    await fixture.whenStable();
+
+    expect(text('.banner.error[role="alert"] p')).toBe(
+      'We couldn’t place your order. You have not been charged. Try again.',
+    );
+  });
+});

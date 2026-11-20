@@ -1,7 +1,220 @@
-import { Component } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
+import { MatButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
+import { Router, RouterLink } from '@angular/router';
+import { finalize } from 'rxjs';
+import {
+  CheckoutApi,
+  CheckoutChangeKind,
+  CheckoutChangedProblem,
+  PlaceOrderLine,
+  checkoutChangedProblemOf,
+  reviewedLines,
+  withNewPrices,
+} from '../../core/api/checkout.api';
+import { SHIPPING_METHOD_NAMES } from '../../core/api/order.models';
+import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
+import { CartStateService } from '../../core/cart/cart-state.service';
+import { CheckoutStore } from '../../core/checkout/checkout-store';
+import { CheckoutSteps } from './checkout-steps';
+import { stateName } from './us-address';
 
+/** Changes that only mean the review is out of date (the cart changed in another tab). */
+const REVIEW_AGAIN_KINDS: ReadonlySet<CheckoutChangeKind> = new Set([
+  'cart_changed',
+  'quantity_changed',
+  'price_changed',
+]);
+
+/**
+ * Checkout step 3 (`/checkout/review`): the server's preview of the order, then Place order.
+ * Place order sends exactly the lines and total shown here; if anything changed since
+ * (BR-CHK-01, BR-CHK-02), the API answers 409 with each change and nothing is created, and this
+ * page asks the shopper to confirm the new amounts, review again, or fix the cart.
+ */
 @Component({
   selector: 'app-checkout-review-page',
-  template: `<h1>Review your order</h1>`,
+  imports: [CurrencyPipe, RouterLink, MatButton, MatIcon, CheckoutSteps],
+  templateUrl: './checkout-review-page.html',
+  styleUrl: './checkout.scss',
+  styles: `
+    .summary-list {
+      display: grid;
+      gap: var(--lg-space-3);
+      margin: 0 0 var(--lg-space-4);
+
+      > div {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: var(--lg-space-2);
+      }
+
+      dt {
+        font-weight: 600;
+      }
+
+      dd {
+        flex: 1 1 14rem;
+        margin: 0;
+      }
+    }
+
+    .lines {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+
+      li {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--lg-space-3);
+        padding: var(--lg-space-2) 0;
+        border-bottom: 1px solid var(--mat-sys-outline-variant);
+      }
+    }
+
+    .fee {
+      margin: var(--lg-space-2) 0 0;
+      text-align: right;
+    }
+
+    .changes {
+      margin: 0 0 var(--lg-space-3);
+      padding-left: var(--lg-space-6);
+    }
+  `,
 })
-export class CheckoutReviewPage {}
+export class CheckoutReviewPage {
+  private readonly api = inject(CheckoutApi);
+  private readonly store = inject(CheckoutStore);
+  private readonly cart = inject(CartStateService);
+  private readonly router = inject(Router);
+  private readonly injector = inject(Injector);
+  private readonly changesBanner = viewChild<ElementRef<HTMLElement>>('changesBanner');
+
+  protected readonly address = this.store.address;
+  protected readonly method = computed(() => this.store.shippingMethod() ?? 'standard');
+  protected readonly methodName = computed(() => SHIPPING_METHOD_NAMES[this.method()]);
+  protected readonly addressText = computed(() => {
+    const address = this.address();
+    if (!address) {
+      return '';
+    }
+    const street = [address.line1, address.line2].filter(Boolean).join(', ');
+    return `${address.name}, ${street}, ${address.city}, ${stateName(address.region)} ${address.postalCode}, United States`;
+  });
+
+  protected readonly preview = rxResource({
+    params: () => this.method(),
+    stream: ({ params }) => this.api.preview(params),
+  });
+  protected readonly loaded = computed(() =>
+    this.preview.hasValue() ? this.preview.value() : undefined,
+  );
+  protected readonly blocked = computed(() => (this.loaded()?.blockers.length ?? 0) > 0);
+
+  protected readonly placing = signal(false);
+  /** The 409 answer to Place order: what changed, and the new total if confirming is enough. */
+  protected readonly changed = signal<CheckoutChangedProblem | null>(null);
+  protected readonly placeError = signal<string | null>(null);
+  /**
+   * The 409 only needs a fresh review (the cart changed in another tab): reload the preview. Any
+   * other line that cannot be confirmed must be fixed in the cart.
+   */
+  protected readonly needsReview = computed(() => {
+    const changes = this.changed()?.changes ?? [];
+    return (
+      changes.length > 0 &&
+      changes.every((change) => REVIEW_AGAIN_KINDS.has(change.kind)) &&
+      !this.changed()?.canConfirm
+    );
+  });
+  /** The lines the last Place order sent: a confirmation re-sends them at the new prices. */
+  private sentLines: PlaceOrderLine[] = [];
+
+  protected placeOrder(): void {
+    const preview = this.loaded();
+    if (!preview || this.blocked() || this.preview.isLoading()) {
+      return;
+    }
+    this.send(reviewedLines(preview), preview.total);
+  }
+
+  /** Accepts the new amounts from the 409 and places the order with them. */
+  protected confirmNewTotal(): void {
+    const changed = this.changed();
+    if (changed?.canConfirm && changed.newTotal !== null) {
+      this.send(withNewPrices(this.sentLines, changed.changes), changed.newTotal);
+    }
+  }
+
+  /** Shows the cart as it is now and lets the shopper review it again. */
+  protected reviewAgain(): void {
+    this.changed.set(null);
+    this.preview.reload();
+  }
+
+  private send(lines: PlaceOrderLine[], expectedTotal: number): void {
+    const address = this.address();
+    if (this.placing() || !address) {
+      return;
+    }
+    this.sentLines = lines;
+    this.placing.set(true);
+    this.placeError.set(null);
+    this.api
+      .placeOrder({
+        checkoutKey: this.store.checkoutKey(),
+        lines,
+        expectedTotal,
+        shippingAddress: address,
+        shippingMethod: this.method(),
+      })
+      .pipe(finalize(() => this.placing.set(false)))
+      .subscribe({
+        next: (order) => {
+          this.store.setOrderNumber(order.number);
+          // The order holds the items now; the badge follows whatever the server did to the cart.
+          this.cart.reload().subscribe({ error: () => undefined });
+          void this.router.navigate(['/checkout/payment'], {
+            queryParams: { order: order.number },
+          });
+        },
+        error: (error: unknown) => this.failed(error),
+      });
+  }
+
+  private failed(error: unknown): void {
+    const problem = checkoutChangedProblemOf(error);
+    if (problem) {
+      this.changed.set(problem);
+      // Show the lines at their new prices behind the notice.
+      this.preview.reload();
+      afterNextRender(
+        { write: () => this.changesBanner()?.nativeElement.focus() },
+        { injector: this.injector },
+      );
+      return;
+    }
+    this.placeError.set(
+      httpStatusOf(error) === 400
+        ? problemMessage(error, 'Check your shipping address and try again.')
+        : problemMessage(
+            error,
+            'We couldn’t place your order. You have not been charged. Try again.',
+          ),
+    );
+  }
+}

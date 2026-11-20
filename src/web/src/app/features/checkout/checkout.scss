@@ -1,0 +1,133 @@
+// Shared by the checkout steps.
+:host {
+  display: block;
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.checkout-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lg-space-2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--lg-space-4);
+
+  @media (min-width: 600px) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.required-note,
+.country,
+.muted {
+  margin: 0 0 var(--lg-space-2);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lg-space-3);
+  margin-top: var(--lg-space-4);
+
+  button,
+  a {
+    min-height: 48px;
+  }
+}
+
+h2 {
+  margin: var(--lg-space-6) 0 var(--lg-space-3);
+  font: var(--mat-sys-title-large);
+}
+
+.group {
+  margin: 0 0 var(--lg-space-4);
+  padding: var(--lg-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--lg-radius-card);
+}
+
+.group-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--lg-space-1) var(--lg-space-3);
+  margin: 0 0 var(--lg-space-3);
+
+  h3 {
+    margin: 0;
+    font: var(--mat-sys-title-medium);
+  }
+}
+
+.ships {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lg-space-1);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+
+  mat-icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--lg-space-2) var(--lg-space-4);
+  max-width: 24rem;
+  margin: 0 0 0 auto;
+
+  dt {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .grand {
+    padding-top: var(--lg-space-2);
+    border-top: 1px solid var(--mat-sys-outline-variant);
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-title-medium);
+  }
+}
+
+.banner {
+  display: flex;
+  gap: var(--lg-space-3);
+  margin: 0 0 var(--lg-space-4);
+  padding: var(--lg-space-3) var(--lg-space-4);
+  border-radius: var(--lg-radius-card);
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+
+  &.error {
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+
+  > mat-icon {
+    flex: none;
+  }
+
+  p {
+    margin: 0 0 var(--lg-space-2);
+  }
+
+  > div > :last-child {
+    margin-bottom: 0;
+  }
+}
