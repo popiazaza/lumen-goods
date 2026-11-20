@@ -346,6 +346,27 @@ describe('CheckoutReviewPage', () => {
     );
   });
 
+  it('shows why the order was refused when the shopper has too many unpaid orders (BR-CHK-03)', async () => {
+    await open();
+    const detail =
+      'You already have 3 unpaid orders. Pay for one of them in Your orders, or wait until one expires, then place this order again. Nothing was created.';
+
+    placeButton().click();
+    http.expectOne('/api/v1/checkout/orders').flush(
+      {
+        type: 'urn:lumen:problem:too-many-unpaid-orders',
+        title: 'Too many unpaid orders',
+        status: 409,
+        detail,
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await fixture.whenStable();
+
+    expect(text('.place-error p')).toBe(detail);
+    expect(placeButton().disabled).toBe(false);
+  });
+
   it('says nothing was charged when Place order fails for another reason', async () => {
     await open();
 

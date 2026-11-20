@@ -1,10 +1,12 @@
 using System.Net;
+using Lumen.Api.Catalog;
 using Lumen.Api.Checkout;
 using Lumen.Api.Orders;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Pricing;
 using Lumen.IntegrationTests.Catalog;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Lumen.IntegrationTests.Checkout;
 
@@ -359,6 +361,133 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.ReadJsonAsync()).GetProperty("errors").EnumerateObject().Select(p => p.Name).Should().Equal("expectedTotal");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CHK-03")]
+    [Trait("BR", "BR-PAY-01")]
+    public async Task BR_CHK_03_a_fourth_unpaid_order_is_refused_until_one_is_paid_and_a_repeated_key_still_gets_its_order()
+    {
+        var shopper = await host.NewShopperAsync();
+        var mug = await host.OwnProductAsync(10.00m, onHand: 10);
+        await shopper.AddToCartAsync(mug, 1);
+        var preview = await shopper.PreviewAsync();
+        var keys = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        var unpaid = new List<OrderDetailDto>();
+        foreach (var key in keys)
+        {
+            var placed = await shopper.PlaceAsync(preview, key);
+            placed.StatusCode.Should().Be(HttpStatusCode.Created);
+            unpaid.Add(await placed.ReadAsync<OrderDetailDto>());
+        }
+
+        var fourth = await shopper.PlaceAsync(preview);
+        var repeated = await shopper.PlaceAsync(preview, keys[2]);
+
+        fourth.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await fourth.ReadJsonAsync();
+        (problem.GetProperty("type").GetString(), problem.GetProperty("detail").GetString()).Should().Be((
+            CheckoutProblemTypes.TooManyUnpaidOrders,
+            "You already have 3 unpaid orders. Pay for one of them in Your orders, or wait until one expires, then place this order again. Nothing was created."));
+        (await host.ProductAsync(mug.Id)).Reserved.Should().Be(3, "the refused order reserved nothing");
+        repeated.StatusCode.Should().Be(HttpStatusCode.OK, "a repeated checkout key gets its order, even at the limit");
+        (await repeated.ReadAsync<OrderDetailDto>()).Number.Should().Be(unpaid[2].Number);
+
+        (await shopper.PayByWalletAsync(unpaid[0].Number)).StatusCode.Should().Be(HttpStatusCode.Accepted);
+        await shopper.AddToCartAsync(mug, 1); // paying took the mug out of the cart
+        (await shopper.PlaceAsync(await shopper.PreviewAsync())).StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CHK-03")]
+    public async Task BR_CHK_03_place_orders_racing_for_the_last_unpaid_slot_create_exactly_one_order()
+    {
+        var (shopper, mug, preview) = await ShopperWithTwoUnpaidOrdersAsync();
+
+        var racing = await RaceAsync(mug, 4, () => shopper.PlaceAsync(preview));
+
+        racing.Count(r => r.StatusCode == HttpStatusCode.Created).Should().Be(1);
+        foreach (var refused in racing.Where(r => r.StatusCode != HttpStatusCode.Created))
+        {
+            refused.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await refused.ReadJsonAsync()).GetProperty("type").GetString().Should().Be(CheckoutProblemTypes.TooManyUnpaidOrders);
+        }
+
+        (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(3);
+        (await host.ProductAsync(mug.Id)).Reserved.Should().Be(3);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CHK-03")]
+    [Trait("BR", "BR-PAY-01")]
+    public async Task BR_CHK_03_a_double_click_that_fills_the_last_unpaid_slot_gets_the_same_order_twice()
+    {
+        var (shopper, mug, preview) = await ShopperWithTwoUnpaidOrdersAsync();
+        var key = Guid.NewGuid();
+
+        var responses = await RaceAsync(mug, 2, () => shopper.PlaceAsync(preview, key));
+
+        responses.Select(r => r.StatusCode).Should().BeEquivalentTo([HttpStatusCode.Created, HttpStatusCode.OK]);
+        var numbers = await Task.WhenAll(responses.Select(async r => (await r.ReadAsync<OrderDetailDto>()).Number));
+        numbers.Distinct().Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Makes <paramref name="requests"/> Place orders truly overlap: the test holds <paramref name="product"/>'s row, so
+    /// every request that gets as far as reserving it waits, and so does every request queued behind one of those. Once
+    /// all of them wait (directly or not) on the test, it lets go and they finish in whatever order the database decides.
+    /// </summary>
+    private async Task<HttpResponseMessage[]> RaceAsync(Product product, int requests, Func<Task<HttpResponseMessage>> place)
+    {
+        var connectionString = await host.WithDbAsync(db => Task.FromResult(db.Database.GetConnectionString()!));
+        await using var holder = new NpgsqlConnection(connectionString);
+        await holder.OpenAsync(Ct);
+        await using var hold = await holder.BeginTransactionAsync(Ct);
+        await using (var lockRow = new NpgsqlCommand("""SELECT 1 FROM "Products" WHERE "Id" = @id FOR UPDATE""", holder, hold))
+        {
+            lockRow.Parameters.AddWithValue("id", product.Id);
+            await lockRow.ExecuteNonQueryAsync(Ct);
+        }
+
+        var racing = Task.WhenAll(Enumerable.Range(0, requests).Select(_ => place()));
+
+        await using var watcher = new NpgsqlConnection(connectionString);
+        await watcher.OpenAsync(Ct);
+        await using var waiting = new NpgsqlCommand("""
+            WITH RECURSIVE blocked(pid) AS (
+                SELECT pid FROM pg_stat_activity WHERE @holder = ANY(pg_blocking_pids(pid))
+                UNION
+                SELECT a.pid FROM pg_stat_activity a JOIN blocked b ON b.pid = ANY(pg_blocking_pids(a.pid)))
+            SELECT count(*) FROM blocked
+            """, watcher);
+        waiting.Parameters.AddWithValue("holder", holder.ProcessID);
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while ((long)(await waiting.ExecuteScalarAsync(Ct))! < requests)
+        {
+            if (DateTime.UtcNow > deadline || racing.IsCompleted)
+            {
+                throw new TimeoutException($"The {requests} Place orders never all waited on the held row.");
+            }
+
+            await Task.Delay(20, Ct);
+        }
+
+        await hold.CommitAsync(Ct);
+        return await racing;
+    }
+
+    private async Task<(Shopper Shopper, Product Mug, CheckoutPreviewDto Preview)> ShopperWithTwoUnpaidOrdersAsync()
+    {
+        var shopper = await host.NewShopperAsync();
+        var mug = await host.OwnProductAsync(10.00m, onHand: 10);
+        await shopper.AddToCartAsync(mug, 1);
+        var preview = await shopper.PreviewAsync();
+        for (var i = 0; i < 2; i++)
+        {
+            (await shopper.PlaceAsync(preview)).StatusCode.Should().Be(HttpStatusCode.Created);
+        }
+
+        return (shopper, mug, preview);
     }
 
     [Fact]

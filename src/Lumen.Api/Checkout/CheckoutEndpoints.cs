@@ -22,6 +22,12 @@ public static class CheckoutProblemTypes
     /// again, so the client must start the review again with a new key.
     /// </summary>
     public const string CheckoutKeyTaken = "urn:lumen:problem:checkout-key-taken";
+
+    /// <summary>
+    /// 409 (BR-CHK-03): the customer already has the maximum number of unpaid orders. Paying one, or letting one expire,
+    /// makes room; the detail says so.
+    /// </summary>
+    public const string TooManyUnpaidOrders = "urn:lumen:problem:too-many-unpaid-orders";
 }
 
 internal static class CheckoutEndpoints
@@ -169,6 +175,11 @@ internal static class CheckoutEndpoints
                 return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, type: CheckoutProblemTypes.CheckoutKeyTaken,
                     title: "This checkout was already used",
                     detail: "This checkout key was already used for a different order. Start the review again with a new checkout key.");
+            case PlaceOrderOutcome.TooManyUnpaidOrders tooMany:
+                return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, type: CheckoutProblemTypes.TooManyUnpaidOrders,
+                    title: "Too many unpaid orders",
+                    detail: $"You already have {tooMany.Max} unpaid orders. Pay for one of them in Your orders, or wait until one "
+                        + "expires, then place this order again. Nothing was created.");
             default:
                 throw new InvalidOperationException($"Unhandled Place order outcome {outcome.GetType().Name}.");
         }
