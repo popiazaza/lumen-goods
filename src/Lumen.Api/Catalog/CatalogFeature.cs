@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
+using Lumen.Api.Admin;
 using Lumen.Domain.Catalog;
 using Microsoft.Extensions.Options;
 
@@ -60,10 +61,11 @@ internal static class CatalogFeature
         return services;
     }
 
-    /// <summary>Storefront catalogue endpoints under /api/v1.</summary>
+    /// <summary>Storefront catalogue endpoints under /api/v1, plus the admin own-products endpoints.</summary>
     public static RouteGroupBuilder MapCatalogEndpoints(this RouteGroupBuilder api)
     {
         api.MapStorefrontCatalogEndpoints();
+        api.MapAdminProductEndpoints();
         return api;
     }
 
