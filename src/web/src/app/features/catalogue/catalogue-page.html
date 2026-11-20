@@ -12,7 +12,8 @@
     <h2 id="filters-heading" class="panel-title">Filters</h2>
     <app-catalogue-filters
       [query]="query()"
-      [sellers]="sellerDirectory.sellers()"
+      [sellers]="sellerOptions()"
+      [sellersFailed]="sellerDirectory.failed()"
       (filtersChange)="apply($event)"
     />
   </aside>
@@ -69,7 +70,7 @@
         } @else {
           <h3>We couldn’t load products</h3>
           <p>Check your connection and try again. Your search and filters are kept.</p>
-          <button matButton="filled" type="button" (click)="results.reload()">
+          <button matButton="filled" type="button" (click)="retry()">
             <mat-icon svgIcon="refresh" />
             Retry
           </button>
@@ -179,16 +180,23 @@
 
 <ng-template #filtersSheet>
   <div class="sheet">
-    <h2 class="panel-title" tabindex="-1">Filters</h2>
+    <h2 #sheetHeading class="panel-title" tabindex="-1">Filters</h2>
     <app-catalogue-filters
       [query]="query()"
-      [sellers]="sellerDirectory.sellers()"
+      [sellers]="sellerOptions()"
+      [sellersFailed]="sellerDirectory.failed()"
       (filtersChange)="apply($event)"
     />
     <div class="sheet-actions">
-      @if (filterCount() > 0) {
-        <button matButton type="button" (click)="clearAll(false)">Clear all</button>
-      }
+      <button
+        matButton
+        type="button"
+        [disabled]="filterCount() === 0"
+        disabledInteractive
+        (click)="clearAllInSheet(sheetHeading)"
+      >
+        Clear all
+      </button>
       <button matButton="filled" type="button" (click)="closeFilters()">
         {{ page() ? 'Show ' + countText() : 'Show results' }}
       </button>

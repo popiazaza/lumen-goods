@@ -328,6 +328,118 @@ describe('CataloguePage', () => {
     await vi.waitFor(() => expect(document.querySelector('mat-bottom-sheet-container')).toBeNull());
   });
 
+  it('applies filters live inside the sheet, keeps it open and updates its count', async () => {
+    await open('/?category=bags');
+    button('Filters (1)').click();
+    await harness.fixture.whenStable();
+    const sheet = document.querySelector('mat-bottom-sheet-container') as HTMLElement;
+
+    const home = [...sheet.querySelectorAll('mat-checkbox')]
+      .find((box) => box.textContent?.trim() === 'Home')
+      ?.querySelector('input') as HTMLInputElement;
+    home.click();
+
+    await expectUrl('/?category=bags&category=home');
+    await respond(aPage([TOTE, LAMP]));
+    expect(document.querySelector('mat-bottom-sheet-container')).toBe(sheet);
+    expect(home.checked).toBe(true);
+    expect(button('Show 2 products', sheet)).toBeTruthy();
+    expect(button('Filters (2)')).toBeTruthy();
+  });
+
+  it('keeps "Clear all" in the sheet and moves focus to the sheet heading after it', async () => {
+    await open('/?category=bags&inStock=true');
+    button('Filters (2)').click();
+    await harness.fixture.whenStable();
+    const sheet = document.querySelector('mat-bottom-sheet-container') as HTMLElement;
+    const clearAll = button('Clear all', sheet);
+    clearAll.focus();
+
+    clearAll.click();
+    await expectUrl('/');
+    await respond(aPage([TOTE, LAMP, PARKA]));
+
+    expect(document.activeElement).toBe(sheet.querySelector('h2'));
+    // Still there, focusable and announced as disabled (disabledInteractive).
+    expect(clearAll.isConnected).toBe(true);
+    expect(clearAll.disabled).toBe(false);
+    expect(clearAll.getAttribute('aria-disabled')).toBe('true');
+    clearAll.click();
+    await harness.fixture.whenStable();
+    expect(router.url).toBe('/');
+  });
+
+  it('builds the seller checkboxes from GET /sellers, including partners it has never seen', async () => {
+    await harness.navigateByUrl('/', CataloguePage);
+    http
+      .expectOne('/api/v1/sellers')
+      .flush([...SELLERS, { source: 'north-fjord', name: 'North Fjord Supply' }]);
+    await respond(aPage([TOTE]));
+
+    checkbox('North Fjord Supply').click();
+
+    await expectUrl('/?seller=north-fjord');
+    const request = await respond(aPage([]));
+    expect(request.request.params.getAll('seller')).toEqual(['north-fjord']);
+  });
+
+  it('keeps unknown sellers from the URL until GET /sellers answers, then drops them', async () => {
+    await harness.navigateByUrl('/?seller=acme&seller=harbor', CataloguePage);
+    // whenStable() would wait for the pending sellers call, so wait on the DOM instead.
+    const sellers = http.expectOne('/api/v1/sellers');
+    const first = await nextProductsRequest();
+    expect(first.request.params.getAll('seller')).toEqual(['acme', 'harbor']);
+    first.flush(aPage([TOTE]));
+    // Before the list loads, the chosen sellers are the only checkboxes, so they can be unticked.
+    await vi.waitFor(() => expect(checkbox('acme').checked).toBe(true));
+    expect(checkbox('Harbor Supply Co.').checked).toBe(true);
+
+    // A change made now keeps the unknown seller in the URL.
+    checkbox('Bags').click();
+    await expectUrl('/?category=bags&seller=acme&seller=harbor');
+    (await nextProductsRequest()).flush(aPage([TOTE]));
+
+    sellers.flush(SELLERS);
+    const second = await respond(aPage([TOTE]));
+    expect(second.request.params.getAll('seller')).toEqual(['harbor']);
+    expect(text('.applied')).not.toContain('acme');
+    expect(() => checkbox('acme')).toThrow();
+  });
+
+  describe('scrolling', () => {
+    /** What the router's scroll restoration will do after the last navigation. */
+    const lastScroll = () => router.lastSuccessfulNavigation()?.extras.scroll;
+
+    it('keeps the scroll position on filter and sort changes', async () => {
+      await open('/', aPage([TOTE], { totalPages: 3, totalCount: 60 }));
+
+      checkbox('Bags').click();
+      await expectUrl('/?category=bags');
+      await respond(aPage([TOTE], { totalPages: 3, totalCount: 60 }));
+      expect(lastScroll()).toBe('manual');
+
+      host().querySelector<HTMLElement>('mat-select')?.click();
+      await harness.fixture.whenStable();
+      [...document.querySelectorAll<HTMLElement>('mat-option')]
+        .find((option) => option.textContent?.trim() === 'Name: A to Z')
+        ?.click();
+      await expectUrl('/?category=bags&sort=name_asc');
+      await respond(aPage([TOTE], { totalPages: 3, totalCount: 60 }));
+      expect(lastScroll()).toBe('manual');
+    });
+
+    it('scrolls to the top when paging', async () => {
+      await open('/?category=bags', aPage([TOTE], { totalPages: 3, totalCount: 60 }));
+
+      host().querySelector<HTMLAnchorElement>('a[aria-label="Page 2"]')?.click();
+      await expectUrl('/?category=bags&page=2');
+      await respond(aPage([LAMP], { page: 2, totalPages: 3, totalCount: 60 }));
+
+      // No override: scroll restoration ('enabled' in app.config) scrolls to the top.
+      expect(lastScroll()).toBeUndefined();
+    });
+  });
+
   it('remembers its query for links back from product pages', async () => {
     await open('/?q=tote&page=2', aPage([TOTE], { page: 2, totalPages: 2, totalCount: 25 }));
 

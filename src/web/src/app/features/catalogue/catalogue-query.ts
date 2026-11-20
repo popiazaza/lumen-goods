@@ -3,7 +3,6 @@ import {
   PRODUCT_CATEGORIES,
   PRODUCT_PAGE_SIZE,
   PRODUCT_SORTS,
-  PRODUCT_SOURCES,
   ProductCategory,
   ProductSearch,
   ProductSort,
@@ -52,10 +51,15 @@ export const MAX_QUERY_LENGTH = 200;
 /** Whole dollars or dollars and cents, no sign or exponent: "10", "10.5", "10.50". */
 const PRICE_PATTERN = /^\d{1,7}(\.\d{1,2})?$/;
 const PAGE_PATTERN = /^[1-9]\d{0,5}$/;
+/** A seller id as the API writes them (`harbor`, `kestrel`, `north-fjord`); anything else is junk. */
+const SELLER_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /**
  * Reads the catalogue state from the URL. Unknown or malformed values are dropped rather than
  * sent to the API, so a mistyped shared link still shows products instead of an error.
+ *
+ * Sellers are configuration on the API, so only their shape is checked here; `restrictSellers`
+ * drops the ones `GET /sellers` does not list once that list has loaded.
  */
 export function parseCatalogueQuery(params: ParamMap): CatalogueQuery {
   let minPrice = parsePrice(params.get('minPrice'));
@@ -70,7 +74,7 @@ export function parseCatalogueQuery(params: ParamMap): CatalogueQuery {
   return {
     q: (params.get('q') ?? '').trim().slice(0, MAX_QUERY_LENGTH),
     categories: pickKnown(params.getAll('category'), PRODUCT_CATEGORIES),
-    sellers: pickKnown(params.getAll('seller'), PRODUCT_SOURCES),
+    sellers: canonicalSellers(params.getAll('seller')),
     minPrice,
     maxPrice,
     inStock: params.get('inStock') === 'true',
@@ -124,8 +128,22 @@ export function applyChange(query: CatalogueQuery, change: CatalogueChange): Cat
   return {
     ...next,
     categories: pickKnown(next.categories, PRODUCT_CATEGORIES),
-    sellers: pickKnown(next.sellers, PRODUCT_SOURCES),
+    sellers: canonicalSellers(next.sellers),
   };
+}
+
+/**
+ * Keeps only sellers the API lists. `known` is `null` until `GET /sellers` has answered: every
+ * well-formed id is kept until then, so a shared link to a new partner is not cut short.
+ */
+export function restrictSellers(
+  query: CatalogueQuery,
+  known: ReadonlySet<string> | null,
+): CatalogueQuery {
+  if (!known || query.sellers.every((seller) => known.has(seller))) {
+    return query;
+  }
+  return { ...query, sellers: query.sellers.filter((seller) => known.has(seller)) };
 }
 
 /** The same filters with every refinement removed; the search text and sort stay. */
@@ -198,6 +216,11 @@ export function pageWindow(current: number, total: number): (number | null)[] {
     previous = page;
   }
   return pages;
+}
+
+/** Well-formed seller ids, de-duplicated and sorted, so one selection has one URL. */
+function canonicalSellers(values: readonly string[]): ProductSource[] {
+  return [...new Set(values.filter((value) => SELLER_PATTERN.test(value)))].sort();
 }
 
 /** Known values only, de-duplicated, in the canonical order of `known`. */

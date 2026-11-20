@@ -10,6 +10,7 @@ import {
   pageWindow,
   parseCatalogueQuery,
   parsePrice,
+  restrictSellers,
   toProductSearch,
 } from './catalogue-query';
 
@@ -85,8 +86,8 @@ describe('catalogue query (URL state)', () => {
 
   it('ignores unknown and malformed values instead of failing', () => {
     const query = parse(
-      'category=apparel&category=toys&category=apparel&seller=acme&seller=harbor' +
-        '&minPrice=abc&maxPrice=-5&inStock=yes&sort=cheapest&page=0',
+      'category=apparel&category=toys&category=apparel&seller=Not%20A%20Seller&seller=harbor' +
+        '&seller=%3Cscript%3E&minPrice=abc&maxPrice=-5&inStock=yes&sort=cheapest&page=0',
     );
 
     expect(query).toEqual({
@@ -94,6 +95,25 @@ describe('catalogue query (URL state)', () => {
       categories: ['apparel'],
       sellers: ['harbor'],
     });
+  });
+
+  it('keeps any well-formed seller id: sellers are configuration on the API', () => {
+    expect(parse('seller=north-fjord&seller=harbor&seller=north-fjord').sellers).toEqual([
+      'harbor',
+      'north-fjord',
+    ]);
+  });
+
+  it('drops sellers GET /sellers does not list, but only once that list is known', () => {
+    const query = parse('seller=acme&seller=harbor&category=bags');
+
+    expect(restrictSellers(query, null)).toBe(query);
+    expect(restrictSellers(query, new Set(['harbor', 'kestrel']))).toEqual({
+      ...query,
+      sellers: ['harbor'],
+    });
+    const listed = new Set(['acme', 'harbor']);
+    expect(restrictSellers(query, listed)).toBe(query);
   });
 
   it.each(['page=-1', 'page=1.5', 'page=abc', 'page=', 'page=0'])(

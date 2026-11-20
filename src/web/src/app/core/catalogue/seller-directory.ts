@@ -3,34 +3,48 @@ import { rxResource } from '@angular/core/rxjs-interop';
 import { Seller, SellersApi } from '../api/sellers.api';
 
 /**
- * Shown only until `GET /sellers` answers (or if it fails), so a partner product is never shown
- * without its shop's name. The API's names always win.
+ * Display names only, for the moment before `GET /sellers` answers (or if it fails), so a product
+ * card never shows a bare id. They never decide which sellers exist or can be filtered on.
  */
-const FALLBACK_SELLERS: readonly Seller[] = [
-  { source: 'lumen', name: 'Lumen Goods' },
-  { source: 'harbor', name: 'Harbor Supply Co.' },
-  { source: 'kestrel', name: 'Kestrel Outfitters' },
-];
+const FALLBACK_NAMES: Readonly<Record<string, string>> = {
+  lumen: 'Lumen Goods',
+  harbor: 'Harbor Supply Co.',
+  kestrel: 'Kestrel Outfitters',
+};
 
-/** The shops in the catalogue and their display names ("Sold by Harbor Supply Co."). Loaded once. */
+/**
+ * The shops in the catalogue, from `GET /sellers` (partners are configuration on the API, so the
+ * list can grow without a client release). Loaded once per app session.
+ */
 @Service()
 export class SellerDirectory {
   private readonly api = inject(SellersApi);
   private readonly loaded = rxResource({ stream: () => this.api.list() });
 
-  /** Sellers in the API's order; the fallback list until it has answered. */
+  /** True once the API has answered; until then every seller id in a URL is kept as it is. */
+  readonly isLoaded = computed(() => this.loaded.hasValue());
+  readonly failed = computed(() => this.loaded.status() === 'error');
+
+  /** Sellers in the API's order; empty until it has answered. */
   readonly sellers = computed<readonly Seller[]>(() =>
-    this.loaded.hasValue() && this.loaded.value().length > 0
-      ? this.loaded.value()
-      : FALLBACK_SELLERS,
+    this.loaded.hasValue() ? this.loaded.value() : [],
+  );
+
+  /** The seller ids the API accepts, or `null` while unknown (accept any well-formed id). */
+  readonly knownSources = computed<ReadonlySet<string> | null>(() =>
+    this.isLoaded() ? new Set(this.sellers().map((seller) => seller.source)) : null,
   );
 
   private readonly names = computed(
     () => new Map(this.sellers().map((seller) => [seller.source, seller.name])),
   );
 
-  /** Display name for a product source; the raw source id if the API does not know it. */
+  /** Display name for a product source: the API's, else a built-in name, else the raw id. */
   nameOf(source: string): string {
-    return this.names().get(source) ?? source;
+    return this.names().get(source) ?? FALLBACK_NAMES[source] ?? source;
+  }
+
+  reload(): void {
+    this.loaded.reload();
   }
 }

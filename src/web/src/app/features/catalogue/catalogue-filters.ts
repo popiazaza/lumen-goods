@@ -14,12 +14,7 @@ import { ErrorStateMatcher } from '@angular/material/core';
 import { MatError, MatFormField, MatLabel, MatPrefix } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
-import {
-  PRODUCT_CATEGORIES,
-  PRODUCT_SOURCES,
-  ProductCategory,
-  ProductSource,
-} from '../../core/api/products.api';
+import { PRODUCT_CATEGORIES, ProductCategory, ProductSource } from '../../core/api/products.api';
 import { Seller } from '../../core/api/sellers.api';
 import { categoryLabel } from '../../shared/products/product-labels';
 import { CatalogueChange, CatalogueQuery, parsePrice } from './catalogue-query';
@@ -66,19 +61,15 @@ class RangeErrorStateMatcher implements ErrorStateMatcher {
 })
 export class CatalogueFilters {
   readonly query = input.required<CatalogueQuery>();
+  /** The seller checkboxes, from `GET /sellers` (the page decides what to show while it loads). */
   readonly sellers = input.required<readonly Seller[]>();
+  /** Shown in the seller group when the list could not be loaded. */
+  readonly sellersFailed = input(false);
   readonly filtersChange = output<CatalogueChange>();
 
   protected readonly categories = PRODUCT_CATEGORIES;
   protected readonly categoryLabel = categoryLabel;
   protected readonly rangeMatcher = new RangeErrorStateMatcher();
-
-  /** Only sellers whose source the API's `seller` filter accepts. */
-  protected readonly sellerOptions = computed(() =>
-    this.sellers().filter((seller): seller is Seller & { source: ProductSource } =>
-      (PRODUCT_SOURCES as readonly string[]).includes(seller.source),
-    ),
-  );
 
   protected readonly priceForm = new FormGroup(
     {

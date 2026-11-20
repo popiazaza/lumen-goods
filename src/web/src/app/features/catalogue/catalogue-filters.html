@@ -11,12 +11,15 @@
 
 <fieldset>
   <legend>Seller</legend>
-  @for (seller of sellerOptions(); track seller.source) {
+  @for (seller of sellers(); track seller.source) {
     <mat-checkbox
       [checked]="query().sellers.includes(seller.source)"
       (change)="toggleSeller(seller.source, $event.checked)"
       >{{ seller.name }}</mat-checkbox
     >
+  }
+  @if (sellersFailed()) {
+    <p class="note">The seller list couldn’t be loaded.</p>
   }
 </fieldset>
 

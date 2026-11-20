@@ -24,6 +24,7 @@ import { MatSelect } from '@angular/material/select';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
 import { PRODUCT_SORTS, ProductPage, ProductsApi } from '../../core/api/products.api';
+import { Seller } from '../../core/api/sellers.api';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
 import { SellerDirectory } from '../../core/catalogue/seller-directory';
 import { categoryLabel } from '../../shared/products/product-labels';
@@ -39,6 +40,7 @@ import {
   differsOnlyInPage,
   pageWindow,
   parseCatalogueQuery,
+  restrictSellers,
   sameQuery,
   toProductSearch,
 } from './catalogue-query';
@@ -98,10 +100,28 @@ export class CataloguePage {
 
   private readonly queryParamMap = toSignal(this.route.queryParamMap, { requireSync: true });
 
-  /** The state in the URL, parsed and cleaned. */
-  protected readonly query = computed(() => parseCatalogueQuery(this.queryParamMap()), {
-    equal: sameQuery,
-  });
+  /** The state in the URL, parsed and cleaned; sellers checked against `GET /sellers` once loaded. */
+  protected readonly query = computed(
+    () =>
+      restrictSellers(
+        parseCatalogueQuery(this.queryParamMap()),
+        this.sellerDirectory.knownSources(),
+      ),
+    { equal: sameQuery },
+  );
+
+  /**
+   * Seller checkboxes: the API's list. Until it has loaded, the sellers already chosen in the URL,
+   * so they can still be unticked.
+   */
+  protected readonly sellerOptions = computed<readonly Seller[]>(() =>
+    this.sellerDirectory.isLoaded()
+      ? this.sellerDirectory.sellers()
+      : this.query().sellers.map((source) => ({
+          source,
+          name: this.sellerDirectory.nameOf(source),
+        })),
+  );
 
   protected readonly results = rxResource({
     params: () => toProductSearch(this.query()),
@@ -207,11 +227,31 @@ export class CataloguePage {
   }
 
   /** Clears every refinement. The buttons that call this disappear, so focus goes to the results. */
-  protected clearAll(moveFocus = true): void {
-    if (moveFocus) {
-      this.focusResultsHeadingAfterRender();
+  protected clearAll(): void {
+    this.focusResultsHeadingAfterRender();
+    this.navigate(clearFilters(this.query()));
+  }
+
+  /** The sheet's "Clear all" stays (disabled) inside the sheet; focus restarts at its heading. */
+  protected clearAllInSheet(heading: HTMLElement): void {
+    if (this.filterCount() === 0) {
+      return;
     }
     this.navigate(clearFilters(this.query()));
+    // The CDK may have removed tabindex after its own autofocus moved on (it does for elements it
+    // considers unfocusable); put it back so the heading can take focus.
+    if (!heading.hasAttribute('tabindex')) {
+      heading.setAttribute('tabindex', '-1');
+    }
+    heading.focus();
+  }
+
+  /** Retry also fetches the seller list again if that failed. */
+  protected retry(): void {
+    if (this.sellerDirectory.failed()) {
+      this.sellerDirectory.reload();
+    }
+    this.results.reload();
   }
 
   protected openFilters(): void {
@@ -225,10 +265,15 @@ export class CataloguePage {
     this.sheetRef?.dismiss();
   }
 
+  /**
+   * Filter and sort changes keep the scroll position: the router would otherwise jump to the top
+   * and hide the control that has focus (WCAG 2.4.11). Page links scroll to the top as usual.
+   */
   private navigate(query: CatalogueQuery): void {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: catalogueQueryParams(query),
+      scroll: 'manual',
     });
   }
 

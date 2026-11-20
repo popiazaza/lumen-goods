@@ -3,9 +3,12 @@ import { Service, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from './api-base-url';
 
-/** Where a product comes from: Lumen Goods itself or one of the two partner shops. */
-export const PRODUCT_SOURCES = ['lumen', 'harbor', 'kestrel'] as const;
-export type ProductSource = (typeof PRODUCT_SOURCES)[number];
+/**
+ * Where a product comes from: `lumen` or a partner shop's id (`harbor`, `kestrel`, ...). Partners
+ * are configuration on the API, so the valid set and their names come from `GET /sellers`, never
+ * from a list in the client.
+ */
+export type ProductSource = string;
 
 export const PRODUCT_CATEGORIES = [
   'apparel',
