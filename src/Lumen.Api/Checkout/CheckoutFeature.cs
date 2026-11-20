@@ -24,7 +24,7 @@ public sealed class CheckoutOptions
 
 /// <summary>
 /// Checkout: pricing (tax and shipping, BR-MONEY-02, BR-SHIP-01), the preview, and Place order (BR-CHK-01, BR-CHK-02,
-/// BR-STOCK-01, BR-PAY-01 (a)). Wired once in Program.cs; the checkout work fills in the endpoints.
+/// BR-STOCK-01, BR-PAY-01 (a)), with the partners' live availability checks. Wired once in Program.cs.
 /// </summary>
 internal static class CheckoutFeature
 {
@@ -42,6 +42,11 @@ internal static class CheckoutFeature
         // The cart's totals preview, the checkout preview and Place order all price with this one service.
         services.AddSingleton(sp => new PricingService(sp.GetRequiredService<IOptions<PricingOptions>>().Value));
         services.AddSingleton(_ => new OrderNumberGenerator());
+
+        services.AddPartnerAvailabilityChecks();
+        services.AddScoped<CheckoutCart>();
+        services.AddScoped<CheckoutPreviewService>();
+        services.AddScoped<PlaceOrderService>();
         return services;
     }
 
@@ -54,5 +59,5 @@ internal static class CheckoutFeature
     /// <see cref="PriceChangedProblem"/>; 400 validation problem</item>
     /// </list>
     /// </summary>
-    public static RouteGroupBuilder MapCheckoutEndpoints(this RouteGroupBuilder api) => api;
+    public static RouteGroupBuilder MapCheckoutEndpoints(this RouteGroupBuilder api) => api.MapCheckout();
 }
