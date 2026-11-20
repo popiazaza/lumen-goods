@@ -1,4 +1,6 @@
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatBadgeHarness } from '@angular/material/badge/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -21,7 +23,12 @@ describe('App shell', () => {
   beforeEach(async () => {
     TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter(routes), provideAppIcons()],
+      providers: [
+        provideRouter(routes),
+        provideAppIcons(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
     fixture = TestBed.createComponent(App);
     await fixture.whenStable();
@@ -54,9 +61,9 @@ describe('App shell', () => {
     input.value = '  desk lamp ';
     input.dispatchEvent(new Event('input'));
     query<HTMLFormElement>(fixture, 'form[role="search"]').dispatchEvent(new Event('submit'));
-    await fixture.whenStable();
 
-    expect(TestBed.inject(Router).url).toBe('/?q=desk%20lamp');
+    // Not whenStable(): the catalogue's product request stays pending in HttpTestingController.
+    await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/?q=desk%20lamp'));
   });
 
   it('opens the mobile menu and closes it with Escape, returning focus to the toggle', async () => {
