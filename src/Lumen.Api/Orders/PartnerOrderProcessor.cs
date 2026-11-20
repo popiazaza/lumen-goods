@@ -136,6 +136,7 @@ internal sealed class PartnerOrderProcessor(
         partnerOrder.SubmittedUtc ??= now;
         partnerOrder.Attempts++;
         partnerOrder.NextAttemptUtc = now + settings.ClaimTimeout;
+        partnerOrder.ClaimedUntilUtc = now + settings.ClaimTimeout;
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
@@ -174,12 +175,14 @@ internal sealed class PartnerOrderProcessor(
         var line = order.Lines.Single(l => l.PartnerOrder?.Id == work.PartnerOrderId);
         var partnerOrder = line.PartnerOrder!;
 
+        // The call this claim was for is over, whatever it brought back.
+        partnerOrder.ClaimedUntilUtc = null;
+
         PartnerOrderStep step;
         if (OrderTransitions.PartnerOrder.IsFinal(partnerOrder.Status))
         {
-            // Decided meanwhile (an admin closed it, or another instance applied an answer): nothing left to ask.
-            logger.LogInformation("Partner order {ExternalRef} is already {Status}; the {Outcome} answer is ignored",
-                partnerOrder.ExternalRef, partnerOrder.Status, result.Outcome);
+            // Decided meanwhile (an admin closed it after the claim expired, or another instance applied an answer).
+            ReportLateAnswer(line, partnerOrder, result, now);
             partnerOrder.NextAttemptUtc = null;
             step = PartnerOrderStep.Ignored;
         }
@@ -314,9 +317,11 @@ internal sealed class PartnerOrderProcessor(
         var settings = options.CurrentValue;
         var seller = sellers.Name(partnerOrder.Source);
 
-        // BR-ORD-04: a resend refused in a way that does not rule out an order an earlier, unanswered send created
-        // (Kestrel's 400): the partner may still have it, so an admin decides; nothing is refunded and nothing resent.
-        if (answer == PartnerOrderStatus.Rejected && !work.Poll && work.OutcomeUnknownBefore && result.OutcomeUnknown)
+        // BR-ORD-04: a resend refused in a way that does not rule out an order the partner already has (Kestrel's 400),
+        // after an earlier send went unanswered or after the partner acknowledged the order (a ticket that was later
+        // not found): it may still ship, so an admin decides; nothing is refunded and nothing resent.
+        if (answer == PartnerOrderStatus.Rejected && !work.Poll && result.OutcomeUnknown
+            && (work.OutcomeUnknownBefore || partnerOrder.AcceptedUtc is not null))
         {
             var reason = string.IsNullOrWhiteSpace(result.Reason) ? "REJECTED" : result.Reason.Trim();
             partnerOrder.OutcomeUnknown = true;
@@ -341,7 +346,7 @@ internal sealed class PartnerOrderProcessor(
         var update = PartnerOrderUpdates.ApplyPartnerAnswer(partnerOrder.Status, line.Status, answer);
         if (update.Ignored)
         {
-            logger.LogInformation("Partner order {ExternalRef}: {Reason}", partnerOrder.ExternalRef, update.IgnoredBecause);
+            ReportLateAnswer(line, partnerOrder, result, now);
             partnerOrder.NextAttemptUtc = null;
             return PartnerOrderStep.Ignored;
         }
@@ -408,7 +413,15 @@ internal sealed class PartnerOrderProcessor(
         var seller = sellers.Name(partnerOrder.Source);
         var error = string.IsNullOrWhiteSpace(result.Error) ? $"{seller} gave no usable answer ({result.Outcome})." : result.Error.Trim();
         partnerOrder.LastError = LineRejection.Truncate(error, MaxErrorLength);
-        AddError(partnerOrder.Source, result.HttpStatus, $"{partnerOrder.ExternalRef}: {error}", now);
+        if (line.Status == OrderLineStatus.NeedsAttention)
+        {
+            // Already in front of an admin: a resend every few minutes must not push other errors off the partner page.
+            logger.LogWarning("Partner order {ExternalRef} (waiting for an admin) still has no answer: {Error}", partnerOrder.ExternalRef, error);
+        }
+        else
+        {
+            AddError(partnerOrder.Source, result.HttpStatus, $"{partnerOrder.ExternalRef}: {error}", now);
+        }
 
         if (!work.Poll)
         {
@@ -453,6 +466,36 @@ internal sealed class PartnerOrderProcessor(
             ? now + (result.RetryAfter is { } wait2 && wait2 > settings.RetryDelay ? wait2 : settings.RetryDelay)
             : PartnerOrderSchedule.NextPoll(partnerOrder.AcceptedUtc ?? now, now, result.RetryAfter, settings);
         return PartnerOrderStep.RetryScheduled;
+    }
+
+    /// <summary>
+    /// An answer that arrives once the partner order or its line is final changes nothing. When it contradicts that
+    /// decision (the partner has the order of a line that was refunded, or refuses one that was confirmed) the admin must
+    /// know: it goes onto the partner status page, not only into the log.
+    /// </summary>
+    private void ReportLateAnswer(OrderLine line, PartnerOrder partnerOrder, PartnerOrderResult result, DateTimeOffset now)
+    {
+        var seller = sellers.Name(partnerOrder.Source);
+        var contradiction = (result.Answer, line.Status) switch
+        {
+            (PartnerOrderStatus.Confirmed or PartnerOrderStatus.Accepted, OrderLineStatus.Rejected) =>
+                $"{seller} took the order ({result.Outcome}{(result.PartnerOrderId is null ? "" : $", id {result.PartnerOrderId}")}) after its line "
+                + "was rejected and refunded: the goods may ship to a customer who got the money back. Check with the partner.",
+            (PartnerOrderStatus.Rejected, OrderLineStatus.Confirmed) =>
+                $"{seller} rejected the order ({result.Reason ?? "REJECTED"}) after its line was confirmed: the goods will not come. "
+                + "Check with the partner and the customer.",
+            _ => null,
+        };
+
+        if (contradiction is null)
+        {
+            logger.LogInformation("Partner order {ExternalRef} is already {Status} (line {LineStatus}); the {Outcome} answer is ignored",
+                partnerOrder.ExternalRef, partnerOrder.Status, line.Status, result.Outcome);
+            return;
+        }
+
+        AddError(partnerOrder.Source, result.HttpStatus, $"{partnerOrder.ExternalRef}: {contradiction}", now);
+        logger.LogWarning("Partner order {ExternalRef}: {Contradiction}", partnerOrder.ExternalRef, contradiction);
     }
 
     /// <summary>Hands the line to an admin (NeedsAttention) once; later calls only reschedule.</summary>

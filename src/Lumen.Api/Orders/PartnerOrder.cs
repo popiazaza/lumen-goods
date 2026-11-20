@@ -48,6 +48,13 @@ public sealed class PartnerOrder
     /// </summary>
     public DateTimeOffset? NextAttemptUtc { get; set; }
 
+    /// <summary>
+    /// Set while a job instance is calling the partner for it (claimed, answer not saved yet), until the claim expires
+    /// (<c>PartnerOrders:ClaimTimeout</c>). An admin cannot resolve the line meanwhile (BR-ORD-04), so a decision never
+    /// crosses a send that is already on its way.
+    /// </summary>
+    public DateTimeOffset? ClaimedUntilUtc { get; set; }
+
     /// <summary>The last transport or partner error, for the admin order page.</summary>
     public string? LastError { get; set; }
 

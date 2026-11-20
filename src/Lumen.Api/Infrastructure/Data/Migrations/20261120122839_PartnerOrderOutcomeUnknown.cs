@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -21,6 +22,12 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 oldMaxLength: 64,
                 oldNullable: true);
 
+            migrationBuilder.AddColumn<DateTimeOffset>(
+                name: "ClaimedUntilUtc",
+                table: "PartnerOrders",
+                type: "timestamp with time zone",
+                nullable: true);
+
             migrationBuilder.AddColumn<bool>(
                 name: "OutcomeUnknown",
                 table: "PartnerOrders",
@@ -32,6 +39,10 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "ClaimedUntilUtc",
+                table: "PartnerOrders");
+
             migrationBuilder.DropColumn(
                 name: "OutcomeUnknown",
                 table: "PartnerOrders");

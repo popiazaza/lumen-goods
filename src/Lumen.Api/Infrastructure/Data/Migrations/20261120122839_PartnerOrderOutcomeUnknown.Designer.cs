@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Lumen.Api.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(LumenDbContext))]
-    [Migration("20261120120419_PartnerOrderOutcomeUnknown")]
+    [Migration("20261120122839_PartnerOrderOutcomeUnknown")]
     partial class PartnerOrderOutcomeUnknown
     {
         /// <inheritdoc />
@@ -604,6 +604,9 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.Property<int>("Attempts")
                         .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("ClaimedUntilUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("timestamp with time zone");

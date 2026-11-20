@@ -17,6 +17,12 @@ public static class OrderProblemTypes
 {
     /// <summary>409: the line is not waiting for an admin decision (BR-ORD-04): it was decided meanwhile, or never needed one.</summary>
     public const string LineNotAwaitingDecision = "urn:lumen:problem:line-not-awaiting-decision";
+
+    /// <summary>
+    /// 409: a send to (or poll of) the partner for this line is on its way; deciding now could cross its answer
+    /// (BR-ORD-04). Try again in a minute.
+    /// </summary>
+    public const string PartnerCallInProgress = "urn:lumen:problem:partner-call-in-progress";
 }
 
 /// <summary>
@@ -195,8 +201,17 @@ internal static class AdminOrderEndpoints
                 return NotAwaitingDecision(line.LineNumber);
             }
 
-            var decision = resolution == LineResolution.Confirm ? OrderLineStatus.Confirmed : OrderLineStatus.Rejected;
             var seller = sellers.Name(line.Source);
+            if (partnerOrder.ClaimedUntilUtc is { } claimedUntil && claimedUntil > now)
+            {
+                return TypedResults.Problem(
+                    type: OrderProblemTypes.PartnerCallInProgress,
+                    title: "A call to the partner is in progress",
+                    detail: $"A send to {seller} for this line is in progress; try again in a minute.",
+                    statusCode: StatusCodes.Status409Conflict);
+            }
+
+            var decision = resolution == LineResolution.Confirm ? OrderLineStatus.Confirmed : OrderLineStatus.Rejected;
 
             // Accepted: the domain's admin resolution closes it. Submitted (sent, never answered): the admin vouches the
             // partner has it (Confirmed) or gives it up; both are final, so the job stops sending it.

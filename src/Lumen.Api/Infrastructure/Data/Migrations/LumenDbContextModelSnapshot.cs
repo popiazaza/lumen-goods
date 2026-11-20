@@ -602,6 +602,9 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                     b.Property<int>("Attempts")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("ClaimedUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("timestamp with time zone");
 

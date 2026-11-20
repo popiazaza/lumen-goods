@@ -1,5 +1,6 @@
 using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
+using Lumen.IntegrationTests.Infrastructure;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Orders;
 using Lumen.Api.Partners.Harbor;
@@ -83,6 +84,16 @@ internal sealed class OrderJobHost : IAsyncDisposable
     /// <summary>One run of the partner order job, for these orders only.</summary>
     internal Task<PartnerOrderRunReport> RunAsync(params Order[] orders) =>
         Job.RunOnceAsync([.. orders.Select(o => o.Id)], OrderingTestData.Ct);
+
+    /// <summary>The seeded admin, signed in on this host (its fake clock decides whether a claim has expired).</summary>
+    internal async Task<ApiSession> SignedInAdminAsync()
+    {
+        var session = new ApiSession(App.CreateClient());
+        await session.StartAsync();
+        (await session.PostAsJsonAsync("/api/v1/auth/sign-in", new SignInRequest("admin@lumengoods.test", "Admin!2026"))).EnsureSuccessStatusCode();
+        await session.StartAsync();
+        return session;
+    }
 
     /// <summary>Applies a partner's answer directly, as the job would after a call (e.g. the same rejection seen twice).</summary>
     internal async Task<PartnerOrderStep> ApplyAsync(Order order, OrderLine line, Lumen.Api.Partners.Ports.PartnerOrderResult result)

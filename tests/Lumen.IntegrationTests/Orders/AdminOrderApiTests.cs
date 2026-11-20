@@ -2,6 +2,7 @@ using System.Net;
 using Lumen.Api.Catalog;
 using Lumen.Api.Orders;
 using Lumen.Api.Payments;
+using Lumen.Domain.Catalog;
 using Lumen.Domain.Orders;
 using Lumen.IntegrationTests.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
@@ -257,6 +258,90 @@ public sealed class AdminOrderApiTests(LumenApiFactory factory)
         host.Clock.Advance(TimeSpan.FromHours(1));
         (await host.RunAsync(order)).Steps.Should().BeEmpty();
         host.Harbor.CallsFor(reference).Should().HaveCount(sends);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_04_an_admin_cannot_resolve_a_line_while_a_send_to_its_partner_is_on_its_way()
+    {
+        await using var host = OrderJobHost.Start(factory);
+        var order = (await FlaggedHarborOrdersAsync(host, 1))[0];
+        var admin = await host.SignedInAdminAsync();
+        var harborCalled = new TaskCompletionSource();
+        var harborAnswers = new TaskCompletionSource();
+        host.Harbor.Down = false;
+        host.Harbor.OnRequest = async _ =>
+        {
+            harborCalled.TrySetResult();
+            await harborAnswers.Task;
+        };
+
+        // The scheduled resend is claimed and on its way to Harbor.
+        host.Clock.Advance(host.Options.MaxRetryDelay);
+        var run = host.RunAsync(order);
+        await harborCalled.Task.WaitAsync(TimeSpan.FromSeconds(30), Ct);
+
+        var refused = await admin.PostAsJsonAsync($"/api/v1/admin/orders/{order.Number}/lines/{order.Line(2).Id}/resolve", Reject);
+
+        refused.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await refused.ReadJsonAsync();
+        problem.GetProperty("type").GetString().Should().Be(OrderProblemTypes.PartnerCallInProgress);
+        problem.GetProperty("detail").GetString().Should().Contain("try again in a minute");
+
+        // Harbor took the order: the line is confirmed, and nothing was refunded behind its back.
+        harborAnswers.SetResult();
+        (await run.WaitAsync(TimeSpan.FromSeconds(30), Ct)).Steps.Should().Equal(PartnerOrderStep.Confirmed);
+        var after = await factory.ReloadAsync(order);
+        after.Line(2).Status.Should().Be(OrderLineStatus.Confirmed);
+        after.Line(2).PartnerOrder!.ClaimedUntilUtc.Should().BeNull();
+        after.Refunds.Should().BeEmpty();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_04_a_partner_answer_that_contradicts_an_admin_decision_is_reported_on_the_partner_status_page()
+    {
+        await using var host = OrderJobHost.Start(factory);
+        var flagged = await FlaggedHarborOrdersAsync(host, 2);
+        var (rejected, confirmed) = (flagged[0], flagged[1]);
+        var admin = await host.SignedInAdminAsync();
+        (await admin.PostAsJsonAsync($"/api/v1/admin/orders/{rejected.Number}/lines/{rejected.Line(2).Id}/resolve", Reject))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await admin.PostAsJsonAsync($"/api/v1/admin/orders/{confirmed.Number}/lines/{confirmed.Line(2).Id}/resolve", new { decision = "confirm" }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // A send whose claim had run out comes back after the decisions, saying the opposite.
+        var refundedLine = (await factory.ReloadAsync(rejected)).Line(2);
+        (await host.ApplyAsync(rejected, refundedLine, new Lumen.Api.Partners.Ports.PartnerOrderResult(
+                Lumen.Api.Partners.Ports.PartnerOrderOutcome.Confirmed, PartnerOrderId: "70123", HttpStatus: 201)))
+            .Should().Be(PartnerOrderStep.Ignored);
+        var confirmedLine = (await factory.ReloadAsync(confirmed)).Line(2);
+        (await host.ApplyAsync(confirmed, confirmedLine, new Lumen.Api.Partners.Ports.PartnerOrderResult(
+                Lumen.Api.Partners.Ports.PartnerOrderOutcome.Rejected, Reason: "INSUFFICIENT_STOCK: 0 available", HttpStatus: 409)))
+            .Should().Be(PartnerOrderStep.Ignored);
+
+        (await factory.OrderErrorsAsync(ProductSources.Harbor, $"{rejected.Number}-2"))
+            .Should().ContainSingle(m => m.Contains("after its line was rejected and refunded")).Which.Should().Contain("70123");
+        (await factory.OrderErrorsAsync(ProductSources.Harbor, $"{confirmed.Number}-2"))
+            .Should().ContainSingle(m => m.Contains("after its line was confirmed"));
+        (await factory.ReloadAsync(rejected)).Refunds.Should().ContainSingle("the decision stands; only the admin is told");
+        (await factory.ReloadAsync(confirmed)).Line(2).Status.Should().Be(OrderLineStatus.Confirmed);
+    }
+
+    /// <summary>Paid orders whose Harbor line went to an admin: Harbor answered 503 until the 30-minute deadline.</summary>
+    private async Task<List<Order>> FlaggedHarborOrdersAsync(OrderJobHost host, int count)
+    {
+        var orders = new List<Order>();
+        for (var i = 0; i < count; i++)
+        {
+            orders.Add(await factory.PaidOrderAsync(Now, LineSpec.Own(18.50m), LineSpec.Harbor(49.90m)));
+        }
+
+        host.Harbor.Down = true;
+        await host.RunAsync([.. orders]);
+        host.Clock.Advance(host.Options.GiveUpAfter);
+        (await host.RunAsync([.. orders])).Count(PartnerOrderStep.NeedsAttention).Should().Be(count);
+        return orders;
     }
 
     /// <summary>Waits until another connection is blocked on a row lock this connection's transaction holds.</summary>

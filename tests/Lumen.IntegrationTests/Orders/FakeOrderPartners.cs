@@ -199,6 +199,9 @@ public sealed class FakeKestrelOrders : FakeOrderPartner
 
     public IReadOnlyDictionary<string, string> TicketsByReference => _ticketsByReference;
 
+    /// <summary>Kestrel loses the ticket of this reference: polling it answers 404 (a resend still finds the reference).</summary>
+    public void ForgetTicket(string reference) => _refByTicket.TryRemove(_ticketsByReference[reference], out _);
+
     protected override string? ReferenceOf(HttpRequestMessage request, string body) =>
         TryRead(body)?.Reference ?? ReferenceOfTicket(request);
 
@@ -244,7 +247,7 @@ public sealed class FakeKestrelOrders : FakeOrderPartner
             var ticket = Uri.UnescapeDataString(path["/orders/".Length..]);
             if (!_refByTicket.TryGetValue(ticket, out var productRef))
             {
-                return Task.FromResult((Status(HttpStatusCode.NotFound), (string?)null));
+                return Task.FromResult((Status(HttpStatusCode.NotFound), ReferenceOfTicket(request)));
             }
 
             var (state, reason) = Decisions.TryGetValue(productRef, out var decision) ? decision : ("RECEIVED", null);

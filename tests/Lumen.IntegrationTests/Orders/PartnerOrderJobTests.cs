@@ -260,6 +260,12 @@ public sealed class PartnerOrderJobTests(LumenApiFactory factory)
         flagged.RefundedTotal.Should().Be(0m);
         flagged.Status.Should().Be(OrderStatus.Paid);
 
+        // Still failing: logged, but no longer added to the partner's recent errors, which it would otherwise flood.
+        var errors = (await factory.OrderErrorsAsync(ProductSources.Harbor, reference)).Count;
+        host.Clock.Advance(host.Options.MaxRetryDelay);
+        (await host.RunAsync(order)).Steps.Should().Equal(PartnerOrderStep.RetryScheduled);
+        (await factory.OrderErrorsAsync(ProductSources.Harbor, reference)).Should().HaveCount(errors);
+
         // Harbor comes back: the same reference is resent and settles it.
         host.Harbor.Down = false;
         host.Clock.Advance(host.Options.MaxRetryDelay);
@@ -302,6 +308,31 @@ public sealed class PartnerOrderJobTests(LumenApiFactory factory)
         var refunded = await factory.ReloadAsync(other);
         refunded.Line(2).Status.Should().Be(OrderLineStatus.Rejected);
         refunded.Refunds.Should().ContainSingle().Which.Amount.Should().Be(9.00m + 0.72m + 4.99m);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_04_a_kestrel_400_to_a_resend_after_kestrel_acknowledged_the_order_needs_an_admin_not_a_refund()
+    {
+        await using var host = OrderJobHost.Start(factory);
+        var item = LineSpec.Kestrel(16.22m, 2);
+        var order = await factory.PaidOrderAsync(Now, LineSpec.Own(18.50m), item);
+        var reference = $"{order.Number}-2";
+        (await host.RunAsync(order)).Steps.Should().Equal(PartnerOrderStep.Accepted);
+
+        // Kestrel loses the ticket (poll 404) and then refuses the resend (400, it checks the product first).
+        host.Kestrel.ForgetTicket(reference);
+        host.Kestrel.Unknown[item.Item] = true;
+        host.Clock.Advance(host.Options.PollInterval);
+        (await host.RunAsync(order)).Steps.Should().Equal(PartnerOrderStep.RetryScheduled);
+        host.Clock.Advance(host.Options.RetryDelay);
+        (await host.RunAsync(order)).Steps.Should().Equal(PartnerOrderStep.NeedsAttention);
+
+        host.Kestrel.CallsFor(reference).Select(c => c.Method).Should().Equal("POST", "GET", "POST");
+        var after = await factory.ReloadAsync(order);
+        after.Line(2).Status.Should().Be(OrderLineStatus.NeedsAttention, "Kestrel acknowledged this order once; it may still ship it");
+        after.Line(2).PartnerOrder!.Status.Should().Be(PartnerOrderStatus.Accepted);
+        after.Refunds.Should().BeEmpty();
     }
 
     [Fact]
