@@ -1,9 +1,12 @@
 name: CI
 
+# Docs-only changes skip CI: Actions minutes are metered while the repo is private.
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**']
 
 permissions:
   contents: read
