@@ -114,7 +114,7 @@
               [attr.aria-expanded]="isExpanded(partner)"
               (click)="toggleErrors(partner)"
             >
-              {{ isExpanded(partner) ? 'Show fewer' : 'Show all ' + partner.recentErrors.length }}
+              {{ isExpanded(partner) ? 'Show fewer' : `Show all ${partner.recentErrors.length}` }}
             </button>
           }
         }
@@ -123,8 +123,8 @@
           <button
             matButton="filled"
             type="button"
-            [disabled]="isRefreshing(partner)"
             disabledInteractive
+            [disabled]="isRefreshing(partner)"
             (click)="refresh(partner)"
           >
             <mat-icon svgIcon="refresh" />
@@ -133,7 +133,7 @@
           @if (run?.kind === 'running') {
             <mat-progress-bar
               mode="indeterminate"
-              [attr.aria-label]="'Refreshing ' + partner.name"
+              [attr.aria-label]="`Refreshing ${partner.name}`"
             />
             <p class="muted">
               Waiting for the refresh to run. Checking every {{ pollSeconds }} seconds for up to a

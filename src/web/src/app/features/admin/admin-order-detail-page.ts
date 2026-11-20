@@ -26,14 +26,23 @@ import {
 import { registerOrderIcons } from '../orders/order-icons';
 import { StatusView, lineStatusView, orderStatusView, shippingLabel } from '../orders/order-labels';
 import { OrderSummaryPanel } from '../orders/order-summary-panel';
-import { orderKeepsChanging, pollWhileUpdating } from '../orders/poll-while-updating';
+import { isOrderStillChanging, pollWhileUpdating } from '../orders/poll-while-updating';
 import { StatusBadge } from '../orders/status-badge';
 import { AdminAccessDenied } from './admin-access-denied';
-import { partnerOrderView, paymentEventView } from './admin-order-labels';
+import { paymentEventView } from './admin-order-labels';
 import { ConfirmDialogData, openConfirmDialog } from './confirm-dialog';
+import { PartnerOrderDetails } from './partner-order-details';
 
-/** How often the page re-reads an order that can still change on its own. */
+/**
+How often the page re-reads an order that can still change on its own.
+*/
 export const ADMIN_ORDER_POLL_INTERVAL_MS = 5000;
+
+const orderStatusOf = (order: OrderDetailDto): StatusView =>
+  orderStatusView(order.status, order.statusText);
+
+const lineStatusOf = (line: OrderLineDto): StatusView =>
+  lineStatusView(line.status, line.statusText);
 
 /**
  * Admin: one order (`/admin/orders/:id`, the order number): what the customer sees plus the
@@ -53,19 +62,30 @@ export const ADMIN_ORDER_POLL_INTERVAL_MS = 5000;
     MatProgressBar,
     AdminAccessDenied,
     OrderSummaryPanel,
+    PartnerOrderDetails,
     StatusBadge,
   ],
   templateUrl: './admin-order-detail-page.html',
   styleUrl: './admin-order-detail-page.scss',
 })
 export class AdminOrderDetailPage {
-  /** The order number, bound from the `:id` route parameter. */
-  readonly id = input.required<string>();
-
   private readonly api = inject(AdminOrdersApi);
+
   private readonly dialog = inject(MatDialog);
+
   private readonly announcer = inject(LiveAnnouncer);
+
   private readonly destroyRef = inject(DestroyRef);
+
+  /**
+  A decision can also come back 401/403 (session expired, role removed).
+  */
+  private readonly deniedStatus = signal<number | undefined>(undefined);
+
+  /**
+  The order number, bound from the `:id` route parameter.
+  */
+  readonly id = input.required<string>();
 
   protected readonly order = rxResource({
     params: () => this.id(),
@@ -73,47 +93,58 @@ export class AdminOrderDetailPage {
       pollWhileUpdating(
         () => this.api.get(number),
         ADMIN_ORDER_POLL_INTERVAL_MS,
-        (admin) => orderKeepsChanging(admin.order),
+        (admin) => isOrderStillChanging(admin.order)
       ),
   });
+
   protected readonly detail = computed(() =>
-    this.order.hasValue() ? this.order.value() : undefined,
+    this.order.hasValue() ? this.order.value() : undefined
   );
 
-  /** A decision can also come back 401/403 (session expired, role removed). */
-  private readonly deniedStatus = signal<number | undefined>(undefined);
   protected readonly accessStatus = computed(() => {
     const error = this.order.error();
     return isAccessDenied(error) ? httpStatusOf(error) : this.deniedStatus();
   });
+
   protected readonly errorStatus = computed(() =>
-    this.order.status() === 'error' ? (httpStatusOf(this.order.error()) ?? -1) : undefined,
+    this.order.status() === 'error' ? (httpStatusOf(this.order.error()) ?? -1) : undefined
   );
 
   protected readonly attentionCount = computed(
     () =>
       (this.detail()?.order.shipments ?? [])
         .flatMap((shipment) => shipment.lines)
-        .filter((line) => line.status === 'needs_attention').length,
+        .filter((line) => line.status === 'needs_attention').length
   );
-  /** The line whose decision is being saved. */
+
+  /**
+  The line whose decision is being saved.
+  */
   protected readonly savingLine = signal<string | null>(null);
+
   protected readonly actionError = signal('');
 
   protected readonly shippingLabel = shippingLabel;
+
   protected readonly eventView = paymentEventView;
-  protected readonly partnerOrderView = partnerOrderView;
+
+  protected readonly orderStatus = orderStatusOf;
+
+  protected readonly lineStatus = lineStatusOf;
 
   constructor() {
     registerOrderIcons();
   }
 
-  protected orderStatus(order: OrderDetailDto): StatusView {
-    return orderStatusView(order.status, order.statusText);
-  }
-
-  protected lineStatus(line: OrderLineDto): StatusView {
-    return lineStatusView(line.status, line.statusText);
+  /**
+   * Shows the order the decision answered with. Setting it stops the resource's stream, so if a
+   * refund (or anything else) is still on its way, reading again restarts the polling.
+   */
+  private show(updated: AdminOrder): void {
+    this.order.set(updated);
+    if (isOrderStillChanging(updated.order)) {
+      this.order.reload();
+    }
   }
 
   /**
@@ -133,7 +164,7 @@ export class AdminOrderDetailPage {
           this.actionError.set('');
         }),
         switchMap((answer) => this.api.resolveLine(number, line.id, decision, answer.note)),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (updated) => {
@@ -143,7 +174,7 @@ export class AdminOrderDetailPage {
             decision === 'confirm'
               ? `${line.name} confirmed.`
               : `${line.name} rejected. The customer is refunded for it.`,
-            'polite',
+            'polite'
           );
         },
         error: (error: unknown) => {
@@ -154,37 +185,26 @@ export class AdminOrderDetailPage {
           }
           // A partner call in flight changed nothing: the line still waits, so keep the page and
           // say when to come back. Any other 409 means the line was decided meanwhile.
-          const busy = problemTypeOf(error) === PARTNER_CALL_IN_PROGRESS_PROBLEM;
-          const message = busy
+          const isBusy = problemTypeOf(error) === PARTNER_CALL_IN_PROGRESS_PROBLEM;
+          const message = isBusy
             ? `Couldn’t save the decision for ${line.name}: Lumen is talking to ${sellerName} about this item right now. Try again in a minute.`
             : `Couldn’t save the decision for ${line.name}: ${problemMessage(error, 'the request failed. Try again.')}`;
           this.actionError.set(message);
           void this.announcer.announce(message, 'assertive');
-          if (httpStatusOf(error) === 409 && !busy) {
+          if (!isBusy && httpStatusOf(error) === 409) {
             this.order.reload();
           }
         },
       });
   }
-
-  /**
-   * Shows the order the decision answered with. Setting it stops the resource's stream, so if a
-   * refund (or anything else) is still on its way, reading again restarts the polling.
-   */
-  private show(updated: AdminOrder): void {
-    this.order.set(updated);
-    if (orderKeepsChanging(updated.order)) {
-      this.order.reload();
-    }
-  }
 }
 
-function confirmation(
+const confirmation = (
   line: OrderLineDto,
   sellerName: string,
   decision: LineDecision,
-  partnerOrder: PartnerOrder | undefined,
-): ConfirmDialogData {
+  partnerOrder: PartnerOrder | undefined
+): ConfirmDialogData => {
   const note = {
     noteLabel: 'Note (optional)',
     noteHint: 'Kept with the decision, e.g. what the partner’s support said.',
@@ -193,6 +213,8 @@ function confirmation(
   const where = partnerOrder?.outcomeUnknown
     ? `Lumen sent this item to ${sellerName} but never learned whether ${sellerName} took it, so ${sellerName} may hold the order. Check with ${sellerName} first.`
     : `${sellerName} accepted this item but has not confirmed it.`;
+  // Rejecting says where the item is only when the partner may hold it.
+  const rejectPrefix = partnerOrder?.outcomeUnknown ? `${where} ` : '';
   return decision === 'confirm'
     ? {
         title: `Confirm ${line.name}?`,
@@ -203,9 +225,9 @@ function confirmation(
       }
     : {
         title: `Reject ${line.name}?`,
-        message: `${partnerOrder?.outcomeUnknown ? `${where} ` : ''}The customer is refunded for this item and its tax, plus the ${sellerName} shipping fee if nothing else from ${sellerName} remains. Lumen stops asking ${sellerName}. This cannot be undone.`,
+        message: `${rejectPrefix}The customer is refunded for this item and its tax, plus the ${sellerName} shipping fee if nothing else from ${sellerName} remains. Lumen stops asking ${sellerName}. This cannot be undone.`,
         confirmText: 'Reject and refund',
         cancelText: 'Keep waiting',
         ...note,
       };
-}
+};

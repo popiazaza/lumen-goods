@@ -15,6 +15,7 @@ import {
 } from '../../core/api/admin-orders.api';
 import { OrderDetailDto, RefundStatus } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
+import { itemAt } from '../../testing/items';
 import {
   SOCKS_LINE,
   aPartnerOrder,
@@ -27,46 +28,50 @@ const NUMBER = 'LG-7K3M9QX2';
 const URL = `/api/v1/admin/orders/${NUMBER}`;
 const RESOLVE_URL = `${URL}/lines/${SOCKS_LINE.id}/resolve`;
 
-/** The Kestrel line was accepted a day ago and never decided (BR-ORD-04). */
-function needingAttention(): AdminOrder {
+/**
+The Kestrel line was accepted a day ago and never decided (BR-ORD-04).
+*/
+const needingAttention = (): AdminOrder => {
   const order = anOrderDetail({ isUpdating: false });
   return anAdminOrder({
     order: {
       ...order,
       shipments: [
-        order.shipments[0],
+        itemAt(order.shipments, 0),
         {
-          ...order.shipments[1],
+          ...itemAt(order.shipments, 1),
           lines: [{ ...SOCKS_LINE, status: 'needs_attention', statusText: 'Delayed' }],
         },
       ],
     },
     partnerOrders: [aPartnerOrder({ needsAttention: true, nextAttemptUtc: null })],
   });
-}
+};
 
 /**
  * What the API answers after the admin rejected the Kestrel line: refunded, fee included. The
  * refund is `pending` right after the decision and `succeeded` once the refund job paid it back.
  */
-function rejected(refundStatus: RefundStatus = 'pending'): AdminOrder {
+const rejected = (refundStatus: RefundStatus = 'pending'): AdminOrder => {
   const before = needingAttention();
-  const paidBack = refundStatus === 'succeeded';
+  const isPaidBack = refundStatus === 'succeeded';
   const order: OrderDetailDto = {
     ...before.order,
     status: 'partially_refunded',
-    statusText: paidBack ? 'Partially refunded' : 'Partial refund pending',
+    statusText: isPaidBack ? 'Partially refunded' : 'Partial refund pending',
     isUpdating: refundStatus === 'pending',
     shipments: [
-      before.order.shipments[0],
+      itemAt(before.order.shipments, 0),
       {
-        ...before.order.shipments[1],
+        ...itemAt(before.order.shipments, 1),
         feeRefunded: true,
         lines: [
           {
             ...SOCKS_LINE,
             status: 'rejected',
-            statusText: paidBack ? 'Not supplied, refunded $22.51' : 'Not supplied, refund pending',
+            statusText: isPaidBack
+              ? 'Not supplied, refunded $22.51'
+              : 'Not supplied, refund pending',
             refundedAmount: 17.52,
           },
         ],
@@ -82,7 +87,7 @@ function rejected(refundStatus: RefundStatus = 'pending'): AdminOrder {
         lineIds: [SOCKS_LINE.id],
         shippingAmount: 4.99,
         createdUtc: '2026-11-21T09:00:00Z',
-        completedUtc: paidBack ? '2026-11-21T09:00:05Z' : null,
+        completedUtc: isPaidBack ? '2026-11-21T09:00:05Z' : null,
       },
     ],
   };
@@ -98,7 +103,15 @@ function rejected(refundStatus: RefundStatus = 'pending'): AdminOrder {
       }),
     ],
   };
-}
+};
+
+const text = (root: ParentNode | null | undefined, selector: string) =>
+  root?.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
+const texts = (root: ParentNode, selector: string) =>
+  [...root.querySelectorAll(selector)].map((element) =>
+    element.textContent?.replaceAll(/\s+/gu, ' ').trim()
+  );
+const dialog = () => document.querySelector<HTMLElement>('app-confirm-dialog');
 
 describe('AdminOrderDetailPage', () => {
   let fixture: ComponentFixture<AdminOrderDetailPage>;
@@ -106,21 +119,14 @@ describe('AdminOrderDetailPage', () => {
   let announcer: LiveAnnouncer;
 
   const host = () => fixture.nativeElement as HTMLElement;
-  const text = (root: ParentNode | null | undefined, selector: string) =>
-    root?.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
-  const texts = (root: ParentNode, selector: string) =>
-    [...root.querySelectorAll(selector)].map((element) =>
-      element.textContent?.replace(/\s+/g, ' ').trim(),
-    );
   const section = (title: string) =>
     [...host().querySelectorAll<HTMLElement>('.section')].find(
-      (element) => element.querySelector('h2')?.textContent?.trim() === title,
+      (element) => element.querySelector('h2')?.textContent?.trim() === title
     ) as HTMLElement;
   const button = (label: string) =>
-    host().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
-  const dialog = () => document.querySelector<HTMLElement>('app-confirm-dialog');
+    host().querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(label)}"]`);
 
-  async function load(answer: AdminOrder | { status: number }): Promise<void> {
+  const load = async (answer: AdminOrder | { status: number }): Promise<void> => {
     fixture = TestBed.createComponent(AdminOrderDetailPage);
     fixture.componentRef.setInput('id', NUMBER);
     fixture.detectChanges();
@@ -130,17 +136,16 @@ describe('AdminOrderDetailPage', () => {
     } else {
       request.flush(
         { title: 'Problem', status: answer.status },
-        { status: answer.status, statusText: 'Error' },
+        { status: answer.status, statusText: 'Error' }
       );
     }
     await fixture.whenStable();
-  }
+  };
 
   /**
-   * Clicks Confirm or Reject on the line, fills in the note and confirms in the dialog; returns
-   * the decision the page sends.
+   * Clicks Confirm or Reject on the line, fills in the note and confirms in the dialog; returns the decision the page sends.
    */
-  async function decide(action: 'Confirm' | 'Reject', note: string): Promise<TestRequest> {
+  const decide = async (action: 'Confirm' | 'Reject', note: string): Promise<TestRequest> => {
     button(`${action} line 2, Merino Trail Socks`)?.click();
     await fixture.whenStable();
     const textarea = dialog()?.querySelector('textarea') as HTMLTextAreaElement;
@@ -148,7 +153,7 @@ describe('AdminOrderDetailPage', () => {
     textarea.dispatchEvent(new Event('input'));
     (dialog()?.querySelector('button.confirm') as HTMLButtonElement).click();
     return vi.waitFor(() => http.expectOne(RESOLVE_URL));
-  }
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -188,26 +193,44 @@ describe('AdminOrderDetailPage', () => {
     });
     await load(order);
 
-    expect(text(section('Customer'), 'dd')).toBe('customer@lumengoods.test');
-    expect(texts(section('Customer'), 'dd')[1]).toBe('1');
-    expect(texts(section('Lines'), 'h3')).toEqual(['Lumen Goods', 'Kestrel Outfitters']);
-    expect(texts(section('Lines'), 'tbody app-status-badge')).toEqual([
-      'Confirmed',
-      'Awaiting Kestrel Outfitters',
-    ]);
+    const customer = texts(section('Customer'), 'dd');
 
-    const events = [...section('Payment events').querySelectorAll('.timeline > li')];
-    expect(events.map((event) => text(event, 'app-status-badge'))).toEqual([
+    expect({
+      email: customer[0],
+      failedPaymentAttempts: customer[1],
+      sellers: texts(section('Lines'), 'h3'),
+      lineStatuses: texts(section('Lines'), 'tbody app-status-badge'),
+    }).toStrictEqual({
+      email: 'customer@lumengoods.test',
+      failedPaymentAttempts: '1',
+      sellers: ['Lumen Goods', 'Kestrel Outfitters'],
+      lineStatuses: ['Confirmed', 'Awaiting Kestrel Outfitters'],
+    });
+
+    const events = [...section('Payment events').querySelectorAll(':scope .timeline > li')];
+
+    expect(events.map((event) => text(event, 'app-status-badge'))).toStrictEqual([
       'Payment started',
       'Declined',
       'Gateway error',
       'Approved',
     ]);
-    expect(text(events[1], '.amount')).toBe('$75.46');
-    expect(texts(events[1], 'p')[0]).toBe('Card reported stolen');
-    expect(events[1].querySelector('time')?.getAttribute('datetime')).toBe('2026-11-20T08:00:30Z');
-    expect(text(events[1], 'code')).toBe('payment-0');
-    expect(events[2].querySelector('.amount')).toBeNull();
+
+    const declined = itemAt(events, 1);
+    const gatewayError = itemAt(events, 2);
+
+    expect({
+      amount: text(declined, '.amount'),
+      reason: texts(declined, 'p')[0],
+      occurredAt: declined.querySelector('time')?.getAttribute('datetime'),
+      paymentId: text(declined, 'code'),
+    }).toStrictEqual({
+      amount: '$75.46',
+      reason: 'Card reported stolen',
+      occurredAt: '2026-11-20T08:00:30Z',
+      paymentId: 'payment-0',
+    });
+    expect(gatewayError.querySelector('.amount')).toBeNull();
   });
 
   it('shows each partner order with reference, partner id, status, attempts and last error', async () => {
@@ -228,47 +251,75 @@ describe('AdminOrderDetailPage', () => {
             acceptedUtc: null,
           }),
         ],
-      }),
+      })
     );
 
-    const [kestrel, harbor] = [...section('Partner orders').querySelectorAll('li')];
-    expect(text(kestrel, 'h3')).toBe('Line 2: Kestrel Outfitters');
-    expect(text(kestrel, 'app-status-badge')).toBe('Accepted, awaiting decision');
-    expect(texts(kestrel, 'dd').slice(0, 3)).toEqual(['LG-7K3M9QX2-2', 'KT-5521', '3']);
-    expect(kestrel.querySelector('.last-error')).toBeNull();
+    const partnerOrders = section('Partner orders').querySelectorAll('li');
+    const kestrel = itemAt(partnerOrders, 0);
+    const harbor = itemAt(partnerOrders, 1);
 
-    expect(text(harbor, 'app-status-badge')).toBe('Sent, no answer yet');
-    expect(texts(harbor, 'dd').slice(0, 3)).toEqual(['LG-7K3M9QX2-3', 'None yet', '4']);
-    expect(text(harbor, '.last-error')).toBe('Last error: HTTP 503 from Harbor Supply Co.');
+    expect({
+      heading: text(kestrel, 'h3'),
+      status: text(kestrel, 'app-status-badge'),
+      referencePartnerIdAttempts: texts(kestrel, 'dd').slice(0, 3),
+      lastError: kestrel.querySelector('.last-error'),
+    }).toStrictEqual({
+      heading: 'Line 2: Kestrel Outfitters',
+      status: 'Accepted, awaiting decision',
+      referencePartnerIdAttempts: ['LG-7K3M9QX2-2', 'KT-5521', '3'],
+      lastError: null,
+    });
+    expect({
+      status: text(harbor, 'app-status-badge'),
+      referencePartnerIdAttempts: texts(harbor, 'dd').slice(0, 3),
+      lastError: text(harbor, '.last-error'),
+    }).toStrictEqual({
+      status: 'Sent, no answer yet',
+      referencePartnerIdAttempts: ['LG-7K3M9QX2-3', 'None yet', '4'],
+      lastError: 'Last error: HTTP 503 from Harbor Supply Co.',
+    });
   });
 
   it('shows refunds with their status, the lines and the shipping fee they pay back', async () => {
     await load(rejected('failed'));
 
-    const refunds = host().querySelector('app-order-summary-panel .refunds') as HTMLElement;
+    const refunds = host().querySelector(':scope app-order-summary-panel .refunds') as HTMLElement;
+
     expect(text(refunds, '.amount')).toBe('$22.51');
     // The admin sees what the customer does not: this attempt failed and is being retried.
     expect(text(refunds, 'app-status-badge')).toBe('Failed, will retry');
-    expect(texts(refunds, '.breakdown dt')).toEqual(['Merino Trail Socks', 'Shipping fee']);
-    expect(texts(refunds, '.breakdown dd')).toEqual(['$17.52', '$4.99']);
+    expect(texts(refunds, '.breakdown dt')).toStrictEqual(['Merino Trail Socks', 'Shipping fee']);
+    expect(texts(refunds, '.breakdown dd')).toStrictEqual(['$17.52', '$4.99']);
     expect(text(section('Partner orders'), 'app-status-badge')).toBe('Closed by an admin');
   });
 
   it('rejects a line that needs attention after confirmation, then shows the refreshed order', async () => {
     await load(needingAttention());
-    expect(text(host(), '.attention')).toContain('1 line needs your decision.');
-    expect(text(section('Partner orders'), 'app-status-badge')).toBe('Needs attention');
+
+    expect({
+      attention: text(host(), '.attention'),
+      partnerOrderStatus: text(section('Partner orders'), 'app-status-badge'),
+    }).toStrictEqual({
+      attention: expect.stringContaining('1 line needs your decision.'),
+      partnerOrderStatus: 'Needs attention',
+    });
 
     const post = await decide('Reject', '  Kestrel support says it is lost ');
-    expect(dialog()).toBeNull();
-    expect(post.request.method).toBe('POST');
-    expect(post.request.body).toEqual({
-      decision: 'reject',
-      note: 'Kestrel support says it is lost',
+
+    expect({
+      dialog: dialog(),
+      method: post.request.method,
+      body: post.request.body,
+    }).toStrictEqual({
+      dialog: null,
+      method: 'POST',
+      body: { decision: 'reject', note: 'Kestrel support says it is lost' },
     });
+
     post.flush(rejected());
     fixture.detectChanges();
-    expect(texts(section('Lines'), 'tbody app-status-badge')).toEqual([
+
+    expect(texts(section('Lines'), 'tbody app-status-badge')).toStrictEqual([
       'Confirmed',
       'Not supplied, refund pending',
     ]);
@@ -276,15 +327,19 @@ describe('AdminOrderDetailPage', () => {
     // The refund is on its way: the page reads the order again until it is paid back.
     await vi.waitFor(() => http.expectOne(URL).flush(rejected('succeeded')));
     await fixture.whenStable();
-    expect(texts(section('Lines'), 'tbody app-status-badge')).toEqual([
-      'Confirmed',
-      'Not supplied, refunded $22.51',
-    ]);
-    expect(button('Reject line 2, Merino Trail Socks')).toBeNull();
-    expect(host().querySelector('.attention')).toBeNull();
+
+    expect({
+      lineStatuses: texts(section('Lines'), 'tbody app-status-badge'),
+      rejectButton: button('Reject line 2, Merino Trail Socks'),
+      attention: host().querySelector('.attention'),
+    }).toStrictEqual({
+      lineStatuses: ['Confirmed', 'Not supplied, refunded $22.51'],
+      rejectButton: null,
+      attention: null,
+    });
     expect(announcer.announce).toHaveBeenCalledWith(
       'Merino Trail Socks rejected. The customer is refunded for it.',
-      'polite',
+      'polite'
     );
   });
 
@@ -293,18 +348,28 @@ describe('AdminOrderDetailPage', () => {
 
     button('Confirm line 2, Merino Trail Socks')?.click();
     await fixture.whenStable();
-    expect(text(dialog(), 'h2')).toBe('Confirm Merino Trail Socks?');
-    expect(dialog()?.closest('[role="alertdialog"]')).not.toBeNull();
-    // The safe choice has focus first.
-    expect(document.activeElement?.textContent?.trim()).toBe('Keep waiting');
+
+    expect({
+      title: text(dialog(), 'h2'),
+      alertDialog: dialog()?.closest('[role="alertdialog"]'),
+      // The safe choice has focus first.
+      focused: document.activeElement?.textContent?.trim(),
+    }).toStrictEqual({
+      title: 'Confirm Merino Trail Socks?',
+      alertDialog: expect.any(Element),
+      focused: 'Keep waiting',
+    });
 
     (dialog()?.querySelector('button.cancel') as HTMLButtonElement).click();
     await fixture.whenStable();
     http.expectNone(RESOLVE_URL);
+
     expect(dialog()).toBeNull();
 
     const post = await decide('Confirm', '');
-    expect(post.request.body).toEqual({ decision: 'confirm', note: null });
+
+    expect(post.request.body).toStrictEqual({ decision: 'confirm', note: null });
+
     // The API's answer: the line is confirmed and its partner order closed; nothing left to wait for.
     const before = needingAttention();
     post.flush({
@@ -312,9 +377,9 @@ describe('AdminOrderDetailPage', () => {
       order: {
         ...before.order,
         shipments: [
-          before.order.shipments[0],
+          itemAt(before.order.shipments, 0),
           {
-            ...before.order.shipments[1],
+            ...itemAt(before.order.shipments, 1),
             lines: [
               { ...SOCKS_LINE, status: 'confirmed', statusText: 'Confirmed by Kestrel Outfitters' },
             ],
@@ -324,9 +389,11 @@ describe('AdminOrderDetailPage', () => {
       partnerOrders: [aPartnerOrder({ status: 'closed_by_admin', nextAttemptUtc: null })],
     });
     await fixture.whenStable();
+
     expect(texts(section('Lines'), 'tbody app-status-badge')[1]).toBe(
-      'Confirmed by Kestrel Outfitters',
+      'Confirmed by Kestrel Outfitters'
     );
+
     // Nothing can change on its own any more, so the page does not read the order again.
     http.expectNone(URL);
   });
@@ -334,45 +401,51 @@ describe('AdminOrderDetailPage', () => {
   it('reloads the order when the line no longer needs attention (409)', async () => {
     await load(needingAttention());
 
-    (await decide('Confirm', '')).flush(
+    const post = await decide('Confirm', '');
+    post.flush(
       {
         type: LINE_NOT_AWAITING_DECISION_PROBLEM,
         title: 'This line does not need a decision',
         detail: 'Line 2 is not delayed (any more); only a delayed line can be resolved.',
       },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     await vi.waitFor(() => http.expectOne(URL).flush(rejected('succeeded')));
     await fixture.whenStable();
 
     expect(text(host(), '.action-error')).toBe(
-      'Couldn’t save the decision for Merino Trail Socks: Line 2 is not delayed (any more); only a delayed line can be resolved.',
+      'Couldn’t save the decision for Merino Trail Socks: Line 2 is not delayed (any more); only a delayed line can be resolved.'
     );
     expect(texts(section('Lines'), 'tbody app-status-badge')[1]).toBe(
-      'Not supplied, refunded $22.51',
+      'Not supplied, refunded $22.51'
     );
   });
 
   it('asks to try again in a minute while a call to the partner is in flight (409)', async () => {
     await load(needingAttention());
 
-    (await decide('Reject', '')).flush(
+    const post = await decide('Reject', '');
+    post.flush(
       {
         type: PARTNER_CALL_IN_PROGRESS_PROBLEM,
         title: 'A call to the partner is in progress',
         detail: 'A send to Kestrel Outfitters for this line is in progress; try again in a minute.',
       },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     await fixture.whenStable();
 
     const message =
       'Couldn’t save the decision for Merino Trail Socks: Lumen is talking to Kestrel Outfitters about this item right now. Try again in a minute.';
+
     expect(text(host(), '.action-error')).toBe(message);
     expect(announcer.announce).toHaveBeenCalledWith(message, 'assertive');
+
     // Nothing changed on the server, so the line still waits and can be decided again.
     http.expectNone(URL);
-    expect(button('Reject line 2, Merino Trail Socks')?.disabled).toBe(false);
+    const rejectButton = button('Reject line 2, Merino Trail Socks') as HTMLButtonElement;
+
+    expect(rejectButton.disabled).toBeFalsy();
   });
 
   it('warns when a partner may hold the order without Lumen knowing (outcome unknown)', async () => {
@@ -392,15 +465,18 @@ describe('AdminOrderDetailPage', () => {
     });
 
     const partner = section('Partner orders');
+
     expect(text(partner, 'app-status-badge')).toBe('Needs attention: outcome unknown');
     expect(text(partner, '.last-error')).toContain('Outcome unknown:');
     expect(text(partner, '.last-error')).toContain(
-      'Check with Kestrel Outfitters before rejecting',
+      'Check with Kestrel Outfitters before rejecting'
     );
 
     button('Reject line 2, Merino Trail Socks')?.click();
     await fixture.whenStable();
+
     expect(text(dialog(), '.message')).toContain('Check with Kestrel Outfitters first.');
+
     (dialog()?.querySelector('button.cancel') as HTMLButtonElement).click();
     await fixture.whenStable();
   });
@@ -409,14 +485,14 @@ describe('AdminOrderDetailPage', () => {
     await load({ status: 404 });
 
     expect(text(host(), '.state strong')).toBe(`There is no order ${NUMBER}.`);
-    expect(host().querySelector('.state a')?.getAttribute('href')).toBe('/admin/orders');
+    expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe('/admin/orders');
   });
 
   it.each([401, 403])('asks the user to sign in as an admin on %d', async (status) => {
     await load({ status });
 
     expect(text(host(), 'app-admin-access-denied strong')).toBe(
-      'Sign in as an admin to see this page.',
+      'Sign in as an admin to see this page.'
     );
     expect(host().querySelector('.section')).toBeNull();
   });

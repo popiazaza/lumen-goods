@@ -1,0 +1,9 @@
+<app-product-image class="image" [src]="imageUrl()" />
+<div class="body">
+  <h3 class="name">
+    <a [routerLink]="['/products', product().id]">{{ product().name }}</a>
+  </h3>
+  <p class="seller">Sold by {{ sellerName() }}</p>
+  <app-product-price class="price-line" [price]="product().price" />
+  <app-availability-badge [product]="product()" />
+</div>

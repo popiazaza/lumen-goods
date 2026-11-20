@@ -5,7 +5,7 @@
   <app-error-summary [problems]="problems()" />
 }
 
-<form class="checkout-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+<form class="checkout-form" novalidate [formGroup]="form" (ngSubmit)="submit()">
   <p class="required-note">
     All fields are required unless marked optional. We ship to the United States only.
   </p>

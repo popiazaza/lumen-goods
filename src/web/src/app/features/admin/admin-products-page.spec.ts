@@ -16,11 +16,17 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { AdminProduct } from '../../core/api/admin-products.api';
 import { PagedResult } from '../../core/api/paged-result';
 import { provideAppIcons } from '../../core/icons/app-icons';
+import { itemAt } from '../../testing/items';
 import { aPagedResult, anAdminProduct } from '../../testing/order-fixtures';
 import { AdminProductsPage } from './admin-products-page';
 
-@Component({ template: '<h1>Edit product</h1>' })
+@Component({ selector: 'app-stub-edit-page', template: '<h1>Edit product</h1>' })
 class StubEditPage {}
+
+const text = (root: ParentNode | null | undefined, selector: string) =>
+  root?.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
+const dialog = () => document.querySelector<HTMLElement>('app-confirm-dialog');
+const isList = (request: { url: string }) => request.url === '/api/v1/admin/products';
 
 const MUG = anAdminProduct();
 const LAMP = anAdminProduct({
@@ -42,35 +48,32 @@ describe('AdminProductsPage', () => {
   let announcer: LiveAnnouncer;
 
   const host = () => harness.routeNativeElement as HTMLElement;
-  const text = (root: ParentNode | null | undefined, selector: string) =>
-    root?.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
   const rows = () => [...host().querySelectorAll<HTMLElement>('tr.mat-mdc-row')];
   const button = (label: string) =>
-    host().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`) as HTMLButtonElement;
-  const dialog = () => document.querySelector<HTMLElement>('app-confirm-dialog');
-  const isList = (request: { url: string }) => request.url === '/api/v1/admin/products';
+    host().querySelector<HTMLButtonElement>(
+      `button[aria-label="${CSS.escape(label)}"]`
+    ) as HTMLButtonElement;
 
-  async function nextRequest(): Promise<TestRequest> {
-    return vi.waitFor(() => {
+  const nextRequest = (): Promise<TestRequest> =>
+    vi.waitFor(() => {
       const [request] = http.match(isList);
       if (!request) {
         throw new Error('No products request yet');
       }
       return request;
     });
-  }
 
-  async function respond(page: PagedResult<AdminProduct>): Promise<TestRequest> {
+  const respond = async (page: PagedResult<AdminProduct>): Promise<TestRequest> => {
     const request = await nextRequest();
     request.flush(page);
     await harness.fixture.whenStable();
     return request;
-  }
+  };
 
-  async function open(url: string, page = aPagedResult([MUG, LAMP])): Promise<TestRequest> {
+  const open = async (url: string, page = aPagedResult([MUG, LAMP])): Promise<TestRequest> => {
     await harness.navigateByUrl(url, AdminProductsPage);
     return respond(page);
-  }
+  };
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -102,12 +105,16 @@ describe('AdminProductsPage', () => {
     const request = await open('/admin/products?q=mug&status=inactive&category=home&page=2');
 
     expect(request.request.urlWithParams).toBe(
-      '/api/v1/admin/products?q=mug&status=inactive&category=home&page=2&pageSize=24',
+      '/api/v1/admin/products?q=mug&status=inactive&category=home&page=2&pageSize=24'
     );
     expect((host().querySelector('input[name="q"]') as HTMLInputElement).value).toBe('mug');
-    const [status, category] = await loader.getAllHarnesses(MatSelectHarness);
-    expect(await status.getValueText()).toBe('Inactive');
-    expect(await category.getValueText()).toBe('Home');
+
+    const selects = await loader.getAllHarnesses(MatSelectHarness);
+    const status = itemAt(selects, 0);
+    const category = itemAt(selects, 1);
+
+    await expect(status.getValueText()).resolves.toBe('Inactive');
+    await expect(category.getValueText()).resolves.toBe('Home');
   });
 
   it('searches on submit and filters by status, each starting at page 1', async () => {
@@ -116,16 +123,18 @@ describe('AdminProductsPage', () => {
     const search = host().querySelector('input[name="q"]') as HTMLInputElement;
     search.value = ' lamp ';
     search.dispatchEvent(new Event('input'));
-    (host().querySelector('form[role="search"] button') as HTMLButtonElement).click();
+    (host().querySelector(':scope form[role="search"] button') as HTMLButtonElement).click();
     const searched = await respond(aPagedResult([LAMP]));
+
     expect(router.url).toBe('/admin/products?q=lamp');
     expect(searched.request.params.get('q')).toBe('lamp');
 
-    const [status] = await loader.getAllHarnesses(MatSelectHarness);
+    const status = itemAt(await loader.getAllHarnesses(MatSelectHarness), 0);
     await status.open();
     const choosing = status.clickOptions({ text: 'Active' });
     await respond(aPagedResult([]));
     await choosing;
+
     expect(router.url).toBe('/admin/products?q=lamp&status=active');
     expect(text(host(), '.state strong')).toBe('No products match these filters.');
   });
@@ -133,16 +142,30 @@ describe('AdminProductsPage', () => {
   it('lists products with a link to edit, SKU, price, stock and status', async () => {
     await open('/admin/products');
 
-    const [mug, lamp] = rows();
+    const listed = rows();
+    const mug = itemAt(listed, 0);
+    const lamp = itemAt(listed, 1);
     const link = mug.querySelector('a') as HTMLAnchorElement;
-    expect(link.textContent?.trim()).toBe('Enamel Camp Mug');
-    expect(link.getAttribute('href')).toBe(`/admin/products/${MUG.id}`);
-    expect(mug.textContent).toContain('SKU LG-MUG-01');
-    expect(mug.textContent).toContain('$18.50');
-    expect(mug.textContent).toContain('2 reserved');
-    expect(text(mug, 'app-status-badge')).toBe('Active');
-    expect(text(lamp, 'app-status-badge')).toBe('Inactive');
-    expect(button('Reactivate Brass Desk Lamp').textContent?.trim()).toBe('Reactivate');
+
+    expect({
+      name: link.textContent?.trim(),
+      href: link.getAttribute('href'),
+      sku: text(mug, '.mat-column-name .sub'),
+      price: text(mug, '.mat-column-price'),
+      reserved: text(mug, '.mat-column-stock .sub'),
+      status: text(mug, 'app-status-badge'),
+    }).toStrictEqual({
+      name: 'Enamel Camp Mug',
+      href: `/admin/products/${MUG.id}`,
+      sku: 'SKU LG-MUG-01',
+      price: '$18.50',
+      reserved: '2 reserved',
+      status: 'Active',
+    });
+    expect({
+      status: text(lamp, 'app-status-badge'),
+      toggle: button('Reactivate Brass Desk Lamp').textContent?.trim(),
+    }).toStrictEqual({ status: 'Inactive', toggle: 'Reactivate' });
   });
 
   it('deactivates a product after confirmation, then reloads the list', async () => {
@@ -150,14 +173,19 @@ describe('AdminProductsPage', () => {
 
     button('Deactivate Enamel Camp Mug').click();
     await harness.fixture.whenStable();
-    expect(text(dialog(), 'h2')).toBe('Deactivate Enamel Camp Mug?');
-    expect(text(dialog(), '.message')).toContain('Past orders keep it');
+
+    expect({ title: text(dialog(), 'h2'), message: text(dialog(), '.message') }).toStrictEqual({
+      title: 'Deactivate Enamel Camp Mug?',
+      message: expect.stringContaining('Past orders keep it'),
+    });
 
     (dialog()?.querySelector('button.confirm') as HTMLButtonElement).click();
     const post = await vi.waitFor(() =>
-      http.expectOne(`/api/v1/admin/products/${MUG.id}/deactivate`),
+      http.expectOne(`/api/v1/admin/products/${MUG.id}/deactivate`)
     );
+
     expect(post.request.method).toBe('POST');
+
     post.flush({ ...MUG, isActive: false });
     await respond(aPagedResult([{ ...MUG, isActive: false }, LAMP]));
 
@@ -175,6 +203,7 @@ describe('AdminProductsPage', () => {
     await harness.fixture.whenStable();
 
     expect(dialog()).toBeNull();
+
     http.expectNone(`/api/v1/admin/products/${MUG.id}/deactivate`);
   });
 
@@ -183,12 +212,14 @@ describe('AdminProductsPage', () => {
 
     button('Reactivate Brass Desk Lamp').click();
     await harness.fixture.whenStable();
+
     expect(text(dialog(), 'h2')).toBe('Reactivate Brass Desk Lamp?');
+
     (dialog()?.querySelector('button.confirm') as HTMLButtonElement).click();
-    (await vi.waitFor(() => http.expectOne(`/api/v1/admin/products/${LAMP.id}/reactivate`))).flush({
-      ...LAMP,
-      isActive: true,
-    });
+    const post = await vi.waitFor(() =>
+      http.expectOne(`/api/v1/admin/products/${LAMP.id}/reactivate`)
+    );
+    post.flush({ ...LAMP, isActive: true });
     await respond(aPagedResult([MUG, { ...LAMP, isActive: true }]));
 
     expect(text(host(), '.action-message')).toBe('Brass Desk Lamp is now active.');
@@ -198,16 +229,19 @@ describe('AdminProductsPage', () => {
     await open('/admin/products', aPagedResult([]));
 
     expect(text(host(), '.state strong')).toBe('No products yet.');
-    expect(host().querySelector('.state a')?.getAttribute('href')).toBe('/admin/products/new');
+    expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe(
+      '/admin/products/new'
+    );
   });
 
   it.each([401, 403])('asks the user to sign in as an admin on %d', async (status) => {
     await harness.navigateByUrl('/admin/products', AdminProductsPage);
-    (await nextRequest()).flush({ title: 'Denied', status }, { status, statusText: 'Denied' });
+    const request = await nextRequest();
+    request.flush({ title: 'Denied', status }, { status, statusText: 'Denied' });
     await harness.fixture.whenStable();
 
     expect(text(host(), 'app-admin-access-denied strong')).toBe(
-      'Sign in as an admin to see this page.',
+      'Sign in as an admin to see this page.'
     );
     expect(host().querySelector('a[href="/admin/products/new"]')).toBeNull();
   });

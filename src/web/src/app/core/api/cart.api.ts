@@ -4,12 +4,18 @@ import { Observable } from 'rxjs';
 import { API_BASE_URL } from './api-base-url';
 import { AvailabilityStatus, ProductAvailability } from './products.api';
 
-/** The product as the cart shows it now (current availability and sellability). */
+/**
+The product as the cart shows it now (current availability and sellability).
+*/
 export interface CartProductDto {
   id: string;
-  /** `lumen` or a partner id. */
+  /**
+  `lumen` or a partner id.
+  */
   source: string;
-  /** The shop's display name, e.g. "Harbor Supply Co.". */
+  /**
+  The shop's display name, e.g. "Harbor Supply Co.".
+  */
   sellerName: string;
   name: string;
   imageUrl: string | null;
@@ -30,13 +36,19 @@ export interface AvailabilityChangedNotice {
 export type CartLineUnavailableReason = 'no_longer_available' | 'out_of_stock';
 
 export interface QuantityLimitedNotice {
-  /** What the customer asked for (or the line holds). */
+  /**
+  What the customer asked for (or the line holds).
+  */
   requested: number;
-  /** What they can have now. */
+  /**
+  What they can have now.
+  */
   allowed: number;
 }
 
-/** BR-CART-02 notices; each is `null` when it does not apply. */
+/**
+BR-CART-02 notices; each is `null` when it does not apply.
+*/
 export interface CartLineNotices {
   priceChanged: PriceChangedNotice | null;
   availabilityChanged: AvailabilityChangedNotice | null;
@@ -48,32 +60,46 @@ export interface CartLineDto {
   id: string;
   product: CartProductDto;
   quantity: number;
-  /** The quantity selector's upper bound: 10, or less when stock is lower; 0 when it cannot be bought. */
+  /**
+  The quantity selector's upper bound: 10, or less when stock is lower; 0 when it cannot be bought.
+  */
   maxQuantity: number;
-  /** Current USD unit price; `null` when the product no longer has one. */
+  /**
+  Current USD unit price; `null` when the product no longer has one.
+  */
   unitPrice: number | null;
   unitPriceSeen: number;
   lineTotal: number | null;
   notices: CartLineNotices;
-  /** Must be removed or reduced before checkout (BR-CART-03). Acknowledging does not clear it. */
+  /**
+  Must be removed or reduced before checkout (BR-CART-03). Acknowledging does not clear it.
+  */
   blocksCheckout: boolean;
   addedUtc: string;
 }
 
-/** Estimated with Standard shipping per seller; checkout prices the real order. */
+/**
+Estimated with Standard shipping per seller; checkout prices the real order.
+*/
 export interface CartTotals {
   subtotal: number;
   shipping: number;
   tax: number;
   total: number;
-  /** Always true for the cart: shipping, tax and total are shown as estimates. */
+  /**
+  Always true for the cart: shipping, tax and total are shown as estimates.
+  */
   isEstimate: boolean;
 }
 
-/** `GET /cart` and the answer to every cart change: the whole cart, priced by the server. */
+/**
+`GET /cart` and the answer to every cart change: the whole cart, priced by the server.
+*/
 export interface CartDto {
   lines: CartLineDto[];
-  /** Sum of the line quantities (the header badge). */
+  /**
+  Sum of the line quantities (the header badge).
+  */
   itemCount: number;
   totals: CartTotals;
   canCheckout: boolean;
@@ -86,11 +112,17 @@ export const EMPTY_CART: CartDto = {
   canCheckout: false,
 };
 
-/** 422: the product is unknown, no longer sold or out of stock (`reason` says which). */
+/**
+422: the product is unknown, no longer sold or out of stock (`reason` says which).
+*/
 export const CART_PRODUCT_UNAVAILABLE_PROBLEM = 'urn:lumen:problem:cart-product-unavailable';
-/** 422: the line would go above 10 or the stock left (`maxQuantity`, `inCart`). */
+/**
+422: the line would go above 10 or the stock left (`maxQuantity`, `inCart`).
+*/
 export const CART_QUANTITY_LIMIT_PROBLEM = 'urn:lumen:problem:cart-quantity-limit';
-/** 404: the line is gone (removed in another tab). */
+/**
+404: the line is gone (removed in another tab).
+*/
 export const CART_LINE_NOT_FOUND_PROBLEM = 'urn:lumen:problem:cart-line-not-found';
 /**
  * 409: the guest cart this request's cookie named is gone, merged into an account by a sign-in
@@ -129,16 +161,20 @@ export class CartApi {
     return this.http.delete<CartDto>(`${this.baseUrl}/cart/lines/${encodeURIComponent(lineId)}`);
   }
 
-  /** Accepts every line's notices at once. */
+  /**
+  Accepts every line's notices at once.
+  */
   acknowledgeAll(): Observable<CartDto> {
     return this.http.post<CartDto>(`${this.baseUrl}/cart/acknowledge`, null);
   }
 
-  /** Accepts the line's notices: the seen price and availability become the current ones. */
+  /**
+  Accepts the line's notices: the seen price and availability become the current ones.
+  */
   acknowledge(lineId: string): Observable<CartDto> {
     return this.http.post<CartDto>(
       `${this.baseUrl}/cart/lines/${encodeURIComponent(lineId)}/acknowledge`,
-      null,
+      null
     );
   }
 }

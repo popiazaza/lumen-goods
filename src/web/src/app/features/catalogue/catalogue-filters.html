@@ -25,7 +25,7 @@
 
 <fieldset>
   <legend>Price (USD)</legend>
-  <form class="price" [formGroup]="priceForm" (ngSubmit)="applyPrice()" novalidate>
+  <form class="price" novalidate [formGroup]="priceForm" (ngSubmit)="applyPrice()">
     <mat-form-field appearance="outline" subscriptSizing="dynamic">
       <mat-label>Min</mat-label>
       <span matTextPrefix>$&nbsp;</span>

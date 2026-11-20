@@ -40,10 +40,12 @@ import {
   problemMessage,
   problemOf,
 } from '../../core/api/problem-details';
-import { PRODUCT_CATEGORIES } from '../../core/api/products.api';
+import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
 import { categoryLabel } from '../../shared/products/product-labels';
 import { registerOrderIcons } from '../orders/order-icons';
 import { AdminAccessDenied } from './admin-access-denied';
+import { ChosenImages } from './chosen-images';
+import { ImageLibrary } from './image-library';
 import {
   MAX_ATTRIBUTES,
   MAX_IMAGES,
@@ -57,6 +59,8 @@ import {
   productFormValue,
   toProductInput,
 } from './product-form';
+
+const categoryOption = (value: ProductCategory) => ({ value, label: categoryLabel(value) });
 
 /**
  * Admin: create (`/admin/products/new`) or edit (`/admin/products/:id`) one of Lumen Goods' own
@@ -86,66 +90,96 @@ import {
     MatSelect,
     MatSuffix,
     AdminAccessDenied,
+    ChosenImages,
+    ImageLibrary,
   ],
   templateUrl: './admin-product-edit-page.html',
   styleUrl: './admin-product-edit-page.scss',
 })
 export class AdminProductEditPage {
-  /** The product id, bound from the `:id` route parameter; absent when creating. */
-  readonly id = input<string>();
-
   private readonly api = inject(AdminProductsApi);
+
   private readonly router = inject(Router);
+
   private readonly snackBar = inject(MatSnackBar);
+
   private readonly announcer = inject(LiveAnnouncer);
+
   private readonly destroyRef = inject(DestroyRef);
+
   private readonly injector = inject(Injector);
+
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
+  private readonly deniedStatus = signal<number | undefined>(undefined);
+
+  /**
+  The product id, bound from the `:id` route parameter; absent when creating.
+  */
+  readonly id = input<string>();
+
   protected readonly isNew = computed(() => !this.id());
+
   protected readonly loaded = rxResource({
     params: () => this.id(),
     stream: ({ params: id }) => this.api.get(id),
   });
+
   protected readonly media = rxResource({ stream: () => this.api.media() });
 
-  /** The saved product this edit is based on: its version is what Save sends. */
+  /**
+  The saved product this edit is based on: its version is what Save sends.
+  */
   protected readonly base = signal<AdminProduct | undefined>(undefined);
-  /** Set after a 409: the version saved by someone else, loaded so the admin can compare. */
+
+  /**
+  Set after a 409: the version saved by someone else, loaded so the admin can compare.
+  */
   protected readonly conflict = signal<AdminProduct | undefined>(undefined);
+
   protected readonly saving = signal(false);
+
   protected readonly formError = signal('');
-  private readonly deniedStatus = signal<number | undefined>(undefined);
 
   protected readonly form = createProductForm(() => this.base()?.reserved ?? 0);
+
   protected readonly attributes = this.form.controls.attributes;
 
   protected readonly accessStatus = computed(() => {
     const error = this.loaded.error() ?? this.media.error();
     return isAccessDenied(error) ? httpStatusOf(error) : this.deniedStatus();
   });
+
   protected readonly loadError = computed(() =>
-    this.loaded.status() === 'error' ? (httpStatusOf(this.loaded.error()) ?? -1) : undefined,
+    this.loaded.status() === 'error' ? (httpStatusOf(this.loaded.error()) ?? -1) : undefined
   );
+
   protected readonly ready = computed(() => this.isNew() || this.base() !== undefined);
 
-  /** File name to URL, from the library and the product's own images. */
+  /**
+  File name to URL, from the library and the product's own images.
+  */
   protected readonly imageUrls = computed(() => {
     const urls = new Map<string, string>();
-    for (const image of this.base()?.images ?? []) {
-      urls.set(image.file, image.url);
+    const productImages = this.base()?.images;
+    if (productImages) {
+      for (const image of productImages) {
+        urls.set(image.file, image.url);
+      }
     }
-    for (const file of this.media.hasValue() ? this.media.value() : []) {
-      urls.set(file.file, file.url);
+    if (this.media.hasValue()) {
+      const library = this.media.value();
+      for (const image of library) {
+        urls.set(image.file, image.url);
+      }
     }
     return urls;
   });
 
-  protected readonly categories = PRODUCT_CATEGORIES.map((value) => ({
-    value,
-    label: categoryLabel(value),
-  }));
+  protected readonly categories = PRODUCT_CATEGORIES.map(categoryOption);
+
   protected readonly maxAttributes = MAX_ATTRIBUTES;
+
   protected readonly maxImages = MAX_IMAGES;
 
   constructor() {
@@ -158,103 +192,13 @@ export class AdminProductEditPage {
       }
       const product = this.loaded.value();
       untracked(() => {
-        if (this.base()?.id !== product.id) {
-          this.base.set(product);
-          fillForm(this.form, productFormValue(product));
+        if (this.base()?.id === product.id) {
+          return;
         }
+
+        this.base.set(product);
+        fillForm(this.form, productFormValue(product));
       });
-    });
-  }
-
-  protected error(field: ProductField): string {
-    return fieldError(field, this.form.controls[field].errors);
-  }
-
-  /** The value saved by someone else, when it differs from the form; '' otherwise. */
-  protected savedNow(field: Exclude<ProductField, 'sku'>): string {
-    const latest = this.conflict();
-    if (!latest) {
-      return '';
-    }
-    const saved = productFormValue(latest);
-    const current = this.form.getRawValue() as ProductFormValue;
-    const text = (value: ProductFormValue) => describe(field, value);
-    return text(saved) !== text(current) ? text(saved) || '(empty)' : '';
-  }
-
-  protected addAttribute(): void {
-    if (this.attributes.length >= MAX_ATTRIBUTES) {
-      return;
-    }
-    this.attributes.push(attributeRow());
-    this.focusAfterRender(`#attribute-key-${this.attributes.length - 1}`);
-  }
-
-  protected removeAttribute(index: number): void {
-    this.attributes.removeAt(index);
-    this.attributes.markAsDirty();
-    this.focusAfterRender('#add-attribute');
-  }
-
-  protected isSelected(file: string): boolean {
-    return this.form.controls.images.value.includes(file);
-  }
-
-  /** Adds an image at the end, or removes it. The first image is the main one. */
-  protected toggleImage(file: string): void {
-    const images = this.form.controls.images;
-    images.setValue(
-      images.value.includes(file)
-        ? images.value.filter((name) => name !== file)
-        : [...images.value, file],
-    );
-    images.markAsDirty();
-    images.markAsTouched();
-  }
-
-  protected makeMain(file: string): void {
-    const images = this.form.controls.images;
-    images.setValue([file, ...images.value.filter((name) => name !== file)]);
-    images.markAsDirty();
-  }
-
-  /** Back to the saved version: the admin drops their edits after a conflict. */
-  protected useSavedVersion(): void {
-    const latest = this.conflict();
-    if (latest) {
-      fillForm(this.form, productFormValue(latest));
-      this.conflict.set(undefined);
-      void this.announcer.announce('The form now shows the saved version.', 'polite');
-    }
-  }
-
-  protected save(): void {
-    if (this.saving()) {
-      return;
-    }
-    this.form.markAllAsTouched();
-    this.formError.set('');
-    if (this.form.invalid) {
-      this.focusFirstInvalid();
-      return;
-    }
-    const id = this.id();
-    const base = this.base();
-    const input = toProductInput(this.form);
-    const request: Observable<AdminProduct> =
-      id && base
-        ? this.api.update(id, { ...input, version: base.version })
-        : this.api.create({ ...input, sku: this.form.controls.sku.value.trim() || null });
-
-    this.saving.set(true);
-    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (saved) => {
-        this.saving.set(false);
-        this.form.markAsPristine();
-        this.snackBar.open(`${saved.name} saved.`, undefined, { duration: 5000 });
-        void this.router.navigate(['/admin/products']);
-      },
-      error: (error: unknown) => this.saveFailed(error),
     });
   }
 
@@ -294,13 +238,15 @@ export class AdminProductEditPage {
         ? 'This product no longer exists.'
         : problemMessage(
             error,
-            'We couldn’t save the product. Check your connection and try again.',
-          ),
+            'We couldn’t save the product. Check your connection and try again.'
+          )
     );
     this.focusAfterRender('#form-error');
   }
 
-  /** Loads what is saved now, keeps the admin's edits, and bases the next Save on it. */
+  /**
+  Loads what is saved now, keeps the admin's edits, and bases the next Save on it.
+  */
   private reloadAfterConflict(): void {
     const id = this.id();
     if (!id) {
@@ -320,14 +266,16 @@ export class AdminProductEditPage {
         error: (error: unknown) => {
           this.saving.set(false);
           this.formError.set(
-            `This product was changed by someone else, and we couldn’t load their version: ${problemMessage(error, 'try again.')}`,
+            `This product was changed by someone else, and we couldn’t load their version: ${problemMessage(error, 'try again.')}`
           );
           this.focusAfterRender('#form-error');
         },
       });
   }
 
-  /** The API's 400/409 messages, shown under their fields; others above the buttons. */
+  /**
+  The API's 400/409 messages, shown under their fields; others above the buttons.
+  */
   private showServerErrors(errors: Record<string, string[]>): void {
     const general: string[] = [];
     for (const [key, messages] of Object.entries(errors)) {
@@ -347,7 +295,7 @@ export class AdminProductEditPage {
 
   private focusFirstInvalid(): void {
     this.focusAfterRender(
-      'input.ng-invalid, textarea.ng-invalid, mat-select.ng-invalid, .group-error',
+      'input.ng-invalid, textarea.ng-invalid, mat-select.ng-invalid, .group-error'
     );
   }
 
@@ -356,25 +304,129 @@ export class AdminProductEditPage {
       {
         write: () => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(),
       },
-      { injector: this.injector },
+      { injector: this.injector }
     );
+  }
+
+  protected error(field: ProductField): string {
+    return fieldError(field, this.form.controls[field].errors);
+  }
+
+  /**
+  The value saved by someone else, when it differs from the form; '' otherwise.
+  */
+  protected savedNow(field: Exclude<ProductField, 'sku'>): string {
+    const latest = this.conflict();
+    if (!latest) {
+      return '';
+    }
+    const saved = productFormValue(latest);
+    const current = this.form.getRawValue() as ProductFormValue;
+    const text = (value: ProductFormValue) => describe(field, value);
+    return text(saved) === text(current) ? '' : text(saved) || '(empty)';
+  }
+
+  protected addAttribute(): void {
+    if (this.attributes.length >= MAX_ATTRIBUTES) {
+      return;
+    }
+    this.attributes.push(attributeRow());
+    this.focusAfterRender(`#attribute-key-${this.attributes.length - 1}`);
+  }
+
+  protected removeAttribute(index: number): void {
+    this.attributes.removeAt(index);
+    this.attributes.markAsDirty();
+    this.focusAfterRender('#add-attribute');
+  }
+
+  /**
+  Adds an image at the end, or removes it. The first image is the main one.
+  */
+  protected toggleImage(file: string): void {
+    const { images } = this.form.controls;
+    images.setValue(
+      images.value.includes(file)
+        ? images.value.filter((name) => name !== file)
+        : [...images.value, file]
+    );
+    images.markAsDirty();
+    images.markAsTouched();
+  }
+
+  protected makeMain(file: string): void {
+    const { images } = this.form.controls;
+    images.setValue([file, ...images.value.filter((name) => name !== file)]);
+    images.markAsDirty();
+  }
+
+  /**
+  Back to the saved version: the admin drops their edits after a conflict.
+  */
+  protected useSavedVersion(): void {
+    const latest = this.conflict();
+    if (!latest) {
+      return;
+    }
+
+    fillForm(this.form, productFormValue(latest));
+    this.conflict.set(undefined);
+    void this.announcer.announce('The form now shows the saved version.', 'polite');
+  }
+
+  protected save(): void {
+    if (this.saving()) {
+      return;
+    }
+    this.form.markAllAsTouched();
+    this.formError.set('');
+    if (this.form.invalid) {
+      this.focusFirstInvalid();
+      return;
+    }
+    const id = this.id();
+    const base = this.base();
+    const product = toProductInput(this.form);
+    const request: Observable<AdminProduct> =
+      id && base
+        ? this.api.update(id, { ...product, version: base.version })
+        : this.api.create({ ...product, sku: this.form.controls.sku.value.trim() || null });
+
+    this.saving.set(true);
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (saved) => {
+        this.saving.set(false);
+        this.form.markAsPristine();
+        this.snackBar.open(`${saved.name} saved.`, undefined, { duration: 5000 });
+        void this.router.navigate(['/admin/products']);
+      },
+      error: (error: unknown) => this.saveFailed(error),
+    });
   }
 }
 
-/** One field of a form value as text, for comparing it with the saved version. */
-function describe(field: Exclude<ProductField, 'sku'>, value: ProductFormValue): string {
+/**
+One field of a form value as text, for comparing it with the saved version.
+*/
+const describe = (field: Exclude<ProductField, 'sku'>, value: ProductFormValue): string => {
   switch (field) {
-    case 'attributes':
+    case 'attributes': {
       return value.attributes.map((row) => `${row.key.trim()}: ${row.value.trim()}`).join(', ');
-    case 'images':
+    }
+    case 'images': {
       return value.images.join(', ');
-    case 'category':
+    }
+    case 'category': {
       return value.category ? categoryLabel(value.category) : '';
-    case 'price':
+    }
+    case 'price': {
       return value.price.trim() === '' ? '' : `$${Number(value.price).toFixed(2)}`;
-    case 'onHand':
+    }
+    case 'onHand': {
       return value.onHand === null ? '' : String(value.onHand);
-    default:
+    }
+    default: {
       return value[field].trim();
+    }
   }
-}
+};

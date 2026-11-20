@@ -4,9 +4,13 @@ import { AvailabilityStatus } from '../../core/api/products.api';
 
 export type NoticeTone = 'info' | 'warning' | 'blocking';
 
-/** One line of a cart line's notice: always an icon and text, never colour alone. */
+export type NoticeKind = 'price' | 'availability' | 'unavailable' | 'quantity';
+
+/**
+One line of a cart line's notice: always an icon and text, never colour alone.
+*/
 export interface CartLineNotice {
-  kind: 'price' | 'availability' | 'unavailable' | 'quantity';
+  kind: NoticeKind;
   tone: NoticeTone;
   icon: string;
   text: string;
@@ -24,7 +28,7 @@ const AVAILABILITY_TEXT: Readonly<Record<AvailabilityStatus, string>> = {
  * The notices a cart line shows (BR-CART-02, BR-CART-03), worded for the shopper. The server
  * decides which apply; this only turns them into text.
  */
-export function noticesOf(line: CartLineDto): CartLineNotice[] {
+export const noticesOf = (line: CartLineDto): CartLineNotice[] => {
   const { priceChanged, availabilityChanged, unavailable, quantityLimited } = line.notices;
   const notices: CartLineNotice[] = [];
 
@@ -58,7 +62,7 @@ export function noticesOf(line: CartLineDto): CartLineNotice[] {
       tone: 'warning',
       icon: 'warning',
       text:
-        availabilityChanged.to === 'low_stock' && left != null && left > 0
+        left !== null && left > 0 && availabilityChanged.to === 'low_stock'
           ? `Stock is running low: only ${left} left.`
           : `Availability changed from ${AVAILABILITY_TEXT[availabilityChanged.from]} to ${AVAILABILITY_TEXT[availabilityChanged.to]}.`,
     });
@@ -82,36 +86,44 @@ export function noticesOf(line: CartLineDto): CartLineNotice[] {
             tone: 'info',
             icon: 'info',
             text: `We changed the quantity from ${requested} to ${allowed}, the most you can buy.`,
-          },
+          }
     );
   }
 
   return notices;
-}
+};
 
 /**
- * Whether the line has notices the shopper can accept: a price or availability change, or a
- * quantity the server already capped. "Unavailable" and a quantity above stock stay until fixed.
+ * Whether the line has notices the shopper can accept: a price or availability change, or a quantity the server already capped. "Unavailable" and a quantity above stock stay until fixed.
  */
-export function canAcknowledge(line: CartLineDto): boolean {
+export const canAcknowledge = (line: CartLineDto): boolean => {
   const { priceChanged, availabilityChanged, quantityLimited } = line.notices;
   return (
     !!priceChanged ||
     !!availabilityChanged ||
     (!!quantityLimited && line.quantity <= quantityLimited.allowed)
   );
+};
+
+interface SellerGroup {
+  source: string;
+  sellerName: string;
+  lines: CartLineDto[];
 }
 
-/** Lines in the API's order, grouped by seller (first appearance first). */
-export function groupBySeller(
-  lines: readonly CartLineDto[],
-): { source: string; sellerName: string; lines: CartLineDto[] }[] {
-  const groups = new Map<string, { source: string; sellerName: string; lines: CartLineDto[] }>();
+/**
+Lines in the API's order, grouped by seller (first appearance first).
+*/
+export const groupBySeller = (lines: readonly CartLineDto[]): SellerGroup[] => {
+  const groups: SellerGroup[] = [];
   for (const line of lines) {
-    const source = line.product.source;
-    const group = groups.get(source) ?? { source, sellerName: line.product.sellerName, lines: [] };
-    group.lines.push(line);
-    groups.set(source, group);
+    const { source, sellerName } = line.product;
+    const group = groups.find((candidate) => candidate.source === source);
+    if (group) {
+      group.lines.push(line);
+    } else {
+      groups.push({ source, sellerName, lines: [line] });
+    }
   }
-  return [...groups.values()];
-}
+  return groups;
+};

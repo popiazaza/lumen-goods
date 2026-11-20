@@ -8,6 +8,7 @@ import { API_BASE_URL } from './api-base-url';
  * are configuration on the API, so the valid set and their names come from `GET /sellers`, never
  * from a list in the client.
  */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- names the API's open seller id; a union would hard-code partners
 export type ProductSource = string;
 
 export const PRODUCT_CATEGORIES = [
@@ -25,37 +26,51 @@ export type ProductSort = (typeof PRODUCT_SORTS)[number];
 
 export type AvailabilityStatus = 'in_stock' | 'low_stock' | 'out_of_stock';
 
-/** Always USD with exactly two decimals; the server prices and converts, the client only shows it. */
+/**
+Always USD with exactly two decimals; the server prices and converts, the client only shows it.
+*/
 export interface Money {
   amount: number;
   currency: 'USD';
 }
 
 export interface ProductImage {
-  /** Absolute URL served by Lumen (`/media/...`); the browser never calls a partner. */
+  /**
+  Absolute URL served by Lumen (`/media/...`); the browser never calls a partner.
+  */
   url: string;
   isPrimary: boolean;
 }
 
 export interface ProductAvailability {
   status: AvailabilityStatus;
-  /** `null` when the exact number is not known. */
+  /**
+  `null` when the exact number is not known.
+  */
   quantity: number | null;
 }
 
-/** The storefront product format (brief, page 5): the same shape whatever the source. */
+/**
+The storefront product format (brief, page 5): the same shape whatever the source.
+*/
 export interface ProductDto {
   id: string;
   source: ProductSource;
   sourceProductId: string;
   name: string;
-  /** Plain text, or HTML the server sanitised to p, br, b, strong, i, em, ul, ol, li. */
+  /**
+  Plain text, or HTML the server sanitised to p, br, b, strong, i, em, ul, ol, li.
+  */
   description: string;
   category: ProductCategory;
-  /** `null` means "Price on request": shown, never sellable. */
+  /**
+  `null` means "Price on request": shown, never sellable.
+  */
   price: Money | null;
   images: ProductImage[];
-  /** Lower camelCase keys, e.g. `color`, `size`, `fillPower`. */
+  /**
+  Lower camelCase keys, e.g. `color`, `size`, `fillPower`.
+  */
   attributes: Record<string, string>;
   availability: ProductAvailability;
   sellable: boolean;
@@ -70,7 +85,9 @@ export interface ProductPage {
   totalPages: number;
 }
 
-/** Query for `GET /products`. Omitted fields use the API's defaults. */
+/**
+Query for `GET /products`. Omitted fields use the API's defaults.
+*/
 export interface ProductSearch {
   q?: string;
   categories?: readonly ProductCategory[];
@@ -83,45 +100,59 @@ export interface ProductSearch {
   pageSize?: number;
 }
 
-/** Products per catalogue page (assumption A-22). */
+/**
+Products per catalogue page (assumption A-22).
+*/
 export const PRODUCT_PAGE_SIZE = 24;
 
-/** `GET /api/v1/products` and `GET /api/v1/products/{id}`. */
+/**
+`GET /api/v1/products` and `GET /api/v1/products/{id}`.
+*/
 @Service()
 export class ProductsApi {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = inject(API_BASE_URL);
 
-  /** One page of the catalogue. An invalid query answers 400 with ProblemDetails. */
+  /**
+  One page of the catalogue. An invalid query answers 400 with ProblemDetails.
+  */
   search(search: ProductSearch): Observable<ProductPage> {
     return this.http.get<ProductPage>(`${this.baseUrl}/products`, {
       params: toHttpParams(search),
     });
   }
 
-  /** One product; 404 when the id is unknown. */
+  /**
+  One product; 404 when the id is unknown.
+  */
   get(id: string): Observable<ProductDto> {
     return this.http.get<ProductDto>(`${this.baseUrl}/products/${encodeURIComponent(id)}`);
   }
 }
 
-/** Repeated keys for multi-value filters: `category=apparel&category=bags`. */
-function toHttpParams(search: ProductSearch): HttpParams {
+/**
+Repeated keys for multi-value filters: `category=apparel&category=bags`.
+*/
+const toHttpParams = (search: ProductSearch): HttpParams => {
   let params = new HttpParams();
   const q = search.q?.trim();
   if (q) {
     params = params.set('q', q);
   }
-  for (const category of search.categories ?? []) {
-    params = params.append('category', category);
+  if (search.categories !== undefined) {
+    for (const category of search.categories) {
+      params = params.append('category', category);
+    }
   }
-  for (const seller of search.sellers ?? []) {
-    params = params.append('seller', seller);
+  if (search.sellers !== undefined) {
+    for (const seller of search.sellers) {
+      params = params.append('seller', seller);
+    }
   }
-  if (search.minPrice != null) {
+  if (search.minPrice !== null && search.minPrice !== undefined) {
     params = params.set('minPrice', String(search.minPrice));
   }
-  if (search.maxPrice != null) {
+  if (search.maxPrice !== null && search.maxPrice !== undefined) {
     params = params.set('maxPrice', String(search.maxPrice));
   }
   if (search.inStock) {
@@ -137,4 +168,4 @@ function toHttpParams(search: ProductSearch): HttpParams {
     params = params.set('pageSize', String(search.pageSize));
   }
   return params;
-}
+};

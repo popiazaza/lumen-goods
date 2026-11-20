@@ -1,11 +1,13 @@
-import { Injectable, inject } from '@angular/core';
+import { Service, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
 
 export const SITE_NAME = 'Lumen Goods';
 
-/** Turns a route's `title` into a unique document title, e.g. "Your cart — Lumen Goods" (WCAG 2.4.2). */
-@Injectable({ providedIn: 'root' })
+/**
+Turns a route's `title` into a unique document title, e.g. "Your cart — Lumen Goods" (WCAG 2.4.2).
+*/
+@Service()
 export class PageTitleStrategy extends TitleStrategy {
   private readonly title = inject(Title);
 

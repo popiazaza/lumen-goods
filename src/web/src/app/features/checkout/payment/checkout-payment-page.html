@@ -18,7 +18,8 @@
   </div>
 }
 
-@switch (phase()) {
+@let currentPhase = phase();
+@switch (currentPhase) {
   @case ('loading') {
     <p class="muted" role="status">Loading your order…</p>
   }
@@ -117,40 +118,14 @@
           </div>
         </div>
       } @else {
-        <form class="code-form" [formGroup]="codeForm" (ngSubmit)="submitCode()" novalidate>
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Verification code</mat-label>
-            <input
-              id="one-time-code"
-              matInput
-              type="text"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              formControlName="code"
-              [attr.aria-describedby]="codeDescribedBy()"
-              [attr.aria-invalid]="codeError() ? true : null"
-              required
-            />
-            @if (testCode(); as code) {
-              <mat-hint id="code-test">Test code: {{ code }} (no text message is sent)</mat-hint>
-            }
-          </mat-form-field>
-          @if (codeError()) {
-            <p id="code-error" class="field-error" role="alert">
-              <mat-icon svgIcon="error" aria-hidden="true" />
-              {{ codeError() }}
-            </p>
-          }
-          <p id="code-timer" class="timer" role="timer">
-            <mat-icon svgIcon="schedule" aria-hidden="true" />
-            Code expires in {{ codeCountdown() }}
-          </p>
-          <div class="actions">
-            <button matButton="filled" type="submit" [attr.aria-disabled]="submitting()">
-              {{ submitting() ? 'Verifying…' : 'Verify' }}
-            </button>
-          </div>
-        </form>
+        <app-one-time-code-form
+          [form]="codeForm"
+          [testCode]="testCode()"
+          [error]="codeError()"
+          [countdown]="codeCountdown()"
+          [submitting]="submitting()"
+          (verify)="submitCode()"
+        />
       }
     </section>
   }
@@ -174,7 +149,7 @@
       <app-error-summary [problems]="problems()" />
     }
 
-    <form class="checkout-form" [formGroup]="cardForm" (ngSubmit)="pay()" novalidate>
+    <form class="checkout-form" novalidate [formGroup]="cardForm" (ngSubmit)="pay()">
       <h2 id="method-heading">How would you like to pay?</h2>
       <mat-radio-group class="methods" aria-labelledby="method-heading" [formControl]="method">
         <mat-radio-button value="card">
@@ -185,8 +160,8 @@
         </mat-radio-button>
         <mat-radio-button
           value="wallet"
-          [disabled]="!walletUsable()"
           aria-describedby="wallet-note"
+          [disabled]="!walletUsable()"
         >
           <span class="method-label">
             <mat-icon svgIcon="wallet" aria-hidden="true" />
@@ -195,103 +170,17 @@
         </mat-radio-button>
       </mat-radio-group>
       <p id="wallet-note" class="wallet-note muted">
-        @if (samePaymentOnly()) {
-          Only the same card payment can be tried again, so the wallet can’t be used for this
-          attempt.
-        } @else if (walletBalance() !== null) {
-          Wallet balance:
-          <span class="price">{{
-            walletBalance() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
-          }}</span>
-          @if (!walletCovers()) {
-            · Not enough to pay
-            <span class="price">{{
-              total() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
-            }}</span>, so pay by card.
-          }
-        } @else if (wallet.status() === 'error') {
-          We couldn’t load your wallet balance, so the wallet can’t be used right now.
-        } @else {
-          Loading your wallet balance…
-        }
+        <app-wallet-note
+          [samePaymentOnly]="samePaymentOnly()"
+          [balance]="walletBalance()"
+          [covers]="walletCovers()"
+          [total]="total()"
+          [loadFailed]="wallet.status() === 'error'"
+        />
       </p>
 
       @if (chosenMethod() === 'card') {
-        <fieldset class="card-fields">
-          <legend>Card details</legend>
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Card number</mat-label>
-            <input
-              id="card-number"
-              matInput
-              type="text"
-              inputmode="numeric"
-              autocomplete="cc-number"
-              formControlName="number"
-              spellcheck="false"
-              (input)="formatNumber($event)"
-              required
-            />
-            @if (brandName()) {
-              <span matTextSuffix class="brand" aria-live="polite">{{ brandName() }}</span>
-            }
-            <mat-hint
-              >Test cards: 4111 1111 1111 1111 approves; see the README for the others</mat-hint
-            >
-            @if (cardForm.controls.number.invalid) {
-              <mat-error>{{ errorFor('number') }}</mat-error>
-            }
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Name on card</mat-label>
-            <input id="card-name" matInput autocomplete="cc-name" formControlName="name" required />
-            @if (cardForm.controls.name.invalid) {
-              <mat-error>{{ errorFor('name') }}</mat-error>
-            }
-          </mat-form-field>
-
-          <div class="row">
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>Expiry date (MM/YY)</mat-label>
-              <input
-                id="card-expiry"
-                matInput
-                type="text"
-                inputmode="numeric"
-                autocomplete="cc-exp"
-                placeholder="MM/YY"
-                formControlName="expiry"
-                (input)="formatExpiryInput($event)"
-                required
-              />
-              @if (cardForm.controls.expiry.invalid) {
-                <mat-error>{{ errorFor('expiry') }}</mat-error>
-              }
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>Security code (CVC)</mat-label>
-              <input
-                id="card-cvc"
-                matInput
-                type="text"
-                inputmode="numeric"
-                autocomplete="cc-csc"
-                formControlName="cvc"
-                required
-              />
-              <mat-hint
-                >{{ cvcDigits() }} digits{{
-                  cvcDigits() === 4 ? ' on the front' : ' on the back'
-                }}</mat-hint
-              >
-              @if (cardForm.controls.cvc.invalid) {
-                <mat-error>{{ errorFor('cvc') }}</mat-error>
-              }
-            </mat-form-field>
-          </div>
-        </fieldset>
+        <app-card-details [form]="cardForm" [serverErrors]="serverErrors()" />
       }
 
       <div class="actions">
@@ -316,4 +205,6 @@
       </p>
     </form>
   }
+
+  @default never;
 }

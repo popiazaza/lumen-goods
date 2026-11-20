@@ -13,7 +13,7 @@
     <app-catalogue-filters
       [query]="query()"
       [sellers]="sellerOptions()"
-      [sellersFailed]="sellerDirectory.failed()"
+      [sellersFailed]="sellersFailed()"
       (filtersChange)="apply($event)"
     />
   </aside>
@@ -44,7 +44,11 @@
           @for (chip of chips(); track chip.key) {
             <mat-chip role="listitem" (removed)="removeChip(chip)">
               {{ chip.label }}
-              <button matChipRemove [attr.aria-label]="'Remove filter: ' + chip.label">
+              <button
+                type="button"
+                matChipRemove
+                [attr.aria-label]="`Remove filter: ${chip.label}`"
+              >
                 <mat-icon svgIcon="cancel" />
               </button>
             </mat-chip>
@@ -81,10 +85,7 @@
         <ul class="grid" [class.stale]="results.isLoading()" [attr.aria-busy]="results.isLoading()">
           @for (product of page.items; track product.id) {
             <li>
-              <app-product-card
-                [product]="product"
-                [sellerName]="sellerDirectory.nameOf(product.source)"
-              />
+              <app-product-card [product]="product" [sellerName]="sellerName(product.source)" />
             </li>
           }
         </ul>
@@ -110,9 +111,9 @@
                       <a
                         class="number current"
                         routerLink="."
-                        [queryParams]="pageParams(link)"
                         aria-current="page"
-                        [attr.aria-label]="'Page ' + link"
+                        [queryParams]="pageParams(link)"
+                        [attr.aria-label]="`Page ${link}`"
                         >{{ link }}</a
                       >
                     } @else {
@@ -120,7 +121,7 @@
                         class="number"
                         routerLink="."
                         [queryParams]="pageParams(link)"
-                        [attr.aria-label]="'Page ' + link"
+                        [attr.aria-label]="`Page ${link}`"
                         >{{ link }}</a
                       >
                     }
@@ -184,21 +185,21 @@
     <app-catalogue-filters
       [query]="query()"
       [sellers]="sellerOptions()"
-      [sellersFailed]="sellerDirectory.failed()"
+      [sellersFailed]="sellersFailed()"
       (filtersChange)="apply($event)"
     />
     <div class="sheet-actions">
       <button
         matButton
         type="button"
-        [disabled]="filterCount() === 0"
         disabledInteractive
+        [disabled]="filterCount() === 0"
         (click)="clearAllInSheet(sheetHeading)"
       >
         Clear all
       </button>
       <button matButton="filled" type="button" (click)="closeFilters()">
-        {{ page() ? 'Show ' + countText() : 'Show results' }}
+        {{ page() ? `Show ${countText()}` : 'Show results' }}
       </button>
     </div>
   </div>

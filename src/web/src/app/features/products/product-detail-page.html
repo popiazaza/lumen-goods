@@ -25,15 +25,15 @@
       />
       @if (images().length > 1) {
         <ul class="thumbs" aria-label="Product images">
-          @for (image of images(); track $index; let index = $index) {
+          @for (image of images(); track $index) {
             <li>
               <button
                 type="button"
                 class="thumb"
-                [class.selected]="index === selectedImage()"
-                [attr.aria-pressed]="index === selectedImage()"
-                [attr.aria-label]="'Show image ' + (index + 1) + ' of ' + images().length"
-                (click)="selectedImage.set(index)"
+                [class.selected]="$index === selectedImage()"
+                [attr.aria-pressed]="$index === selectedImage()"
+                [attr.aria-label]="`Show image ${$index + 1} of ${$count}`"
+                (click)="selectedImage.set($index)"
               >
                 <app-product-image [src]="image.url" />
               </button>
@@ -69,8 +69,8 @@
             type="number"
             inputmode="numeric"
             min="1"
-            [max]="maxQuantity()"
             formControlName="quantity"
+            [max]="maxQuantity()"
             (blur)="normaliseQuantity()"
           />
           <button
@@ -93,8 +93,8 @@
           matButton="filled"
           type="submit"
           class="add"
-          [disabled]="!canBuy() || adding()"
           disabledInteractive
+          [disabled]="!canBuy() || adding()"
           [attr.aria-describedby]="canBuy() ? null : 'buy-note'"
         >
           <mat-icon svgIcon="cart" />

@@ -41,16 +41,28 @@ import { signInQueryParams } from '../../routing/return-url';
 })
 export class Header {
   private readonly router = inject(Router);
+
   private readonly cart = inject(CartStateService);
+
   private readonly sessionApi = inject(SessionApi);
+
   private readonly walletApi = inject(WalletApi);
+
   private readonly checkout = inject(CheckoutStore);
+
   private readonly announcer = inject(LiveAnnouncer);
+
   private readonly menuToggle = viewChild.required('menuToggle', { read: ElementRef });
+
   private readonly accountToggle = viewChild('accountToggle', { read: ElementRef });
+
   private readonly accountArea = viewChild('accountArea', { read: ElementRef });
 
-  /** "Shop" stays active while the catalogue's query string changes. */
+  private readonly currentUrl = signal('/');
+
+  /**
+  "Shop" stays active while the catalogue's query string changes.
+  */
   protected readonly shopLinkMatch: IsActiveMatchOptions = {
     paths: 'exact',
     queryParams: 'ignored',
@@ -59,22 +71,30 @@ export class Header {
   };
 
   protected readonly menuOpen = signal(false);
+
   protected readonly accountOpen = signal(false);
+
   protected readonly signingOut = signal(false);
+
   protected readonly session = this.sessionApi.session;
+
   protected readonly isAdmin = this.sessionApi.isAdmin;
 
-  /** Read when the account panel opens, so the balance is current after a payment or refund. */
+  /**
+  Read when the account panel opens, so the balance is current after a payment or refund.
+  */
   protected readonly wallet = rxResource({
     params: () => (this.accountOpen() && this.session().isAuthenticated ? true : undefined),
     stream: () => this.walletApi.get(),
   });
 
-  private readonly currentUrl = signal('/');
-  /** "Sign in" brings the shopper back to the page they were on. */
+  /**
+  "Sign in" brings the shopper back to the page they were on.
+  */
   protected readonly signInParams = computed(() => signInQueryParams(this.currentUrl()));
 
   protected readonly itemCount = this.cart.itemCount;
+
   protected readonly cartLabel = computed(() => {
     const count = this.itemCount();
     if (count === 0) {
@@ -94,7 +114,7 @@ export class Header {
     this.router.events
       .pipe(
         filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-        takeUntilDestroyed(),
+        takeUntilDestroyed()
       )
       .subscribe((event) => {
         this.menuOpen.set(false);
@@ -114,7 +134,9 @@ export class Header {
     this.accountOpen.update((open) => !open);
   }
 
-  /** Escape closes the innermost open panel and returns focus to the button that opened it. */
+  /**
+  Escape closes the innermost open panel and returns focus to the button that opened it.
+  */
   protected onEscape(): void {
     if (this.accountOpen()) {
       this.accountOpen.set(false);
@@ -126,17 +148,17 @@ export class Header {
 
   protected closeAccountOnOutsideClick(event: Event): void {
     const area = this.accountArea()?.nativeElement as HTMLElement | undefined;
-    if (this.accountOpen() && area && !area.contains(event.target as Node)) {
+    if (area && this.accountOpen() && !area.contains(event.target as Node)) {
       this.accountOpen.set(false);
     }
   }
 
-  protected closeMenu(returnFocus = false): void {
+  protected closeMenu(shouldReturnFocus = false): void {
     if (!this.menuOpen()) {
       return;
     }
     this.menuOpen.set(false);
-    if (returnFocus) {
+    if (shouldReturnFocus) {
       this.menuToggle().nativeElement.focus();
     }
   }
@@ -164,7 +186,7 @@ export class Header {
           this.cart.setMergeNotice(null);
           return this.cart.reload();
         }),
-        finalize(() => this.signingOut.set(false)),
+        finalize(() => this.signingOut.set(false))
       )
       .subscribe({
         next: () => {
@@ -174,15 +196,17 @@ export class Header {
         },
         error: () => {
           // Signed out but the cart refresh failed, or the sign-out itself failed.
-          const signedOut = !this.sessionApi.isAuthenticated();
+          const isSignedOut = !this.sessionApi.isAuthenticated();
           void this.announcer.announce(
-            signedOut ? 'You are signed out.' : 'We couldn’t sign you out. Try again.',
-            'assertive',
+            isSignedOut ? 'You are signed out.' : 'We couldn’t sign you out. Try again.',
+            'assertive'
           );
-          if (signedOut) {
-            this.accountOpen.set(false);
-            void this.router.navigateByUrl('/');
+          if (!isSignedOut) {
+            return;
           }
+
+          this.accountOpen.set(false);
+          void this.router.navigateByUrl('/');
         },
       });
   }

@@ -25,18 +25,25 @@ import { registerOrderIcons } from './order-icons';
 import { StatusView, orderStatusView } from './order-labels';
 import { StatusBadge } from './status-badge';
 
-/** A 1-based page number from the URL; anything else is page 1. */
-export function parsePage(value: string | null): number {
+/**
+A 1-based page number from the URL; anything else is page 1.
+*/
+export const parsePage = (value: string | null): number => {
   const page = Number(value);
-  return Number.isInteger(page) && page >= 1 ? page : 1;
-}
+  return Number.isSafeInteger(page) && page >= 1 ? page : 1;
+};
 
-/** Query params for a page link; page 1 has none, so it has one URL. */
-export function pageQueryParams(page: number): Params {
-  return { page: page > 1 ? page : null };
-}
+const summaryStatusView = (order: OrderSummaryDto): StatusView =>
+  orderStatusView(order.status, order.statusText);
 
-/** The customer's order history (`/orders`), newest first, paged through `?page=`. */
+/**
+Query params for a page link; page 1 has none, so it has one URL.
+*/
+export const pageQueryParams = (page: number): Params => ({ page: page > 1 ? page : null });
+
+/**
+The customer's order history (`/orders`), newest first, paged through `?page=`.
+*/
 @Component({
   selector: 'app-order-list-page',
   imports: [
@@ -65,7 +72,9 @@ export class OrderListPage {
     params: () => this.pageNumber(),
     stream: ({ params: page }) => this.api.list(page),
   });
-  /** The last page that loaded: stays on screen (dimmed) while the next one loads. */
+  /**
+  The last page that loaded: stays on screen (dimmed) while the next one loads.
+  */
   protected readonly result = linkedSignal<
     PagedResult<OrderSummaryDto> | undefined,
     PagedResult<OrderSummaryDto> | undefined
@@ -83,6 +92,8 @@ export class OrderListPage {
 
   protected readonly pageParams = pageQueryParams;
 
+  protected readonly statusOf = summaryStatusView;
+
   constructor() {
     registerOrderIcons();
     // Paging is a query-only navigation, so the router leaves focus on the page link; start the
@@ -94,15 +105,11 @@ export class OrderListPage {
         untracked(() =>
           afterNextRender(
             { write: () => this.countHeading()?.nativeElement.focus() },
-            { injector: this.injector },
-          ),
+            { injector: this.injector }
+          )
         );
       }
       previous = page;
     });
-  }
-
-  protected statusOf(order: OrderSummaryDto): StatusView {
-    return orderStatusView(order.status, order.statusText);
   }
 }

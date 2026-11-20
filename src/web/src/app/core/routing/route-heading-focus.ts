@@ -14,8 +14,8 @@ import { filter } from 'rxjs';
  * and screen-reader users start at the new content instead of the old link (WCAG 2.4.3).
  * Skips the first page load and query-only changes (catalogue filters must keep focus).
  */
-export function provideRouteHeadingFocus(): EnvironmentProviders {
-  return provideEnvironmentInitializer(() => {
+export const provideRouteHeadingFocus = (): EnvironmentProviders =>
+  provideEnvironmentInitializer(() => {
     const router = inject(Router);
     const document = inject(DOCUMENT);
     const injector = inject(Injector);
@@ -24,19 +24,18 @@ export function provideRouteHeadingFocus(): EnvironmentProviders {
     router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => {
-        const path = event.urlAfterRedirects.split(/[?#]/, 1)[0];
+        const [path] = event.urlAfterRedirects.split(/[?#]/u, 1);
         const isFirstNavigation = previousPath === undefined;
-        const pathChanged = path !== previousPath;
+        const isPathChanged = path !== previousPath;
         previousPath = path;
-        if (isFirstNavigation || !pathChanged) {
+        if (isFirstNavigation || !isPathChanged) {
           return;
         }
         afterNextRender({ write: () => focusMainHeading(document) }, { injector });
       });
   });
-}
 
-function focusMainHeading(document: Document): void {
+const focusMainHeading = (document: Document): void => {
   const target =
     document.querySelector<HTMLElement>('main h1') ?? document.querySelector<HTMLElement>('main');
   if (!target) {
@@ -47,4 +46,4 @@ function focusMainHeading(document: Document): void {
   }
   // The router's scroll restoration owns the scroll position; focus must not fight it.
   target.focus({ preventScroll: true });
-}
+};

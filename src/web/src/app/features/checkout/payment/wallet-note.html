@@ -1,0 +1,15 @@
+@if (samePaymentOnly()) {
+  Only the same card payment can be tried again, so the wallet can’t be used for this attempt.
+} @else if (balance() !== null) {
+  Wallet balance:
+  <span class="price">{{ balance() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</span>
+  @if (!covers()) {
+    · Not enough to pay
+    <span class="price">{{ total() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</span>, so
+    pay by card.
+  }
+} @else if (loadFailed()) {
+  We couldn’t load your wallet balance, so the wallet can’t be used right now.
+} @else {
+  Loading your wallet balance…
+}

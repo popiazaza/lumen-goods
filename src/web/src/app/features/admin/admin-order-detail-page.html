@@ -1,10 +1,10 @@
 <h1>Order {{ id() }}</h1>
 
 @if (accessStatus(); as status) {
-  <app-admin-access-denied [status]="status" [returnUrl]="'/admin/orders/' + id()" />
+  <app-admin-access-denied [status]="status" [returnUrl]="`/admin/orders/${id()}`" />
 } @else if (errorStatus(); as status) {
   <div class="state" [attr.role]="status === 404 ? null : 'alert'">
-    <mat-icon [svgIcon]="status === 404 ? 'info' : 'error'" class="state-icon" />
+    <mat-icon class="state-icon" [svgIcon]="status === 404 ? 'info' : 'error'" />
     @if (status === 404) {
       <p>
         <strong>There is no order {{ id() }}.</strong>
@@ -25,7 +25,7 @@
     <p>
       Placed <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'medium' }}</time>
     </p>
-    <button matButton type="button" (click)="order.reload()" [disabled]="order.isLoading()">
+    <button matButton type="button" [disabled]="order.isLoading()" (click)="order.reload()">
       <mat-icon svgIcon="refresh" />
       Reload
     </button>
@@ -46,7 +46,7 @@
       <mat-icon svgIcon="warning" />
       <p>
         <strong
-          >{{ attentionCount() === 1 ? '1 line needs' : attentionCount() + ' lines need' }} your
+          >{{ attentionCount() === 1 ? '1 line needs' : `${attentionCount()} lines need` }} your
           decision.</strong
         >
         The partner has not confirmed or rejected it for a long time, or Lumen never learned whether
@@ -89,7 +89,7 @@
               class="table-scroll"
               role="region"
               tabindex="0"
-              [attr.aria-label]="'Lines from ' + shipment.sellerName"
+              [attr.aria-label]="`Lines from ${shipment.sellerName}`"
             >
               <table>
                 <thead>
@@ -121,11 +121,9 @@
                             <button
                               matButton="filled"
                               type="button"
-                              [disabled]="savingLine() !== null"
                               disabledInteractive
-                              [attr.aria-label]="
-                                'Confirm line ' + line.lineNumber + ', ' + line.name
-                              "
+                              [disabled]="savingLine() !== null"
+                              [attr.aria-label]="`Confirm line ${line.lineNumber}, ${line.name}`"
                               (click)="resolve(line, shipment.sellerName, 'confirm')"
                             >
                               Confirm
@@ -133,11 +131,9 @@
                             <button
                               matButton="outlined"
                               type="button"
-                              [disabled]="savingLine() !== null"
                               disabledInteractive
-                              [attr.aria-label]="
-                                'Reject line ' + line.lineNumber + ', ' + line.name
-                              "
+                              [disabled]="savingLine() !== null"
+                              [attr.aria-label]="`Reject line ${line.lineNumber}, ${line.name}`"
                               (click)="resolve(line, shipment.sellerName, 'reject')"
                             >
                               Reject
@@ -173,78 +169,7 @@
           <ul class="partner-orders">
             @for (partnerOrder of admin.partnerOrders; track partnerOrder.id) {
               <li>
-                <div class="item-head">
-                  <h3>Line {{ partnerOrder.lineNumber }}: {{ partnerOrder.sellerName }}</h3>
-                  <app-status-badge [status]="partnerOrderView(partnerOrder)" />
-                </div>
-                <dl class="pairs">
-                  <div>
-                    <dt>Our reference</dt>
-                    <dd>
-                      <code>{{ partnerOrder.externalRef }}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Partner order or ticket</dt>
-                    <dd>
-                      @if (partnerOrder.partnerOrderId) {
-                        <code>{{ partnerOrder.partnerOrderId }}</code>
-                      } @else {
-                        None yet
-                      }
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Attempts</dt>
-                    <dd>{{ partnerOrder.attempts }}</dd>
-                  </div>
-                  @if (partnerOrder.nextAttemptUtc) {
-                    <div>
-                      <dt>Next attempt</dt>
-                      <dd>{{ partnerOrder.nextAttemptUtc | date: 'medium' }}</dd>
-                    </div>
-                  }
-                  @if (partnerOrder.submittedUtc) {
-                    <div>
-                      <dt>Sent</dt>
-                      <dd>{{ partnerOrder.submittedUtc | date: 'medium' }}</dd>
-                    </div>
-                  }
-                  @if (partnerOrder.acceptedUtc) {
-                    <div>
-                      <dt>Accepted</dt>
-                      <dd>{{ partnerOrder.acceptedUtc | date: 'medium' }}</dd>
-                    </div>
-                  }
-                  @if (partnerOrder.decidedUtc) {
-                    <div>
-                      <dt>Decided</dt>
-                      <dd>{{ partnerOrder.decidedUtc | date: 'medium' }}</dd>
-                    </div>
-                  }
-                  @if (partnerOrder.reason) {
-                    <div>
-                      <dt>Reason</dt>
-                      <dd class="wrap">{{ partnerOrder.reason }}</dd>
-                    </div>
-                  }
-                </dl>
-                @if (partnerOrder.outcomeUnknown) {
-                  <p class="last-error">
-                    <mat-icon svgIcon="warning" />
-                    <span
-                      ><strong>Outcome unknown:</strong> a send may have reached
-                      {{ partnerOrder.sellerName }} without an answer, so it may hold this order.
-                      Check with {{ partnerOrder.sellerName }} before rejecting the line.</span
-                    >
-                  </p>
-                }
-                @if (partnerOrder.lastError) {
-                  <p class="last-error">
-                    <mat-icon svgIcon="error" />
-                    <span><strong>Last error:</strong> {{ partnerOrder.lastError }}</span>
-                  </p>
-                }
+                <app-partner-order-details [partnerOrder]="partnerOrder" />
               </li>
             }
           </ul>

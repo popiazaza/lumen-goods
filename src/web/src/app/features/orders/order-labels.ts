@@ -13,7 +13,9 @@ import {
 
 export type StatusTone = 'success' | 'info' | 'warning' | 'error' | 'neutral';
 
-/** What a status badge shows. */
+/**
+What a status badge shows.
+*/
 export interface StatusView {
   tone: StatusTone;
   icon: string;
@@ -40,16 +42,22 @@ const ORDER_LOOKS: Readonly<Record<OrderStatus, Omit<StatusView, 'text'>>> = {
 
 const FALLBACK_LOOK: Omit<StatusView, 'text'> = { tone: 'neutral', icon: 'info' };
 
-/** BR-ORD-02 badge for one line: "Awaiting Kestrel Outfitters", "Not supplied, refunded $40.03". */
-export function lineStatusView(status: OrderLineStatus, statusText: string): StatusView {
-  return { ...(LINE_LOOKS[status] ?? FALLBACK_LOOK), text: statusText || humanise(status) };
-}
+/**
+BR-ORD-02 badge for one line: "Awaiting Kestrel Outfitters", "Not supplied, refunded $40.03".
+*/
+export const lineStatusView = (status: OrderLineStatus, statusText: string): StatusView => ({
+  ...(LINE_LOOKS[status] ?? FALLBACK_LOOK),
+  text: statusText || humanise(status),
+});
 
-export function orderStatusView(status: OrderStatus, statusText: string): StatusView {
-  return { ...(ORDER_LOOKS[status] ?? FALLBACK_LOOK), text: statusText || humanise(status) };
-}
+export const orderStatusView = (status: OrderStatus, statusText: string): StatusView => ({
+  ...(ORDER_LOOKS[status] ?? FALLBACK_LOOK),
+  text: statusText || humanise(status),
+});
 
-/** Admin wording for the orders filter (the customer wording calls `paid` "Processing"). */
+/**
+Admin wording for the orders filter (the customer wording calls `paid` "Processing").
+*/
 export const ADMIN_ORDER_STATUS_LABELS: Readonly<Record<OrderStatus, string>> = {
   awaiting_payment: 'Awaiting payment',
   payment_processing: 'Payment in progress',
@@ -65,33 +73,35 @@ const SHIPPING_LABELS: Readonly<Record<ShippingMethod, string>> = {
   express: 'Express shipping',
 };
 
-export function shippingLabel(method: ShippingMethod): string {
-  return SHIPPING_LABELS[method] ?? humanise(method);
-}
+export const shippingLabel = (method: ShippingMethod): string =>
+  SHIPPING_LABELS[method] ?? humanise(method);
 
-/** "Visa ending 1111" or "Lumen wallet". */
-export function paymentMethodLabel(payment: PaymentSummaryDto): string {
+/**
+"Visa ending 1111" or "Lumen wallet".
+*/
+export const paymentMethodLabel = (payment: PaymentSummaryDto): string => {
   if (payment.method === 'wallet') {
     return 'Lumen wallet';
   }
   const brand = cardBrandName(payment.cardBrand);
   return payment.cardLast4 ? `${brand} ending ${payment.cardLast4}` : brand;
-}
+};
+
+const BEING_CONFIRMED: StatusView = { tone: 'info', icon: 'schedule', text: 'Being confirmed' };
 
 const PAYMENT_STATUS_LOOKS: Readonly<Record<PaymentStatus, StatusView>> = {
-  created: { tone: 'info', icon: 'schedule', text: 'Being confirmed' },
-  processing: { tone: 'info', icon: 'schedule', text: 'Being confirmed' },
+  created: BEING_CONFIRMED,
+  processing: BEING_CONFIRMED,
   requires_action: { tone: 'warning', icon: 'lock', text: 'Waiting for a one-time code' },
   succeeded: { tone: 'success', icon: 'check_circle', text: 'Paid' },
   declined: { tone: 'error', icon: 'cancel', text: 'Declined' },
-  error: { tone: 'info', icon: 'schedule', text: 'Being confirmed' },
+  error: BEING_CONFIRMED,
   failed: { tone: 'error', icon: 'error', text: 'Failed' },
   expired: { tone: 'neutral', icon: 'block', text: 'Expired' },
 };
 
-export function paymentStatusView(status: PaymentStatus): StatusView {
-  return PAYMENT_STATUS_LOOKS[status] ?? { ...FALLBACK_LOOK, text: humanise(status) };
-}
+export const paymentStatusView = (status: PaymentStatus): StatusView =>
+  PAYMENT_STATUS_LOOKS[status] ?? { ...FALLBACK_LOOK, text: humanise(status) };
 
 const REFUND_LOOKS: Readonly<Record<RefundStatus, StatusView>> = {
   pending: { tone: 'info', icon: 'schedule', text: 'Pending' },
@@ -104,13 +114,15 @@ const REFUND_LOOKS: Readonly<Record<RefundStatus, StatusView>> = {
  * wording ("Not supplied, refund pending"): it is retried until it is paid back, and nothing is
  * theirs to do.
  */
-export function refundStatusView(status: RefundStatus, forAdmin = false): StatusView {
-  const shown = !forAdmin && status === 'failed' ? 'pending' : status;
+export const refundStatusView = (status: RefundStatus, isForAdmin = false): StatusView => {
+  const shown = !isForAdmin && status === 'failed' ? 'pending' : status;
   return REFUND_LOOKS[shown] ?? { ...FALLBACK_LOOK, text: humanise(status) };
-}
+};
 
-/** `needs_attention` -> "Needs attention": a readable fallback for a value this client does not know. */
-export function humanise(value: string): string {
-  const text = value.replace(/_/g, ' ').trim();
+/**
+`needs_attention` -> "Needs attention": a readable fallback for a value this client does not know.
+*/
+export const humanise = (value: string): string => {
+  const text = value.replaceAll('_', ' ').trim();
   return text.charAt(0).toUpperCase() + text.slice(1);
-}
+};

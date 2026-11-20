@@ -26,14 +26,14 @@ export const appConfig: ApplicationConfig = {
     provideRouter(
       routes,
       withComponentInputBinding(),
-      withInMemoryScrolling({ scrollPositionRestoration: 'enabled' }),
+      withInMemoryScrolling({ scrollPositionRestoration: 'enabled' })
     ),
     { provide: TitleStrategy, useClass: PageTitleStrategy },
     provideRouteHeadingFocus(),
     // Lumen.Api issues the XSRF-TOKEN cookie; Angular echoes it on mutating same-origin requests.
     provideHttpClient(
       withFetch(),
-      withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' }),
+      withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' })
     ),
     // GET /api/v1/auth/session sets that cookie, so load it before anything can POST.
     provideAppInitializer(loadSessionOnStartup),

@@ -1,0 +1,7 @@
+@if (price(); as price) {
+  <span class="price">{{
+    price.amount | currency: price.currency : 'symbol' : '1.2-2' : 'en-US'
+  }}</span>
+} @else {
+  <span class="on-request">Price on request</span>
+}

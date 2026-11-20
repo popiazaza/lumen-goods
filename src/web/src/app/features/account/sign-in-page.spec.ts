@@ -13,8 +13,10 @@ import { mergeNoticeFor } from './after-sign-in';
 import { RegisterPage } from './register-page';
 import { SignInPage } from './sign-in-page';
 
-@Component({ template: '<h1>Next page</h1>' })
+@Component({ selector: 'app-stub-page', template: '<h1>Next page</h1>' })
 class StubPage {}
+
+const url = () => TestBed.inject(Router).url;
 
 describe('Sign in and register', () => {
   let harness: RouterTestingHarness;
@@ -22,19 +24,18 @@ describe('Sign in and register', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
-  const url = () => TestBed.inject(Router).url;
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
 
-  function type(id: string, value: string): void {
+  const type = (id: string, value: string): void => {
     const input = host().querySelector<HTMLInputElement>(`#${id}`) as HTMLInputElement;
     input.value = value;
     input.dispatchEvent(new Event('input'));
-  }
+  };
 
-  async function submit(): Promise<void> {
+  const submit = async (): Promise<void> => {
     host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
     await harness.fixture.whenStable();
-  }
+  };
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -46,7 +47,7 @@ describe('Sign in and register', () => {
             { path: 'checkout/address', component: StubPage },
             { path: '', component: StubPage },
           ],
-          withComponentInputBinding(),
+          withComponentInputBinding()
         ),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -68,28 +69,38 @@ describe('Sign in and register', () => {
     TestBed.inject(CartStateService).reload().subscribe();
     http.expectOne('/api/v1/cart').flush(aCart([aCartLine()]));
     await harness.navigateByUrl('/sign-in?returnUrl=%2Fcheckout%2Faddress');
+
     expect(text('.intro')).toBe('Sign in to check out. Your cart is saved and comes with you.');
-    expect(host().querySelector('.switch a')?.getAttribute('href')).toBe(
-      '/register?returnUrl=%2Fcheckout%2Faddress',
+    expect(host().querySelector(':scope .switch a')?.getAttribute('href')).toBe(
+      '/register?returnUrl=%2Fcheckout%2Faddress'
     );
 
     type('sign-in-email', ' customer@lumen.test ');
     type('sign-in-password', 'Passw0rd!');
     await submit();
     const request = http.expectOne('/api/v1/auth/sign-in');
+
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ email: 'customer@lumen.test', password: 'Passw0rd!' });
+    expect(request.request.body).toStrictEqual({
+      email: 'customer@lumen.test',
+      password: 'Passw0rd!',
+    });
+
     request.flush(CUSTOMER_SESSION);
     http
       .expectOne('/api/v1/cart')
       .flush(aCart([aCartLine(), aCartLine({ id: 'line-2', quantity: 2 })]));
     await harness.fixture.whenStable();
 
-    expect(url()).toBe('/checkout/address');
-    expect(TestBed.inject(SessionApi).isAuthenticated()).toBe(true);
-    expect(TestBed.inject(CartStateService).mergeNotice()).toBe(
-      'We merged your cart with the items saved in your account. It now has 3 items.',
-    );
+    expect({
+      url: url(),
+      isAuthenticated: TestBed.inject(SessionApi).isAuthenticated(),
+      mergeNotice: TestBed.inject(CartStateService).mergeNotice(),
+    }).toStrictEqual({
+      url: '/checkout/address',
+      isAuthenticated: true,
+      mergeNotice: 'We merged your cart with the items saved in your account. It now has 3 items.',
+    });
   });
 
   it('never follows a returnUrl to another site', async () => {
@@ -111,13 +122,18 @@ describe('Sign in and register', () => {
     await submit();
     await harness.fixture.whenStable();
 
-    const links = [...host().querySelectorAll('app-error-summary a')];
-    expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([
+    const links = [...host().querySelectorAll(':scope app-error-summary a')];
+
+    expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toStrictEqual([
       ['Enter your email address', '#sign-in-email'],
       ['Enter your password', '#sign-in-password'],
     ]);
-    expect(document.activeElement).toBe(host().querySelector('app-error-summary [role="alert"]'));
+    expect(document.activeElement).toBe(
+      host().querySelector(':scope app-error-summary [role="alert"]')
+    );
+
     (links[1] as HTMLAnchorElement).click();
+
     expect(document.activeElement?.id).toBe('sign-in-password');
   });
 
@@ -131,7 +147,7 @@ describe('Sign in and register', () => {
       .expectOne('/api/v1/auth/sign-in')
       .flush(
         { title: 'Email or password is incorrect', status: 401 },
-        { status: 401, statusText: 'Unauthorized' },
+        { status: 401, statusText: 'Unauthorized' }
       );
     await harness.fixture.whenStable();
 
@@ -151,13 +167,13 @@ describe('Sign in and register', () => {
         detail: 'The account is locked for a few minutes.',
         status: 429,
       },
-      { status: 429, statusText: 'Too Many Requests' },
+      { status: 429, statusText: 'Too Many Requests' }
     );
     await harness.fixture.whenStable();
 
     expect(text('.failure .failure-title')).toBe('Too many failed attempts');
     expect(text('.failure .failure-title + p')).toBe(
-      'The account is locked for a few minutes. Wait a few minutes, then try again.',
+      'The account is locked for a few minutes. Wait a few minutes, then try again.'
     );
   });
 
@@ -174,7 +190,7 @@ describe('Sign in and register', () => {
         detail: 'Wait 60 seconds, then try again.',
         status: 429,
       },
-      { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '60' } },
+      { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '60' } }
     );
     await harness.fixture.whenStable();
 
@@ -194,7 +210,7 @@ describe('Sign in and register', () => {
         status: 400,
         errors: { Email: ["Username 'taken@lumen.test' is already taken."] },
       },
-      { status: 400, statusText: 'Bad Request' },
+      { status: 400, statusText: 'Bad Request' }
     );
     await harness.fixture.whenStable();
 
@@ -206,6 +222,7 @@ describe('Sign in and register', () => {
     http.expectOne('/api/v1/auth/register').flush(CUSTOMER_SESSION);
     http.expectOne('/api/v1/cart').flush(aCart([]));
     await harness.fixture.whenStable();
+
     expect(url()).toBe('/checkout/address');
   });
 
@@ -240,7 +257,7 @@ describe('mergeNoticeFor', () => {
     });
 
     expect(mergeNoticeFor(aCart([aCartLine()]), aCart([aCartLine(), limited]))).toBe(
-      'We merged your cart with the items saved in your account. It now has 11 items. Some quantities were limited to what is available.',
+      'We merged your cart with the items saved in your account. It now has 11 items. Some quantities were limited to what is available.'
     );
   });
 });

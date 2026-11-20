@@ -15,19 +15,19 @@
 
 .conflict {
   display: flex;
-  gap: var(--lg-space-2);
-  margin-bottom: var(--lg-space-4);
   padding: var(--lg-space-3);
-  border-left: 4px solid var(--lg-status-warning);
   border-radius: 8px;
+  border-left: 4px solid var(--lg-status-warning);
+  margin-bottom: var(--lg-space-4);
   background: var(--mat-sys-surface-container);
+  gap: var(--lg-space-2);
 
-  > mat-icon {
+  & > mat-icon {
     flex: none;
     color: var(--lg-status-warning);
   }
 
-  p {
+  & p {
     margin: 0 0 var(--lg-space-2);
   }
 }
@@ -39,11 +39,11 @@
 
 fieldset {
   display: grid;
-  gap: var(--lg-space-3);
   min-width: 0;
-  margin: 0;
   padding: 0;
   border: 0;
+  margin: 0;
+  gap: var(--lg-space-3);
 }
 
 legend {
@@ -57,17 +57,17 @@ mat-form-field {
 
 .pair {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   gap: var(--lg-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
 }
 
 .attribute {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-  gap: var(--lg-space-2);
   align-items: start;
+  gap: var(--lg-space-2);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
 
-  button {
+  & button {
     margin-top: var(--lg-space-2);
   }
 }
@@ -87,96 +87,17 @@ mat-form-field {
   }
 }
 
-.chosen,
-.library {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.chosen {
-  display: grid;
-  gap: var(--lg-space-2);
-
-  li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--lg-space-2);
-  }
-
-  img {
-    border-radius: 8px;
-    object-fit: cover;
-    background: var(--mat-sys-surface-container);
-  }
-}
-
-.file {
-  flex: 1 1 8rem;
-  overflow-wrap: anywhere;
-}
-
-.main,
-.picked {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lg-space-1);
-}
-
-.main {
-  color: var(--mat-sys-primary);
-}
-
-.library {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
-  gap: var(--lg-space-2);
-}
-
-.library-image {
-  display: grid;
-  justify-items: center;
-  gap: var(--lg-space-1);
-  width: 100%;
-  padding: var(--lg-space-2);
-  border: 2px solid var(--mat-sys-outline-variant);
-  border-radius: 8px;
-  background: var(--mat-sys-surface);
-  color: var(--mat-sys-on-surface);
-  font: var(--mat-sys-body-small);
-  cursor: pointer;
-  overflow-wrap: anywhere;
-
-  &[aria-pressed='true'] {
-    border-color: var(--mat-sys-primary);
-    background: var(--mat-sys-primary-container);
-    color: var(--mat-sys-on-primary-container);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-
-  img {
-    width: 96px;
-    height: 96px;
-    object-fit: cover;
-  }
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--lg-space-2);
 }
 
-@media (max-width: 480px) {
+@media (width <= 480px) {
   .attribute {
     grid-template-columns: minmax(0, 1fr) auto;
 
-    mat-form-field:nth-child(2) {
+    & mat-form-field:nth-child(2) {
       grid-row: 2;
     }
   }

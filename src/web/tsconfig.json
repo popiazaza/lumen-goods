@@ -8,18 +8,26 @@
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
     "skipLibCheck": true,
     "isolatedModules": true,
     "experimentalDecorators": true,
     "importHelpers": true,
     "target": "ES2022",
+    // ES2023 built-ins (findLast, toSorted) are inside Angular 22's browser baseline
+    // ("Baseline widely available"); ES2024+ ones such as Error.isError are not.
+    "lib": ["ES2023", "DOM"],
     "module": "preserve"
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true,
-    "strictTemplates": true
+    "strictTemplates": true,
+    // Every extended template check (missing control-flow imports, uncalled signals, ...) fails
+    // the build instead of warning.
+    "extendedDiagnostics": { "defaultCategory": "error" }
   },
   "files": [],
   "references": [

@@ -9,12 +9,12 @@
 
 // System font stack: no web-font download, Roboto where the OS ships it.
 $font-family:
-  Roboto,
+  roboto,
   system-ui,
   -apple-system,
   'Segoe UI',
   'Helvetica Neue',
-  Arial,
+  arial,
   sans-serif;
 
 html {
@@ -57,20 +57,20 @@ html {
   --lg-status-success: #1b6b30;
   --lg-status-warning: #8a4b00;
 
-  @media (min-width: 960px) {
+  @media (width >= 960px) {
     --lg-gutter: 24px;
   }
 
   // The header is sticky only from this size (header.scss): keep focused elements clear of it
   // (WCAG 2.4.11).
-  @media (min-width: 960px) and (min-height: 480px) {
+  @media (width >= 960px) and (height >= 480px) {
     scroll-padding-top: calc(var(--lg-header-height) + var(--lg-space-4));
   }
 }
 
 body {
-  margin: 0;
   min-height: 100%;
+  margin: 0;
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-large);
@@ -78,8 +78,8 @@ body {
 
 h1 {
   margin: 0 0 var(--lg-space-6);
-  font: var(--mat-sys-headline-medium);
   color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-headline-medium);
 
   // Headings receive programmatic focus after navigation; no ring for that.
   &:focus {
@@ -106,7 +106,7 @@ a {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }

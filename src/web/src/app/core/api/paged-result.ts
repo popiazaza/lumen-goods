@@ -1,6 +1,8 @@
 import { HttpParams } from '@angular/common/http';
 
-/** One page of a list (`PagedResult<T>` on the API). `page` is 1-based; past the end has no items. */
+/**
+One page of a list (`PagedResult<T>` on the API). `page` is 1-based; past the end has no items.
+*/
 export interface PagedResult<T> {
   items: T[];
   page: number;
@@ -17,15 +19,18 @@ type QueryValue = string | number | null | undefined;
  */
 export type QueryValues = Readonly<Record<string, QueryValue | readonly QueryValue[]>>;
 
-export function toQueryParams(values: QueryValues): HttpParams {
+const OMITTED_VALUES: ReadonlySet<QueryValue> = /* @__PURE__ */ new Set(['', null, undefined]);
+
+export const toQueryParams = (values: QueryValues): HttpParams => {
   let params = new HttpParams();
   for (const [key, value] of Object.entries(values)) {
-    for (const item of Array.isArray(value) ? value : [value]) {
+    const items = Array.isArray(value) ? value : [value];
+    for (const item of items) {
       const text = typeof item === 'string' ? item.trim() : item;
-      if (text !== '' && text !== null && text !== undefined) {
+      if (!OMITTED_VALUES.has(text)) {
         params = params.append(key, String(text));
       }
     }
   }
   return params;
-}
+};

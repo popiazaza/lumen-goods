@@ -1,0 +1,73 @@
+@let order = partnerOrder();
+<div class="item-head">
+  <h3>Line {{ order.lineNumber }}: {{ order.sellerName }}</h3>
+  <app-status-badge [status]="status()" />
+</div>
+<dl class="pairs">
+  <div>
+    <dt>Our reference</dt>
+    <dd>
+      <code>{{ order.externalRef }}</code>
+    </dd>
+  </div>
+  <div>
+    <dt>Partner order or ticket</dt>
+    <dd>
+      @if (order.partnerOrderId) {
+        <code>{{ order.partnerOrderId }}</code>
+      } @else {
+        None yet
+      }
+    </dd>
+  </div>
+  <div>
+    <dt>Attempts</dt>
+    <dd>{{ order.attempts }}</dd>
+  </div>
+  @if (order.nextAttemptUtc) {
+    <div>
+      <dt>Next attempt</dt>
+      <dd>{{ order.nextAttemptUtc | date: 'medium' }}</dd>
+    </div>
+  }
+  @if (order.submittedUtc) {
+    <div>
+      <dt>Sent</dt>
+      <dd>{{ order.submittedUtc | date: 'medium' }}</dd>
+    </div>
+  }
+  @if (order.acceptedUtc) {
+    <div>
+      <dt>Accepted</dt>
+      <dd>{{ order.acceptedUtc | date: 'medium' }}</dd>
+    </div>
+  }
+  @if (order.decidedUtc) {
+    <div>
+      <dt>Decided</dt>
+      <dd>{{ order.decidedUtc | date: 'medium' }}</dd>
+    </div>
+  }
+  @if (order.reason) {
+    <div>
+      <dt>Reason</dt>
+      <dd class="wrap">{{ order.reason }}</dd>
+    </div>
+  }
+</dl>
+@if (order.outcomeUnknown) {
+  <p class="last-error">
+    <mat-icon svgIcon="warning" />
+    <span
+      ><strong>Outcome unknown:</strong> a send may have reached {{ order.sellerName }} without an
+      answer, so it may hold this order. Check with {{ order.sellerName }} before rejecting the
+      line.</span
+    >
+  </p>
+}
+@if (order.lastError) {
+  <p class="last-error">
+    <mat-icon svgIcon="error" />
+    <span><strong>Last error:</strong> {{ order.lastError }}</span>
+  </p>
+}

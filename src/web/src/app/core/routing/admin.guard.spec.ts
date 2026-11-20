@@ -13,10 +13,12 @@ import { ANONYMOUS_SESSION, Session, SessionApi } from '../api/session.api';
 // The pages are imported here as well as lazily by the route table, so their chunks are already
 // evaluated when a test navigates (see app.routes.spec.ts).
 
+const url = () => TestBed.inject(Router).url;
+
 describe('adminGuard', () => {
   let http: HttpTestingController;
 
-  function configure(): void {
+  const configure = (): void => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter(routes, withComponentInputBinding()),
@@ -26,18 +28,18 @@ describe('adminGuard', () => {
       ],
     });
     http = TestBed.inject(HttpTestingController);
-  }
+  };
 
-  /** Starts the app's router with the session the API answered at start-up. */
-  async function start(session: Session): Promise<RouterTestingHarness> {
+  /**
+  Starts the app's router with the session the API answered at start-up.
+  */
+  const start = async (session: Session): Promise<RouterTestingHarness> => {
     configure();
     const ready = TestBed.inject(SessionApi).ready();
     http.expectOne('/api/v1/auth/session').flush(session);
     await ready;
     return RouterTestingHarness.create();
-  }
-
-  const url = () => TestBed.inject(Router).url;
+  };
 
   it('opens the admin pages for an admin', async () => {
     const harness = await start(ADMIN_SESSION);
@@ -62,8 +64,9 @@ describe('adminGuard', () => {
 
     expect(url()).toBe('/admin/orders');
     expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(
-      'Page not found',
+      'Page not found'
     );
+
     http.expectNone((request) => request.url.includes('/admin/'));
   });
 

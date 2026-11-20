@@ -5,21 +5,21 @@ import { provideAppIcons } from '../../core/icons/app-icons';
 import { aProduct } from '../../testing/fixtures';
 import { ProductCard } from './product-card';
 
+const text = (host: HTMLElement, selector: string) =>
+  host.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
+
 describe('ProductCard', () => {
   let fixture: ComponentFixture<ProductCard>;
 
-  async function render(
+  const render = async (
     product: ProductDto,
-    sellerName = 'Harbor Supply Co.',
-  ): Promise<HTMLElement> {
+    sellerName = 'Harbor Supply Co.'
+  ): Promise<HTMLElement> => {
     fixture.componentRef.setInput('product', product);
     fixture.componentRef.setInput('sellerName', sellerName);
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
-  }
-
-  const text = (host: HTMLElement, selector: string) =>
-    host.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({ providers: [provideRouter([]), provideAppIcons()] });
@@ -29,7 +29,8 @@ describe('ProductCard', () => {
   it('links the name to the product page', async () => {
     const host = await render(aProduct({ id: 'harbor-HSC-10021', name: 'Waxed Canvas Tote' }));
 
-    const link = host.querySelector<HTMLAnchorElement>('h3 a');
+    const link = host.querySelector<HTMLAnchorElement>(':scope h3 a');
+
     expect(link?.textContent?.trim()).toBe('Waxed Canvas Tote');
     expect(link?.getAttribute('href')).toBe('/products/harbor-HSC-10021');
   });
@@ -42,9 +43,11 @@ describe('ProductCard', () => {
 
   it('formats the price as en-US dollars with two decimals', async () => {
     let host = await render(aProduct({ price: { amount: 49.9, currency: 'USD' } }));
+
     expect(text(host, 'app-product-price')).toBe('$49.90');
 
     host = await render(aProduct({ price: { amount: 1234.5, currency: 'USD' } }));
+
     expect(text(host, 'app-product-price')).toBe('$1,234.50');
   });
 
@@ -62,7 +65,7 @@ describe('ProductCard', () => {
     const host = await render(aProduct({ availability }));
 
     expect(text(host, 'app-availability-badge')).toBe(label);
-    expect(host.querySelector('app-availability-badge mat-icon')).not.toBeNull();
+    expect(host.querySelector(':scope app-availability-badge mat-icon')).not.toBeNull();
   });
 
   it('dims a product that cannot be bought and says "Not available"', async () => {
@@ -79,18 +82,21 @@ describe('ProductCard', () => {
           { url: 'http://localhost/media/a.jpg', isPrimary: false },
           { url: 'http://localhost/media/b.jpg', isPrimary: true },
         ],
-      }),
+      })
     );
     const img = host.querySelector('img');
+
     expect(img?.getAttribute('src')).toBe('http://localhost/media/b.jpg');
     expect(img?.getAttribute('alt')).toBe('');
 
     img?.dispatchEvent(new Event('error'));
     await fixture.whenStable();
+
     expect(host.querySelector('img')).toBeNull();
     expect(host.querySelector('.placeholder')).not.toBeNull();
 
     host = await render(aProduct({ images: [] }));
+
     expect(host.querySelector('.placeholder')).not.toBeNull();
   });
 });

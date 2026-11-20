@@ -1,0 +1,24 @@
+<h2 mat-dialog-title>{{ data.title }}</h2>
+<mat-dialog-content>
+  <p class="message">{{ data.message }}</p>
+  @if (data.noteLabel) {
+    <mat-form-field class="note">
+      <mat-label>{{ data.noteLabel }}</mat-label>
+      <textarea matInput rows="3" [formControl]="note" [maxlength]="noteMaxLength"></textarea>
+      @if (data.noteHint) {
+        <mat-hint>{{ data.noteHint }}</mat-hint>
+      }
+      @if (note.hasError('maxlength')) {
+        <mat-error>At most {{ noteMaxLength }} characters.</mat-error>
+      }
+    </mat-form-field>
+  }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button matButton type="button" class="cancel" (click)="cancel()">
+    {{ data.cancelText }}
+  </button>
+  <button matButton="filled" type="button" class="confirm" (click)="confirm()">
+    {{ data.confirmText }}
+  </button>
+</mat-dialog-actions>

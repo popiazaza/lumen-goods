@@ -1,0 +1,62 @@
+nav {
+  margin: 0 0 var(--lg-space-4);
+}
+
+.compact {
+  margin: 0 0 var(--lg-space-2);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-large);
+}
+
+ol {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0;
+  margin: 0;
+  gap: var(--lg-space-1) var(--lg-space-4);
+  list-style: none;
+}
+
+a,
+.step {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-large);
+  gap: var(--lg-space-2);
+}
+
+a {
+  color: var(--mat-sys-primary);
+}
+
+.current .step {
+  color: var(--mat-sys-on-surface);
+  font-weight: 700;
+}
+
+.marker {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  border: 2px solid currentcolor;
+  border-radius: 50%;
+  font-size: 12px;
+  place-items: center;
+
+  & mat-icon {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+.done .marker {
+  border: 0;
+}
+
+.current .marker {
+  border-color: var(--mat-sys-primary);
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+}

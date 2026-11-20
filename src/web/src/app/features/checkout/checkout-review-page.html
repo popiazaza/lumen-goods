@@ -110,7 +110,7 @@
 
   <h2>Items</h2>
   @for (shipment of preview.shipments; track shipment.source) {
-    <section class="group" [attr.aria-label]="'Sold by ' + shipment.sellerName">
+    <section class="group" [attr.aria-label]="`Sold by ${shipment.sellerName}`">
       <div class="group-head">
         <h3>Sold by {{ shipment.sellerName }}</h3>
         <span class="ships">
@@ -179,8 +179,8 @@
         matButton="filled"
         type="button"
         class="place"
-        [disabled]="blocked() || placing() || preview.shipments.length === 0"
         disabledInteractive
+        [disabled]="blocked() || placing() || preview.shipments.length === 0"
         [attr.aria-describedby]="blocked() ? 'place-blocked' : 'place-note'"
         (click)="placeOrder()"
       >

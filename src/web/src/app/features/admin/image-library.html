@@ -1,0 +1,22 @@
+<ul class="library">
+  @for (image of images(); track image.file) {
+    @let isChosen = chosenFiles().has(image.file);
+    <li>
+      <button
+        type="button"
+        class="library-image"
+        [attr.aria-pressed]="isChosen"
+        [disabled]="!isChosen && isFull()"
+        (click)="toggled.emit(image.file)"
+      >
+        <img alt="" width="96" height="96" loading="lazy" [ngSrc]="image.url" />
+        <span>{{ image.file }}</span>
+        @if (isChosen) {
+          <span class="picked"><mat-icon svgIcon="check_circle" />Chosen</span>
+        }
+      </button>
+    </li>
+  } @empty {
+    <li class="muted">The image library is empty.</li>
+  }
+</ul>

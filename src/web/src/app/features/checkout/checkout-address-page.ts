@@ -17,7 +17,9 @@ import { US_STATES, usStateValidator, zipValidator } from './us-address';
 
 type AddressField = 'name' | 'line1' | 'line2' | 'city' | 'region' | 'postalCode';
 
-/** The API's limits (`ShippingAddressDto`). */
+/**
+The API's limits (`ShippingAddressDto`).
+*/
 const MAX_LENGTH: Readonly<Record<AddressField, number>> = {
   name: 100,
   line1: 200,
@@ -36,18 +38,23 @@ const LABELS: Readonly<Record<AddressField, string>> = {
   postalCode: 'ZIP code',
 };
 
-function text(field: AddressField, required: boolean, ...more: ValidatorFn[]): FormControl<string> {
-  return new FormControl('', {
+const text = (
+  field: AddressField,
+  isRequired: boolean,
+  ...more: ValidatorFn[]
+): FormControl<string> =>
+  new FormControl('', {
     nonNullable: true,
     validators: [
-      ...(required ? [Validators.required] : []),
+      ...(isRequired ? [Validators.required] : []),
       Validators.maxLength(MAX_LENGTH[field]),
       ...more,
     ],
   });
-}
 
-/** Checkout step 1 (`/checkout/address`): where to ship, US only. */
+/**
+Checkout step 1 (`/checkout/address`): where to ship, US only.
+*/
 @Component({
   selector: 'app-checkout-address-page',
   imports: [
@@ -122,7 +129,7 @@ export class CheckoutAddressPage {
       this.problems.set(
         fields
           .filter((field) => this.form.controls[field].invalid)
-          .map((field) => ({ fieldId: `address-${field}`, message: this.errorFor(field) })),
+          .map((field) => ({ fieldId: `address-${field}`, message: this.errorFor(field) }))
       );
       afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
       return;

@@ -18,7 +18,7 @@ import {
 } from '../../../testing/fixtures';
 import { Header } from './header';
 
-@Component({ template: '<h1>Page</h1>' })
+@Component({ selector: 'app-stub-page', template: '<h1>Page</h1>' })
 class StubPage {}
 
 describe('Header account area', () => {
@@ -32,7 +32,7 @@ describe('Header account area', () => {
     host().querySelector<HTMLButtonElement>('button[aria-controls="account-panel"]');
   const panel = () => host().querySelector<HTMLElement>('#account-panel');
 
-  async function render(session: Session): Promise<void> {
+  const render = async (session: Session): Promise<void> => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
@@ -56,14 +56,14 @@ describe('Header account area', () => {
     fixture.detectChanges();
     http.expectOne('/api/v1/cart').flush(aCart([aCartLine({ quantity: 2 })]));
     await fixture.whenStable();
-  }
+  };
 
-  async function openAccount(): Promise<void> {
+  const openAccount = async (): Promise<void> => {
     toggle()?.click();
     fixture.detectChanges();
     http.expectOne('/api/v1/wallet').flush(aWallet(1924.54));
     await fixture.whenStable();
-  }
+  };
 
   afterEach(() => {
     http.verify();
@@ -83,21 +83,31 @@ describe('Header account area', () => {
 
   it('gives a customer an account menu with email, orders, wallet balance and sign out, but no admin link', async () => {
     await render(CUSTOMER_SESSION);
+
     expect(link('Sign in')).toBeUndefined();
-    expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
-    expect(panel()?.hidden).toBe(true);
+    expect({
+      expanded: toggle()?.getAttribute('aria-expanded'),
+      panelHidden: panel()?.hidden,
+    }).toStrictEqual({ expanded: 'false', panelHidden: true });
 
     await openAccount();
+    const openPanel = panel() as HTMLElement;
 
-    expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
-    expect(panel()?.hidden).toBe(false);
-    expect(panel()?.querySelector('.email')?.textContent?.trim()).toBe('customer@lumen.test');
-    expect(panel()?.querySelector('.balance')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-      'Wallet balance: $1,924.54',
-    );
+    expect({
+      expanded: toggle()?.getAttribute('aria-expanded'),
+      panelHidden: openPanel.hidden,
+      email: openPanel.querySelector('.email')?.textContent?.trim(),
+      balance: openPanel.querySelector('.balance')?.textContent?.replaceAll(/\s+/gu, ' ').trim(),
+      signOut: openPanel.querySelector('button.sign-out')?.textContent?.trim(),
+    }).toStrictEqual({
+      expanded: 'true',
+      panelHidden: false,
+      email: 'customer@lumen.test',
+      balance: 'Wallet balance: $1,924.54',
+      signOut: 'Sign out',
+    });
     expect(link('Your orders')?.getAttribute('href')).toBe('/orders');
     expect(link('Admin')).toBeUndefined();
-    expect(panel()?.querySelector('button.sign-out')?.textContent?.trim()).toBe('Sign out');
   });
 
   it('adds the Admin link for the admin role', async () => {
@@ -123,8 +133,8 @@ describe('Header account area', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await fixture.whenStable();
 
-    expect(panel()?.hidden).toBe(true);
-    expect(focus).toHaveBeenCalled();
+    expect(panel()?.hidden).toBeTruthy();
+    expect(focus).toHaveBeenCalledWith();
   });
 
   it('signs out: forgets the checkout, shows the guest cart and goes home', async () => {
@@ -135,7 +145,7 @@ describe('Header account area', () => {
         address: US_ADDRESS,
         shippingMethod: null,
         orderNumber: null,
-      }),
+      })
     );
     await render(CUSTOMER_SESSION);
     await TestBed.inject(Router).navigateByUrl('/orders');
@@ -143,7 +153,9 @@ describe('Header account area', () => {
 
     (panel()?.querySelector('button.sign-out') as HTMLButtonElement).click();
     const signOut = http.expectOne('/api/v1/auth/sign-out');
+
     expect(signOut.request.method).toBe('POST');
+
     signOut.flush(ANONYMOUS);
     http.expectOne('/api/v1/cart').flush(EMPTY_CART);
     await fixture.whenStable();

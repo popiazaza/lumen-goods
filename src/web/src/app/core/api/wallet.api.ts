@@ -9,20 +9,26 @@ export interface WalletTransactionDto {
   id: string;
   createdUtc: string;
   kind: WalletTransactionKind;
-  /** Signed: payments are negative, the opening balance and refunds positive. */
+  /**
+  Signed: payments are negative, the opening balance and refunds positive.
+  */
   amount: number;
   balanceAfter: number;
   orderNumber: string | null;
 }
 
-/** The signed-in customer's mock USD wallet (BR-PAY-06). */
+/**
+The signed-in customer's mock USD wallet (BR-PAY-06).
+*/
 export interface WalletDto {
   balance: number;
   currency: 'USD';
   recentTransactions: WalletTransactionDto[];
 }
 
-/** `GET /api/v1/wallet` (signed in; 401 otherwise). */
+/**
+`GET /api/v1/wallet` (signed in; 401 otherwise).
+*/
 @Service()
 export class WalletApi {
   private readonly http = inject(HttpClient);

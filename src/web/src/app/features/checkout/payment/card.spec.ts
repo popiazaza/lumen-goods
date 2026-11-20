@@ -9,13 +9,13 @@ import {
   formatExpiry,
   isExpired,
   parseExpiry,
-  passesLuhn,
+  isLuhnValid,
 } from './card';
 
 const control = (value: string) => new FormControl(value, { nonNullable: true });
 
 describe('card helpers', () => {
-  describe('passesLuhn', () => {
+  describe('isLuhnValid', () => {
     it.each([
       '4111111111111111',
       '4242000000000018',
@@ -26,11 +26,11 @@ describe('card helpers', () => {
       '5555555555554444',
       '378282246310005',
     ])('accepts the test card %s', (digits) => {
-      expect(passesLuhn(digits)).toBe(true);
+      expect(isLuhnValid(digits)).toBeTruthy();
     });
 
     it.each(['4111111111111112', '4242000000000010', '', '4111 1111'])('rejects %j', (digits) => {
-      expect(passesLuhn(digits)).toBe(false);
+      expect(isLuhnValid(digits)).toBeFalsy();
     });
   });
 
@@ -64,7 +64,7 @@ describe('card helpers', () => {
     });
 
     it('stops at 19 digits', () => {
-      expect(formatCardNumber('1'.repeat(25)).replace(/ /g, '')).toHaveLength(19);
+      expect(formatCardNumber('1'.repeat(25)).replaceAll(' ', '')).toHaveLength(19);
     });
 
     it('keeps the caret after the same digit when reformatting', () => {
@@ -85,31 +85,33 @@ describe('card helpers', () => {
     });
 
     it('parses MM/YY into a four-digit year and rejects bad months', () => {
-      expect(parseExpiry('08/29')).toEqual({ month: 8, year: 2029 });
+      expect(parseExpiry('08/29')).toStrictEqual({ month: 8, year: 2029 });
       expect(parseExpiry('13/29')).toBeNull();
       expect(parseExpiry('0829')).toBeNull();
     });
 
     it('treats a card as valid through the last day of its month', () => {
       const now = new Date('2026-11-30T23:00:00Z');
-      expect(isExpired({ month: 11, year: 2026 }, now)).toBe(false);
-      expect(isExpired({ month: 10, year: 2026 }, now)).toBe(true);
-      expect(isExpired({ month: 1, year: 2025 }, now)).toBe(true);
+
+      expect(isExpired({ month: 11, year: 2026 }, now)).toBeFalsy();
+      expect(isExpired({ month: 10, year: 2026 }, now)).toBeTruthy();
+      expect(isExpired({ month: 1, year: 2025 }, now)).toBeTruthy();
     });
 
     it('validates format and expiry', () => {
       const validate = expiryValidator(() => new Date('2026-11-20T00:00:00Z'));
+
       expect(validate(control('11/26'))).toBeNull();
-      expect(validate(control('10/26'))).toEqual({ expired: true });
-      expect(validate(control('1/2'))).toEqual({ expiryFormat: true });
+      expect(validate(control('10/26'))).toStrictEqual({ expired: true });
+      expect(validate(control('1/2'))).toStrictEqual({ expiryFormat: true });
       expect(validate(control(''))).toBeNull();
     });
   });
 
   it('flags a number that fails Luhn or has the wrong length', () => {
     expect(cardNumberValidator(control('4111 1111 1111 1111'))).toBeNull();
-    expect(cardNumberValidator(control('4111 1111 1111 1112'))).toEqual({ luhn: true });
-    expect(cardNumberValidator(control('4111 1111'))).toEqual({ cardLength: true });
+    expect(cardNumberValidator(control('4111 1111 1111 1112'))).toStrictEqual({ luhn: true });
+    expect(cardNumberValidator(control('4111 1111'))).toStrictEqual({ cardLength: true });
   });
 
   it('wants 4 CVC digits for Amex and 3 otherwise', () => {

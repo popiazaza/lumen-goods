@@ -51,7 +51,17 @@ const STATUS_FILTER_LABELS: Readonly<Record<AdminOrderStatusFilter, string>> = {
   needs_attention: 'Needs attention',
 };
 
-/** Admin: every order, filtered by status and placed date, paged; the URL holds the view. */
+const toStatusOption = (value: AdminOrderStatusFilter) => ({
+  value,
+  label: STATUS_FILTER_LABELS[value],
+});
+
+const summaryStatusView = (order: AdminOrderSummary): StatusView =>
+  orderStatusView(order.status, order.statusText);
+
+/**
+Admin: every order, filtered by status and placed date, paged; the URL holds the view.
+*/
 @Component({
   selector: 'app-admin-orders-page',
   imports: [
@@ -85,18 +95,25 @@ const STATUS_FILTER_LABELS: Readonly<Record<AdminOrderStatusFilter, string>> = {
 })
 export class AdminOrdersPage {
   private readonly route = inject(ActivatedRoute);
+
   private readonly router = inject(Router);
+
   private readonly api = inject(AdminOrdersApi);
+
   private readonly queryParamMap = toSignal(this.route.queryParamMap, { requireSync: true });
 
   protected readonly query = computed(() => parseAdminOrdersQuery(this.queryParamMap()), {
     equal: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
+
   protected readonly orders = rxResource({
     params: () => this.query(),
     stream: ({ params }) => this.api.list(params),
   });
-  /** The last page that loaded: stays on screen (dimmed) while the next one loads. */
+
+  /**
+  The last page that loaded: stays on screen (dimmed) while the next one loads.
+  */
   protected readonly result = linkedSignal<
     PagedResult<AdminOrderSummary> | undefined,
     PagedResult<AdminOrderSummary> | undefined
@@ -109,28 +126,40 @@ export class AdminOrdersPage {
     const error = this.orders.error();
     return isAccessDenied(error) ? httpStatusOf(error) : undefined;
   });
+
   protected readonly isError = computed(() => this.orders.status() === 'error');
+
   protected readonly errorMessage = computed(() =>
     httpStatusOf(this.orders.error()) === 400
       ? problemMessage(this.orders.error(), 'These filters are not valid.')
-      : 'We couldn’t load the orders. Check your connection and try again.',
+      : 'We couldn’t load the orders. Check your connection and try again.'
   );
+
   protected readonly hasFilters = computed(() => hasOrderFilters(this.query()));
 
-  protected readonly statusOptions = ADMIN_ORDER_STATUS_FILTERS.map((value) => ({
-    value,
-    label: STATUS_FILTER_LABELS[value],
-  }));
+  protected readonly statusOptions = ADMIN_ORDER_STATUS_FILTERS.map(toStatusOption);
+
   protected readonly pageSizes = [...ADMIN_PAGE_SIZES];
+
   protected readonly columns = ['number', 'placed', 'customer', 'sellers', 'total', 'status'];
+
   protected readonly needsAttention = NEEDS_ATTENTION;
+
+  protected readonly statusOf = summaryStatusView;
 
   constructor() {
     registerOrderIcons();
   }
 
-  protected statusOf(order: AdminOrderSummary): StatusView {
-    return orderStatusView(order.status, order.statusText);
+  /**
+  Filters keep the scroll position (focus stays on the control); paging goes to the top.
+  */
+  private navigate(query: AdminOrdersQuery, scroll: 'manual' | 'auto'): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: adminOrdersQueryParams(query),
+      ...(scroll === 'manual' && { scroll: 'manual' as const }),
+    });
   }
 
   protected setStatuses(values: readonly string[]): void {
@@ -148,17 +177,8 @@ export class AdminOrdersPage {
   }
 
   protected changePage(event: PageEvent): void {
-    const pageSize = event.pageSize;
+    const { pageSize } = event;
     const page = pageSize === this.query().pageSize ? event.pageIndex + 1 : 1;
     this.navigate({ ...this.query(), page, pageSize }, 'auto');
-  }
-
-  /** Filters keep the scroll position (focus stays on the control); paging goes to the top. */
-  private navigate(query: AdminOrdersQuery, scroll: 'manual' | 'auto'): void {
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: adminOrdersQueryParams(query),
-      ...(scroll === 'manual' ? { scroll: 'manual' as const } : {}),
-    });
   }
 }

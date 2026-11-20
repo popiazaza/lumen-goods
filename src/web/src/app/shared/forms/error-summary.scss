@@ -1,0 +1,30 @@
+.summary {
+  padding: var(--lg-space-4);
+  border: 2px solid var(--mat-sys-error);
+  border-radius: var(--lg-radius-card);
+  margin: 0 0 var(--lg-space-6);
+  background: var(--mat-sys-surface);
+
+  &:focus-visible {
+    outline-offset: 3px;
+  }
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  margin: 0 0 var(--lg-space-2);
+  color: var(--mat-sys-error);
+  font: var(--mat-sys-title-medium);
+  gap: var(--lg-space-2);
+}
+
+ul {
+  padding-left: var(--lg-space-6);
+  margin: 0;
+}
+
+a {
+  color: var(--mat-sys-error);
+  font-weight: 500;
+}

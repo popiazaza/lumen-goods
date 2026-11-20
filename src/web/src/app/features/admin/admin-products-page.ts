@@ -33,7 +33,7 @@ import {
 } from '../../core/api/admin-products.api';
 import { PagedResult } from '../../core/api/paged-result';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
-import { PRODUCT_CATEGORIES } from '../../core/api/products.api';
+import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
 import { categoryLabel } from '../../shared/products/product-labels';
 import { registerOrderIcons } from '../orders/order-icons';
 import { StatusView } from '../orders/order-labels';
@@ -52,7 +52,14 @@ import { openConfirmDialog } from './confirm-dialog';
 const ACTIVE: StatusView = { tone: 'success', icon: 'visibility', text: 'Active' };
 const INACTIVE: StatusView = { tone: 'neutral', icon: 'visibility_off', text: 'Inactive' };
 
-/** Admin: Lumen Goods' own products (`/admin/products`), searchable and filterable via the URL. */
+const toCategoryOption = (value: ProductCategory) => ({ value, label: categoryLabel(value) });
+
+const productStatusView = (product: AdminProduct): StatusView =>
+  product.isActive ? ACTIVE : INACTIVE;
+
+/**
+Admin: Lumen Goods' own products (`/admin/products`), searchable and filterable via the URL.
+*/
 @Component({
   selector: 'app-admin-products-page',
   imports: [
@@ -86,21 +93,36 @@ const INACTIVE: StatusView = { tone: 'neutral', icon: 'visibility_off', text: 'I
 })
 export class AdminProductsPage {
   private readonly route = inject(ActivatedRoute);
+
   private readonly router = inject(Router);
+
   private readonly api = inject(AdminProductsApi);
+
   private readonly dialog = inject(MatDialog);
+
   private readonly announcer = inject(LiveAnnouncer);
+
   private readonly destroyRef = inject(DestroyRef);
+
   private readonly queryParamMap = toSignal(this.route.queryParamMap, { requireSync: true });
+
+  /**
+  An action can also come back 401/403 (session expired, role removed).
+  */
+  private readonly deniedStatus = signal<number | undefined>(undefined);
 
   protected readonly query = computed(() => parseAdminProductsQuery(this.queryParamMap()), {
     equal: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
+
   protected readonly products = rxResource({
     params: () => this.query(),
     stream: ({ params }) => this.api.list(params),
   });
-  /** The last page that loaded: stays on screen (dimmed) while the next one loads. */
+
+  /**
+  The last page that loaded: stays on screen (dimmed) while the next one loads.
+  */
   protected readonly result = linkedSignal<
     PagedResult<AdminProduct> | undefined,
     PagedResult<AdminProduct> | undefined
@@ -109,38 +131,48 @@ export class AdminProductsPage {
     computation: (next, previous) => next ?? previous?.value,
   });
 
-  /** An action can also come back 401/403 (session expired, role removed). */
-  private readonly deniedStatus = signal<number | undefined>(undefined);
   protected readonly accessStatus = computed(() => {
     const error = this.products.error();
     return isAccessDenied(error) ? httpStatusOf(error) : this.deniedStatus();
   });
+
   protected readonly isError = computed(() => this.products.status() === 'error');
+
   protected readonly errorMessage = computed(() =>
     httpStatusOf(this.products.error()) === 400
       ? problemMessage(this.products.error(), 'These filters are not valid.')
-      : 'We couldn’t load the products. Check your connection and try again.',
+      : 'We couldn’t load the products. Check your connection and try again.'
   );
+
   protected readonly hasFilters = computed(() => hasProductFilters(this.query()));
 
-  /** The search box: what is typed until it is submitted, then the URL's value again. */
+  /**
+  The search box: what is typed until it is submitted, then the URL's value again.
+  */
   protected readonly search = new FormControl('', { nonNullable: true });
-  /** The product whose activation is being changed. */
+
+  /**
+  The product whose activation is being changed.
+  */
   protected readonly busyId = signal<string | null>(null);
+
   protected readonly actionMessage = signal<{ text: string; failed: boolean } | null>(null);
 
-  protected readonly categories = PRODUCT_CATEGORIES.map((value) => ({
-    value,
-    label: categoryLabel(value),
-  }));
+  protected readonly categories = PRODUCT_CATEGORIES.map(toCategoryOption);
+
   protected readonly statusOptions: { value: ProductStatusFilter; label: string }[] = [
     { value: 'all', label: 'Active and inactive' },
     { value: 'active', label: 'Active' },
     { value: 'inactive', label: 'Inactive' },
   ];
+
   protected readonly pageSizes = [...ADMIN_PAGE_SIZES];
+
   protected readonly columns = ['name', 'category', 'price', 'stock', 'status', 'actions'];
+
   protected readonly categoryLabel = categoryLabel;
+
+  protected readonly statusOf = productStatusView;
 
   constructor() {
     registerOrderIcons();
@@ -149,8 +181,15 @@ export class AdminProductsPage {
       .subscribe(() => this.search.setValue(this.query().q));
   }
 
-  protected statusOf(product: AdminProduct): StatusView {
-    return product.isActive ? ACTIVE : INACTIVE;
+  /**
+  Filters keep the scroll position (focus stays on the control); paging goes to the top.
+  */
+  private navigate(query: AdminProductsQuery, scroll: 'manual' | 'auto'): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: adminProductsQueryParams(query),
+      ...(scroll === 'manual' && { scroll: 'manual' as const }),
+    });
   }
 
   protected submitSearch(event: Event): void {
@@ -172,7 +211,7 @@ export class AdminProductsPage {
   }
 
   protected changePage(event: PageEvent): void {
-    const pageSize = event.pageSize;
+    const { pageSize } = event;
     const page = pageSize === this.query().pageSize ? event.pageIndex + 1 : 1;
     this.navigate({ ...this.query(), page, pageSize }, 'auto');
   }
@@ -199,10 +238,8 @@ export class AdminProductsPage {
           this.busyId.set(product.id);
           this.actionMessage.set(null);
         }),
-        switchMap(() =>
-          deactivate ? this.api.deactivate(product.id) : this.api.reactivate(product.id),
-        ),
-        takeUntilDestroyed(this.destroyRef),
+        switchMap(() => this.api[deactivate ? 'deactivate' : 'reactivate'](product.id)),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (updated) => {
@@ -223,14 +260,5 @@ export class AdminProductsPage {
           void this.announcer.announce(text, 'assertive');
         },
       });
-  }
-
-  /** Filters keep the scroll position (focus stays on the control); paging goes to the top. */
-  private navigate(query: AdminProductsQuery, scroll: 'manual' | 'auto'): void {
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: adminProductsQueryParams(query),
-      ...(scroll === 'manual' ? { scroll: 'manual' as const } : {}),
-    });
   }
 }

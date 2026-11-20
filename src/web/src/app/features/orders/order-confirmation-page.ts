@@ -22,32 +22,32 @@ import {
   cardBrandName,
 } from '../../core/api/order.models';
 import { httpStatusOf } from '../../core/api/problem-details';
-import { orderKeepsChanging } from './poll-while-updating';
-
-/** How often the page re-reads the order while a partner decides or a refund is on its way. */
-export const CONFIRMATION_POLL_MS = 5000;
-/** Stop polling after this long; the order page keeps the history. */
-export const CONFIRMATION_POLL_LIMIT_MS = 10 * 60_000;
-
-type Read = { order: OrderDetailDto } | { error: unknown };
-
-function paymentFailed(order: OrderDetailDto): boolean {
-  return order.status === 'awaiting_payment' && order.payment?.status === 'failed';
-}
+import { isOrderStillChanging } from './poll-while-updating';
 
 /**
- * Besides what the API counts as updating (`orderKeepsChanging`, which covers a payment being
+How often the page re-reads the order while a partner decides or a refund is on its way.
+*/
+export const CONFIRMATION_POLL_MS = 5000;
+/**
+Stop polling after this long; the order page keeps the history.
+*/
+export const CONFIRMATION_POLL_LIMIT_MS = 10 * 60_000;
+
+const hasPaymentFailed = (order: OrderDetailDto): boolean =>
+  order.status === 'awaiting_payment' && order.payment?.status === 'failed';
+
+/**
+ * Besides what the API counts as updating (`isOrderStillChanging`, which covers a payment being
  * confirmed), keep reading while the order waits on something only the server's jobs finish: a
  * Failed payment the card provider has yet to settle (BR-PAY-05), or an order that can no longer
  * be paid and is about to be closed. Otherwise the page would stop on a state that is not the end.
  */
-function keepsChanging(order: OrderDetailDto): boolean {
-  return (
-    orderKeepsChanging(order) ||
-    paymentFailed(order) ||
-    (order.status === 'awaiting_payment' && !order.canPay)
-  );
-}
+const isStillChanging = (order: OrderDetailDto): boolean =>
+  isOrderStillChanging(order) ||
+  hasPaymentFailed(order) ||
+  (order.status === 'awaiting_payment' && !order.canPay);
+
+type ConfirmationState = 'loading' | 'loaded' | 'not-found' | 'error';
 
 const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
   pending: 'schedule',
@@ -61,7 +61,7 @@ const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
  * Order confirmation (`/orders/:id/confirmation`): the order number, items by seller, what was
  * charged (and refunded), and what happens next. Partner lines confirm later (BR-ORD-01) and a
  * line they cannot supply is refunded later still, so the page re-reads the order while it can
- * change on its own (`keepsChanging`).
+ * change on its own (`isStillChanging`).
  */
 @Component({
   selector: 'app-order-confirmation-page',
@@ -70,15 +70,21 @@ const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
   styleUrl: './order-confirmation-page.scss',
 })
 export class OrderConfirmationPage {
-  /** The order number, bound from the `:id` route parameter. */
-  readonly id = input.required<string>();
-
   private readonly api = inject(OrdersApi);
+
   private readonly destroyRef = inject(DestroyRef);
+
   private polling?: Subscription;
 
+  /**
+  The order number, bound from the `:id` route parameter.
+  */
+  readonly id = input.required<string>();
+
   protected readonly order = signal<OrderDetailDto | null>(null);
-  protected readonly state = signal<'loading' | 'loaded' | 'not-found' | 'error'>('loading');
+
+  protected readonly state = signal<ConfirmationState>('loading');
+
   protected readonly lineIcons = LINE_ICONS;
 
   protected readonly isPaid = computed(() => {
@@ -98,7 +104,9 @@ export class OrderConfirmationPage {
   protected readonly confirming = computed(() => {
     const order = this.order();
     return (
-      !!order && !this.isPaid() && (order.status === 'payment_processing' || paymentFailed(order))
+      !!order &&
+      !this.isPaid() &&
+      (order.status === 'payment_processing' || hasPaymentFailed(order))
     );
   });
 
@@ -132,14 +140,16 @@ export class OrderConfirmationPage {
       : `Paid by ${cardBrandName(payment.cardBrand)} ending ${payment.cardLast4}`;
   });
 
-  /** "What happens next", one entry per shipment, from the line statuses the API reports. */
+  /**
+  "What happens next", one entry per shipment, from the line statuses the API reports.
+  */
   protected readonly nextSteps = computed(() =>
     (this.order()?.shipments ?? []).map((shipment) => {
       const statuses = shipment.lines.map((line) => line.status);
       let text: string;
       if (statuses.some((status) => status === 'awaiting_partner' || status === 'pending')) {
         text = `Waiting for ${shipment.sellerName} to confirm. We’ll update this page and your order; if they can’t supply an item, we refund it automatically.`;
-      } else if (statuses.some((status) => status === 'needs_attention')) {
+      } else if (statuses.includes('needs_attention')) {
         text = `${shipment.sellerName} hasn’t answered yet. Our team is following up.`;
       } else if (statuses.every((status) => status === 'rejected')) {
         // The refund may still be on its way: each line's status says whether it is paid back.
@@ -150,7 +160,7 @@ export class OrderConfirmationPage {
         text = `${shipment.sellerName} confirmed your items and will ship them.`;
       }
       return { source: shipment.source, sellerName: shipment.sellerName, text };
-    }),
+    })
   );
 
   constructor() {
@@ -160,11 +170,8 @@ export class OrderConfirmationPage {
     });
   }
 
-  protected retry(): void {
-    this.load(this.id());
-  }
-
   private load(number: string): void {
+    type Read = { order: OrderDetailDto } | { error: unknown };
     this.polling?.unsubscribe();
     this.order.set(null);
     this.state.set('loading');
@@ -172,6 +179,7 @@ export class OrderConfirmationPage {
       .get(number)
       .pipe(
         map((order): Read => ({ order })),
+        // eslint-disable-next-line promise/prefer-await-to-callbacks -- RxJS catchError operator, not a Node-style callback
         catchError((error: unknown) => of<Read>({ error })),
         // Read again a while after each answer (never two requests at once), for a limited time.
         repeat({
@@ -181,10 +189,10 @@ export class OrderConfirmationPage {
         // Stop when nothing can change any more, or when the first read already failed. A later
         // failed re-read keeps the last answer on screen and tries again.
         takeWhile(
-          (read) => ('order' in read ? keepsChanging(read.order) : this.order() !== null),
-          true,
+          (read) => ('order' in read ? isStillChanging(read.order) : this.order() !== null),
+          true
         ),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((read) => {
         if ('order' in read) {
@@ -194,5 +202,9 @@ export class OrderConfirmationPage {
           this.state.set(httpStatusOf(read.error) === 404 ? 'not-found' : 'error');
         }
       });
+  }
+
+  protected retry(): void {
+    this.load(this.id());
   }
 }

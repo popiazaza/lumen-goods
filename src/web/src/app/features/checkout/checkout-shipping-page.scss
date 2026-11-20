@@ -1,0 +1,17 @@
+.items {
+  padding-left: var(--lg-space-6);
+  margin: 0 0 var(--lg-space-3);
+}
+
+.methods {
+  display: flex;
+  flex-direction: column;
+}
+
+.method-fee {
+  margin-left: var(--lg-space-2);
+}
+
+.fixed-method {
+  margin: 0;
+}

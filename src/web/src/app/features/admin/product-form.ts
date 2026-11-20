@@ -18,9 +18,11 @@ export const MAX_DESCRIPTION_LENGTH = 5000;
 export const MAX_ATTRIBUTES = 20;
 export const MAX_IMAGES = 8;
 export const MAX_ON_HAND = 1_000_000;
-const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{1,31}$/;
-/** Dollars with at most two decimals, e.g. "18", "18.5", "18.50". */
-const PRICE_PATTERN = /^\d{1,10}(\.\d{1,2})?$/;
+const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{1,31}$/u;
+/**
+Dollars with at most two decimals, e.g. "18", "18.5", "18.50".
+*/
+const PRICE_PATTERN = /^\d{1,10}(?:\.\d{1,2})?$/u;
 
 export type AttributeRow = FormGroup<{
   key: FormControl<string>;
@@ -38,7 +40,9 @@ export type ProductForm = FormGroup<{
   images: FormControl<string[]>;
 }>;
 
-/** The form's fields; also the keys of the API's validation errors. */
+/**
+The form's fields; also the keys of the API's validation errors.
+*/
 export type ProductField = keyof ProductForm['controls'];
 export const PRODUCT_FIELDS: readonly ProductField[] = [
   'sku',
@@ -62,7 +66,9 @@ export const FIELD_LABELS: Readonly<Record<ProductField, string>> = {
   images: 'Images',
 };
 
-/** The form's plain value, as `fillForm` takes it and `formValueOf` gives it. */
+/**
+The form's plain value, as `fillForm` takes it and `formValueOf` gives it.
+*/
 export interface ProductFormValue {
   sku: string;
   name: string;
@@ -77,8 +83,8 @@ export interface ProductFormValue {
 /**
  * @param reserved Units the saved product has reserved; on hand may not go below them (BR-ADM-01).
  */
-export function createProductForm(reserved: () => number): ProductForm {
-  return new FormGroup({
+export const createProductForm = (reserved: () => number): ProductForm =>
+  new FormGroup({
     sku: new FormControl('', { nonNullable: true, validators: [Validators.pattern(SKU_PATTERN)] }),
     name: new FormControl('', {
       nonNullable: true,
@@ -113,45 +119,47 @@ export function createProductForm(reserved: () => number): ProductForm {
       validators: [Validators.maxLength(MAX_IMAGES)],
     }),
   });
-}
 
-export function attributeRow(key = '', value = ''): AttributeRow {
-  return new FormGroup({
+export const attributeRow = (key = '', value = ''): AttributeRow =>
+  new FormGroup({
     key: new FormControl(key, { nonNullable: true, validators: [Validators.required, notBlank] }),
     value: new FormControl(value, {
       nonNullable: true,
       validators: [Validators.required, notBlank, Validators.maxLength(200)],
     }),
   });
-}
 
-/** The form values for a saved product. */
-export function productFormValue(product: AdminProduct): ProductFormValue {
-  return {
-    sku: product.sku,
-    name: product.name,
-    description: product.description,
-    category: product.category,
-    // The API sends two decimals; this only writes them as text for the field.
-    price: product.price === null ? '' : product.price.toFixed(2),
-    onHand: product.onHand,
-    attributes: Object.entries(product.attributes).map(([key, value]) => ({ key, value })),
-    images: product.images.map((image) => image.file),
-  };
-}
+/**
+The form values for a saved product.
+*/
+export const productFormValue = (product: AdminProduct): ProductFormValue => ({
+  sku: product.sku,
+  name: product.name,
+  description: product.description,
+  category: product.category,
+  // The API sends two decimals; this only writes them as text for the field.
+  price: product.price === null ? '' : product.price.toFixed(2),
+  onHand: product.onHand,
+  attributes: Object.entries(product.attributes).map(([key, value]) => ({ key, value })),
+  images: product.images.map((image) => image.file),
+});
 
-/** Replaces every value, rebuilding the attribute rows, and marks the form pristine. */
-export function fillForm(form: ProductForm, value: ProductFormValue): void {
+/**
+Replaces every value, rebuilding the attribute rows, and marks the form pristine.
+*/
+export const fillForm = (form: ProductForm, value: ProductFormValue): void => {
   const rows = form.controls.attributes;
   rows.clear({ emitEvent: false });
   for (const attribute of value.attributes) {
     rows.push(attributeRow(attribute.key, attribute.value), { emitEvent: false });
   }
   form.reset(value);
-}
+};
 
-/** What create and update send: trimmed text, the price as a number, attributes as an object. */
-export function toProductInput(form: ProductForm): OwnProductInput {
+/**
+What create and update send: trimmed text, the price as a number, attributes as an object.
+*/
+export const toProductInput = (form: ProductForm): OwnProductInput => {
   const value = form.getRawValue();
   return {
     name: value.name.trim(),
@@ -159,15 +167,17 @@ export function toProductInput(form: ProductForm): OwnProductInput {
     category: value.category as ProductCategory,
     price: Number(value.price),
     attributes: Object.fromEntries(
-      value.attributes.map((row) => [row.key.trim(), row.value.trim()]),
+      value.attributes.map((row) => [row.key.trim(), row.value.trim()])
     ),
     images: value.images,
     onHand: value.onHand ?? 0,
   };
-}
+};
 
-/** Text for a field's first error, or '' when it has none. */
-export function fieldError(field: ProductField, errors: ValidationErrors | null): string {
+/**
+Text for a field's first error, or '' when it has none.
+*/
+export const fieldError = (field: ProductField, errors: ValidationErrors | null): string => {
   if (!errors) {
     return '';
   }
@@ -202,46 +212,46 @@ export function fieldError(field: ProductField, errors: ValidationErrors | null)
     return `${label} can be at most ${MAX_ON_HAND.toLocaleString('en-US')}.`;
   }
   if (errors['belowReserved']) {
-    const reserved = (errors['belowReserved'] as { reserved: number }).reserved;
+    const { reserved } = errors['belowReserved'] as { reserved: number };
     return `${reserved} reserved by orders awaiting payment: on hand must be at least ${reserved}.`;
   }
-  if (errors['duplicateNames']) {
-    return `Two attributes are both named "${String(errors['duplicateNames'])}".`;
-  }
-  return `${label} is not valid.`;
-}
+  return errors['duplicateNames']
+    ? `Two attributes are both named "${String(errors['duplicateNames'])}".`
+    : `${label} is not valid.`;
+};
 
-/** The API's error keys (`onHand`, `attributes.color`, `images[0]`) mapped to form fields. */
-export function fieldOfErrorKey(key: string): ProductField | undefined {
-  const head = key.split(/[.[]/, 1)[0];
+/**
+The API's error keys (`onHand`, `attributes.color`, `images[0]`) mapped to form fields.
+*/
+export const fieldOfErrorKey = (key: string): ProductField | undefined => {
+  const [head = ''] = key.split(/[.[]/u, 1);
   return PRODUCT_FIELDS.find((field) => field.toLowerCase() === head.toLowerCase());
-}
+};
 
-function notBlank(control: AbstractControl<string>): ValidationErrors | null {
-  return control.value && control.value.trim() === '' ? { blank: true } : null;
-}
+const notBlank = (control: AbstractControl<string>): ValidationErrors | null =>
+  control.value && control.value.trim() === '' ? { blank: true } : null;
 
-function positive(control: AbstractControl<string>): ValidationErrors | null {
-  const value = control.value;
+const positive = (control: AbstractControl<string>): ValidationErrors | null => {
+  const { value } = control;
   return value && PRICE_PATTERN.test(value) && Number(value) <= 0 ? { positive: true } : null;
-}
+};
 
-function wholeNumber(control: AbstractControl<number | null>): ValidationErrors | null {
-  const value = control.value;
-  return value !== null && !Number.isInteger(value) ? { wholeNumber: true } : null;
-}
+const wholeNumber = (control: AbstractControl<number | null>): ValidationErrors | null => {
+  const { value } = control;
+  return value === null || Number.isSafeInteger(value) ? null : { wholeNumber: true };
+};
 
-function atLeastReserved(reserved: () => number): ValidatorFn {
-  return (control) => {
+const atLeastReserved =
+  (reserved: () => number): ValidatorFn =>
+  (control) => {
     const value = control.value as number | null;
     const held = reserved();
     return value !== null && held > 0 && value < held
       ? { belowReserved: { reserved: held } }
       : null;
   };
-}
 
-function uniqueAttributeNames(control: AbstractControl): ValidationErrors | null {
+const uniqueAttributeNames = (control: AbstractControl): ValidationErrors | null => {
   const seen = new Set<string>();
   for (const row of (control as FormArray<AttributeRow>).controls) {
     const name = row.controls.key.value.trim().toLowerCase();
@@ -251,4 +261,4 @@ function uniqueAttributeNames(control: AbstractControl): ValidationErrors | null
     seen.add(name);
   }
   return null;
-}
+};

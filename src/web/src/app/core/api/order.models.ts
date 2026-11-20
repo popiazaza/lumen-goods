@@ -36,7 +36,9 @@ export const ORDER_STATUSES: readonly OrderStatus[] = [
   'expired',
 ];
 
-/** BR-ORD-02: each line's own status. */
+/**
+BR-ORD-02: each line's own status.
+*/
 export type OrderLineStatus =
   'pending' | 'awaiting_partner' | 'needs_attention' | 'confirmed' | 'rejected';
 
@@ -54,33 +56,49 @@ export type PaymentStatus =
 
 export type CardBrand = 'visa' | 'mastercard' | 'amex' | 'other';
 
-/** A failed refund is retried with the same id: it is still owed. */
+/**
+A failed refund is retried with the same id: it is still owed.
+*/
 export type RefundStatus = 'pending' | 'succeeded' | 'failed';
 
-/** A US ship-to address in the fields both partners' order formats need. */
+/**
+A US ship-to address in the fields both partners' order formats need.
+*/
 export interface ShippingAddress {
   name: string;
   line1: string;
   line2: string | null;
   city: string;
-  /** State code, e.g. "OR". */
+  /**
+  State code, e.g. "OR".
+  */
   region: string;
-  /** ZIP or ZIP+4. */
+  /**
+  ZIP or ZIP+4.
+  */
   postalCode: string;
-  /** ISO 3166-1 alpha-2; "US" at launch. */
+  /**
+  ISO 3166-1 alpha-2; "US" at launch.
+  */
   country: string;
 }
 
-/** One row of the customer's order history (`GET /orders`), newest first. */
+/**
+One row of the customer's order history (`GET /orders`), newest first.
+*/
 export interface OrderSummaryDto {
   number: string;
   status: OrderStatus;
-  /** Customer wording: "Processing", "Partial refund pending", "Partially refunded", ... */
+  /**
+  Customer wording: "Processing", "Partial refund pending", "Partially refunded", ...
+  */
   statusText: string;
   createdUtc: string;
   total: number;
   refundedTotal: number;
-  /** Sum of the line quantities. */
+  /**
+  Sum of the line quantities.
+  */
   itemCount: number;
   sellerNames: string[];
 }
@@ -97,15 +115,18 @@ export interface OrderLineDto {
   tax: number;
   status: OrderLineStatus;
   /**
-   * BR-ORD-02 wording with the seller's name: "Awaiting Kestrel Outfitters", "Delayed",
-   * "Not supplied, refund pending" until the refund is paid back, then "Not supplied, refunded $40.03".
+   * BR-ORD-02 wording with the seller's name: "Awaiting Kestrel Outfitters", "Delayed", "Not supplied, refund pending" until the refund is paid back, then "Not supplied, refunded $40.03".
    */
   statusText: string;
-  /** Subtotal + tax refunded for this line; 0 when nothing was. */
+  /**
+  Subtotal + tax refunded for this line; 0 when nothing was.
+  */
   refundedAmount: number;
 }
 
-/** One seller's part of the order: its shipment and its lines. */
+/**
+One seller's part of the order: its shipment and its lines.
+*/
 export interface OrderShipmentDto {
   source: string;
   sellerName: string;
@@ -119,15 +140,23 @@ export interface OrderTotalsDto {
   subtotal: number;
   shipping: number;
   tax: number;
-  /** What was charged. */
+  /**
+  What was charged.
+  */
   total: number;
-  /** Every refund recorded, paid back or not (shipping fees included). */
+  /**
+  Every refund recorded, paid back or not (shipping fees included).
+  */
   refunded: number;
-  /** Total minus refunded: what the customer paid in the end; 0 before payment. */
+  /**
+  Total minus refunded: what the customer paid in the end; 0 before payment.
+  */
   netPaid: number;
 }
 
-/** The order's latest payment: "Paid by Visa ending 1111" or "Paid from your wallet". */
+/**
+The order's latest payment: "Paid by Visa ending 1111" or "Paid from your wallet".
+*/
 export interface PaymentSummaryDto {
   paymentId: string;
   method: PaymentMethod;
@@ -138,16 +167,24 @@ export interface PaymentSummaryDto {
   completedUtc: string | null;
 }
 
-/** A refund to the original payment method (BR-ORD-03). */
+/**
+A refund to the original payment method (BR-ORD-03).
+*/
 export interface RefundDto {
   id: string;
-  /** The lines' `refundedAmount`s plus `shippingAmount`. */
+  /**
+  The lines' `refundedAmount`s plus `shippingAmount`.
+  */
   amount: number;
   status: RefundStatus;
   reason: string;
-  /** The order lines it pays back (`OrderLineDto.id`). */
+  /**
+  The order lines it pays back (`OrderLineDto.id`).
+  */
   lineIds: string[];
-  /** The seller's shipping fee it pays back (every line of that seller was rejected); 0 when none. */
+  /**
+  The seller's shipping fee it pays back (every line of that seller was rejected); 0 when none.
+  */
   shippingAmount: number;
   createdUtc: string;
   completedUtc: string | null;
@@ -161,25 +198,34 @@ export interface RefundDto {
 export interface OrderDetailDto {
   number: string;
   status: OrderStatus;
-  /** Customer wording for `status` (paid is "Processing"). */
+  /**
+  Customer wording for `status` (paid is "Processing").
+  */
   statusText: string;
   createdUtc: string;
   paidUtc: string | null;
-  /** Until when the order can be paid (price and stock hold). */
+  /**
+  Until when the order can be paid (price and stock hold).
+  */
   holdExpiresUtc: string;
   shipments: OrderShipmentDto[];
   totals: OrderTotalsDto;
   shippingAddress: ShippingAddress;
-  /** The method chosen for Lumen's own items (each shipment carries its own `method`). */
+  /**
+  The method chosen for Lumen's own items (each shipment carries its own `method`).
+  */
   shippingMethod: ShippingMethod;
-  /** The latest payment, or null before the first one. */
+  /**
+  The latest payment, or null before the first one.
+  */
   payment: PaymentSummaryDto | null;
   refunds: RefundDto[];
-  /** Awaiting payment, hold not over, attempts left: show the payment step. */
+  /**
+  Awaiting payment, hold not over, attempts left: show the payment step.
+  */
   canPay: boolean;
   /**
-   * Something can still change on its own: a payment being confirmed, a line awaiting its partner,
-   * or a refund being paid back. The order pages poll while it is true.
+   * Something can still change on its own: a payment being confirmed, a line awaiting its partner, or a refund being paid back. The order pages poll while it is true.
    */
   isUpdating: boolean;
 }
@@ -191,6 +237,5 @@ const BRAND_NAMES: Readonly<Record<CardBrand, string>> = {
   other: 'Card',
 };
 
-export function cardBrandName(brand: CardBrand | null | undefined): string {
-  return (brand && BRAND_NAMES[brand]) || 'Card';
-}
+export const cardBrandName = (brand: CardBrand | null | undefined): string =>
+  (brand && BRAND_NAMES[brand]) || 'Card';

@@ -1,0 +1,42 @@
+:host {
+  display: inline-flex;
+
+  /* never stretched by a column flex or grid parent: a badge is as wide as its text */
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  padding: 2px var(--lg-space-2) 2px var(--lg-space-1);
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-large);
+  gap: var(--lg-space-1);
+  line-height: 1.25;
+}
+
+mat-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.text {
+  overflow-wrap: anywhere;
+}
+
+:host(.tone-success) {
+  color: var(--lg-status-success);
+}
+
+:host(.tone-info) {
+  color: var(--mat-sys-primary);
+}
+
+:host(.tone-warning) {
+  color: var(--lg-status-warning);
+}
+
+:host(.tone-error) {
+  color: var(--mat-sys-error);
+}

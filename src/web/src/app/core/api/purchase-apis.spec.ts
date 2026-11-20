@@ -39,22 +39,32 @@ describe('purchase flow API services', () => {
 
     const signedIn = firstValueFrom(sessionApi.signIn({ email: 'a@b.test', password: 'pw' }));
     const signIn = http.expectOne('/api/v1/auth/sign-in');
-    expect(signIn.request.method).toBe('POST');
-    expect(signIn.request.body).toEqual({ email: 'a@b.test', password: 'pw' });
+
+    expect({ method: signIn.request.method, body: signIn.request.body }).toStrictEqual({
+      method: 'POST',
+      body: { email: 'a@b.test', password: 'pw' },
+    });
+
     signIn.flush(CUSTOMER_SESSION);
-    expect(await signedIn).toEqual(CUSTOMER_SESSION);
-    expect(sessionApi.isAuthenticated()).toBe(true);
-    expect(sessionApi.isAdmin()).toBe(false);
+    const session = await signedIn;
+
+    expect({
+      session,
+      isAuthenticated: sessionApi.isAuthenticated(),
+      isAdmin: sessionApi.isAdmin(),
+    }).toStrictEqual({ session: CUSTOMER_SESSION, isAuthenticated: true, isAdmin: false });
     // The guard's `ready()` answers from the sign-in, without another request.
-    expect(await sessionApi.ready()).toEqual(CUSTOMER_SESSION);
+    await expect(sessionApi.ready()).resolves.toStrictEqual(CUSTOMER_SESSION);
 
     sessionApi.register({ email: 'n@b.test', password: 'longenough' }).subscribe();
     http.expectOne('/api/v1/auth/register').flush({ ...CUSTOMER_SESSION, roles: ['admin'] });
-    expect(sessionApi.isAdmin()).toBe(true);
+
+    expect(sessionApi.isAdmin()).toBeTruthy();
 
     sessionApi.signOut().subscribe();
     http.expectOne('/api/v1/auth/sign-out').flush(ANONYMOUS_SESSION);
-    expect(sessionApi.isAuthenticated()).toBe(false);
+
+    expect(sessionApi.isAuthenticated()).toBeFalsy();
   });
 
   it('CartApi acknowledges every line at once', () => {
@@ -78,14 +88,17 @@ describe('purchase flow API services', () => {
     };
     api.placeOrder(request).subscribe();
     const place = http.expectOne('/api/v1/checkout/orders');
+
     expect(place.request.method).toBe('POST');
-    expect(place.request.body).toEqual(request);
+    expect(place.request.body).toStrictEqual(request);
+
     place.flush(anOrder());
   });
 
   it('flattens the reviewed lines and swaps in confirmed new prices', () => {
     const lines = reviewedLines(aPreview());
-    expect(lines).toEqual([
+
+    expect(lines).toStrictEqual([
       { productId: 'lumen-mug', quantity: 2, unitPrice: 18.5 },
       { productId: 'kestrel-K-7731', quantity: 1, unitPrice: 16.22 },
     ]);
@@ -105,7 +118,8 @@ describe('purchase flow API services', () => {
         message: 'Price changed from $16.22 to $17.31',
       },
     ];
-    expect(withNewPrices(lines, changes)[1]).toEqual({
+
+    expect(withNewPrices(lines, changes)[1]).toStrictEqual({
       productId: 'kestrel-K-7731',
       quantity: 1,
       unitPrice: 17.31,
@@ -124,10 +138,10 @@ describe('purchase flow API services', () => {
 
     expect(checkoutChangedProblemOf(conflict)).toMatchObject({ newTotal: 70.1, canConfirm: true });
     expect(
-      checkoutChangedProblemOf(new HttpErrorResponse({ status: 409, error: { title: 'Other' } })),
+      checkoutChangedProblemOf(new HttpErrorResponse({ status: 409, error: { title: 'Other' } }))
     ).toBeUndefined();
     expect(
-      checkoutChangedProblemOf(new HttpErrorResponse({ status: 400, error: body })),
+      checkoutChangedProblemOf(new HttpErrorResponse({ status: 400, error: body }))
     ).toBeUndefined();
   });
 
@@ -136,8 +150,10 @@ describe('purchase flow API services', () => {
 
     api.pay('LG-1', { method: 'wallet', card: null }).subscribe();
     const pay = http.expectOne('/api/v1/orders/LG-1/payments');
+
     expect(pay.request.method).toBe('POST');
-    expect(pay.request.body).toEqual({ method: 'wallet', card: null });
+    expect(pay.request.body).toStrictEqual({ method: 'wallet', card: null });
+
     pay.flush(aPaymentStatus(), { status: 202, statusText: 'Accepted' });
 
     api.current('LG-1').subscribe();
@@ -145,7 +161,9 @@ describe('purchase flow API services', () => {
 
     api.submitOneTimeCode('LG-1', '123456').subscribe();
     const code = http.expectOne('/api/v1/orders/LG-1/payments/current/one-time-code');
-    expect(code.request.body).toEqual({ code: '123456' });
+
+    expect(code.request.body).toStrictEqual({ code: '123456' });
+
     code.flush(aPaymentStatus({ status: 'succeeded' }));
   });
 
@@ -160,7 +178,7 @@ describe('purchase flow API services', () => {
       },
     });
 
-    expect(paymentInProgressOf(error)?.payment).toEqual(running);
+    expect(paymentInProgressOf(error)?.payment).toStrictEqual(running);
     expect(paymentInProgressOf(new HttpErrorResponse({ status: 409, error: {} }))).toBeUndefined();
   });
 
@@ -168,7 +186,8 @@ describe('purchase flow API services', () => {
     const wallet = firstValueFrom(TestBed.inject(WalletApi).get());
 
     http.expectOne('/api/v1/wallet').flush(aWallet(1924.54));
+    const { balance } = await wallet;
 
-    expect((await wallet).balance).toBe(1924.54);
+    expect(balance).toBe(1924.54);
   });
 });

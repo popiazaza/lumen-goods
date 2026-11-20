@@ -3,8 +3,6 @@ import {
   AbstractControl,
   FormControl,
   FormGroup,
-  FormGroupDirective,
-  NgForm,
   ReactiveFormsModule,
   ValidationErrors,
 } from '@angular/forms';
@@ -19,29 +17,29 @@ import { Seller } from '../../core/api/sellers.api';
 import { categoryLabel } from '../../shared/products/product-labels';
 import { CatalogueChange, CatalogueQuery, parsePrice } from './catalogue-query';
 
-function priceValidator(control: AbstractControl<string>): ValidationErrors | null {
+const priceValidator = (control: AbstractControl<string>): ValidationErrors | null => {
   const value = control.value.trim();
   return value === '' || parsePrice(value) !== null ? null : { price: true };
-}
+};
 
-function rangeValidator(group: AbstractControl): ValidationErrors | null {
+const rangeValidator = (group: AbstractControl): ValidationErrors | null => {
   const min = parsePrice(group.get('min')?.value);
   const max = parsePrice(group.get('max')?.value);
   return min !== null && max !== null && min > max ? { range: true } : null;
-}
-
-/** Shows the max field in error for the group's min > max error too, once the form is submitted. */
-class RangeErrorStateMatcher implements ErrorStateMatcher {
-  isErrorState(control: AbstractControl | null, form: FormGroupDirective | NgForm | null): boolean {
-    const invalid = !!control?.invalid || !!control?.parent?.hasError('range');
-    return invalid && (!!control?.touched || !!form?.submitted);
-  }
-}
+};
 
 /**
- * The catalogue's refinements: category, seller, price range and "In stock only". Shows the state
- * it is given and emits what the shopper changed; the page turns that into a navigation. Used in
- * the desktop sidebar and in the mobile bottom sheet.
+Shows the max field in error for the group's min > max error too, once the form is submitted.
+*/
+const rangeErrorStateMatcher: ErrorStateMatcher = {
+  isErrorState: (control, form) => {
+    const isInvalid = !!control?.invalid || !!control?.parent?.hasError('range');
+    return isInvalid && (!!control?.touched || !!form?.submitted);
+  },
+};
+
+/**
+ * The catalogue's refinements: category, seller, price range and "In stock only". Shows the state it is given and emits what the shopper changed; the page turns that into a navigation. Used in the desktop sidebar and in the mobile bottom sheet.
  */
 @Component({
   selector: 'app-catalogue-filters',
@@ -60,28 +58,37 @@ class RangeErrorStateMatcher implements ErrorStateMatcher {
   styleUrl: './catalogue-filters.scss',
 })
 export class CatalogueFilters {
+  private readonly priceRange = computed(
+    () => ({ min: this.query().minPrice, max: this.query().maxPrice }),
+    { equal: (a, b) => a.min === b.min && a.max === b.max }
+  );
+
   readonly query = input.required<CatalogueQuery>();
-  /** The seller checkboxes, from `GET /sellers` (the page decides what to show while it loads). */
+
+  /**
+  The seller checkboxes, from `GET /sellers` (the page decides what to show while it loads).
+  */
   readonly sellers = input.required<readonly Seller[]>();
-  /** Shown in the seller group when the list could not be loaded. */
+
+  /**
+  Shown in the seller group when the list could not be loaded.
+  */
   readonly sellersFailed = input(false);
+
   readonly filtersChange = output<CatalogueChange>();
 
   protected readonly categories = PRODUCT_CATEGORIES;
+
   protected readonly categoryLabel = categoryLabel;
-  protected readonly rangeMatcher = new RangeErrorStateMatcher();
+
+  protected readonly rangeMatcher = rangeErrorStateMatcher;
 
   protected readonly priceForm = new FormGroup(
     {
       min: new FormControl('', { nonNullable: true, validators: priceValidator }),
       max: new FormControl('', { nonNullable: true, validators: priceValidator }),
     },
-    { validators: rangeValidator },
-  );
-
-  private readonly priceRange = computed(
-    () => ({ min: this.query().minPrice, max: this.query().maxPrice }),
-    { equal: (a, b) => a.min === b.min && a.max === b.max },
+    { validators: rangeValidator }
   );
 
   constructor() {
@@ -93,22 +100,22 @@ export class CatalogueFilters {
     });
   }
 
-  protected toggleCategory(category: ProductCategory, checked: boolean): void {
+  protected toggleCategory(category: ProductCategory, isChecked: boolean): void {
     const current = this.query().categories;
     this.filtersChange.emit({
-      categories: checked ? [...current, category] : current.filter((c) => c !== category),
+      categories: isChecked ? [...current, category] : current.filter((c) => c !== category),
     });
   }
 
-  protected toggleSeller(source: ProductSource, checked: boolean): void {
+  protected toggleSeller(source: ProductSource, isChecked: boolean): void {
     const current = this.query().sellers;
     this.filtersChange.emit({
-      sellers: checked ? [...current, source] : current.filter((s) => s !== source),
+      sellers: isChecked ? [...current, source] : current.filter((s) => s !== source),
     });
   }
 
-  protected setInStock(inStock: boolean): void {
-    this.filtersChange.emit({ inStock });
+  protected setInStock(isInStock: boolean): void {
+    this.filtersChange.emit({ inStock: isInStock });
   }
 
   protected applyPrice(): void {
