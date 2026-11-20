@@ -46,7 +46,8 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
     [InlineData("/api/v1/admin/products")]
     [InlineData("/api/v1/admin/products/0193a000-0000-7000-8000-000000000001")]
     [InlineData("/api/v1/admin/own-media")]
-    public async Task Admin_endpoints_answer_401_to_anonymous_and_403_to_customers(string url)
+    [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_admin_endpoints_answer_401_to_anonymous_and_403_to_customers(string url)
     {
         var anonymous = await factory.CreateClient().GetAsync(url, Ct);
         var customer = await factory.SignedInAsync(Roles.Customer);
@@ -133,7 +134,33 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
         { "images", NewProduct("Path traversal") with { Images = ["../appsettings.json"] } },
         { "attributes", NewProduct("Empty attribute") with { Attributes = new() { ["color"] = " " } } },
         { "sku", NewProduct("Bad SKU") with { Sku = "no spaces allowed" } },
+        { "name", NewProduct("Nul\0name") },
+        { "name", NewProduct("Two\nlines") },
+        { "description", NewProduct("Nul in description") with { Description = "Line one\nline two\0" } },
+        { "attributes", NewProduct("Nul in attribute") with { Attributes = new() { ["color"] = "Na\0vy" } } },
+        { "attributes", NewProduct("Nul in attribute name") with { Attributes = new() { ["col\0or"] = "Navy" } } },
     };
+
+    [Fact]
+    public async Task A_description_keeps_its_line_breaks_and_tabs()
+    {
+        var description = "First line.\r\nSecond line.\n\tIndented line.";
+
+        var (_, created) = await CreateAsync(NewProduct($"{NewMarker()} Notebook") with { Description = description });
+
+        created.Description.Should().Be(description);
+    }
+
+    [Fact]
+    public async Task A_list_search_with_a_control_character_is_a_400_naming_q()
+    {
+        var admin = await factory.SignedInAsync(Roles.Admin);
+
+        var response = await admin.GetAsync($"{Products}?q=bad%00text");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await response.ReadJsonAsync()).GetProperty("errors").TryGetProperty("q", out _).Should().BeTrue();
+    }
 
     [Theory]
     [MemberData(nameof(InvalidProducts))]
@@ -189,6 +216,25 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_parallel_edits_from_the_same_version_save_exactly_once()
+    {
+        // All requests can load the product before any of them saves, so they pass the in-memory version check and
+        // race to the UPDATE; only the xmin condition in the database can then pick a single winner.
+        var (admin, created) = await CreateAsync(NewProduct($"{NewMarker()} Kettle", onHand: 10));
+
+        var responses = await Task.WhenAll(Enumerable.Range(1, 8).Select(i =>
+            admin.PutAsJsonAsync($"{Products}/{created.Id}", EditOf(created, onHand: 100 + i))));
+
+        responses.Count(r => r.StatusCode == HttpStatusCode.OK).Should().Be(1);
+        responses.Count(r => r.StatusCode == HttpStatusCode.Conflict).Should().Be(7);
+        var winner = await responses.Single(r => r.StatusCode == HttpStatusCode.OK).ReadAsync<AdminProductDto>();
+        var stored = await (await admin.GetAsync($"{Products}/{created.Id}")).ReadAsync<AdminProductDto>();
+        stored.OnHand.Should().Be(winner.OnHand);
+        stored.Version.Should().Be(winner.Version);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ADM-01")]
     public async Task BR_ADM_01_a_stock_reservation_since_the_product_was_loaded_makes_the_edit_stale()
     {
         var (admin, loaded) = await CreateAsync(NewProduct($"{NewMarker()} Teapot", onHand: 5));
@@ -203,7 +249,7 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-ADM-01")]
-    public async Task An_update_without_a_version_is_a_400()
+    public async Task BR_ADM_01_an_update_without_a_version_is_a_400()
     {
         var (admin, created) = await CreateAsync(NewProduct($"{NewMarker()} Cup"));
 

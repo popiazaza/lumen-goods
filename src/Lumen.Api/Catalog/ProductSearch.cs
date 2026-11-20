@@ -87,6 +87,10 @@ public sealed record ProductSearchCriteria(
         {
             Fail("q", $"Search text can be at most {MaxTextLength} characters.");
         }
+        else if (text is not null && !TextInput.IsValidSingleLine(text))
+        {
+            Fail("q", "Search text cannot contain control characters.");
+        }
 
         var categories = Normalise(input.Category);
         var unknownCategories = categories.Where(c => !ProductCategories.IsValid(c)).ToList();
@@ -197,8 +201,8 @@ internal static class ProductSearch
             query = query.Where(p => p.PriceUsd != null && p.PriceUsd <= max);
         }
 
-        // BR-CAT-03 "in stock only" (A-22): can be bought right now, so sellable (BR-CAT-02) and in or low stock
-        // (BR-CAT-01). The shared expressions keep the filter equal to the badge the product format shows.
+        // BR-CAT-03 "in stock only": can be bought right now, so sellable (BR-CAT-02) and in or low stock (BR-CAT-01).
+        // The shared expressions keep the filter equal to the badge the product format shows.
         if (criteria.InStockOnly)
         {
             query = query.Where(ProductQueries.IsSellable).Where(ProductQueries.IsInStock);
@@ -213,11 +217,14 @@ internal static class ProductSearch
     /// </summary>
     public static IOrderedQueryable<Product> Sort(this IQueryable<Product> products, ProductSort sort) => sort switch
     {
-        ProductSort.PriceAsc => products.OrderBy(p => p.PriceUsd == null).ThenBy(p => p.PriceUsd).ThenBy(p => p.Id),
-        ProductSort.PriceDesc => products.OrderBy(p => p.PriceUsd == null).ThenByDescending(p => p.PriceUsd).ThenBy(p => p.Id),
-        // Name and newest match the partial listing indexes (Name, Id) and (FirstSeenUtc, Id), the latter read backwards.
+        // PostgreSQL puts NULLs last in an ascending sort, so this is the listing index order (PriceUsd, Id) as is.
+        ProductSort.PriceAsc => products.OrderBy(p => p.PriceUsd).ThenBy(p => p.Id),
+        // Descending would put NULLs first, so unpriced products are pushed last explicitly ("PriceUsd" IS NULL, then
+        // "PriceUsd" DESC, "Id" DESC). That leading expression means this sort does not use the price index.
+        ProductSort.PriceDesc => products.OrderBy(p => p.PriceUsd == null).ThenByDescending(p => p.PriceUsd).ThenByDescending(p => p.Id),
+        // Name and newest follow the listing indexes (Name, Id) and (FirstSeenUtc, Id), the latter read backwards.
         ProductSort.NameAsc => products.OrderBy(p => p.Name).ThenBy(p => p.Id),
-        // A-18: "newest" is when Lumen first saw the product, not when it last changed.
+        // BR-CAT-03: "newest" is when Lumen first saw the product, not when it last changed.
         _ => products.OrderByDescending(p => p.FirstSeenUtc).ThenByDescending(p => p.Id),
     };
 }

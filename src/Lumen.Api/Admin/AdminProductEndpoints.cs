@@ -59,6 +59,10 @@ internal static class AdminProductEndpoints
         {
             errors["q"] = [$"Search text can be at most {ProductSearchCriteria.MaxTextLength} characters."];
         }
+        else if (text is not null && !TextInput.IsValidSingleLine(text))
+        {
+            errors["q"] = ["Search text cannot contain control characters."];
+        }
 
         if (errors.Count > 0)
         {

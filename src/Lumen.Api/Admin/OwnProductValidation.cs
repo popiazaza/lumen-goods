@@ -46,11 +46,19 @@ internal static partial class OwnProductValidation
         {
             Fail("name", $"Name can be at most {MaxNameLength} characters.");
         }
+        else if (!TextInput.IsValidSingleLine(name))
+        {
+            Fail("name", "Name cannot contain control characters such as tabs or line breaks.");
+        }
 
         var description = input.Description?.Trim() ?? "";
         if (description.Length > MaxDescriptionLength)
         {
             Fail("description", $"Description can be at most {MaxDescriptionLength} characters.");
+        }
+        else if (!TextInput.IsValidMultiLine(description))
+        {
+            Fail("description", "Description cannot contain control characters other than line breaks and tabs.");
         }
 
         var category = input.Category?.Trim().ToLowerInvariant();
@@ -124,15 +132,19 @@ internal static partial class OwnProductValidation
 
         foreach (var (rawKey, rawValue) in raw)
         {
-            var key = AttributeKeys.Normalize(rawKey);
+            var key = TextInput.IsValidSingleLine(rawKey) ? AttributeKeys.Normalize(rawKey) : null;
             var value = rawValue?.Trim() ?? "";
             if (key is null || key.Length > MaxAttributeKeyLength)
             {
-                fail("attributes", $"Attribute name '{rawKey}' must have letters or digits and at most {MaxAttributeKeyLength} characters.");
+                fail("attributes", $"Attribute name '{rawKey}' needs letters or digits, at most {MaxAttributeKeyLength} characters and no control characters.");
             }
             else if (value.Length is 0 or > MaxAttributeValueLength)
             {
                 fail("attributes", $"Attribute '{key}' needs a value of 1 to {MaxAttributeValueLength} characters.");
+            }
+            else if (!TextInput.IsValidSingleLine(value))
+            {
+                fail("attributes", $"Attribute '{key}' cannot contain control characters.");
             }
             else if (!result.TryAdd(key, value))
             {

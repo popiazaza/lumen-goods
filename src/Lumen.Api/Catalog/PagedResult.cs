@@ -66,7 +66,7 @@ public static class LikePattern
 
     /// <summary>
     /// "%term%" with the LIKE wildcards in <paramref name="term"/> escaped, so a search for "100%" or "a_b" matches
-    /// those characters instead of acting as a wildcard (EC-BR-04). The value is still sent as a query parameter.
+    /// those characters literally instead of matching anything. The value is still sent as a query parameter.
     /// </summary>
     public static string Contains(string term) =>
         "%" + term.Replace("\\", "\\\\", StringComparison.Ordinal)

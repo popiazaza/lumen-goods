@@ -2,6 +2,7 @@ using System.Net;
 using Lumen.Api.Catalog;
 using Lumen.Domain.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using static Lumen.IntegrationTests.Catalog.CatalogTestSupport;
 
 namespace Lumen.IntegrationTests.Catalog;
@@ -253,9 +254,10 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
             paged.AddRange((await ListAsync($"q={m}&sort={sort}&pageSize=3&page={page}")).Items.Select(p => p.Id));
         }
 
-        // PostgreSQL orders uuids by their bytes, which is the ordinal order of the lower-case text form.
+        // PostgreSQL orders uuids by their bytes, which is the ordinal order of the lower-case text form. The id
+        // follows the direction of the main key: descending for newest and price_desc, ascending otherwise.
         var byId = twins.Select(t => t.Id.ToString()).Order(StringComparer.Ordinal).ToList();
-        paged.Should().Equal(sort == "newest" ? Enumerable.Reverse(byId) : byId);
+        paged.Should().Equal(sort is "newest" or "price_desc" ? Enumerable.Reverse(byId) : byId);
     }
 
     [Theory]
@@ -271,6 +273,9 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     [InlineData("minPrice=-1", "minPrice")]
     [InlineData("maxPrice=abc", "maxPrice")]
     [InlineData("inStock=maybe", "inStock")]
+    [InlineData("q=%00", "q")]
+    [InlineData("q=bad%00text", "q")]
+    [InlineData("q=bell%07", "q")]
     public async Task Invalid_query_values_are_a_400_problem_naming_the_parameter(string query, string parameter)
     {
         var response = await _client.GetAsync($"/api/v1/products?{query}", Ct);
@@ -306,25 +311,28 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     }
 
     [Fact]
-    public async Task Seeded_own_products_are_listed_except_the_inactive_one()
+    public async Task The_seed_creates_every_own_product_and_lists_all_but_the_inactive_one()
     {
-        var all = new List<ProductDto>();
-        for (var p = 1; ; p++)
+        // Other tests add and deactivate own products in parallel, so this reads the seeded rows by SKU and fetches
+        // each one by id rather than paging a list whose contents shift underneath it.
+        List<Product> rows = [];
+        await factory.WithDbAsync(async db => rows = await db.Products.AsNoTracking()
+            .Where(p => p.Source == ProductSources.Lumen && OwnProductSeed.Skus.Contains(p.SourceProductId))
+            .ToListAsync(Ct));
+        var shown = new List<ProductDto>();
+        foreach (var row in rows)
         {
-            var batch = await ListAsync($"seller=lumen&pageSize=96&page={p}");
-            all.AddRange(batch.Items);
-            if (p >= batch.TotalPages)
-            {
-                break;
-            }
+            shown.Add(await (await _client.GetAsync($"/api/v1/products/{row.Id}", Ct)).ReadAsync<ProductDto>());
         }
 
-        var seeded = all.Where(p => OwnProductSeed.Skus.Contains(p.SourceProductId)).ToList();
-        seeded.Should().HaveCount(23);
-        seeded.Should().NotContain(p => p.SourceProductId == "LG-FW-004");
-        seeded.Select(p => p.Category).Distinct().Should().BeEquivalentTo(ProductCategories.All);
-        seeded.Should().Contain(p => p.Images.Count == 0);
-        seeded.Should().Contain(p => p.Availability.Status == "out_of_stock");
-        seeded.Should().Contain(p => p.Availability.Status == "low_stock");
+        rows.Should().HaveCount(OwnProductSeed.Skus.Count);
+        rows.Where(p => !p.IsListed).Select(p => p.SourceProductId).Should().Equal("LG-FW-004");
+        shown.Select(p => p.Category).Distinct().Should().BeEquivalentTo(ProductCategories.All);
+        shown.Should().ContainSingle(p => p.Images.Count == 0);
+        shown.Should().Contain(p => p.Availability.Status == "out_of_stock");
+        shown.Should().Contain(p => p.Availability.Status == "low_stock");
+        shown.Single(p => p.SourceProductId == "LG-FW-004").Sellable.Should().BeFalse();
+        (await NamesAsync("q=Waxed%20Canvas%20Weekender")).Should().Equal("Waxed Canvas Weekender");
+        (await NamesAsync("q=Trail%20Running%20Shoes")).Should().BeEmpty();
     }
 }
