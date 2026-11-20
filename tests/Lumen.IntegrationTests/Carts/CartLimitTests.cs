@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using Lumen.Api.Carts;
 using Lumen.IntegrationTests.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
@@ -23,6 +24,27 @@ public sealed class CartLimitTests(LumenApiFactory factory)
         problem.GetProperty("errors").EnumerateObject()
             .Should().ContainSingle(e => e.Name.Equals("quantity", StringComparison.OrdinalIgnoreCase))
             .Which.Value[0].GetString().Should().Contain("maximum 10 per item");
+        (await guest.GetCartAsync()).Should().BeEquivalentTo(CartDto.Empty);
+    }
+
+    [Theory]
+    [InlineData("1", "-1")]
+    [InlineData("11", "1")]
+    public async Task A_body_that_names_quantity_twice_is_rejected_whichever_value_comes_last(string first, string second)
+    {
+        var product = await factory.OwnProductAsync();
+        var (guest, _) = factory.NewBrowser();
+        await guest.StartAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{CartTestSupport.CartUrl}/lines")
+        {
+            Content = new StringContent(
+                $$"""{"productId":"{{product.Id}}","quantity":{{first}},"quantity":{{second}}}""", Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Add("X-XSRF-TOKEN", guest.XsrfToken);
+
+        var response = await guest.Client.SendAsync(request, CartTestSupport.Ct);
+
+        await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest);
         (await guest.GetCartAsync()).Should().BeEquivalentTo(CartDto.Empty);
     }
 

@@ -31,11 +31,11 @@ We use the newest set in which every component is stable and built to work with 
 - Good: versions are pinned in a handful of files, so an upgrade is one reviewable diff.
 - Bad: not literally "the latest" for .NET and PostgreSQL. Reviewers will notice; this record is the answer.
 - Bad: no C# 15 (union types) or EF Core 11 features, and an upgrade is still owed.
-- Upgrade path: when Npgsql EF Core 11.0.0 is generally available, one commit: `net11.0` and `LangVersion` 15 in `Directory.Build.props`, the SDK in `global.json`, package versions in `Directory.Packages.props`, image tags in the three Dockerfiles, then the full test suite. PostgreSQL 19 after its first minor release: the image tag in `docker-compose.yml` and the integration-test factory; existing data needs `pg_upgrade` or a dump and restore (a demo volume can simply be reset with `docker compose down -v`).
+- Upgrade path: when Npgsql EF Core 11.0.0 is generally available, one commit: `net11.0` and `LangVersion` 15 in `Directory.Build.props`, the SDK in `global.json`, package versions in `Directory.Packages.props`, image tags in the three Dockerfiles, then the full test suite. PostgreSQL 19 after its first minor release: the image tag in `docker-compose.yml` and the two integration-test databases, `LumenApiFactory.cs` and `PartnerTestHost.cs` (both pin `postgres:18.7-alpine3.24`); existing data needs `pg_upgrade` or a dump and restore (a demo volume can simply be reset with `docker compose down -v`).
 
 ## More information
 
-- Pins: [global.json](../../global.json), [Directory.Build.props](../../Directory.Build.props), [Directory.Packages.props](../../Directory.Packages.props), [docker-compose.yml](../../docker-compose.yml), [Lumen.Api Dockerfile](../../src/Lumen.Api/Dockerfile), [LumenApiFactory.cs](../../tests/Lumen.IntegrationTests/Infrastructure/LumenApiFactory.cs)
+- Pins: [global.json](../../global.json), [Directory.Build.props](../../Directory.Build.props), [Directory.Packages.props](../../Directory.Packages.props), [docker-compose.yml](../../docker-compose.yml), [Lumen.Api Dockerfile](../../src/Lumen.Api/Dockerfile), [LumenApiFactory.cs](../../tests/Lumen.IntegrationTests/Infrastructure/LumenApiFactory.cs), [PartnerTestHost.cs](../../tests/Lumen.IntegrationTests/Partners/PartnerTestHost.cs)
 - .NET release metadata: <https://builds.dotnet.microsoft.com/dotnet/release-metadata/releases-index.json>; support policy: <https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core>
 - Npgsql EF Core provider versions: <https://www.nuget.org/packages/Npgsql.EntityFrameworkCore.PostgreSQL>
 - PostgreSQL versioning policy: <https://www.postgresql.org/support/versioning/>

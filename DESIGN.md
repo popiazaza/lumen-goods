@@ -240,7 +240,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 
 **No I/O inside a transaction.** Partners and the gateway take seconds (card 0042 takes 20 s). Locks and pooled connections are never held while waiting for them.
 
-**Resilience.** Each partner has its own `HttpClient`. Harbor allows 10 s per attempt and 90 s in total; Kestrel 15 s and 75 s. Up to 3 retries, for GETs only, back off exponentially and honour `Retry-After`. A circuit breaker opens at 50 % failures over 60 s. Harbor's budget is split: 40/min for sync, checks and orders, 10/min for images, at most 60 in any minute. POSTs are never retried by the HTTP pipeline: the order job resends with the same reference and gives up at 30 min. Place order's live checks get 5 s in total.
+**Resilience.** Each partner has its own `HttpClient`, plus a second one for images with its own circuit breaker, so failing images cannot cut off sync, checks and orders. Harbor allows 10 s per attempt and 90 s in total; Kestrel 15 s and 75 s. Up to 3 retries, for GETs only, back off exponentially and honour `Retry-After`. A circuit breaker opens at 50 % failures over 60 s. Harbor's budget is split: 40/min for sync, checks and orders, 10/min for images, at most 60 in any minute. POSTs are never retried by the HTTP pipeline: the order job resends with the same reference and gives up at 30 min. Place order's live checks get 5 s in total.
 
 **Security**
 

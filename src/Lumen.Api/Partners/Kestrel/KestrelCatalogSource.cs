@@ -16,9 +16,16 @@ internal sealed class KestrelCatalogSource(
     IHttpClientFactory httpClients,
     IOptionsMonitor<KestrelOptions> options,
     IOptionsMonitor<PartnersOptions> partners,
-    DescriptionSanitizer sanitizer) : IPartnerCatalogSource
+    DescriptionSanitizer sanitizer,
+    TimeProvider time) : IPartnerCatalogSource
 {
     public const string HttpClientName = "partner-kestrel";
+
+    /// <summary>
+    /// Same credentials and pipeline settings, but its own circuit breaker: failing images must not open the breaker
+    /// that the feed, stock, live checks and partner orders go through.
+    /// </summary>
+    public const string ImageHttpClientName = "partner-kestrel-images";
 
     private const int MaxWatermarkLength = 200;
 
@@ -33,8 +40,8 @@ internal sealed class KestrelCatalogSource(
         var context = new PartnerMappingContext(baseUri, new CategoryMap(settings.CategoryMap), partners.CurrentValue.EffectiveSynonyms(), sanitizer);
         var client = httpClients.CreateClient(HttpClientName);
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(settings.FeedTimeout);
+        using var feedTimeout = new CancellationTokenSource(settings.FeedTimeout, time);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, feedTimeout.Token);
 
         using var message = new HttpRequestMessage(HttpMethod.Get, "feed/products.xml");
         if (!request.Full && !string.IsNullOrWhiteSpace(request.Watermark))

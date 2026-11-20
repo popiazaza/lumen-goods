@@ -32,6 +32,14 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        // Development turns these on, but the tests run as "Testing": a singleton holding a scoped service, or a
+        // registration that cannot be built, must fail here rather than at the first request that needs it.
+        builder.UseDefaultServiceProvider(options =>
+        {
+            options.ValidateScopes = true;
+            options.ValidateOnBuild = true;
+        });
         builder.UseSetting("ConnectionStrings:Lumen", _database.GetConnectionString());
         // The test client talks plain HTTP, so cookies must not require HTTPS.
         builder.UseSetting("Auth:CookieSecurePolicy", "SameAsRequest");
@@ -42,6 +50,7 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
         // Test classes run in parallel and sign in the same seeded accounts at the same moment; they wait their turn
         // (one sign-in per email at a time) instead of overflowing the production queue of 10.
         builder.UseSetting("RateLimiting:SignInQueuePerEmail", "1000");
+        builder.UseSetting("Docs:Enabled", "true");
     }
 
     public ApiSession CreateSession() => new(CreateClient());

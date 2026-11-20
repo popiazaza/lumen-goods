@@ -13,7 +13,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Testcontainers.PostgreSql" />
-    <PackageReference Include="Respawn" />
   </ItemGroup>
 
   <ItemGroup>
