@@ -81,8 +81,9 @@ stateDiagram-v2
 Written in the transaction that marks the order Paid, then sent by a background job; every retry reuses the reference
 `{orderNo}-{line}`, so a resend never orders twice (BR-ORD-01). Harbor answers synchronously (201, or 200 for a reference
 it already has: Confirmed; 409/422: Rejected). Kestrel returns a ticket (RECEIVED = Accepted) and decides later. A partner
-order not accepted within 30 minutes of payment is given up and its line refunded; an accepted one is never given up
-automatically, it needs an admin after 24 hours (BR-ORD-04). When the admin confirms or rejects that line, the partner
+order not accepted within 30 minutes of payment is given up and its line refunded, but only when the partner cannot have
+it (every send was rejected or never reached it); when a send's outcome is unknown (a timeout after sending, a 5xx) the
+line needs an admin instead. An accepted one is never given up automatically, it needs an admin after 24 hours (BR-ORD-04). When the admin confirms or rejects that line, the partner
 order is closed in the same step (`PartnerOrderUpdates.ResolveByAdmin`), so polling stops.
 
 ```mermaid
