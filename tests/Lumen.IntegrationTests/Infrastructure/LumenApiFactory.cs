@@ -32,6 +32,14 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        // Development turns these on, but the tests run as "Testing": a singleton holding a scoped service, or a
+        // registration that cannot be built, must fail here rather than at the first request that needs it.
+        builder.UseDefaultServiceProvider(options =>
+        {
+            options.ValidateScopes = true;
+            options.ValidateOnBuild = true;
+        });
         builder.UseSetting("ConnectionStrings:Lumen", _database.GetConnectionString());
         // The test client talks plain HTTP, so cookies must not require HTTPS.
         builder.UseSetting("Auth:CookieSecurePolicy", "SameAsRequest");
