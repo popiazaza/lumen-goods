@@ -22,7 +22,7 @@ internal static class PartnersFeature
     {
         services.AddOptions<PartnersOptions>().Bind(configuration.GetSection(PartnersOptions.SectionName));
         services.AddOptions<FxOptions>().Bind(configuration.GetSection(FxOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
-        services.AddOptions<JobsOptions>().Bind(configuration.GetSection(JobsOptions.SectionName));
+        services.AddOptions<JobsOptions>().Bind(configuration.GetSection(JobsOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<MediaOptions>().Bind(configuration.GetSection(MediaOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<HarborOptions>().Bind(configuration.GetSection(HarborOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<KestrelOptions>().Bind(configuration.GetSection(KestrelOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
@@ -58,6 +58,8 @@ internal static class PartnersFeature
         services.AddTransient<KestrelBasicAuthHandler>();
         services.AddPartnerHttpClient<KestrelOptions>(KestrelCatalogSource.HttpClientName)
             .AddHttpMessageHandler<KestrelBasicAuthHandler>();
+        services.AddPartnerHttpClient<KestrelOptions>(KestrelCatalogSource.ImageHttpClientName)
+            .AddHttpMessageHandler<KestrelBasicAuthHandler>();
         services.AddSingleton<KestrelCatalogSource>();
         services.AddSingleton<KestrelStockSource>();
         services.AddPartner(
@@ -66,7 +68,7 @@ internal static class PartnersFeature
             sp => sp.GetRequiredService<KestrelCatalogSource>(),
             sp => sp.GetRequiredService<KestrelStockSource>(),
             sp => sp.GetRequiredService<IOptionsMonitor<KestrelOptions>>().CurrentValue,
-            imageHttpClientName: KestrelCatalogSource.HttpClientName);
+            imageHttpClientName: KestrelCatalogSource.ImageHttpClientName);
 
         services.AddSingleton<PartnerImageCache>();
         services.AddSingleton<PartnerImageProxy>();

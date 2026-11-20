@@ -116,6 +116,7 @@ internal static class PartnerTestKit
         if (kestrel is not null)
         {
             services.AddHttpClient(KestrelCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => kestrel);
+            services.AddHttpClient(KestrelCatalogSource.ImageHttpClientName).ConfigurePrimaryHttpMessageHandler(() => kestrel);
         }
 
         return services.BuildServiceProvider();

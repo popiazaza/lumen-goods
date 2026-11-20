@@ -171,6 +171,7 @@ public sealed class JobsOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>How often each partner job wakes to see whether work is due or "Refresh now" was pressed.</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "00:05:00")]
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
 }
 
@@ -196,17 +197,21 @@ public sealed class MediaOptions
     [Range(1024 * 1024, 4L * 1024 * 1024 * 1024)]
     public long CacheSizeLimitBytes { get; set; } = 100 * 1024 * 1024;
 
+    [Range(typeof(TimeSpan), "00:00:01", "7.00:00:00")]
     public TimeSpan CacheDuration { get; set; } = TimeSpan.FromHours(24);
 
     /// <summary>A failed fetch is remembered this long, so a down partner costs one slow request per image, not one per page view.</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
     public TimeSpan FailureCacheDuration { get; set; } = TimeSpan.FromMinutes(1);
 
     /// <summary>Longest a browser waits for a partner image before it gets a 502 (and shows a placeholder).</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "00:05:00")]
     public TimeSpan ResponseTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Longest one partner image fetch may take, waiting for a Harbor rate-limit token included. It outlives a browser
     /// that gave up, so the image is cached for the next view.
     /// </summary>
+    [Range(typeof(TimeSpan), "00:00:01", "00:30:00")]
     public TimeSpan MaxFetchDuration { get; set; } = TimeSpan.FromSeconds(90);
 }

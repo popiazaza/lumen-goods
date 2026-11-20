@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- ASP.NET Core 10 puts the /// comments of endpoints and contracts into the OpenAPI document (Scalar at /api/docs).
+         Only this project: the others have no OpenAPI document. Comments say what is not obvious, so a member or record
+         parameter without one is fine (CS1591, CS1573); a broken cref or malformed comment still warns. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Lumen.Domain\Lumen.Domain.csproj" />
   </ItemGroup>
