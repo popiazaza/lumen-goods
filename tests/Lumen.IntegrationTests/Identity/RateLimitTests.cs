@@ -3,7 +3,10 @@ using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.IntegrationTests.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lumen.IntegrationTests.Identity;
@@ -64,6 +67,44 @@ public sealed class RateLimitTests(LumenApiFactory factory)
         await using var scope = factory.Services.CreateAsyncScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
         (await users.IsLockedOutAsync((await users.FindByEmailAsync(email))!)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Only_the_known_proxy_names_the_client_and_another_peer_forging_x_forwarded_for_is_limited_by_its_own_address()
+    {
+        // As in docker compose: nginx at a fixed address on the network, and another container next to it.
+        const string nginx = "172.16.87.10";
+        const string otherContainer = "172.16.87.20";
+        await using var app = factory.WithWebHostBuilder(builder => builder.UseSetting("ForwardedHeaders:KnownProxies:0", nginx));
+        var forged = 0;
+
+        // No XSRF token: the endpoint refuses each attempt, but the rate limiter has already counted it.
+        async Task<int> SignInAsync(string peer, string forwardedFor) => (await app.Server.SendAsync(context =>
+        {
+            context.Connection.RemoteIpAddress = IPAddress.Parse(peer);
+            context.Request.Method = HttpMethods.Post;
+            context.Request.Path = "/api/v1/auth/sign-in";
+            context.Request.Headers["X-Forwarded-For"] = forwardedFor;
+        }, Ct)).Response.StatusCode;
+
+        var throughNginx = new List<int>();
+        for (var i = 0; i < 6; i++)
+        {
+            throughNginx.Add(await SignInAsync(nginx, "198.18.200.1"));
+        }
+
+        var anotherClientThroughNginx = await SignInAsync(nginx, "198.18.200.2");
+        var direct = new List<int>();
+        for (var i = 0; i < 6; i++)
+        {
+            direct.Add(await SignInAsync(otherContainer, $"198.18.201.{++forged}"));
+        }
+
+        throughNginx.Take(5).Should().NotContain(StatusCodes.Status429TooManyRequests);
+        throughNginx[5].Should().Be(StatusCodes.Status429TooManyRequests);
+        anotherClientThroughNginx.Should().NotBe(StatusCodes.Status429TooManyRequests, "nginx names each client, and each has its own limit");
+        direct.Take(5).Should().NotContain(StatusCodes.Status429TooManyRequests);
+        direct[5].Should().Be(StatusCodes.Status429TooManyRequests, "a peer that is not the proxy is limited by its own address, whatever it forwards");
     }
 
     private async Task<ApiSession> SessionFromAsync(string clientAddress)

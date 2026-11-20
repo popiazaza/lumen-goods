@@ -32,7 +32,7 @@ builder.Services.AddPayments(builder.Configuration);
 builder.Services.AddOrders(builder.Configuration);
 builder.Services.AddWallet(builder.Configuration);
 builder.Services.AddLumenHealthChecks();
-builder.Services.AddReverseProxySupport();
+builder.Services.AddReverseProxySupport(builder.Configuration);
 builder.Services.AddLumenRateLimiting(builder.Configuration);
 
 var app = builder.Build();

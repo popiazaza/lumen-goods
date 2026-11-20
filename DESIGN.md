@@ -251,7 +251,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 - XML DTDs are refused (no XXE).
 - The image proxy fetches only from allow-listed origins and follows no redirects (SSRF guard).
 - The card number and CVC stay in memory; only brand and last 4 digits are stored, and `CardDetails` never prints them.
-- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP; sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer. A 429 is ProblemDetails with `Retry-After`.
+- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP (taken from X-Forwarded-For only when the peer is nginx, `ForwardedHeaders:KnownProxies`); sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer. A 429 is ProblemDetails with `Retry-After`.
 - At most 3 unpaid orders per customer (BR-CHK-03), so one account cannot keep own stock reserved.
 - nginx answers only for `localhost` and `127.0.0.1` and the API's `AllowedHosts` matches, against DNS rebinding. Another hostname needs both changed.
 - Data Protection keys live on a volume, so a restart keeps sessions and XSRF tokens valid. In production they would be encrypted with a key vault.

@@ -36,6 +36,9 @@ services:
       ConnectionStrings__Lumen: Host=db;Database=lumen;Username=lumen;Password=${POSTGRES_PASSWORD:-lumen-dev-password}
       # nginx forwards the browser's Host, and only serves these two (DNS rebinding); the healthcheck below sends localhost.
       AllowedHosts: "localhost;127.0.0.1"
+      # X-Forwarded-For is believed from the web (nginx) container only, at its fixed address below. A request from any
+      # other peer is rate limited by that peer's own address, whatever X-Forwarded-For it sends.
+      ForwardedHeaders__KnownProxies__0: 172.16.87.10
       # Plain HTTP on localhost; production behind TLS keeps the default (Always).
       Auth__CookieSecurePolicy: SameAsRequest
       # Keys for the session cookie and XSRF tokens, on a volume: sign-ins survive a restart or a rebuilt container.
@@ -75,6 +78,10 @@ services:
   web:
     build:
       context: src/web
+    networks:
+      default:
+        # The one address the API takes X-Forwarded-For from (ForwardedHeaders__KnownProxies__0 above).
+        ipv4_address: 172.16.87.10
     ports:
       - "127.0.0.1:${WEB_PORT:-8080}:8080"
     depends_on:
@@ -117,6 +124,14 @@ services:
     ports:
       - "127.0.0.1:${DASHBOARD_PORT:-18888}:18888"
     restart: unless-stopped
+
+networks:
+  default:
+    ipam:
+      config:
+        # Fixed so nginx can have a fixed address. Outside Docker's default address pools (172.17-31.x, 192.168.x), so
+        # no other compose project is given it; if your network uses it, change the subnet and both addresses above.
+        - subnet: 172.16.87.0/24
 
 volumes:
   db-data:
