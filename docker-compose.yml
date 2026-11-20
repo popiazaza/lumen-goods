@@ -40,6 +40,12 @@ services:
       # Demo accounts listed in the README; off in the base (production) configuration.
       Seed__Enabled: "true"
       Logging__Console__FormatterName: json
+      # Partner sandboxes on the compose network. Point these at any other implementation of the partner contracts.
+      Partners__Harbor__BaseUrl: ${HARBOR_BASE_URL:-http://harbor:8080}
+      Partners__Harbor__ApiKey: ${HARBOR_API_KEY:-harbor-dev-key-123}
+      Partners__Kestrel__BaseUrl: ${KESTREL_BASE_URL:-http://kestrel:8080}
+      Partners__Kestrel__Username: ${KESTREL_USERNAME:-lumen}
+      Partners__Kestrel__Password: ${KESTREL_PASSWORD:-kestrel-secret}
     healthcheck:
       # Healthy only once migrations and seeding are done and the database answers (/health).
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q Healthy <&3"]

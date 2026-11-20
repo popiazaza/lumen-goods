@@ -75,7 +75,7 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
             Availability = new AvailabilityDto("in_stock", 12),
         });
         created.Images.Should().ContainSingle().Which.Should().BeEquivalentTo(
-            new AdminImageDto("lg-hm-001.png", $"http://localhost/media/{created.Id}/0", true));
+            new AdminImageDto("lg-hm-001.png", ProductMapping.ImageUrl("http://localhost", Guid.Parse(created.Id), 0, "own-media/lg-hm-001.png"), true));
         created.Version.Should().NotBeNullOrEmpty();
         storefront.Should().BeEquivalentTo(new
         {

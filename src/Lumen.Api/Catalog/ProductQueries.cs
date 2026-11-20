@@ -10,8 +10,11 @@ namespace Lumen.Api.Catalog;
 /// </summary>
 public static class ProductQueries
 {
-    /// <summary>BR-CAT-02: can be bought (active and priced).</summary>
-    public static readonly Expression<Func<Product, bool>> IsSellable = p => p.IsActive && p.PriceUsd != null;
+    /// <summary>
+    /// BR-CAT-02: can be bought: active, listed and priced. An unlisted product (dropped by its partner, or moved to an
+    /// unmapped category) still opens by id but says "No longer available".
+    /// </summary>
+    public static readonly Expression<Func<Product, bool>> IsSellable = p => p.IsActive && p.IsListed && p.PriceUsd != null;
 
     /// <summary>BR-CAT-01: in stock or low stock ("in stock only" filter).</summary>
     public static readonly Expression<Func<Product, bool>> IsInStock = p =>
