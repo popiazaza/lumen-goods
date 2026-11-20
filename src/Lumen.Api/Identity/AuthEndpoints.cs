@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using Lumen.Api.Carts;
 using Lumen.Api.Infrastructure.Security;
+using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
@@ -15,6 +17,27 @@ public sealed record SessionResponse(bool IsAuthenticated, string? Email, IReadO
 public sealed record RegisterRequest([Required, EmailAddress, MaxLength(256)] string Email, [Required, MinLength(8), MaxLength(128)] string Password);
 
 public sealed record SignInRequest([Required, EmailAddress] string Email, [Required] string Password);
+
+/// <summary>
+/// What sign-in and registration hand over to other features, bound with [AsParameters] so the handlers stay short:
+/// the guest cart merge (BR-CART-01) and, at registration, the new customer's wallet (BR-PAY-06). Both are best effort:
+/// the account and the session already exist, so a failure is logged and retried later (the guest cart merges at the
+/// next sign-in, the wallet opens on first use) instead of failing a sign-in that has already happened.
+/// </summary>
+internal sealed record AfterSignIn(ICartMergeService CartMerge, WalletService Wallets, ILogger<AfterSignIn> Logger)
+{
+    public async Task MergeGuestCartAsync(HttpContext http, Guid customerId)
+    {
+        try
+        {
+            await CartMerge.MergeGuestCartAsync(http, customerId, http.RequestAborted);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Could not merge the guest cart of customer {CustomerId}; it merges at the next sign-in", customerId);
+        }
+    }
+}
 
 internal static class AuthEndpoints
 {
@@ -40,7 +63,8 @@ internal static class AuthEndpoints
     }
 
     private static async Task<Results<Ok<SessionResponse>, ValidationProblem>> Register(
-        RegisterRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn, IAntiforgery antiforgery)
+        RegisterRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn, IAntiforgery antiforgery,
+        [AsParameters] AfterSignIn afterSignIn)
     {
         var user = new AppUser { UserName = request.Email, Email = request.Email };
         var created = await users.CreateAsync(user, request.Password);
@@ -58,12 +82,17 @@ internal static class AuthEndpoints
             throw new InvalidOperationException($"Could not assign the customer role: {string.Join("; ", roleAdded.Errors.Select(e => e.Description))}");
         }
 
-        return TypedResults.Ok(await CompleteSignInAsync(http, user, signIn, users, antiforgery));
+        // BR-PAY-06: every new customer starts with a wallet. Idempotent and best effort: if it fails here, it opens on first use.
+        await afterSignIn.Wallets.TryEnsureOpenAsync(user.Id);
+
+        var session = await CompleteSignInAsync(http, user, signIn, users, antiforgery);
+        await afterSignIn.MergeGuestCartAsync(http, user.Id);
+        return TypedResults.Ok(session);
     }
 
     private static async Task<Results<Ok<SessionResponse>, ProblemHttpResult>> SignIn(
         SignInRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn,
-        IPasswordHasher<AppUser> hasher, IAntiforgery antiforgery)
+        IPasswordHasher<AppUser> hasher, IAntiforgery antiforgery, [AsParameters] AfterSignIn afterSignIn)
     {
         var user = await users.FindByEmailAsync(request.Email);
         if (user is null)
@@ -90,7 +119,9 @@ internal static class AuthEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Email or password is incorrect");
         }
 
-        return TypedResults.Ok(await CompleteSignInAsync(http, user, signIn, users, antiforgery));
+        var session = await CompleteSignInAsync(http, user, signIn, users, antiforgery);
+        await afterSignIn.MergeGuestCartAsync(http, user.Id);
+        return TypedResults.Ok(session);
     }
 
     private static async Task<Ok<SessionResponse>> SignOut(HttpContext http, SignInManager<AppUser> signIn, IAntiforgery antiforgery)

@@ -48,7 +48,7 @@ PostgreSQL 18.7. Angular 22.3, TypeScript 6.0, Node 26 LTS.
 ## Conventions
 
 - C#: file-scoped namespaces, minimal APIs with `TypedResults`, one route group per feature, `ProblemDetails` (RFC 9457) for Lumen API errors (not for stand-ins: they use their partner's error formats).
-- Feature folders inside `Lumen.Api` (`Catalog`, `Cart`, `Checkout`, `Orders`, `Payments`, `Wallet`, `Partners/Harbor`, `Partners/Kestrel`, `Admin`, `Identity`).
+- Feature folders inside `Lumen.Api` (`Catalog`, `Carts`, `Checkout`, `Orders`, `Payments`, `Wallets`, `Partners/Harbor`, `Partners/Kestrel`, `Admin`, `Identity`). A folder (and namespace) is never named like a class in it: `Carts` holds `Cart`, `Wallets` holds `Wallet`.
 - No MediatR, AutoMapper, MassTransit or FluentAssertions (commercial licences); hand-written handlers and mapping.
 - Tests: xUnit v3 + AwesomeAssertions. Integration tests use Testcontainers PostgreSQL.
 - Commits: Conventional Commits with a module scope, e.g. `feat(stand-in-harbor): cursor paging`.

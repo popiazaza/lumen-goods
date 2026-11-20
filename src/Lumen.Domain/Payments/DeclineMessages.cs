@@ -7,6 +7,12 @@ public enum DeclineReason
     WrongOneTimeCode,
     OneTimeCodeExpired,
     InsufficientWalletBalance,
+
+    /// <summary>
+    /// BR-PAY-05: the payment ended Failed (the gateway errored twice) and the gateway's status check later said it was
+    /// never charged. Final, so the order can be paid again with any method.
+    /// </summary>
+    GatewayErrorUnresolvedNotCharged,
 }
 
 /// <summary>What the customer is told, and what the admin's payment timeline records.</summary>
@@ -28,6 +34,8 @@ public static class DeclineMessages
         [DeclineReason.WrongOneTimeCode] = new("The code is not correct", "Wrong one-time code"),
         [DeclineReason.OneTimeCodeExpired] = new("The code has expired", "One-time code expired"),
         [DeclineReason.InsufficientWalletBalance] = new("Your wallet balance does not cover this order", "Wallet balance below the order total"),
+        [DeclineReason.GatewayErrorUnresolvedNotCharged] = new(
+            "The payment could not be completed and you were not charged", "Gateway errors; status check: never charged"),
     };
 
     public static string ForCustomer(DeclineReason reason) =>

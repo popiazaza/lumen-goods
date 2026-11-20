@@ -1,6 +1,10 @@
+using Lumen.Api.Carts;
 using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
+using Lumen.Api.Orders;
 using Lumen.Api.Partners;
+using Lumen.Api.Payments;
+using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +23,34 @@ public sealed class LumenDbContext(DbContextOptions<LumenDbContext> options)
     public DbSet<PartnerSyncState> PartnerSyncStates => Set<PartnerSyncState>();
 
     public DbSet<PartnerSyncError> PartnerSyncErrors => Set<PartnerSyncError>();
+
+    public DbSet<Cart> Carts => Set<Cart>();
+
+    public DbSet<CartLine> CartLines => Set<CartLine>();
+
+    public DbSet<Order> Orders => Set<Order>();
+
+    public DbSet<OrderLine> OrderLines => Set<OrderLine>();
+
+    public DbSet<OrderShipment> OrderShipments => Set<OrderShipment>();
+
+    public DbSet<PartnerOrder> PartnerOrders => Set<PartnerOrder>();
+
+    public DbSet<Payment> Payments => Set<Payment>();
+
+    public DbSet<PaymentEvent> PaymentEvents => Set<PaymentEvent>();
+
+    public DbSet<Refund> Refunds => Set<Refund>();
+
+    public DbSet<RefundLine> RefundLines => Set<RefundLine>();
+
+    public DbSet<Wallet> Wallets => Set<Wallet>();
+
+    public DbSet<WalletTransaction> WalletTransactions => Set<WalletTransaction>();
+
+    public DbSet<MockGatewayCharge> MockGatewayCharges => Set<MockGatewayCharge>();
+
+    public DbSet<MockGatewayRefund> MockGatewayRefunds => Set<MockGatewayRefund>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
