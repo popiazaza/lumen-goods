@@ -114,16 +114,6 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 - Handle errors appropriately in async code with try-catch blocks
 - Don't use async functions as Promise executors
 
-### React & JSX
-
-- Use function components over class components
-- Call hooks at the top level only, never conditionally
-- When a hook dependency rule fires, first check whether the effect is needed, and whether adding the dependency changes when it runs
-- Use the `key` prop for elements in iterables (prefer unique IDs over array indices)
-- Nest children between opening and closing tags instead of passing as props
-- Don't define components inside other components
-- In JSX, work out a multi-way condition in a variable or helper above the `return`, not in a chain of ternaries
-
 ### Accessibility
 
 - Use semantic HTML first; add ARIA only when no native element fits
@@ -162,23 +152,11 @@ Write code that is **accessible, performant, type-safe, and maintainable**. Focu
 - Avoid spread syntax in accumulators within loops
 - Use top-level regex literals instead of creating them in loops
 - Avoid barrel files (index files that only re-export other modules) inside an app; a package's entry point is fine
-- Use proper image components (e.g., Next.js `<Image>`) over `<img>` tags
+- Use Angular's `NgOptimizedImage` (`ngSrc`) for product images
 
 ### Framework-Specific Guidance
 
-**Next.js:**
-
-- Use Next.js `<Image>` component for images
-- Use `next/head` or App Router metadata API for head elements
-- Use Server Components for async data fetching instead of async Client Components
-
-**React 19+:**
-
-- Use ref as a prop instead of `React.forwardRef`
-
-**Solid/Svelte/Vue/Qwik:**
-
-- Use `class` and `for` attributes (not `className` or `htmlFor`)
+**Angular (this app):** standalone components, signals and `inject()`, the built-in control flow (`@if`, `@for`), and zoneless change detection. The rules at the top of this file come first.
 
 ---
 
