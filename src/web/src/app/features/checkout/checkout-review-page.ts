@@ -193,14 +193,14 @@ export class CheckoutReviewPage {
     this.placing.set(true);
     this.placeError.set(null);
     this.addressErrors.set([]);
+    const review = {
+      lines,
+      expectedTotal,
+      shippingAddress: address,
+      shippingMethod: this.method(),
+    };
     this.api
-      .placeOrder({
-        checkoutKey: this.store.checkoutKey(),
-        lines,
-        expectedTotal,
-        shippingAddress: address,
-        shippingMethod: this.method(),
-      })
+      .placeOrder({ checkoutKey: this.store.checkoutKeyFor(review), ...review })
       .pipe(finalize(() => this.placing.set(false)))
       .subscribe({
         next: (order) => {

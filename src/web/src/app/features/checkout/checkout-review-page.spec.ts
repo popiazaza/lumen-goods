@@ -1,5 +1,9 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  TestRequest,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -73,13 +77,13 @@ describe('CheckoutReviewPage', () => {
     await fixture.whenStable();
   }
 
-  async function placeAndConflict(problem: CheckoutChangedProblem): Promise<void> {
+  async function placeAndConflict(problem: CheckoutChangedProblem): Promise<TestRequest> {
     placeButton().click();
-    http
-      .expectOne('/api/v1/checkout/orders')
-      .flush(problem, { status: 409, statusText: 'Conflict' });
+    const place = http.expectOne('/api/v1/checkout/orders');
+    place.flush(problem, { status: 409, statusText: 'Conflict' });
     await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(aPreview({ total: 68.63 })));
     await fixture.whenStable();
+    return place;
   }
 
   beforeEach(() => {
@@ -133,11 +137,14 @@ describe('CheckoutReviewPage', () => {
       shippingAddress: US_ADDRESS,
       shippingMethod: 'express',
     });
+    const sentKey = request.request.body.checkoutKey;
     request.flush(anOrder({ number: 'LG-NEW1' }), { status: 201, statusText: 'Created' });
     http.expectOne('/api/v1/cart').flush(aCart([]));
     await fixture.whenStable();
 
     expect(store.orderNumber()).toBe('LG-NEW1');
+    // That key made its order; placing again (after changing the cart) must not get LG-NEW1 back.
+    expect(store.checkoutKey()).not.toBe(sentKey);
     // The payment step opens on this answer instead of reading the order again.
     expect(store.placedOrder()?.number).toBe('LG-NEW1');
     expect(TestBed.inject(Router).url).toBe('/checkout/payment?order=LG-NEW1');
@@ -145,9 +152,8 @@ describe('CheckoutReviewPage', () => {
 
   it('on a 409, shows each price change (old → new) and the new total, and confirms them', async () => {
     await open();
-    const key = store.checkoutKey();
 
-    await placeAndConflict(conflict([aChange()], 68.63, true));
+    const first = await placeAndConflict(conflict([aChange()], 68.63, true));
 
     const banner = host().querySelector<HTMLElement>('.banner.changed') as HTMLElement;
     expect(document.activeElement).toBe(banner);
@@ -160,8 +166,9 @@ describe('CheckoutReviewPage', () => {
 
     host().querySelector<HTMLButtonElement>('button.confirm')?.click();
     const retry = http.expectOne('/api/v1/checkout/orders');
+    // New prices and total are a different review, so a different key (the 409 made no order).
+    expect(retry.request.body.checkoutKey).not.toBe(first.request.body.checkoutKey);
     expect(retry.request.body).toMatchObject({
-      checkoutKey: key,
       expectedTotal: 68.63,
       lines: [
         { productId: 'lumen-mug', quantity: 2, unitPrice: 18.5 },
