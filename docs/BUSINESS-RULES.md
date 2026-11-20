@@ -88,13 +88,5 @@ Example amounts use the configured defaults: EUR→USD 1.0850, sales tax 8 %, St
 
 ## Test cards
 
-| Card | Result | Customer sees | Rule |
-|---|---|---|---|
-| 4111 1111 1111 1111 | Approved | Order confirmation | BR-PAY-02 |
-| 4242 0000 0000 0018 | Declined: insufficient funds | "Insufficient funds", try another card or the wallet | BR-PAY-02, BR-PAY-07 |
-| 4242 0000 0000 0026 | Declined: card reported stolen | Generic "Your card was declined" (reason visible to the admin) | BR-PAY-07 |
-| 4242 0000 0000 0034 | Needs a one-time code: `123456` approves, anything else declines, expires after 5 minutes | Code field with a countdown | BR-PAY-03 |
-| 4242 0000 0000 0042 | Gateway answers after 20 s, then approves | "Confirming your payment…", safe to refresh | BR-PAY-04 |
-| 4242 0000 0000 0059 | Gateway error first, approved on retry with the same payment | Nothing extra: the server retries once | BR-PAY-05 |
-| Any other Luhn-valid number | Approved | Order confirmation | BR-PAY-02 |
-| Fails the Luhn check | Not sent to the gateway | Inline form error | BR-PAY-02 |
+The cards and their results are listed once, in the [README](../README.md#test-cards). BR-PAY-02 covers the mock as a
+whole; the rest name their card: 0034 in BR-PAY-03, 0042 in BR-PAY-04, 0059 in BR-PAY-05, 0018 and 0026 in BR-PAY-07.
