@@ -5,7 +5,11 @@ import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { OrderDetailDto } from '../../../core/api/order.models';
-import { PAYMENT_IN_PROGRESS_PROBLEM, PaymentStatusDto } from '../../../core/api/payments.api';
+import {
+  PAYMENT_IN_PROGRESS_PROBLEM,
+  PaymentStatusDto,
+  SAME_PAYMENT_ONLY_PROBLEM,
+} from '../../../core/api/payments.api';
 import { CheckoutStore } from '../../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../../core/icons/app-icons';
 import { US_ADDRESS, aCart, aPaymentStatus, aWallet, anOrder } from '../../../testing/fixtures';
@@ -38,15 +42,22 @@ describe('CheckoutPaymentPage', () => {
     fixture.detectChanges();
   }
 
-  /** Opens the page as after Place order or a refresh: the order, its current payment and the wallet. */
+  /**
+   * Opens the page as after a refresh: the order (`null`: the read answers 404), its current
+   * payment and the wallet.
+   */
   async function open(
     payment: PaymentStatusDto | null,
-    { order = anOrder(), balance = 2000 }: { order?: OrderDetailDto; balance?: number } = {},
+    { order = anOrder(), balance = 2000 }: { order?: OrderDetailDto | null; balance?: number } = {},
   ): Promise<void> {
     fixture = TestBed.createComponent(CheckoutPaymentPage);
     fixture.componentRef.setInput('order', ORDER);
     await settle();
-    http.expectOne(ORDER_URL).flush(order);
+    if (order) {
+      http.expectOne(ORDER_URL).flush(order);
+    } else {
+      http.expectOne(ORDER_URL).flush({ title: 'Not Found' }, NOT_FOUND);
+    }
     if (payment) {
       http.expectOne(CURRENT_URL).flush(payment);
     } else {
@@ -131,6 +142,27 @@ describe('CheckoutPaymentPage', () => {
       expect(text('#wallet-note')).toBe(
         'Wallet balance: $42.10 · Not enough to pay $67.46, so pay by card.',
       );
+    });
+
+    it('opens on Place order’s answer instead of reading the order again', async () => {
+      TestBed.inject(CheckoutStore).orderPlaced(anOrder());
+      fixture = TestBed.createComponent(CheckoutPaymentPage);
+      fixture.componentRef.setInput('order', ORDER);
+      await settle();
+
+      http.expectNone(ORDER_URL);
+      http.expectOne(CURRENT_URL).flush({ title: 'No payment yet' }, NOT_FOUND);
+      http.expectOne('/api/v1/wallet').flush(aWallet());
+      await settle();
+
+      expect(text('#pay-button')).toBe('Pay $67.46');
+    });
+
+    it('says so when neither the order nor a payment of it can be found', async () => {
+      await open(null, { order: null });
+
+      expect(text('#closed-heading')).toBe('This order can’t be paid');
+      expect(text('.state p')).toBe(`We couldn’t find order ${ORDER} in your account.`);
     });
 
     it('pays from the wallet without card details', async () => {
@@ -259,6 +291,18 @@ describe('CheckoutPaymentPage', () => {
       expect(TestBed.inject(CheckoutStore).address()).toBeNull();
     });
 
+    it('resumes from the payment alone when the order itself cannot be read', async () => {
+      await open(aPaymentStatus({ status: 'processing' }), { order: null });
+
+      expect(text('#processing-heading')).toBe('Confirming your payment…');
+      expect(text('.order-line')).toContain(`Order ${ORDER} · Total $67.46`);
+
+      await poll(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
+      http.expectOne('/api/v1/cart').flush(aCart([]));
+      await settle();
+      expect(url()).toBe(`/orders/${ORDER}/confirmation`);
+    });
+
     it('keeps waiting through a dropped status request', async () => {
       await open(aPaymentStatus({ status: 'processing' }));
 
@@ -348,6 +392,68 @@ describe('CheckoutPaymentPage', () => {
       expect(text('#wallet-note')).toBe(
         'Only the same card payment can be tried again, so the wallet can’t be used for this attempt.',
       );
+    });
+
+    it('keeps the API’s words when only the same card may continue a failed payment (409)', async () => {
+      await open(
+        aPaymentStatus({
+          status: 'failed',
+          retryMode: 'same_payment_only',
+          canRetry: true,
+          attemptsLeft: 4,
+          orderStatus: 'awaiting_payment',
+        }),
+      );
+      fillCard('5555555555554444');
+
+      await pay();
+      http.expectOne(`${ORDER_URL}/payments`).flush(
+        {
+          type: SAME_PAYMENT_ONLY_PROBLEM,
+          title: 'Try the same card again',
+          status: 409,
+          detail:
+            'We could not confirm your payment with Visa ending 1111. Try again with that card; you will not be charged twice.',
+        },
+        { status: 409, statusText: 'Conflict' },
+      );
+      await settle();
+
+      expect(text('.outcome-title')).toBe('Try the same card again');
+      expect(text('.outcome .outcome-title + p')).toBe(
+        'We could not confirm your payment with Visa ending 1111. Try again with that card; you will not be charged twice.',
+      );
+      expect(text('.outcome')).not.toContain('You have not been charged');
+    });
+
+    it('offers the card after a wallet decline, with the wallet balance read again', async () => {
+      await open(null);
+      host().querySelector<HTMLInputElement>('mat-radio-button[value="wallet"] input')?.click();
+      await settle();
+
+      await pay();
+      http.expectOne(`${ORDER_URL}/payments`).flush(
+        aPaymentStatus({
+          method: 'wallet',
+          status: 'declined',
+          cardBrand: null,
+          cardLast4: null,
+          declineMessage: 'Insufficient funds',
+          retryMode: 'any_method',
+          canRetry: true,
+          attemptsLeft: 4,
+          orderStatus: 'awaiting_payment',
+        }),
+      );
+      await settle();
+      http.expectOne('/api/v1/wallet').flush(aWallet(10));
+      await settle();
+
+      expect(text('.outcome-title')).toBe('Insufficient funds');
+      expect(text('#wallet-note')).toBe(
+        'Wallet balance: $10.00 · Not enough to pay $67.46, so pay by card.',
+      );
+      expect(host().querySelector('#card-number')).toBeTruthy();
     });
 
     it('closes the order when no attempt is left', async () => {
@@ -440,6 +546,27 @@ describe('CheckoutPaymentPage', () => {
       await settle();
 
       expect(url()).toBe(`/orders/${ORDER}/confirmation`);
+    });
+
+    it('shows the API’s reason when it refuses the code itself (400), staying on the code', async () => {
+      await open(needsCode());
+
+      type('one-time-code', '1234');
+      host().querySelector<HTMLButtonElement>('.code-form button[type="submit"]')?.click();
+      await settle();
+      http.expectOne(`${CURRENT_URL}/one-time-code`).flush(
+        {
+          type: 'https://tools.ietf.org/html/rfc9110#section-15.5.1',
+          title: 'One or more validation errors occurred.',
+          status: 400,
+          errors: { code: ['Enter the code.'] },
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await settle();
+
+      expect(text('.field-error')).toBe('Enter the code.');
+      expect(input('one-time-code')).toBeTruthy();
     });
 
     it('declines a wrong code and lets the shopper pay again', async () => {

@@ -100,13 +100,13 @@
               inputmode="numeric"
               autocomplete="one-time-code"
               formControlName="code"
-              aria-describedby="code-test code-timer"
+              [attr.aria-describedby]="testCode() ? 'code-test code-timer' : 'code-timer'"
               [attr.aria-invalid]="codeError() ? true : null"
               required
             />
-            <mat-hint id="code-test"
-              >Test code: {{ testCode() }} (no text message is sent)</mat-hint
-            >
+            @if (testCode(); as code) {
+              <mat-hint id="code-test">Test code: {{ code }} (no text message is sent)</mat-hint>
+            }
           </mat-form-field>
           @if (codeError()) {
             <p class="field-error" role="alert">

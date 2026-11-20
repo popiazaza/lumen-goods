@@ -31,6 +31,7 @@ import { MatProgressBar } from '@angular/material/progress-bar';
 import { MatRadioButton, MatRadioGroup } from '@angular/material/radio';
 import { Router, RouterLink } from '@angular/router';
 import {
+  Observable,
   Subscription,
   catchError,
   exhaustMap,
@@ -58,10 +59,16 @@ import {
   PayRequest,
   PaymentStatusDto,
   PaymentsApi,
+  SAME_PAYMENT_ONLY_PROBLEM,
   paymentInProgressOf,
-  paymentProblemTypeOf,
 } from '../../../core/api/payments.api';
-import { httpStatusOf, problemMessage, problemOf } from '../../../core/api/problem-details';
+import {
+  httpStatusOf,
+  problemMessage,
+  problemOf,
+  problemTypeOf,
+  validationErrorsOf,
+} from '../../../core/api/problem-details';
 import { WalletApi } from '../../../core/api/wallet.api';
 import { CartStateService } from '../../../core/cart/cart-state.service';
 import { CheckoutStore } from '../../../core/checkout/checkout-store';
@@ -232,7 +239,8 @@ export class CheckoutPaymentPage {
     const seconds = Math.ceil(this.codeRemainingMs() / 1000);
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   });
-  protected readonly testCode = computed(() => this.payment()?.testOneTimeCode ?? '123456');
+  /** The mock gateway's code, which the API sends because no text message is; never guessed here. */
+  protected readonly testCode = computed(() => this.payment()?.testOneTimeCode ?? null);
 
   /**
    * After a Failed payment the gateway could not settle, only that same card payment may be tried
@@ -333,27 +341,27 @@ export class CheckoutPaymentPage {
       return;
     }
     this.phase.set('loading');
+    // The current payment is what the page follows (a refresh during a slow card resumes from
+    // it). The order adds its total before the first payment: right after Place order that is
+    // the answer it gave; otherwise the order is read, and its 404 only matters if the payment
+    // read cannot find the order either.
+    const placed = this.store.placedOrder();
     forkJoin({
-      order: this.checkoutApi.order(number),
-      payment: this.payments
-        .current(number)
-        .pipe(
-          catchError((error: unknown) =>
-            httpStatusOf(error) === 404 ? of(null) : throwError(() => error),
-          ),
-        ),
+      order:
+        placed?.number === number ? of(placed) : notFoundAsNull(this.checkoutApi.order(number)),
+      payment: notFoundAsNull(this.payments.current(number)),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ order, payment }) => {
+          if (!order && !payment) {
+            this.close(`We couldn’t find order ${number} in your account.`);
+            return;
+          }
           this.orderDetail.set(order);
           this.show(payment, order);
         },
         error: (error: unknown) => {
-          if (httpStatusOf(error) === 404) {
-            this.close(`We couldn’t find order ${number} in your account.`);
-            return;
-          }
           this.loadError.set(
             problemMessage(
               error,
@@ -410,6 +418,12 @@ export class CheckoutPaymentPage {
     // declined | failed | expired: tell the shopper, keep what they typed, let them try again.
     this.inProgressNotice.set('');
     this.outcome.set(outcomeOf(payment));
+    if (payment.method === 'wallet') {
+      // A declined wallet payment means the balance moved since it was read (another tab), so
+      // show the balance now and offer the card, which is what the decline message suggests.
+      this.wallet.reload();
+      this.method.setValue('card');
+    }
     if (payment.retryMode === 'none') {
       this.close(
         payment.attemptsLeft === 0
@@ -422,10 +436,7 @@ export class CheckoutPaymentPage {
       this.method.setValue('card');
     }
     this.enter('choose');
-    afterNextRender(
-      { write: () => this.outcomeBanner()?.nativeElement.focus() },
-      { injector: this.injector },
-    );
+    this.focusOutcome();
   }
 
   private enter(phase: Phase): void {
@@ -561,13 +572,24 @@ export class CheckoutPaymentPage {
     if (this.followRunningPayment(error)) {
       return;
     }
-    const type = paymentProblemTypeOf(error);
+    const type = problemTypeOf(error);
     if (type === PAYMENT_IN_PROGRESS_PROBLEM || type === ORDER_NOT_PAYABLE_PROBLEM) {
       this.load(number);
       return;
     }
-    const errors = problemOf(error)?.errors;
-    if (httpStatusOf(error) === 400 && errors) {
+    if (type === SAME_PAYMENT_ONLY_PROBLEM) {
+      // Not "you have not been charged": the gateway cannot tell yet whether the failed payment
+      // did, which is exactly why only that same card may continue it.
+      this.outcome.set({
+        title: problemOf(error)?.title ?? 'Try the same card again',
+        detail: problemMessage(error, 'Enter the same card as before to try that payment again.'),
+      });
+      this.method.setValue('card');
+      this.focusOutcome();
+      return;
+    }
+    const errors = validationErrorsOf(error);
+    if (Object.keys(errors).length > 0) {
       const mapped: Partial<Record<CardField, string>> = {};
       for (const [key, messages] of Object.entries(errors)) {
         const field = cardFieldOf(key);
@@ -587,6 +609,10 @@ export class CheckoutPaymentPage {
       title: 'We couldn’t start the payment',
       detail: `${problemMessage(error, 'Check your connection and try again.')} You have not been charged.`,
     });
+    this.focusOutcome();
+  }
+
+  private focusOutcome(): void {
     afterNextRender(
       { write: () => this.outcomeBanner()?.nativeElement.focus() },
       { injector: this.injector },
@@ -637,11 +663,17 @@ export class CheckoutPaymentPage {
           if (this.followRunningPayment(error)) {
             return;
           }
-          if (paymentProblemTypeOf(error) || httpStatusOf(error) === 409) {
+          // Every ProblemDetails has a `type` (ASP.NET fills in an RFC link), so only a 409 (the
+          // payment moved on) or a 404 (the order is gone) means re-reading the page's state.
+          const status = httpStatusOf(error);
+          if (status === 409 || status === 404) {
             this.load(this.orderNumber());
             return;
           }
-          this.codeError.set(problemMessage(error, 'We couldn’t check the code. Try again.'));
+          const codeErrors = validationErrorsOf(error)['code'] ?? [];
+          this.codeError.set(
+            codeErrors.join(' ') || problemMessage(error, 'We couldn’t check the code. Try again.'),
+          );
         },
       });
   }
@@ -738,6 +770,15 @@ export class CheckoutPaymentPage {
     );
     afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
   }
+}
+
+/** A read whose 404 is an answer (no such order, or no payment yet) rather than a failure. */
+function notFoundAsNull<T>(read: Observable<T>): Observable<T | null> {
+  return read.pipe(
+    catchError((error: unknown) =>
+      httpStatusOf(error) === 404 ? of(null) : throwError(() => error),
+    ),
+  );
 }
 
 /** 4 to 8 digits once spaces and dashes are taken out (a pasted "123 456" is fine). */

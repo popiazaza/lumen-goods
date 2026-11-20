@@ -72,19 +72,18 @@ export function paymentInProgressOf(error: unknown): PaymentInProgressProblem | 
 }
 /** 409 from Pay: already paid, expired, or out of attempts. */
 export const ORDER_NOT_PAYABLE_PROBLEM = 'urn:lumen:problem:order-not-payable';
-
-/** The problem `type` of a failed payment call, if the API sent one. */
-export function paymentProblemTypeOf(error: unknown): string | undefined {
-  const body: unknown = httpErrorOf(error)?.error;
-  return body && typeof body === 'object' && 'type' in body && typeof body.type === 'string'
-    ? body.type
-    : undefined;
-}
+/**
+ * 409 from Pay: the last payment failed and the gateway cannot tell yet whether it charged
+ * (BR-PAY-05), so only the same card may try it again; a wallet or another card is refused.
+ */
+export const SAME_PAYMENT_ONLY_PROBLEM = 'urn:lumen:problem:same-payment-only';
 
 /**
  * Payments for one order (signed-in customer, own orders only):
- * `POST /orders/{number}/payments`, `GET /orders/{number}/payments/current` (404 before any
- * payment) and `POST /orders/{number}/payments/current/one-time-code`.
+ * `POST /orders/{number}/payments` (202: the charge runs on without the request),
+ * `GET /orders/{number}/payments/current` (404 for an unknown order and before any payment) and
+ * `POST /orders/{number}/payments/current/one-time-code`. 400 validation problems are keyed
+ * `card.number`, `card.name`, `card.expiry`, `card.cvc` (and `code`).
  */
 @Service()
 export class PaymentsApi {
