@@ -1,6 +1,11 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Xml.Linq;
+using KestrelOutfitters.StandIn.Data;
+using KestrelOutfitters.StandIn.Orders;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace KestrelOutfitters.StandIn.Tests;
 
@@ -199,7 +204,7 @@ public sealed class OrderTests(KestrelStandInFactory factory) : IClassFixture<Ke
     }
 
     [Fact]
-    public async Task Decision_is_reflected_in_stock_even_if_nobody_polls_the_ticket()
+    public async Task Stock_read_after_the_decision_time_reflects_the_decision_without_polling_the_ticket()
     {
         using var client = factory.CreateAuthenticatedClient();
         await SetStockAsync("K-7801", 4);
@@ -208,6 +213,43 @@ public sealed class OrderTests(KestrelStandInFactory factory) : IClassFixture<Ke
         factory.Time.Advance(PastLatestDecision);
 
         (await GetUnitsAsync(client, "K-7801")).Should().Be("0");
+    }
+
+    [Fact]
+    public async Task Background_service_decides_due_orders_and_moves_stock_without_any_http_read()
+    {
+        using var client = factory.CreateAuthenticatedClient();
+        await SetStockAsync("K-7802", 3);
+        await SetStockAsync("K-7795", 1);
+        var confirmed = await PlaceAsync(client, NewReference(), ("K-7802", 2));
+        var rejected = await PlaceAsync(client, NewReference(), ("K-7795", 2));
+
+        // From here on nothing goes through HTTP (a status or stock read would decide due orders itself), so
+        // only the hosted service, ticking on the fake clock, can decide these orders. The real wait is a poll.
+        var dbFactory = factory.Services.GetRequiredService<IDbContextFactory<KestrelDb>>();
+        var realTime = Stopwatch.StartNew();
+        List<PurchaseOrder> orders;
+        do
+        {
+            factory.Time.Advance(TimeSpan.FromSeconds(1));
+            await Task.Delay(TimeSpan.FromMilliseconds(5), TestContext.Current.CancellationToken);
+            await using var db = await dbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+            orders = await db.Orders.AsNoTracking()
+                .Where(o => o.Ticket == confirmed || o.Ticket == rejected)
+                .ToListAsync(TestContext.Current.CancellationToken);
+        }
+        while (orders.Any(o => o.State == OrderState.Received) && realTime.Elapsed < TimeSpan.FromSeconds(10));
+
+        orders.Single(o => o.Ticket == confirmed).State.Should().Be(OrderState.Confirmed);
+        var rejection = orders.Single(o => o.Ticket == rejected);
+        rejection.State.Should().Be(OrderState.Rejected);
+        rejection.Reason.Should().Be("OUT_OF_STOCK:K-7795");
+
+        await using var check = await dbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        var units = await check.Products.AsNoTracking()
+            .Where(p => p.Ref == "K-7802" || p.Ref == "K-7795")
+            .ToDictionaryAsync(p => p.Ref, p => p.Units, TestContext.Current.CancellationToken);
+        units.Should().Equal(new Dictionary<string, int> { ["K-7802"] = 1, ["K-7795"] = 1 });
     }
 
     private static string NewReference() => $"LG-{Guid.NewGuid():N}";

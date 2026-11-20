@@ -28,16 +28,21 @@ public class KestrelStandInFactory : WebApplicationFactory<Program>
 
     protected virtual TimeSpan FeedLatency => TimeSpan.Zero;
 
+    /// <summary>False: only the database path is set, so the shipped configuration and defaults apply.</summary>
+    protected virtual bool OverridesQuirks => true;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+        var settings = new Dictionary<string, string?> { ["KestrelOutfitters:DatabasePath"] = DatabasePath };
+        if (OverridesQuirks)
         {
-            ["KestrelOutfitters:DatabasePath"] = DatabasePath,
-            ["KestrelOutfitters:FeedLatencyMin"] = FeedLatency.ToString("c"),
-            ["KestrelOutfitters:FeedLatencyMax"] = FeedLatency.ToString("c"),
-            ["KestrelOutfitters:FeedFailureRate"] = FeedFailureRate.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["KestrelOutfitters:RandomSeed"] = "42",
-        }));
+            settings["KestrelOutfitters:FeedLatencyMin"] = FeedLatency.ToString("c");
+            settings["KestrelOutfitters:FeedLatencyMax"] = FeedLatency.ToString("c");
+            settings["KestrelOutfitters:FeedFailureRate"] = FeedFailureRate.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            settings["KestrelOutfitters:RandomSeed"] = "42";
+        }
+
+        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(settings));
         builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(Time));
     }
 
@@ -76,4 +81,9 @@ public sealed class AlwaysFailingFeedFactory : KestrelStandInFactory
 public sealed class SlowFeedFactory : KestrelStandInFactory
 {
     protected override TimeSpan FeedLatency => TimeSpan.FromSeconds(3);
+}
+
+public sealed class ShippedConfigurationFactory : KestrelStandInFactory
+{
+    protected override bool OverridesQuirks => false;
 }
