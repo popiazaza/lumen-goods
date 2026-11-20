@@ -46,6 +46,7 @@ flowchart TB
 | `db` | `postgres:18.7-alpine3.24` | none | volume `db-data` |
 | `harbor` | `src/StandIns/HarborSupply.StandIn/Dockerfile` | 8081 | own SQLite |
 | `kestrel` | `src/StandIns/KestrelOutfitters.StandIn/Dockerfile` | 8082 | own SQLite |
+| `aspire-dashboard` (profile `observability` only) | `mcr.microsoft.com/dotnet/aspire-dashboard:13.6.5` | 18888 | in memory |
 
 Ports bind to 127.0.0.1. Start order: `db` healthy, then `api` healthy (migrated and seeded), then `web`. The browser sees one origin (no CORS) and never calls a partner: the sandbox ports exist for inspection and the demo CLI ([Harbor][harbor-readme], [Kestrel][kestrel-readme]). `Partners:*:BaseUrl` can point at any implementation of the contracts.
 
@@ -253,6 +254,8 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 
 **Configuration over code.** Every setting a reviewer may change is an `IOptions<T>` validated at start-up, set in `src/Lumen.Api/appsettings.json` and overridable by environment variables.
 
+**Observability.** OpenTelemetry, set up in one file (`Infrastructure/Telemetry/TelemetryExtensions.cs`). Traces cover requests, partner HTTP calls, SQL (Npgsql) and Lumen's own spans: a `card charge` span per gateway call, tagged with order number, payment id and `first_try` or `automatic_retry` (card 0059 shows the failed call and its retry in the Pay request's trace), and a `partner order send` or `poll` span per partner order, tagged with partner, reference and outcome. Metrics cover requests, HTTP calls, the runtime and the `Lumen` meter: counters `lumen.payments`, `lumen.partner_orders` and `lumen.refunds`, and gauges `lumen.partner_orders.waiting`, `lumen.refunds.pending` and `lumen.partner_sync.age`, each one indexed query per export, never on a request. `/health` is not traced, and client spans that would start a trace of their own (the jobs' polling queries, catalogue fetches) are not sampled, so they don't bury the traces worth reading; their metrics remain. Traces, metrics and logs go out over OTLP only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set: locally to the Aspire dashboard (compose profile `observability`), on Azure to Azure Monitor (§8). Otherwise nothing is exported.
+
 **Testing**
 
 | Layer | Project | Proves |
@@ -297,7 +300,7 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 | `db` | PostgreSQL Flexible Server | Zone-redundant HA, point-in-time restore, read replica, managed identity |
 | Edge | Front Door and CDN | Routes `/api` and `/media` to the API so cookies stay same-origin; caches catalogue and `/media` |
 | Secrets | Key Vault | Partner and database credentials as secret references |
-| Telemetry | Application Insights via OpenTelemetry | Alerts on sync age, partner-order lag, failed refunds |
+| Telemetry | Azure Monitor (Application Insights) | The same OpenTelemetry data over OTLP (§6); alerts on `lumen.partner_sync.age`, `lumen.partner_orders.waiting`, `lumen.refunds.pending` |
 | Messaging | Service Bus fed by an outbox | When the row queues outgrow PostgreSQL |
 | Storage | Blob Storage | Shared Data Protection keys, product images |
 | Stand-ins | Their own Container Apps | Test environments only |
@@ -323,6 +326,7 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 | Harbor rate budget | Config `Partners:Harbor:RateLimit` | `Unit/Partners/HarborAdapterTests.cs` |
 | Sync intervals | Config `Partners:*:CatalogueInterval`, `FullSyncInterval`, `StockInterval` | `Unit/Partners/SyncPolicyTests.cs` |
 | Price hold, attempts | Config `Payments:OrderHold`, `MaxAttemptsPerOrder` | `Unit/Payments/PaymentWindowPolicyTests.cs` |
+| Add a span, counter or gauge | `Api/Infrastructure/Telemetry/TelemetryExtensions.cs` (`LumenTelemetry`, `LumenMetrics`) | `Int/Infrastructure/TelemetryTests.cs` |
 
 ## 10. Trade-offs and known limits
 
