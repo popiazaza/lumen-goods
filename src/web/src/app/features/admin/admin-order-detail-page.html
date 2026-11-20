@@ -1,0 +1,280 @@
+<h1>Order {{ id() }}</h1>
+
+@if (accessStatus(); as status) {
+  <app-admin-access-denied [status]="status" [returnUrl]="'/admin/orders/' + id()" />
+} @else if (errorStatus(); as status) {
+  <div class="state" [attr.role]="status === 404 ? null : 'alert'">
+    <mat-icon [svgIcon]="status === 404 ? 'info' : 'error'" class="state-icon" />
+    @if (status === 404) {
+      <p>
+        <strong>There is no order {{ id() }}.</strong>
+      </p>
+      <a matButton="filled" routerLink="/admin/orders">All orders</a>
+    } @else {
+      <p>We couldn’t load this order. Check your connection and try again.</p>
+      <button matButton="filled" type="button" (click)="order.reload()">
+        <mat-icon svgIcon="refresh" />
+        Retry
+      </button>
+    }
+  </div>
+} @else if (detail(); as admin) {
+  @let o = admin.order;
+  <div class="overview">
+    <app-status-badge [status]="orderStatus(o)" />
+    <p>
+      Placed <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'medium' }}</time>
+    </p>
+    <button matButton type="button" (click)="order.reload()" [disabled]="order.isLoading()">
+      <mat-icon svgIcon="refresh" />
+      Reload
+    </button>
+  </div>
+  @if (order.isLoading()) {
+    <mat-progress-bar mode="indeterminate" aria-label="Reloading the order" />
+  }
+
+  <p class="action-error" role="alert">
+    @if (actionError()) {
+      <mat-icon svgIcon="error" />
+      <span>{{ actionError() }}</span>
+    }
+  </p>
+
+  @if (attentionCount() > 0) {
+    <div class="attention">
+      <mat-icon svgIcon="warning" />
+      <p>
+        <strong
+          >{{ attentionCount() === 1 ? '1 line needs' : attentionCount() + ' lines need' }} your
+          decision.</strong
+        >
+        The partner accepted it but has not confirmed or rejected it for a long time, so Lumen does
+        not refund it on its own (BR-ORD-04). Confirm it if you know it will be supplied, or reject
+        it to refund the customer.
+      </p>
+    </div>
+  }
+
+  <div class="layout">
+    <div class="main">
+      <mat-card appearance="outlined" class="section">
+        <h2>Customer</h2>
+        <dl class="pairs">
+          <div>
+            <dt>Email</dt>
+            <dd class="wrap">{{ admin.customerEmail }}</dd>
+          </div>
+          <div>
+            <dt>Failed payment attempts</dt>
+            <dd>{{ admin.failedPaymentAttempts }}</dd>
+          </div>
+        </dl>
+      </mat-card>
+
+      <mat-card appearance="outlined" class="section">
+        <h2>Lines</h2>
+        @for (shipment of o.shipments; track shipment.source) {
+          <div class="shipment">
+            <h3>{{ shipment.sellerName }}</h3>
+            <p class="muted">
+              {{ shippingLabel(shipment.method) }}
+              @if (shipment.feeRefunded) {
+                <s>{{ shipment.fee | currency }}</s> (refunded)
+              } @else {
+                {{ shipment.fee | currency }}
+              }
+            </p>
+            <div
+              class="table-scroll"
+              role="region"
+              tabindex="0"
+              [attr.aria-label]="'Lines from ' + shipment.sellerName"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Line</th>
+                    <th scope="col">Item</th>
+                    <th scope="col" class="number">Qty</th>
+                    <th scope="col" class="number">Subtotal</th>
+                    <th scope="col" class="number">Tax</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="number">Refunded</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (line of shipment.lines; track line.id) {
+                    <tr>
+                      <td>{{ line.lineNumber }}</td>
+                      <td class="wrap">
+                        {{ line.name }}
+                        <span class="sub">{{ line.unitPrice | currency }} each</span>
+                      </td>
+                      <td class="number">{{ line.quantity }}</td>
+                      <td class="number">{{ line.subtotal | currency }}</td>
+                      <td class="number">{{ line.tax | currency }}</td>
+                      <td>
+                        <app-status-badge [status]="lineStatus(line)" />
+                        @if (line.status === 'needs_attention') {
+                          <div class="resolve">
+                            <button
+                              matButton="filled"
+                              type="button"
+                              [disabled]="savingLine() !== null"
+                              disabledInteractive
+                              [attr.aria-label]="
+                                'Confirm line ' + line.lineNumber + ', ' + line.name
+                              "
+                              (click)="resolve(line, shipment.sellerName, 'confirm')"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              matButton="outlined"
+                              type="button"
+                              [disabled]="savingLine() !== null"
+                              disabledInteractive
+                              [attr.aria-label]="
+                                'Reject line ' + line.lineNumber + ', ' + line.name
+                              "
+                              (click)="resolve(line, shipment.sellerName, 'reject')"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                          @if (savingLine() === line.id) {
+                            <p class="sub">Saving…</p>
+                          }
+                        }
+                      </td>
+                      <td class="number">
+                        @if (line.refundedAmount > 0) {
+                          {{ line.refundedAmount | currency }}
+                        } @else {
+                          <span aria-hidden="true">—</span>
+                          <span class="cdk-visually-hidden">None</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      </mat-card>
+
+      <mat-card appearance="outlined" class="section">
+        <h2>Partner orders</h2>
+        @if (admin.partnerOrders.length === 0) {
+          <p class="muted">Every item in this order is from Lumen Goods.</p>
+        } @else {
+          <ul class="partner-orders">
+            @for (partnerOrder of admin.partnerOrders; track partnerOrder.id) {
+              <li>
+                <div class="item-head">
+                  <h3>Line {{ partnerOrder.lineNumber }}: {{ partnerOrder.sellerName }}</h3>
+                  <app-status-badge [status]="partnerOrderView(partnerOrder)" />
+                </div>
+                <dl class="pairs">
+                  <div>
+                    <dt>Our reference</dt>
+                    <dd>
+                      <code>{{ partnerOrder.externalRef }}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Partner order or ticket</dt>
+                    <dd>
+                      @if (partnerOrder.partnerOrderId) {
+                        <code>{{ partnerOrder.partnerOrderId }}</code>
+                      } @else {
+                        None yet
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Attempts</dt>
+                    <dd>{{ partnerOrder.attempts }}</dd>
+                  </div>
+                  @if (partnerOrder.nextAttemptUtc) {
+                    <div>
+                      <dt>Next attempt</dt>
+                      <dd>{{ partnerOrder.nextAttemptUtc | date: 'medium' }}</dd>
+                    </div>
+                  }
+                  @if (partnerOrder.submittedUtc) {
+                    <div>
+                      <dt>Sent</dt>
+                      <dd>{{ partnerOrder.submittedUtc | date: 'medium' }}</dd>
+                    </div>
+                  }
+                  @if (partnerOrder.acceptedUtc) {
+                    <div>
+                      <dt>Accepted</dt>
+                      <dd>{{ partnerOrder.acceptedUtc | date: 'medium' }}</dd>
+                    </div>
+                  }
+                  @if (partnerOrder.decidedUtc) {
+                    <div>
+                      <dt>Decided</dt>
+                      <dd>{{ partnerOrder.decidedUtc | date: 'medium' }}</dd>
+                    </div>
+                  }
+                  @if (partnerOrder.reason) {
+                    <div>
+                      <dt>Reason</dt>
+                      <dd class="wrap">{{ partnerOrder.reason }}</dd>
+                    </div>
+                  }
+                </dl>
+                @if (partnerOrder.lastError) {
+                  <p class="last-error">
+                    <mat-icon svgIcon="error" />
+                    <span><strong>Last error:</strong> {{ partnerOrder.lastError }}</span>
+                  </p>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </mat-card>
+
+      <mat-card appearance="outlined" class="section">
+        <h2>Payment events</h2>
+        @if (admin.paymentEvents.length === 0) {
+          <p class="muted">No payment has been started for this order.</p>
+        } @else {
+          <ol class="timeline">
+            @for (event of admin.paymentEvents; track $index) {
+              <li>
+                <div class="item-head">
+                  <app-status-badge [status]="eventView(event.type)" />
+                  <time [attr.datetime]="event.occurredUtc">{{
+                    event.occurredUtc | date: 'medium'
+                  }}</time>
+                  @if (event.amount !== null) {
+                    <span class="amount">{{ event.amount | currency }}</span>
+                  }
+                </div>
+                @if (event.detail) {
+                  <p class="wrap">{{ event.detail }}</p>
+                }
+                <p class="sub wrap">
+                  Payment <code>{{ event.paymentId }}</code>
+                </p>
+              </li>
+            }
+          </ol>
+        }
+      </mat-card>
+    </div>
+
+    <app-order-summary-panel [order]="o" />
+  </div>
+
+  <p><a routerLink="/admin/orders">Back to all orders</a></p>
+} @else {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading the order" />
+}
