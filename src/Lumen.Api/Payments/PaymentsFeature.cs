@@ -5,7 +5,7 @@ namespace Lumen.Api.Payments;
 
 /// <summary>
 /// Payments (BR-PAY-01..07): card payments through the in-process mock gateway, wallet payments, one-time codes, the
-/// payment window. Wired once in Program.cs; the payments work fills in the endpoints, the gateway mock and the jobs.
+/// payment window job and the refund job. Wired once in Program.cs.
 /// </summary>
 internal static class PaymentsFeature
 {
@@ -18,6 +18,29 @@ internal static class PaymentsFeature
 
         services.AddSingleton(sp => new PaymentWindowPolicy(sp.GetRequiredService<IOptions<PaymentOptions>>().Value));
         services.AddSingleton(sp => new OneTimeCodePolicy(sp.GetRequiredService<IOptions<PaymentOptions>>().Value));
+        services.AddOptions<PaymentJobsOptions>()
+            .Bind(configuration.GetSection(PaymentJobsOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // The in-process mock card gateway (BR-PAY-02); a real gateway would replace only this registration.
+        services.AddSingleton<IPaymentGateway, MockPaymentGateway>();
+
+        services.AddScoped<OrderPaymentWriter>();
+        services.AddScoped<PaymentRecorder>();
+        services.AddScoped<PaymentService>();
+        services.AddScoped<CardChargeProcess>();
+        services.AddScoped<PaymentHousekeeping>();
+        services.AddScoped<PaymentStatusReader>();
+        services.AddScoped<RefundExecutor>();
+
+        // Singletons so tests and shutdown can reach them; hosted so they run (each loop honours Jobs:Enabled).
+        services.AddSingleton<DetachedPaymentRunner>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<DetachedPaymentRunner>());
+        services.AddSingleton<PaymentWindowJob>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<PaymentWindowJob>());
+        services.AddSingleton<RefundJob>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<RefundJob>());
         return services;
     }
 
@@ -46,5 +69,5 @@ internal static class PaymentsFeature
     /// No order is expired while such a payment could still have charged.
     /// </para>
     /// </summary>
-    public static RouteGroupBuilder MapPaymentEndpoints(this RouteGroupBuilder api) => api;
+    public static RouteGroupBuilder MapPaymentEndpoints(this RouteGroupBuilder api) => api.MapPayments();
 }

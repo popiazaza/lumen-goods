@@ -1,5 +1,5 @@
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import {
@@ -11,7 +11,10 @@ import {
 } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
+import { SessionApi } from './core/api/session.api';
+import { CHECKOUT_STORAGE_KEY } from './core/checkout/checkout-store';
 import { PageTitleStrategy } from './core/routing/page-title-strategy';
+import { CUSTOMER_SESSION, US_ADDRESS } from './testing/fixtures';
 
 /** Flattens the route tree into absolute path patterns, e.g. "/orders/:id/confirmation". */
 function pathPatterns(table: Route[], parent = ''): string[] {
@@ -75,6 +78,8 @@ describe('app routes', () => {
     { url: '/no-such-page', finalUrl: '/no-such-page', heading: 'Page not found', title: 'Page not found' },
   ];
 
+  afterEach(() => sessionStorage.clear());
+
   it.each(pages)('$url lazy-loads "$heading"', async ({ url, finalUrl, heading, title }) => {
     TestBed.configureTestingModule({
       providers: [
@@ -85,6 +90,19 @@ describe('app routes', () => {
         provideHttpClientTesting(),
       ],
     });
+    // Checkout needs a signed-in customer and the earlier steps done (its guards).
+    sessionStorage.setItem(
+      CHECKOUT_STORAGE_KEY,
+      JSON.stringify({
+        checkoutKey: 'key-1',
+        address: US_ADDRESS,
+        shippingMethod: 'standard',
+        orderNumber: 'LG-1',
+      }),
+    );
+    const session = TestBed.inject(SessionApi).ready();
+    TestBed.inject(HttpTestingController).expectOne('/api/v1/auth/session').flush(CUSTOMER_SESSION);
+    await session;
     const harness = await RouterTestingHarness.create();
 
     await harness.navigateByUrl(url);

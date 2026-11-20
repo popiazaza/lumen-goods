@@ -1,0 +1,50 @@
+// Shared by the sign-in and register pages.
+:host {
+  display: block;
+}
+
+.account-page {
+  max-width: 28rem;
+  margin: 0 auto;
+}
+
+.intro {
+  margin: 0 0 var(--lg-space-4);
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lg-space-2);
+}
+
+.submit {
+  min-height: 48px;
+  margin-top: var(--lg-space-2);
+}
+
+.failure {
+  display: flex;
+  gap: var(--lg-space-3);
+  margin: 0 0 var(--lg-space-4);
+  padding: var(--lg-space-3) var(--lg-space-4);
+  border-radius: var(--lg-radius-card);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+
+  mat-icon {
+    flex: none;
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+.failure-title {
+  font-weight: 600;
+}
+
+.switch {
+  margin: var(--lg-space-6) 0 0;
+}

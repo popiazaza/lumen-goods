@@ -44,11 +44,77 @@
         <li>
           <a routerLink="/orders" routerLinkActive="active" ariaCurrentWhenActive="page">Orders</a>
         </li>
-        <li class="account">
-          <a routerLink="/sign-in" routerLinkActive="active" ariaCurrentWhenActive="page">
-            <mat-icon svgIcon="account" />
-            <span>Sign in</span>
-          </a>
+        <li #accountArea class="account">
+          @if (session().isAuthenticated) {
+            <!-- A disclosure, not role="menu": the panel mixes text (email, balance) with links. -->
+            <button
+              #accountToggle
+              matButton
+              type="button"
+              class="account-toggle"
+              aria-controls="account-panel"
+              [attr.aria-expanded]="accountOpen()"
+              (click)="toggleAccount()"
+            >
+              <mat-icon svgIcon="account" />
+              <span>Account</span>
+              <mat-icon svgIcon="expand_more" class="chevron" [class.up]="accountOpen()" />
+            </button>
+            <div id="account-panel" class="account-panel" [hidden]="!accountOpen()">
+              <p class="who">
+                <span class="label">Signed in as </span>
+                <span class="email">{{ session().email }}</span>
+              </p>
+              <p class="balance">
+                <mat-icon svgIcon="wallet" aria-hidden="true" />
+                <span class="label">Wallet balance: </span>
+                @if (wallet.hasValue()) {
+                  <strong class="price">{{
+                    wallet.value().balance | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+                  }}</strong>
+                } @else if (wallet.status() === 'error') {
+                  <span>unavailable</span>
+                } @else {
+                  <span>loading…</span>
+                }
+              </p>
+              <ul class="account-links">
+                <li>
+                  <a routerLink="/orders" routerLinkActive="active" ariaCurrentWhenActive="page"
+                    >Your orders</a
+                  >
+                </li>
+                @if (isAdmin()) {
+                  <li>
+                    <a routerLink="/admin" routerLinkActive="active" ariaCurrentWhenActive="page"
+                      >Admin</a
+                    >
+                  </li>
+                }
+                <li>
+                  <button
+                    type="button"
+                    class="sign-out"
+                    [attr.aria-disabled]="signingOut()"
+                    (click)="signOut()"
+                  >
+                    <mat-icon svgIcon="logout" aria-hidden="true" />
+                    <span>{{ signingOut() ? 'Signing out…' : 'Sign out' }}</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+          } @else {
+            <a
+              routerLink="/sign-in"
+              routerLinkActive="active"
+              ariaCurrentWhenActive="page"
+              [queryParams]="signInParams()"
+            >
+              <mat-icon svgIcon="account" />
+              <span>Sign in</span>
+            </a>
+          }
         </li>
       </ul>
     </nav>

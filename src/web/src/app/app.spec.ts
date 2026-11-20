@@ -1,6 +1,6 @@
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatBadgeHarness } from '@angular/material/badge/testing';
 import { Router, provideRouter } from '@angular/router';
@@ -8,6 +8,8 @@ import { App } from './app';
 import { routes } from './app.routes';
 import { CartStateService } from './core/cart/cart-state.service';
 import { provideAppIcons } from './core/icons/app-icons';
+import { EMPTY_CART } from './core/api/cart.api';
+import { aCart, aCartLine } from './testing/fixtures';
 
 function query<T extends Element>(fixture: ComponentFixture<App>, selector: string): T {
   const element = (fixture.nativeElement as HTMLElement).querySelector<T>(selector);
@@ -19,6 +21,7 @@ function query<T extends Element>(fixture: ComponentFixture<App>, selector: stri
 
 describe('App shell', () => {
   let fixture: ComponentFixture<App>;
+  let http: HttpTestingController;
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -30,7 +33,11 @@ describe('App shell', () => {
         provideHttpClientTesting(),
       ],
     });
+    http = TestBed.inject(HttpTestingController);
     fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    // The header loads the server's cart for the badge on every page.
+    http.expectOne('/api/v1/cart').flush(EMPTY_CART);
     await fixture.whenStable();
   });
 
@@ -48,7 +55,8 @@ describe('App shell', () => {
     expect(await badge.isHidden()).toBe(true);
     expect(cartLink.getAttribute('aria-label')).toBe('Cart, empty');
 
-    TestBed.inject(CartStateService).setItemCount(3);
+    TestBed.inject(CartStateService).reload().subscribe();
+    http.expectOne('/api/v1/cart').flush(aCart([aCartLine({ quantity: 3 })]));
     await fixture.whenStable();
 
     expect(await badge.isHidden()).toBe(false);

@@ -1,0 +1,81 @@
+.order-line {
+  margin: 0 0 var(--lg-space-4);
+}
+
+.state {
+  padding: var(--lg-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--lg-radius-card);
+
+  h2 {
+    margin-top: 0;
+
+    &:focus {
+      outline: none;
+    }
+  }
+
+  mat-progress-bar {
+    margin: 0 0 var(--lg-space-3);
+  }
+}
+
+.outcome:focus-visible,
+.changed:focus-visible {
+  outline-offset: 3px;
+}
+
+.methods {
+  display: flex;
+  flex-direction: column;
+}
+
+.method-label,
+.timer,
+.field-error {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lg-space-2);
+}
+
+.wallet-note {
+  margin-left: var(--lg-space-8);
+}
+
+.card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lg-space-2);
+  margin: var(--lg-space-4) 0 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    margin-bottom: var(--lg-space-3);
+    font: var(--mat-sys-title-medium);
+  }
+}
+
+.brand {
+  padding-right: var(--lg-space-3);
+  font: var(--mat-sys-label-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.code-form {
+  max-width: 22rem;
+}
+
+.timer {
+  margin: var(--lg-space-2) 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--mat-sys-error);
+}
+
+.pay {
+  min-width: 12rem;
+}

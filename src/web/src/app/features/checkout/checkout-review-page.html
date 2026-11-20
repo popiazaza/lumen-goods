@@ -1,0 +1,218 @@
+<app-checkout-steps current="review" />
+<h1>Review your order</h1>
+
+@if (changed(); as changed) {
+  <div #changesBanner class="banner error changed" role="alert" tabindex="-1">
+    <mat-icon svgIcon="warning" aria-hidden="true" />
+    <div>
+      <p class="banner-title">
+        <strong>{{ changed.title || 'Your order changed' }}</strong>
+      </p>
+      <p>{{ changed.detail }}</p>
+      @if (changed.changes.length === 0) {
+        <p>The shipping or tax changed since you reviewed your order.</p>
+      }
+      <ul class="changes">
+        @for (change of changed.changes; track $index) {
+          <li>
+            <strong>{{ change.name }}</strong> ({{ change.sellerName }}):
+            @if (change.kind === 'price_changed' && change.from !== null && change.to !== null) {
+              price changed from
+              <del
+                ><span class="cdk-visually-hidden">was </span
+                >{{ change.from | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</del
+              >
+              to
+              <strong class="price">{{
+                change.to | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+              }}</strong>
+            } @else {
+              {{ change.message }}
+            }
+          </li>
+        }
+      </ul>
+      @if (changed.canConfirm && changed.newTotal !== null) {
+        <p>
+          New total:
+          <strong class="price new-total">{{
+            changed.newTotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+          }}</strong>
+        </p>
+        <div class="actions">
+          <button
+            matButton="filled"
+            type="button"
+            class="confirm"
+            [attr.aria-disabled]="placing()"
+            (click)="confirmNewTotal()"
+          >
+            {{ placing() ? 'Placing your order…' : 'Accept new total and place order' }}
+          </button>
+          <a matButton="outlined" routerLink="/cart">Go back to cart</a>
+        </div>
+      } @else if (needsReview()) {
+        <p>Your cart changed since you reviewed it. Check the updated order before placing it.</p>
+        <div class="actions">
+          <button matButton="filled" type="button" class="review-again" (click)="reviewAgain()">
+            Review the updated order
+          </button>
+          <a matButton="outlined" routerLink="/cart">Go to cart</a>
+        </div>
+      } @else {
+        <p>
+          Change or remove these items in your cart, then review your order again. If a shop was
+          only slow to answer, you can review it again now.
+        </p>
+        <div class="actions">
+          <a matButton="filled" routerLink="/cart">Go to cart</a>
+          <button matButton="outlined" type="button" class="review-again" (click)="reviewAgain()">
+            Review again
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<dl class="summary-list">
+  <div>
+    <dt>Shipping to</dt>
+    <dd>{{ addressText() }}</dd>
+    <a routerLink="/checkout/address"
+      >Change<span class="cdk-visually-hidden"> shipping address</span></a
+    >
+  </div>
+  <div>
+    <dt>Shipping method</dt>
+    <dd>{{ methodName() }} for Lumen Goods items; partner shops ship Standard</dd>
+    <a routerLink="/checkout/shipping"
+      >Change<span class="cdk-visually-hidden"> shipping method</span></a
+    >
+  </div>
+</dl>
+
+@if (loaded(); as preview) {
+  @if (preview.blockers.length > 0) {
+    <div class="banner error" role="alert">
+      <mat-icon svgIcon="block" aria-hidden="true" />
+      <div>
+        <p><strong>Some items can’t be ordered right now</strong></p>
+        <ul class="changes">
+          @for (blocker of preview.blockers; track blocker.cartLineId) {
+            <li>{{ blocker.name }} ({{ blocker.sellerName }}): {{ blocker.message }}</li>
+          }
+        </ul>
+        <a matButton="outlined" routerLink="/cart">Update your cart</a>
+      </div>
+    </div>
+  }
+
+  <h2>Items</h2>
+  @for (shipment of preview.shipments; track shipment.source) {
+    <section class="group" [attr.aria-label]="'Sold by ' + shipment.sellerName">
+      <div class="group-head">
+        <h3>Sold by {{ shipment.sellerName }}</h3>
+        <span class="ships">
+          <mat-icon svgIcon="local_shipping" aria-hidden="true" />
+          Ships separately
+        </span>
+      </div>
+      <ul class="lines">
+        @for (line of shipment.lines; track line.cartLineId) {
+          <li>
+            <span>
+              {{ line.name }}
+              <span class="muted">
+                · {{ line.quantity }} ×
+                {{ line.unitPrice | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+              </span>
+            </span>
+            <span class="price">{{
+              line.lineTotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+            }}</span>
+          </li>
+        }
+      </ul>
+      <p class="fee">
+        {{ shipment.method === 'express' ? 'Express' : 'Standard' }} shipping:
+        <span class="price">{{
+          shipment.fee | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+        }}</span>
+      </p>
+    </section>
+  }
+
+  <dl class="totals" [attr.aria-busy]="preview.shipments.length > 0 && placing()">
+    <dt>Items</dt>
+    <dd>{{ preview.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+    <dt>Shipping</dt>
+    <dd>{{ preview.shipping | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+    <dt>Sales tax</dt>
+    <dd>{{ preview.tax | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+    <dt class="grand">Order total</dt>
+    <dd class="grand price review-total">
+      {{ preview.total | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+    </dd>
+  </dl>
+
+  @if (placeError()) {
+    <div class="banner error place-error" role="alert">
+      <mat-icon svgIcon="error" aria-hidden="true" />
+      <div>
+        <p>{{ placeError() }}</p>
+        @if (addressErrors().length > 0) {
+          <ul class="changes">
+            @for (message of addressErrors(); track $index) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+          <a matButton="outlined" routerLink="/checkout/address">Change shipping address</a>
+        }
+      </div>
+    </div>
+  }
+
+  @if (!changed()) {
+    <div class="actions">
+      <button
+        matButton="filled"
+        type="button"
+        class="place"
+        [disabled]="blocked() || placing() || preview.shipments.length === 0"
+        disabledInteractive
+        [attr.aria-describedby]="blocked() ? 'place-blocked' : 'place-note'"
+        (click)="placeOrder()"
+      >
+        <mat-icon svgIcon="lock" />
+        {{ placing() ? 'Placing your order…' : 'Place order' }}
+      </button>
+      <a matButton routerLink="/checkout/shipping">Back</a>
+    </div>
+    @if (blocked()) {
+      <p id="place-blocked" class="muted">Update your cart before placing the order.</p>
+    } @else {
+      <p id="place-note" class="muted">
+        You pay on the next step. We hold these prices and items for 15 minutes once the order is
+        placed.
+      </p>
+    }
+  }
+} @else if (preview.status() === 'error') {
+  <div class="banner error" role="alert">
+    <mat-icon svgIcon="error" aria-hidden="true" />
+    @if (methodRefused()) {
+      <div>
+        <p>{{ previewError() }}</p>
+        <a matButton="filled" routerLink="/checkout/shipping">Choose a shipping method</a>
+      </div>
+    } @else {
+      <div>
+        <p>{{ previewError() }}</p>
+        <button matButton="outlined" type="button" (click)="preview.reload()">Retry</button>
+      </div>
+    }
+  </div>
+} @else {
+  <p class="muted" role="status">Loading your order summary…</p>
+}

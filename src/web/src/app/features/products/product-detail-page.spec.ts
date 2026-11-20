@@ -10,7 +10,7 @@ import { ProductDto } from '../../core/api/products.api';
 import { CartStateService } from '../../core/cart/cart-state.service';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
 import { provideAppIcons } from '../../core/icons/app-icons';
-import { SELLERS, aProduct } from '../../testing/fixtures';
+import { SELLERS, aCart, aCartLine, aProduct } from '../../testing/fixtures';
 import { ProductDetailPage } from './product-detail-page';
 
 @Component({ template: '<h1>Elsewhere</h1>' })
@@ -205,22 +205,49 @@ describe('ProductDetailPage', () => {
     expect(TestBed.inject(CartStateService).itemCount()).toBe(0);
   });
 
-  it('adds to the cart, updates the badge count and announces it', async () => {
+  it('adds to the cart through the API, updates the badge count and announces it', async () => {
     const cart = TestBed.inject(CartStateService);
     await open(aProduct({ id: 'harbor-1', name: 'Waxed Canvas Tote' }));
     byLabel('Increase quantity').click();
     await harness.fixture.whenStable();
 
     addButton().click();
+    const request = http.expectOne('/api/v1/cart/lines');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ productId: 'harbor-1', quantity: 2 });
+    request.flush(aCart([aCartLine({ quantity: 3 })]));
     await harness.fixture.whenStable();
 
-    expect(cart.itemCount()).toBe(2);
+    expect(cart.itemCount()).toBe(3);
     expect(text('.added span')).toBe('Added 2 to cart.');
     expect(host().querySelector('.added a')?.getAttribute('href')).toBe('/cart');
     expect(announcer.announce).toHaveBeenCalledWith(
-      'Added to cart: 2 × Waxed Canvas Tote',
+      'Added to cart: 2 × Waxed Canvas Tote. Cart has 3 items.',
       'polite',
     );
+  });
+
+  it('shows the API’s reason when the add is refused, and re-reads the product', async () => {
+    await open(aProduct({ id: 'harbor-1' }));
+
+    addButton().click();
+    http.expectOne('/api/v1/cart/lines').flush(
+      {
+        type: 'urn:lumen:problem:cart-quantity-limit',
+        title: 'Not enough stock',
+        detail: 'Only 1 more can be added: you already have 9 in your cart.',
+        maxQuantity: 10,
+        inCart: 9,
+      },
+      { status: 422, statusText: 'Unprocessable Entity' },
+    );
+    await vi.waitFor(() =>
+      http.expectOne('/api/v1/products/harbor-1').flush(aProduct({ id: 'harbor-1' })),
+    );
+    await harness.fixture.whenStable();
+
+    expect(text('.add-error')).toBe('Only 1 more can be added: you already have 9 in your cart.');
+    expect(host().querySelector('.added')).toBeNull();
   });
 
   it('links the breadcrumb back to the catalogue’s last search', async () => {

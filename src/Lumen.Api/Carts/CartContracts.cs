@@ -26,7 +26,7 @@ namespace Lumen.Api.Carts;
 ///                  "unavailable": null, "quantityLimited": { "requested": 4, "allowed": 2 } },
 ///     "blocksCheckout": true, "addedUtc": "2026-11-20T08:00:00Z" }],
 ///   "itemCount": 4,
-///   "totals": { "subtotal": 219.60, "shipping": 4.99, "tax": 17.57, "total": 242.16 },
+///   "totals": { "subtotal": 219.60, "shipping": 4.99, "tax": 17.57, "total": 242.16, "isEstimate": true },
 ///   "canCheckout": false
 /// }
 /// </code>
@@ -131,17 +131,28 @@ public sealed record CartTotalsDto(
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Total)
 {
     public static readonly CartTotalsDto Zero = new(0m, 0m, 0m, 0m);
+
+    /// <summary>
+    /// Always true: the cart shows shipping, tax and total as estimates ("Estimated shipping"), because shipping assumes
+    /// Standard for every seller and partner prices are checked again at checkout, which prices the real order.
+    /// </summary>
+    public bool IsEstimate => true;
 }
 
 /// <summary>
-/// <c>POST /api/v1/cart/lines</c>: add a product, or add to its existing line. 422 when the product is not sellable or
-/// out of stock, or the line would exceed 10 or the known available quantity (BR-CART-03).
+/// <c>POST /api/v1/cart/lines</c>: add a product, or add to its existing line. 400 when the quantity is not 1 to 10;
+/// 422 <see cref="CartProblems"/> when the product is unknown, not sellable or out of stock, or the line would exceed 10
+/// or the known available quantity (BR-CART-03).
 /// </summary>
 /// <example><code>{ "productId": "0193a0f1-...", "quantity": 2 }</code></example>
 public sealed record AddCartLineRequest(
     [Required] Guid? ProductId,
-    [Range(1, CartLine.MaxQuantity)] int Quantity = 1);
+    [Range(1, CartLine.MaxQuantity, ErrorMessage = CartProblems.QuantityRangeMessage)] int Quantity = 1);
 
-/// <summary><c>PUT /api/v1/cart/lines/{lineId}</c>: set the line's quantity (1 to 10; remove the line with DELETE).</summary>
+/// <summary>
+/// <c>PUT /api/v1/cart/lines/{lineId}</c>: set the line's quantity (1 to 10; remove the line with DELETE). Raising it
+/// above the known available quantity, or raising a line that cannot be bought, is a 422; lowering is always allowed.
+/// </summary>
 /// <example><code>{ "quantity": 3 }</code></example>
-public sealed record UpdateCartLineRequest([Range(1, CartLine.MaxQuantity)] int Quantity);
+public sealed record UpdateCartLineRequest(
+    [Range(1, CartLine.MaxQuantity, ErrorMessage = CartProblems.QuantityRangeMessage)] int Quantity);
