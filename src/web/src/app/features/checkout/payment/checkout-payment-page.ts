@@ -110,6 +110,7 @@ function awaitsSettlement(payment: PaymentStatusDto): boolean {
 function stillChanging(payment: PaymentStatusDto): boolean {
   return IN_PROGRESS.has(payment.status) || awaitsSettlement(payment);
 }
+
 const PAID_ORDER: ReadonlySet<OrderStatus> = new Set([
   'paid',
   'completed',
@@ -118,14 +119,7 @@ const PAID_ORDER: ReadonlySet<OrderStatus> = new Set([
 ]);
 
 type Phase =
-  | 'loading'
-  | 'load-error'
-  | 'signed-out'
-  | 'choose'
-  | 'processing'
-  | 'code'
-  | 'paid'
-  | 'closed';
+  'loading' | 'load-error' | 'signed-out' | 'choose' | 'processing' | 'code' | 'paid' | 'closed';
 
 /** The last attempt's outcome, shown above the form (and kept until the next attempt). */
 interface Outcome {
