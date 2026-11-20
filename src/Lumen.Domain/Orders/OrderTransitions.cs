@@ -44,7 +44,8 @@ public static class OrderTransitions
     /// BR-ORD-01: partner orders exist only after payment and are sent by a background job; every retry reuses the
     /// same reference. Harbor answers synchronously (Submitted → Confirmed or Rejected); Kestrel first returns a
     /// ticket (Accepted = RECEIVED) and decides later. BR-ORD-04: one never accepted within the deadline is given
-    /// up; an accepted one is never given up automatically, because the goods may still ship.
+    /// up; an accepted one is never given up automatically, because the goods may still ship. When an admin resolves
+    /// its line, the partner order is closed in the same step (<see cref="PartnerOrderUpdates.ResolveByAdmin"/>).
     /// </summary>
     public static readonly TransitionTable<PartnerOrderStatus> PartnerOrder = new(PartnerOrderStatus.Pending,
     [
@@ -56,6 +57,7 @@ public static class OrderTransitions
         new(PartnerOrderStatus.Submitted, PartnerOrderStatus.GivenUp, "not accepted within 30 min"),
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.Confirmed, "Kestrel CONFIRMED"),
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.Rejected, "Kestrel REJECTED"),
+        new(PartnerOrderStatus.Accepted, PartnerOrderStatus.ClosedByAdmin, "admin resolved the line"),
     ]);
 
     /// <summary>

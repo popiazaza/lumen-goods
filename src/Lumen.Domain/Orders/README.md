@@ -82,7 +82,8 @@ Written in the transaction that marks the order Paid, then sent by a background 
 `{orderNo}-{line}`, so a resend never orders twice (BR-ORD-01). Harbor answers synchronously (201, or 200 for a reference
 it already has: Confirmed; 409/422: Rejected). Kestrel returns a ticket (RECEIVED = Accepted) and decides later. A partner
 order not accepted within 30 minutes of payment is given up and its line refunded; an accepted one is never given up
-automatically (BR-ORD-04).
+automatically, it needs an admin after 24 hours (BR-ORD-04). When the admin confirms or rejects that line, the partner
+order is closed in the same step (`PartnerOrderUpdates.ResolveByAdmin`), so polling stops.
 
 ```mermaid
 stateDiagram-v2
@@ -95,9 +96,11 @@ stateDiagram-v2
     Submitted --> GivenUp: not accepted within 30 min
     Accepted --> Confirmed: Kestrel CONFIRMED
     Accepted --> Rejected: Kestrel REJECTED
+    Accepted --> ClosedByAdmin: admin resolved the line
     Confirmed --> [*]
     Rejected --> [*]
     GivenUp --> [*]
+    ClosedByAdmin --> [*]
 ```
 
 | Partner order | Its line |
@@ -105,6 +108,12 @@ stateDiagram-v2
 | Confirmed | Confirmed |
 | Rejected, GivenUp | Rejected (refunded) |
 | Accepted for more than 24 hours | NeedsAttention |
+| ClosedByAdmin | Confirmed or Rejected, as the admin decided |
+
+Partner answers go through `PartnerOrderUpdates.ApplyPartnerAnswer(partnerOrder, line, answer)`, which moves both
+together. A repeated answer (Kestrel says RECEIVED on every poll) changes nothing. An answer that arrives once the
+partner order or the line is final (a late CONFIRMED after the admin closed it, or after it was given up) is ignored:
+the result carries `IgnoredBecause` for the log, and nothing throws, so one late answer cannot stop the polling job.
 
 ## Payment
 

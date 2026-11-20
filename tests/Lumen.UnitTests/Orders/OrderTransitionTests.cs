@@ -35,7 +35,8 @@ public sealed class OrderTransitionTests
         (PartnerOrderStatus.Submitted, PartnerOrderStatus.Rejected),
         (PartnerOrderStatus.Submitted, PartnerOrderStatus.GivenUp),
         (PartnerOrderStatus.Accepted, PartnerOrderStatus.Confirmed),
-        (PartnerOrderStatus.Accepted, PartnerOrderStatus.Rejected));
+        (PartnerOrderStatus.Accepted, PartnerOrderStatus.Rejected),
+        (PartnerOrderStatus.Accepted, PartnerOrderStatus.ClosedByAdmin));
 
     public static TheoryData<RefundStatus, RefundStatus, bool> RefundMoves() => TransitionCases.AllPairs(
         (RefundStatus.Pending, RefundStatus.Succeeded),
@@ -136,6 +137,15 @@ public sealed class OrderTransitionTests
     [Trait("BR", "BR-ORD-04")]
     public void BR_ORD_04_an_accepted_partner_order_is_never_given_up_because_the_goods_may_still_ship() =>
         OrderTransitions.PartnerOrder.CanMove(PartnerOrderStatus.Accepted, PartnerOrderStatus.GivenUp).Should().BeFalse();
+
+    [Fact]
+    [Trait("BR", "BR-ORD-04")]
+    public void BR_ORD_04_only_an_accepted_partner_order_can_be_closed_by_an_admin_and_that_is_final()
+    {
+        Enum.GetValues<PartnerOrderStatus>().Where(s => OrderTransitions.PartnerOrder.CanMove(s, PartnerOrderStatus.ClosedByAdmin))
+            .Should().Equal(PartnerOrderStatus.Accepted);
+        OrderTransitions.PartnerOrder.IsFinal(PartnerOrderStatus.ClosedByAdmin).Should().BeTrue();
+    }
 
     [Fact]
     [Trait("BR", "BR-ORD-04")]

@@ -66,4 +66,10 @@ public enum PartnerOrderStatus
 
     /// <summary>Not accepted within the deadline after payment (BR-ORD-04); the line is refunded.</summary>
     GivenUp,
+
+    /// <summary>
+    /// Accepted but undecided, and an admin resolved its line (BR-ORD-04). Final, so polling stops; a late answer
+    /// from the partner is ignored and logged (<see cref="PartnerOrderUpdates.ApplyPartnerAnswer"/>).
+    /// </summary>
+    ClosedByAdmin,
 }
