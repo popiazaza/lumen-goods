@@ -47,6 +47,8 @@ person decided, how its output was checked, and where it was wrong.
 | A partner order whose send timed out was refunded at the 30-minute deadline, though the partner may have accepted it and shipped | reviewer | `8e2ee7c` |
 | An admin's confirm or reject could cross a resend already on its way to the partner | second reviewer, checking the fixes | `9a5b7c0` |
 | Unpaid orders could stop expiring (and keep own stock reserved) once 50 unreadable failed payments filled every job batch | reviewer | `0ed4d3f` |
+| The payment page told the customer "you have not been charged" while a failed charge could still settle | reviewer | `e2c011a` |
+| Going back from Payment to Review and placing the order again created a second order holding the same stock | reviewer | `efdfb22` |
 | Customers saw the partner's internal code in a refund reason (`OUT_OF_STOCK:K-7735`) | screenshots for the PR | `3b2afb9` |
 | The payment diagram in the orders README did not render (a second colon in a label), and three docs disagreed with the code | writing DESIGN.md | `7e633df` |
 | An XML comment containing a double hyphen broke every project's build | running the documented test command | fixed before commit |
