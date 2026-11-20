@@ -5,6 +5,7 @@ using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Infrastructure.Json;
+using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Api.Infrastructure.Security;
 using Lumen.Api.Orders;
 using Lumen.Api.Partners;
@@ -30,6 +31,7 @@ builder.Services.AddOrders(builder.Configuration);
 builder.Services.AddWallet(builder.Configuration);
 builder.Services.AddLumenHealthChecks();
 builder.Services.AddReverseProxySupport();
+builder.Services.AddLumenRateLimiting(builder.Configuration);
 
 var app = builder.Build();
 
@@ -38,6 +40,8 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseAuthentication();
 app.UseAuthorization();
+// After authentication, so the per-customer limits know the customer; after forwarded headers, so per-IP limits see the client.
+app.UseRateLimiter();
 
 // Every state-changing call under /api/v1 must carry the XSRF header (see AntiforgeryValidationFilter).
 var api = app.MapGroup("/api/v1").AddEndpointFilter<AntiforgeryValidationFilter>();

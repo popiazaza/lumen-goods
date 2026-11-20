@@ -39,6 +39,9 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
         // No background partner sync in tests: it would call whatever answers on the dev partner ports and could unlist
         // rows the catalogue tests insert. Partner tests run the jobs explicitly (PartnerTestHost, RunOnceAsync).
         builder.UseSetting("Jobs:Enabled", "false");
+        // Test classes run in parallel and sign in the same seeded accounts at the same moment; they wait their turn
+        // (one sign-in per email at a time) instead of overflowing the production queue of 10.
+        builder.UseSetting("RateLimiting:SignInQueuePerEmail", "1000");
     }
 
     public ApiSession CreateSession() => new(CreateClient());

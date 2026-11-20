@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Lumen.Api.Carts;
+using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Api.Infrastructure.Security;
 using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Antiforgery;
@@ -49,8 +51,10 @@ internal static class AuthEndpoints
     {
         var auth = api.MapGroup("/auth").WithTags("Auth");
         auth.MapGet("/session", GetSession);
-        auth.MapPost("/register", Register);
-        auth.MapPost("/sign-in", SignIn);
+        auth.MapPost("/register", Register).RequireRateLimiting(RateLimitPolicies.Register)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+        auth.MapPost("/sign-in", SignIn).RequireRateLimiting(RateLimitPolicies.SignIn)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
         auth.MapPost("/sign-out", SignOut);
         return api;
     }
@@ -92,8 +96,16 @@ internal static class AuthEndpoints
 
     private static async Task<Results<Ok<SessionResponse>, ProblemHttpResult>> SignIn(
         SignInRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn,
-        IPasswordHasher<AppUser> hasher, IAntiforgery antiforgery, [AsParameters] AfterSignIn afterSignIn)
+        IPasswordHasher<AppUser> hasher, IAntiforgery antiforgery, SignInGate gate, [AsParameters] AfterSignIn afterSignIn)
     {
+        // One attempt per email at a time, from reading the account to saving its failed count, so the lockout below
+        // counts every wrong password of a burst.
+        using var turn = await gate.WaitTurnAsync(users.NormalizeEmail(request.Email) ?? "", http.RequestAborted);
+        if (!turn.IsAcquired)
+        {
+            return InboundRateLimiting.TooManyRequests(http, retryAfter: null);
+        }
+
         var user = await users.FindByEmailAsync(request.Email);
         if (user is null)
         {

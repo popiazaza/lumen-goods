@@ -1,5 +1,6 @@
 using Lumen.Api.Carts;
 using Lumen.Api.Catalog;
+using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Api.Orders;
 using Lumen.Domain.Pricing;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -32,8 +33,9 @@ internal static class CheckoutEndpoints
         checkout.MapGet("/preview", Preview).WithName("CheckoutPreview")
             .ProducesValidationProblem().ProducesProblem(StatusCodes.Status422UnprocessableEntity);
         checkout.MapPost("/orders", PlaceOrder).WithName("PlaceOrder")
+            .RequireRateLimiting(RateLimitPolicies.PlaceOrder)
             .Produces<PriceChangedProblem>(StatusCodes.Status409Conflict, "application/problem+json")
-            .ProducesValidationProblem().ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+            .ProducesValidationProblem().ProducesProblem(StatusCodes.Status422UnprocessableEntity).ProducesProblem(StatusCodes.Status429TooManyRequests);
         return api;
     }
 

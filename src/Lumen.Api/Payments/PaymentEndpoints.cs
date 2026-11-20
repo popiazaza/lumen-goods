@@ -1,5 +1,6 @@
 using Lumen.Api.Checkout;
 using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Payments;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -14,9 +15,10 @@ internal static class PaymentEndpoints
         var payments = api.MapGroup("/orders/{number}/payments").WithTags("Payments").RequireAuthorization()
             .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status404NotFound);
         payments.MapPost("", Pay).WithName("PayOrder")
+            .RequireRateLimiting(RateLimitPolicies.Payment)
             .Produces<PaymentStatusDto>(StatusCodes.Status202Accepted)
             .Produces<PaymentInProgressProblem>(StatusCodes.Status409Conflict, "application/problem+json")
-            .ProducesValidationProblem();
+            .ProducesValidationProblem().ProducesProblem(StatusCodes.Status429TooManyRequests);
         payments.MapGet("/current", Current).WithName("GetCurrentPayment");
         payments.MapPost("/current/one-time-code", SubmitOneTimeCode).WithName("SubmitOneTimeCode")
             .Produces<PaymentInProgressProblem>(StatusCodes.Status409Conflict, "application/problem+json")
