@@ -1,0 +1,107 @@
+// Global styles: the Material 3 theme, a small token layer and base element styles.
+// Components read `--mat-sys-*` and `--lg-*` tokens; never target Material's internal classes.
+@use '@angular/cdk';
+@use '@angular/material' as mat;
+@use './styles/theme-colors' as lumen;
+
+// `.cdk-visually-hidden`: text for screen readers only.
+@include cdk.a11y-visually-hidden();
+
+// System font stack: no web-font download, Roboto where the OS ships it.
+$font-family:
+  Roboto,
+  system-ui,
+  -apple-system,
+  'Segoe UI',
+  'Helvetica Neue',
+  Arial,
+  sans-serif;
+
+html {
+  height: 100%;
+  color-scheme: light;
+
+  @include mat.theme(
+    (
+      color: (
+        primary: lumen.$primary-palette,
+        tertiary: lumen.$tertiary-palette,
+      ),
+      typography: (
+        plain-family: $font-family,
+        brand-family: $font-family,
+      ),
+      density: 0,
+    )
+  );
+
+  // Visible keyboard focus on every Material component (WCAG 2.4.7).
+  @include mat.strong-focus-indicators(
+    (
+      border-color: var(--mat-sys-primary),
+    )
+  );
+
+  --lg-space-1: 4px;
+  --lg-space-2: 8px;
+  --lg-space-3: 12px;
+  --lg-space-4: 16px;
+  --lg-space-6: 24px;
+  --lg-space-8: 32px;
+  --lg-radius-card: 12px;
+  --lg-content-max: 1280px;
+  --lg-gutter: 16px;
+  // Sticky header: two rows (brand, search) on phones, one row from 960px.
+  --lg-header-height: 120px;
+
+  // Keep focused elements clear of the sticky header (WCAG 2.4.11).
+  scroll-padding-top: calc(var(--lg-header-height) + var(--lg-space-4));
+
+  @media (min-width: 960px) {
+    --lg-gutter: 24px;
+    --lg-header-height: 64px;
+  }
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-large);
+}
+
+h1 {
+  margin: 0 0 var(--lg-space-6);
+  font: var(--mat-sys-headline-medium);
+  color: var(--mat-sys-on-surface);
+
+  // Headings receive programmatic focus after navigation; no ring for that.
+  &:focus {
+    outline: none;
+  }
+}
+
+a {
+  color: var(--mat-sys-primary);
+}
+
+:focus-visible {
+  outline: 3px solid var(--mat-sys-primary);
+  outline-offset: 2px;
+}
+
+.price {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

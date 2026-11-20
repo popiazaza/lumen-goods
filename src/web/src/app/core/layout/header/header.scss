@@ -1,0 +1,165 @@
+:host {
+  display: block;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header {
+  background: var(--mat-sys-surface-container-low);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+// Phone first: [menu] [brand] ... [cart] / [search] / [menu panel when open].
+.bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'toggle brand cart'
+    'search search search'
+    'menu menu menu';
+  align-items: center;
+  column-gap: var(--lg-space-2);
+  max-width: var(--lg-content-max);
+  margin: 0 auto;
+  padding: var(--lg-space-2) var(--lg-gutter);
+}
+
+.menu-toggle {
+  grid-area: toggle;
+  margin-left: calc(-1 * var(--lg-space-2));
+}
+
+.brand {
+  grid-area: brand;
+  justify-self: start;
+  font: var(--mat-sys-title-large);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--mat-sys-primary);
+  text-decoration: none;
+  padding: var(--lg-space-2) 0;
+}
+
+.cart {
+  grid-area: cart;
+}
+
+.search {
+  grid-area: search;
+  display: flex;
+  align-items: center;
+  margin-top: var(--lg-space-2);
+  padding-left: var(--lg-space-4);
+  border: 1px solid var(--mat-sys-outline);
+  border-radius: 24px;
+  background: var(--mat-sys-surface-container-lowest);
+
+  &:focus-within {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 1px;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    border: 0;
+    background: transparent;
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-body-large);
+
+    // The surrounding pill shows focus.
+    &:focus-visible {
+      outline: none;
+    }
+
+    &::placeholder {
+      color: var(--mat-sys-on-surface-variant);
+    }
+  }
+}
+
+.menu {
+  grid-area: menu;
+  display: none;
+
+  &.open {
+    display: block;
+  }
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  margin: var(--lg-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+
+  a {
+    display: flex;
+    align-items: center;
+    gap: var(--lg-space-2);
+    min-height: 48px;
+    padding: 0 var(--lg-space-3);
+    border-radius: 8px;
+    color: var(--mat-sys-on-surface);
+    font: var(--mat-sys-label-large);
+    text-decoration: none;
+
+    &:hover {
+      background: var(--mat-sys-surface-container-high);
+    }
+
+    &.active {
+      color: var(--mat-sys-primary);
+      box-shadow: inset 3px 0 0 var(--mat-sys-primary);
+    }
+  }
+}
+
+@media (min-width: 960px) {
+  .bar {
+    grid-template-columns: auto minmax(12rem, 32rem) 1fr auto;
+    grid-template-areas: 'brand search menu cart';
+    column-gap: var(--lg-space-4);
+    min-height: var(--lg-header-height);
+    padding-block: 0;
+  }
+
+  .menu-toggle {
+    display: none;
+  }
+
+  .search {
+    margin-top: 0;
+
+    input {
+      height: 40px;
+    }
+  }
+
+  .menu {
+    display: block;
+    justify-self: end;
+  }
+
+  .links {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--lg-space-1);
+    margin: 0;
+
+    a {
+      min-height: 40px;
+
+      &.active {
+        box-shadow: inset 0 -3px 0 var(--mat-sys-primary);
+      }
+    }
+  }
+
+  .account {
+    margin-left: var(--lg-space-2);
+  }
+}
