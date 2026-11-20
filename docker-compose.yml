@@ -1,0 +1,76 @@
+# One command runs everything: docker compose up --build
+# Storefront: http://localhost:8080  (API docs: http://localhost:8080/api/docs)
+# Partner sandboxes for inspection: Harbor http://localhost:8081, Kestrel http://localhost:8082
+name: lumen-goods
+
+services:
+  db:
+    image: postgres:18.7-alpine3.24
+    environment:
+      POSTGRES_DB: lumen
+      POSTGRES_USER: lumen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lumen-dev-password}
+    volumes:
+      # PostgreSQL 18 images keep data under /var/lib/postgresql (not .../data as before).
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lumen -d lumen"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Lumen.Api/Dockerfile
+    environment:
+      ConnectionStrings__Lumen: Host=db;Database=lumen;Username=lumen;Password=${POSTGRES_PASSWORD:-lumen-dev-password}
+      # Plain HTTP on localhost; production behind TLS keeps the default (Always).
+      Auth__CookieSecurePolicy: SameAsRequest
+      Docs__Enabled: "true"
+      # Demo accounts listed in the README; off in the base (production) configuration.
+      Seed__Enabled: "true"
+      Logging__Console__FormatterName: json
+    depends_on:
+      db:
+        condition: service_healthy
+      harbor:
+        condition: service_started
+      kestrel:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: src/web
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  harbor:
+    build:
+      context: .
+      dockerfile: src/StandIns/HarborSupply.StandIn/Dockerfile
+    ports:
+      - "${HARBOR_PORT:-8081}:8080"
+    volumes:
+      - harbor-data:/app/data
+    restart: unless-stopped
+
+  kestrel:
+    build:
+      context: .
+      dockerfile: src/StandIns/KestrelOutfitters.StandIn/Dockerfile
+    ports:
+      - "${KESTREL_PORT:-8082}:8080"
+    volumes:
+      - kestrel-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  harbor-data:
+  kestrel-data:
