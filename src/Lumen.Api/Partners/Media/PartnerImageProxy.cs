@@ -31,6 +31,7 @@ internal sealed class PartnerImageProxy(
     IHttpClientFactory httpClients,
     IOptionsMonitor<MediaOptions> options,
     PartnerImageCache cache,
+    TimeProvider time,
     ILogger<PartnerImageProxy> logger)
 {
     public static readonly IReadOnlySet<string> AllowedContentTypes =
@@ -67,7 +68,7 @@ internal sealed class PartnerImageProxy(
         var fetch = _inFlight.GetOrAdd(key, _ => new Lazy<Task<ImageResult>>(() => FetchAndCacheAsync(partner, url, key)));
         try
         {
-            return await fetch.Value.WaitAsync(options.CurrentValue.ResponseTimeout, cancellationToken);
+            return await fetch.Value.WaitAsync(options.CurrentValue.ResponseTimeout, time, cancellationToken);
         }
         catch (TimeoutException)
         {
@@ -86,7 +87,7 @@ internal sealed class PartnerImageProxy(
             try
             {
                 // Not tied to one browser request: other requests may be waiting for the same image.
-                using var timeout = new CancellationTokenSource(settings.MaxFetchDuration);
+                using var timeout = new CancellationTokenSource(settings.MaxFetchDuration, time);
                 result = await FetchAsync(partner, url, settings.MaxImageBytes, timeout.Token);
             }
             catch (Exception ex) when (ex is Ports.PartnerException or OperationCanceledException or HttpRequestException or IOException)

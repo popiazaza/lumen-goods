@@ -16,7 +16,8 @@ internal sealed class KestrelCatalogSource(
     IHttpClientFactory httpClients,
     IOptionsMonitor<KestrelOptions> options,
     IOptionsMonitor<PartnersOptions> partners,
-    DescriptionSanitizer sanitizer) : IPartnerCatalogSource
+    DescriptionSanitizer sanitizer,
+    TimeProvider time) : IPartnerCatalogSource
 {
     public const string HttpClientName = "partner-kestrel";
 
@@ -33,8 +34,8 @@ internal sealed class KestrelCatalogSource(
         var context = new PartnerMappingContext(baseUri, new CategoryMap(settings.CategoryMap), partners.CurrentValue.EffectiveSynonyms(), sanitizer);
         var client = httpClients.CreateClient(HttpClientName);
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(settings.FeedTimeout);
+        using var feedTimeout = new CancellationTokenSource(settings.FeedTimeout, time);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, feedTimeout.Token);
 
         using var message = new HttpRequestMessage(HttpMethod.Get, "feed/products.xml");
         if (!request.Full && !string.IsNullOrWhiteSpace(request.Watermark))
