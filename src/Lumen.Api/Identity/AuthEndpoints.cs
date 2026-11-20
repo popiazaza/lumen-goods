@@ -2,9 +2,11 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Lumen.Api.Carts;
 using Lumen.Api.Infrastructure.Security;
+using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 
 namespace Lumen.Api.Identity;
 
@@ -19,9 +21,9 @@ public sealed record SignInRequest([Required, EmailAddress] string Email, [Requi
 
 /// <summary>
 /// What sign-in and registration hand over to other features, bound with [AsParameters] so the handlers stay short:
-/// the guest cart merge (BR-CART-01).
+/// the guest cart merge (BR-CART-01) and, at registration, the new customer's wallet (BR-PAY-06).
 /// </summary>
-internal sealed record AfterSignIn(ICartMergeService CartMerge);
+internal sealed record AfterSignIn(ICartMergeService CartMerge, WalletAccounts Wallets, IOptions<WalletOptions> WalletOptions);
 
 internal static class AuthEndpoints
 {
@@ -65,6 +67,9 @@ internal static class AuthEndpoints
         {
             throw new InvalidOperationException($"Could not assign the customer role: {string.Join("; ", roleAdded.Errors.Select(e => e.Description))}");
         }
+
+        // BR-PAY-06: every new customer starts with a wallet (idempotent, so a retried registration cannot open two).
+        await afterSignIn.Wallets.OpenAsync(user.Id, afterSignIn.WalletOptions.Value.NewCustomerBalance, http.RequestAborted);
 
         var session = await CompleteSignInAsync(http, user, signIn, users, antiforgery);
         await afterSignIn.CartMerge.MergeGuestCartAsync(http, user.Id, http.RequestAborted);

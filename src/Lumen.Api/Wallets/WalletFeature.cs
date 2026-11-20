@@ -32,6 +32,7 @@ internal static class WalletFeature
             .Bind(configuration.GetSection(WalletOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+        services.AddScoped<WalletAccounts>();
         return services;
     }
 

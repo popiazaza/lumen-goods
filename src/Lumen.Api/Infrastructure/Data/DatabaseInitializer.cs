@@ -1,5 +1,6 @@
 using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
+using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -38,7 +39,7 @@ internal static class DatabaseInitializer
         }
 
         await EnsureRolesAsync(scope.ServiceProvider);
-        await SeedDemoAccountsAsync(scope.ServiceProvider, logger);
+        await SeedDemoAccountsAsync(scope.ServiceProvider, logger, cancellationToken);
         await OwnProductSeed.SeedAsync(scope.ServiceProvider, logger, cancellationToken);
     }
 
@@ -55,7 +56,7 @@ internal static class DatabaseInitializer
         }
     }
 
-    private static async Task SeedDemoAccountsAsync(IServiceProvider services, ILogger logger)
+    private static async Task SeedDemoAccountsAsync(IServiceProvider services, ILogger logger, CancellationToken cancellationToken)
     {
         var seed = services.GetRequiredService<IOptions<SeedOptions>>().Value;
         if (!seed.Enabled)
@@ -65,20 +66,29 @@ internal static class DatabaseInitializer
 
         var users = services.GetRequiredService<UserManager<AppUser>>();
         await EnsureUserAsync(users, seed.AdminEmail, seed.AdminPassword, Roles.Admin, logger);
-        await EnsureUserAsync(users, seed.CustomerEmail, seed.CustomerPassword, Roles.Customer, logger);
+        var customer = await EnsureUserAsync(users, seed.CustomerEmail, seed.CustomerPassword, Roles.Customer, logger);
+
+        // BR-PAY-06 / A-38: the demo customer's wallet holds enough for the catalogue's most expensive items. Checked on
+        // every start (not only when the account is created), so a database seeded before wallets existed gets one too.
+        var walletOptions = services.GetRequiredService<IOptions<WalletOptions>>().Value;
+        if (await services.GetRequiredService<WalletAccounts>().OpenAsync(customer.Id, walletOptions.SeededCustomerBalance, cancellationToken))
+        {
+            logger.LogInformation("Seeded wallet of {Email} with {Balance:0.00} USD", seed.CustomerEmail, walletOptions.SeededCustomerBalance);
+        }
     }
 
-    private static async Task EnsureUserAsync(UserManager<AppUser> users, string email, string password, string role, ILogger logger)
+    private static async Task<AppUser> EnsureUserAsync(UserManager<AppUser> users, string email, string password, string role, ILogger logger)
     {
-        if (await users.FindByEmailAsync(email) is not null)
+        if (await users.FindByEmailAsync(email) is { } existing)
         {
-            return;
+            return existing;
         }
 
         var user = new AppUser { UserName = email, Email = email, EmailConfirmed = true };
         EnsureSucceeded(await users.CreateAsync(user, password), $"create user {email}");
         EnsureSucceeded(await users.AddToRoleAsync(user, role), $"add {email} to {role}");
         logger.LogInformation("Seeded {Role} account {Email}", role, email);
+        return user;
     }
 
     private static void EnsureSucceeded(IdentityResult result, string action)
