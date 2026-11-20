@@ -1,7 +1,9 @@
+using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Infrastructure.Security;
+using Lumen.Api.Partners;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +14,8 @@ builder.Services.AddValidation();
 builder.Services.AddOpenApi();
 builder.Services.AddLumenData(builder.Configuration);
 builder.Services.AddLumenIdentity(builder.Configuration);
+builder.Services.AddCatalog(builder.Configuration);
+builder.Services.AddPartners(builder.Configuration);
 builder.Services.AddLumenHealthChecks();
 builder.Services.AddReverseProxySupport();
 
@@ -26,7 +30,10 @@ app.UseAuthorization();
 // Every state-changing call under /api/v1 must carry the XSRF header (see AntiforgeryValidationFilter).
 var api = app.MapGroup("/api/v1").AddEndpointFilter<AntiforgeryValidationFilter>();
 api.MapAuthEndpoints();
+api.MapCatalogEndpoints();
+api.MapPartnerAdminEndpoints();
 
+app.MapMediaEndpoints();
 app.MapHealthChecks("/health");
 
 if (app.Configuration.GetValue("Docs:Enabled", app.Environment.IsDevelopment()))
