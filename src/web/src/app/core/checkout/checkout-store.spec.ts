@@ -62,21 +62,22 @@ describe('CheckoutStore', () => {
     expect(freshStore().reachable().has('payment')).toBe(true);
   });
 
-  it('keeps the key when nothing changed after Place order, and starts a new checkout when something did', () => {
+  it('keeps the order when nothing changed after Place order, and closes payment when something did', () => {
     const store = freshStore();
     store.setAddress(US_ADDRESS);
     store.setShippingMethod('standard');
-    store.setOrderNumber('LG-1');
-    const key = store.checkoutKey();
+    const used = store.checkoutKeyFor(aReview());
+    store.orderPlaced(anOrder({ number: 'LG-1' }));
 
     store.setAddress({ ...US_ADDRESS });
     store.setShippingMethod('standard');
-    expect(store.checkoutKey()).toBe(key);
     expect(store.orderNumber()).toBe('LG-1');
 
     store.setShippingMethod('express');
-    expect(store.checkoutKey()).not.toBe(key);
     expect(store.orderNumber()).toBeNull();
+    expect(store.reachable().has('payment')).toBe(false);
+    // The new review gets a new key, so it can never be answered with LG-1.
+    expect(store.checkoutKeyFor(aReview({ shippingMethod: 'express' }))).not.toBe(used);
   });
 
   it('keeps Place order’s answer in memory only, for as long as it is this checkout’s order', () => {
@@ -118,7 +119,7 @@ describe('CheckoutStore', () => {
     expect(store.checkoutKeyFor(aReview(changes[4]))).toBe(keys[4]);
   });
 
-  it('starts a new key once the order is created, even for the same review', () => {
+  it('sends the same key for the same review after Place order, so the API returns that order (BR-PAY-01a)', () => {
     const store = freshStore();
     store.setAddress(US_ADDRESS);
     store.setShippingMethod('standard');
@@ -126,13 +127,35 @@ describe('CheckoutStore', () => {
 
     store.orderPlaced(anOrder({ number: 'LG-1' }));
 
-    // The shopper goes back, changes the cart (or not) and places again: a new order, never LG-1.
+    // Payment, then the stepper's Review, then Place order again: the same order, not a second
+    // one reserving the same stock. Also after a page refresh.
     expect(store.orderNumber()).toBe('LG-1');
-    expect(store.checkoutKey()).not.toBe(used);
+    expect(store.checkoutKey()).toBe(used);
+    expect(store.checkoutKeyFor(aReview())).toBe(used);
+    expect(freshStore().checkoutKeyFor(aReview())).toBe(used);
+  });
+
+  it('starts a new key after Place order only when the review changes', () => {
+    const store = freshStore();
+    store.setAddress(US_ADDRESS);
+    store.setShippingMethod('standard');
+    const used = store.checkoutKeyFor(aReview());
+    store.orderPlaced(anOrder({ number: 'LG-1' }));
+
+    // The shopper went back and changed the cart: a new order, never LG-1.
     const next = store.checkoutKeyFor(aReview({ expectedTotal: 59.95 }));
     expect(next).not.toBe(used);
+    expect(store.checkoutKeyFor(aReview({ expectedTotal: 59.95 }))).toBe(next);
+  });
+
+  it('starts a new key once the checkout ends (paid or closed)', () => {
+    const store = freshStore();
+    const used = store.checkoutKeyFor(aReview());
+    store.orderPlaced(anOrder({ number: 'LG-1' }));
+
+    store.reset();
+
     expect(store.checkoutKeyFor(aReview())).not.toBe(used);
-    expect(freshStore().checkoutKey()).toBe(store.checkoutKey());
   });
 
   it('reads a checkout saved before keys were tied to a review', () => {

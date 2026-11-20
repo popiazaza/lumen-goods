@@ -64,8 +64,9 @@ export class CheckoutStore {
   });
 
   /**
-   * A changed address after Place order starts a new checkout key: the placed order keeps its old
-   * address, so the next Place order must create a new one (the unpaid one expires on its own).
+   * A changed address after Place order leaves the placed order behind: it keeps its old address,
+   * so the payment step closes until the order is placed again. The key changes then, because
+   * the review does (`checkoutKeyFor`); the unpaid order expires on its own.
    */
   setAddress(address: ShippingAddress): void {
     this.update((state) =>
@@ -106,13 +107,15 @@ export class CheckoutStore {
   }
 
   /**
-   * Place order succeeded: the payment step pays this order. The key has made its order, so the
-   * next Place order (the shopper went back and changed the cart, or this order expired unpaid)
-   * starts with a new one instead of getting this order back.
+   * Place order succeeded: the payment step pays this order. The key and its review stay, so
+   * placing the same review again (Payment, then the stepper's Review, then Place order) gets this
+   * order back (BR-PAY-01a) instead of a second order that would reserve the own stock twice and
+   * could leave the shopper with "Only 0 left". A different review gets a new key from
+   * `checkoutKeyFor`; a paid or closed order ends the checkout with `reset`.
    */
   orderPlaced(order: OrderDetailDto): void {
     this.placed.set(order);
-    this.update((state) => ({ ...state, ...freshKey(), orderNumber: order.number }));
+    this.update((state) => ({ ...state, orderNumber: order.number }));
   }
 
   /**
@@ -193,11 +196,12 @@ function emptyState(): CheckoutState {
 }
 
 /**
- * Before the order exists an entry changes nothing else (`checkoutKeyFor` compares the review when
- * it is placed); after it, the entry starts a new checkout, since the placed order keeps the old one.
+ * After Place order, a changed entry no longer matches the placed order, so payment closes until
+ * the order is placed again. The key is left to `checkoutKeyFor`, which compares the whole review:
+ * changing the method and back is still the first order's review, and gets that order back.
  */
 function afterChange(state: CheckoutState): CheckoutState {
-  return state.orderNumber ? { ...state, ...freshKey(), orderNumber: null } : state;
+  return state.orderNumber ? { ...state, orderNumber: null } : state;
 }
 
 function sameAddress(a: ShippingAddress | null, b: ShippingAddress): boolean {

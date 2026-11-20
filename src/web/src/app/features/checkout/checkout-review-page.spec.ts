@@ -143,10 +143,31 @@ describe('CheckoutReviewPage', () => {
     await fixture.whenStable();
 
     expect(store.orderNumber()).toBe('LG-NEW1');
-    // That key made its order; placing again (after changing the cart) must not get LG-NEW1 back.
-    expect(store.checkoutKey()).not.toBe(sentKey);
+    // The key stays with this review: placing it again must get LG-NEW1 back, not a second order.
+    expect(store.checkoutKey()).toBe(sentKey);
     // The payment step opens on this answer instead of reading the order again.
     expect(store.placedOrder()?.number).toBe('LG-NEW1');
+    expect(TestBed.inject(Router).url).toBe('/checkout/payment?order=LG-NEW1');
+  });
+
+  it('places the same review again with the same key, so the API returns the first order', async () => {
+    await open();
+    placeButton().click();
+    const first = http.expectOne('/api/v1/checkout/orders');
+    first.flush(anOrder({ number: 'LG-NEW1' }), { status: 201, statusText: 'Created' });
+    http.expectOne('/api/v1/cart').flush(aCart([]));
+    await fixture.whenStable();
+    fixture.destroy();
+
+    // Payment, then the stepper's Review, then Place order with nothing changed.
+    await open();
+    placeButton().click();
+    const again = http.expectOne('/api/v1/checkout/orders');
+
+    expect(again.request.body.checkoutKey).toBe(first.request.body.checkoutKey);
+    again.flush(anOrder({ number: 'LG-NEW1' }), { status: 200, statusText: 'OK' });
+    http.expectOne('/api/v1/cart').flush(aCart([]));
+    await fixture.whenStable();
     expect(TestBed.inject(Router).url).toBe('/checkout/payment?order=LG-NEW1');
   });
 

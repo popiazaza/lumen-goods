@@ -162,6 +162,11 @@ export class CheckoutReviewPage {
   /** The lines the last Place order sent: a confirmation re-sends them at the new prices. */
   private sentLines: PlaceOrderLine[] = [];
 
+  /**
+   * Also after the order was placed (the shopper came back from Payment): the same review goes
+   * with the same key, and the API answers with the order already placed (BR-PAY-01a), so its
+   * stock is not reserved a second time.
+   */
   protected placeOrder(): void {
     const preview = this.loaded();
     if (!preview || this.blocked() || this.preview.isLoading()) {
