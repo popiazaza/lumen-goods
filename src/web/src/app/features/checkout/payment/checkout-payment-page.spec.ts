@@ -232,6 +232,69 @@ describe('CheckoutPaymentPage', () => {
       expect(url()).toBe(`/orders/${ORDER}/confirmation`);
     });
 
+    it.each([
+      [0, 'Unknown Error'],
+      [502, 'Bad Gateway'],
+      [504, 'Gateway Timeout'],
+    ])(
+      'after a lost answer (%i) reads the payment again and shows what the server says',
+      async (status, statusText) => {
+        await open(null);
+        fillCard('4242000000000042');
+
+        await pay();
+        http.expectOne(`${ORDER_URL}/payments`).flush(null, { status, statusText });
+        await settle();
+        // The charge did start before the answer was lost.
+        http.expectOne(ORDER_URL).flush(anOrder());
+        http.expectOne(CURRENT_URL).flush(aPaymentStatus({ status: 'processing' }));
+        await settle();
+
+        expect(text('#processing-heading')).toBe('Confirming your payment…');
+        expect(host().textContent).not.toContain('not been charged');
+        expect(document.activeElement).toBe(host().querySelector('#processing-heading'));
+        await poll(aPaymentStatus({ status: 'processing' }));
+      },
+    );
+
+    it('after a lost answer, offers to pay again when the server shows no payment', async () => {
+      await open(null);
+      fillCard();
+
+      await pay();
+      http
+        .expectOne(`${ORDER_URL}/payments`)
+        .flush(null, { status: 502, statusText: 'Bad Gateway' });
+      await settle();
+      http.expectOne(ORDER_URL).flush(anOrder());
+      http.expectOne(CURRENT_URL).flush({ title: 'Not Found' }, NOT_FOUND);
+      await settle();
+
+      expect(text('.outcome-title')).toBe('We couldn’t reach the payment service');
+      expect(text('.outcome')).not.toContain('not been charged');
+      expect(document.activeElement).toBe(host().querySelector('.outcome'));
+      expect(input('card-number').value).toBe('4111 1111 1111 1111');
+    });
+
+    it('says nothing was charged when the API refused the request (4xx)', async () => {
+      await open(null);
+      fillCard();
+
+      await pay();
+      http
+        .expectOne(`${ORDER_URL}/payments`)
+        .flush(
+          { title: 'Too many requests', status: 429, detail: 'Wait a minute, then try again.' },
+          { status: 429, statusText: 'Too Many Requests' },
+        );
+      await settle();
+
+      expect(text('.outcome-title')).toBe('We couldn’t start the payment');
+      expect(text('.outcome .outcome-title + p')).toBe(
+        'Wait a minute, then try again. You have not been charged.',
+      );
+    });
+
     it('puts the API’s card errors on their fields', async () => {
       await open(null);
       fillCard();
@@ -455,6 +518,62 @@ describe('CheckoutPaymentPage', () => {
         'Wallet balance: $10.00 · Not enough to pay $67.46, so pay by card.',
       );
       expect(host().querySelector('#card-number')).toBeTruthy();
+    });
+
+    it('keeps confirming a failed payment nothing can retry, never saying cancelled or not charged', async () => {
+      TestBed.inject(CheckoutStore).setOrderNumber(ORDER);
+      const unsettled = aPaymentStatus({
+        status: 'failed',
+        retryMode: 'none',
+        canRetry: false,
+        attemptsLeft: 0,
+        orderStatus: 'awaiting_payment',
+        declineMessage:
+          'We could not confirm your payment. Try again with the same card; you will not be charged twice.',
+      });
+      await declineWith(unsettled);
+
+      expect(text('#processing-heading')).toBe('Confirming your payment…');
+      expect(text('.processing [role="status"]')).toContain(
+        'we’re confirming with them whether your card was charged',
+      );
+      expect(text('.processing')).not.toMatch(/not been charged|cancelled|can’t be paid/i);
+      expect(host().querySelector('.processing a[href="/orders"]')).toBeTruthy();
+      // The checkout is not over: the order may still turn out paid.
+      expect(TestBed.inject(CheckoutStore).orderNumber()).toBe(ORDER);
+
+      await poll(unsettled);
+      expect(text('#processing-heading')).toBe('Confirming your payment…');
+      await poll(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
+      http.expectOne('/api/v1/cart').flush(aCart([]));
+      await settle();
+      expect(url()).toBe(`/orders/${ORDER}/confirmation`);
+    });
+
+    it('says not charged once the card provider settles a failed payment as never charged', async () => {
+      await open(
+        aPaymentStatus({
+          status: 'failed',
+          retryMode: 'none',
+          attemptsLeft: 0,
+          orderStatus: 'awaiting_payment',
+        }),
+      );
+      expect(text('#processing-heading')).toBe('Confirming your payment…');
+
+      await poll(
+        aPaymentStatus({
+          status: 'declined',
+          retryMode: 'none',
+          attemptsLeft: 0,
+          orderStatus: 'expired',
+          declineMessage: 'Your card was declined',
+        }),
+      );
+
+      expect(text('.state p')).toBe(
+        'This order ran out of payment attempts, so it was cancelled. You have not been charged.',
+      );
     });
 
     it('closes the order when no attempt is left', async () => {

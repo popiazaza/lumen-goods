@@ -95,6 +95,20 @@ export const CODE_WARNING_MS = 60_000;
 
 /** Statuses during which the charge is still running: keep polling. `error` is retried once by the server. */
 const IN_PROGRESS: ReadonlySet<PaymentStatus> = new Set(['created', 'processing', 'error']);
+
+/**
+ * A Failed payment that nothing can try again: the card provider has not said whether it charged
+ * the card, so the API keeps the order awaiting payment and settles it later as Succeeded or
+ * Declined (BR-PAY-05). Until then the page can only wait for that answer.
+ */
+function awaitsSettlement(payment: PaymentStatusDto): boolean {
+  return payment.status === 'failed' && payment.retryMode === 'none';
+}
+
+/** The server will move this payment on by itself: keep polling. */
+function stillChanging(payment: PaymentStatusDto): boolean {
+  return IN_PROGRESS.has(payment.status) || awaitsSettlement(payment);
+}
 const PAID_ORDER: ReadonlySet<OrderStatus> = new Set([
   'paid',
   'completed',
@@ -225,6 +239,8 @@ export class CheckoutPaymentPage {
   protected readonly slow = computed(
     () => this.now() - this.waitingSince() >= SLOW_PAYMENT_NOTICE_MS,
   );
+  /** Waiting for the card provider to say whether a Failed charge went through (BR-PAY-05). */
+  protected readonly unsettled = computed(() => this.payment()?.status === 'failed');
 
   /** Server clock minus browser clock, from the last payment status: the code expires on the server's time. */
   private readonly clockOffset = signal(0);
@@ -334,7 +350,8 @@ export class CheckoutPaymentPage {
     this.load(this.orderNumber());
   }
 
-  private load(number: string): void {
+  /** Reads the order and its current payment and shows them; `then` runs once they are shown. */
+  private load(number: string, then?: () => void): void {
     this.stopPolling();
     if (!number) {
       this.close('There is no order to pay. Review your order and place it first.');
@@ -359,6 +376,7 @@ export class CheckoutPaymentPage {
           }
           this.orderDetail.set(order);
           this.show(payment, order);
+          then?.();
         },
         error: (error: unknown) => {
           this.loadError.set(
@@ -396,7 +414,9 @@ export class CheckoutPaymentPage {
       this.enter('choose');
       return;
     }
-    if (IN_PROGRESS.has(payment.status)) {
+    // A Failed payment nothing can retry is never "cancelled" or "not charged": the card may have
+    // been charged, so the page waits with the shopper for the card provider's answer.
+    if (stillChanging(payment)) {
       this.enter('processing');
       this.startPolling(payment.orderNumber);
       return;
@@ -414,7 +434,8 @@ export class CheckoutPaymentPage {
       }
       return;
     }
-    // declined | failed | expired: tell the shopper, keep what they typed, let them try again.
+    // declined | expired | failed with the same card: tell the shopper, keep what they typed, let
+    // them try again.
     this.inProgressNotice.set('');
     this.outcome.set(outcomeOf(payment));
     if (payment.method === 'wallet') {
@@ -453,7 +474,10 @@ export class CheckoutPaymentPage {
     }
   }
 
-  /** Polls `GET .../payments/current` until the payment leaves created/processing/error. */
+  /**
+   * Polls `GET .../payments/current` until the payment is final or waits for the shopper. The
+   * read also asks the API to settle the payment if it is due (BR-PAY-05).
+   */
   private startPolling(number: string): void {
     this.stopPolling();
     this.polling = timer(PAYMENT_POLL_INTERVAL_MS, PAYMENT_POLL_INTERVAL_MS)
@@ -461,11 +485,11 @@ export class CheckoutPaymentPage {
         // A dropped request is not an answer: keep waiting, never show "failed" for it.
         exhaustMap(() => this.payments.current(number).pipe(catchError(() => of(null)))),
         filter((payment): payment is PaymentStatusDto => payment !== null),
-        takeWhile((payment) => IN_PROGRESS.has(payment.status), true),
+        takeWhile(stillChanging, true),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((payment) => {
-        if (IN_PROGRESS.has(payment.status)) {
+        if (stillChanging(payment)) {
           this.payment.set(payment);
         } else {
           this.show(payment);
@@ -604,16 +628,37 @@ export class CheckoutPaymentPage {
         return;
       }
     }
+    const status = httpStatusOf(error);
+    if (status === undefined || status === 0 || status >= 500) {
+      // The request may have reached the API, and a charge started, before the answer was lost (a
+      // dropped connection, or a 502/504 from the proxy): only the server knows. Read the payment
+      // again and show that; paying again is safe, as one payment runs per order (BR-PAY-01).
+      this.load(number, () => {
+        if (this.phase() === 'choose' && !this.payment()) {
+          this.outcome.set({
+            title: 'We couldn’t reach the payment service',
+            detail:
+              'Your order shows no payment, so try again. You can’t be charged twice for this order.',
+          });
+        }
+        this.focusOutcome();
+      });
+      return;
+    }
+    // Any other 4xx refused the request before a charge could start. That says nothing about a
+    // Failed payment the card provider has yet to settle, so the claim is left out then.
+    const notCharged = this.payment()?.status === 'failed' ? '' : ' You have not been charged.';
     this.outcome.set({
       title: 'We couldn’t start the payment',
-      detail: `${problemMessage(error, 'Check your connection and try again.')} You have not been charged.`,
+      detail: `${problemMessage(error, 'Try again.')}${notCharged}`,
     });
     this.focusOutcome();
   }
 
+  /** Focuses the outcome above the form, or the heading of the state that replaced the form. */
   private focusOutcome(): void {
     afterNextRender(
-      { write: () => this.outcomeBanner()?.nativeElement.focus() },
+      { write: () => (this.outcomeBanner() ?? this.phaseHeading())?.nativeElement.focus() },
       { injector: this.injector },
     );
   }
@@ -794,13 +839,14 @@ function outcomeOf(payment: PaymentStatusDto): Outcome {
   const attempts =
     payment.attemptsLeft === 1 ? '1 attempt left' : `${payment.attemptsLeft} attempts left`;
   switch (payment.status) {
+    // Never "not charged": only the card provider's later answer can say (BR-PAY-05).
     case 'failed':
       return {
         title: 'We couldn’t confirm your payment',
         detail:
           payment.retryMode === 'same_payment_only'
             ? `The card provider did not answer, so we can’t tell yet whether the card was charged. Enter the same card and try again: it continues the same payment, so you can’t be charged twice. ${attempts}.`
-            : `The card provider did not answer. You have not been charged twice: trying again continues the same payment. ${attempts}.`,
+            : `The card provider did not answer, so we can’t tell yet whether the card was charged. Paying again checks that payment with them first, so you can’t be charged twice. ${attempts}.`,
       };
     case 'expired':
       return {

@@ -53,17 +53,31 @@
       <h2 #phaseHeading id="processing-heading" tabindex="-1">Confirming your payment…</h2>
       <mat-progress-bar mode="indeterminate" aria-labelledby="processing-heading" />
       <div role="status">
-        <p>
-          This can take up to 20 seconds. Keep this page open; refreshing it won’t charge you twice.
-        </p>
-        @if (slow()) {
+        @if (unsettled()) {
           <p>
-            This is taking longer than usual. We’ll keep checking, and the result will also be in
+            The card provider didn’t answer in time, so we’re confirming with them whether your card
+            was charged. You won’t be charged twice.
+          </p>
+          <p>
+            We’ll keep checking here. You can also leave this page: the result will be in
             <a routerLink="/orders">Your orders</a>.
           </p>
+        } @else {
+          <p>
+            This can take up to 20 seconds. Keep this page open; refreshing it won’t charge you
+            twice.
+          </p>
+          @if (slow()) {
+            <p>
+              This is taking longer than usual. We’ll keep checking, and the result will also be in
+              <a routerLink="/orders">Your orders</a>.
+            </p>
+          }
         }
       </div>
-      <p class="muted" aria-hidden="true">Waiting {{ waitedSeconds() }} s</p>
+      @if (!unsettled()) {
+        <p class="muted" aria-hidden="true">Waiting {{ waitedSeconds() }} s</p>
+      }
       <button matButton="filled" type="button" disabled>Pay</button>
     </section>
   }
