@@ -8,6 +8,8 @@
 **/*.db-shm
 **/*.db-wal
 **/.env
+# Local development settings (dev partner keys, demo seeding) never go into the API image.
+src/Lumen.Api/appsettings.Development.json
 .git/
 .vs/
 .idea/
