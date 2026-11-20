@@ -24,7 +24,13 @@ public sealed class OwnStockRaceTests(CheckoutHost host) : IClassFixture<Checkou
     public async Task BR_STOCK_01_fifty_customers_ordering_the_last_7_units_at_once_get_exactly_7_orders()
     {
         var product = await host.OwnProductAsync(18.50m, onHand: Units);
-        var shoppers = await Task.WhenAll(Enumerable.Range(0, Customers).Select(_ => host.NewShopperAsync()));
+        // One at a time: each shopper gets its own client, and WebApplicationFactory.CreateClient is not thread-safe (it
+        // adds to a plain list that the factory disposes later).
+        var shoppers = new List<Shopper>();
+        for (var i = 0; i < Customers; i++)
+        {
+            shoppers.Add(await host.NewShopperAsync());
+        }
 
         // Every customer reviews the same in-stock product before anyone orders, so each request is one the API accepts
         // on its own; only the race decides who gets a unit.
