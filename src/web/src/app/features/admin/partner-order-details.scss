@@ -1,0 +1,42 @@
+@use '../orders/order-page';
+
+// The page's list item lays its content out in a grid; the same grid here keeps the spacing.
+:host {
+  display: grid;
+  gap: var(--lg-space-2);
+}
+
+@include order-page.pairs;
+
+.item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lg-space-2) var(--lg-space-4);
+}
+
+h3 {
+  margin: 0;
+  font: var(--mat-sys-title-medium);
+}
+
+.wrap,
+code {
+  overflow-wrap: anywhere;
+}
+
+.last-error {
+  display: flex;
+  align-items: flex-start;
+  padding: var(--lg-space-2);
+  border-radius: 8px;
+  margin: 0;
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  gap: var(--lg-space-2);
+  overflow-wrap: anywhere;
+
+  & mat-icon {
+    flex: none;
+  }
+}

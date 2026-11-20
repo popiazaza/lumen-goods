@@ -1,0 +1,69 @@
+<fieldset class="card-fields" [formGroup]="form()">
+  <legend>Card details</legend>
+  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <mat-label>Card number</mat-label>
+    <input
+      id="card-number"
+      matInput
+      type="text"
+      inputmode="numeric"
+      autocomplete="cc-number"
+      formControlName="number"
+      spellcheck="false"
+      required
+      (input)="formatNumber($event)"
+    />
+    @if (view().brandName; as brand) {
+      <span matTextSuffix class="brand" aria-live="polite">{{ brand }}</span>
+    }
+    <mat-hint>Test cards: 4111 1111 1111 1111 approves; see the README for the others</mat-hint>
+    @if (view().errors.number; as message) {
+      <mat-error>{{ message }}</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <mat-label>Name on card</mat-label>
+    <input id="card-name" matInput autocomplete="cc-name" formControlName="name" required />
+    @if (view().errors.name; as message) {
+      <mat-error>{{ message }}</mat-error>
+    }
+  </mat-form-field>
+
+  <div class="row">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Expiry date (MM/YY)</mat-label>
+      <input
+        id="card-expiry"
+        matInput
+        type="text"
+        inputmode="numeric"
+        autocomplete="cc-exp"
+        placeholder="MM/YY"
+        formControlName="expiry"
+        required
+        (input)="formatExpiryInput($event)"
+      />
+      @if (view().errors.expiry; as message) {
+        <mat-error>{{ message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Security code (CVC)</mat-label>
+      <input
+        id="card-cvc"
+        matInput
+        type="text"
+        inputmode="numeric"
+        autocomplete="cc-csc"
+        formControlName="cvc"
+        required
+      />
+      <mat-hint>{{ view().cvcHint }}</mat-hint>
+      @if (view().errors.cvc; as message) {
+        <mat-error>{{ message }}</mat-error>
+      }
+    </mat-form-field>
+  </div>
+</fieldset>

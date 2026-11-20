@@ -15,6 +15,7 @@ import { OWN_SOURCE, ShippingMethod } from '../../core/api/order.models';
 import { problemTypeOf } from '../../core/api/problem-details';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { CheckoutSteps } from './checkout-steps';
+import type { Signal } from '@angular/core';
 
 /**
  * Checkout step 2 (`/checkout/shipping`): one shipment per seller. Lumen's own items can go
@@ -34,45 +35,33 @@ import { CheckoutSteps } from './checkout-steps';
     CheckoutSteps,
   ],
   templateUrl: './checkout-shipping-page.html',
-  styleUrl: './checkout.scss',
-  styles: `
-    .items {
-      margin: 0 0 var(--lg-space-3);
-      padding-left: var(--lg-space-6);
-    }
-
-    .methods {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .method-fee {
-      margin-left: var(--lg-space-2);
-    }
-
-    .fixed-method {
-      margin: 0;
-    }
-  `,
+  styleUrls: ['./checkout.scss', './checkout-shipping-page.scss'],
 })
 export class CheckoutShippingPage {
   private readonly api = inject(CheckoutApi);
+
   private readonly store = inject(CheckoutStore);
+
   private readonly router = inject(Router);
 
+  /**
+  The chosen method as a signal. Set in the constructor: it reads `method`, a template-facing field
+  declared after the private ones.
+  */
+  private readonly chosen: Signal<ShippingMethod>;
+
   protected readonly ownSource = OWN_SOURCE;
+
   protected readonly method = new FormControl<ShippingMethod>(
     this.store.shippingMethod() ?? 'standard',
     { nonNullable: true }
   );
-  private readonly chosen = toSignal(this.method.valueChanges, {
-    initialValue: this.method.value,
-  });
 
   protected readonly preview = rxResource({
     params: () => this.chosen(),
     stream: ({ params }) => this.api.preview(params),
   });
+
   /**
   The last preview, kept on screen while the next one loads so the page does not jump.
   */
@@ -83,14 +72,17 @@ export class CheckoutShippingPage {
     source: () => (this.preview.hasValue() ? this.preview.value() : undefined),
     computation: (next, previous) => next ?? previous?.value,
   });
+
   protected readonly updating = computed(() => this.preview.isLoading() && !!this.shown());
 
   protected readonly expressOffered = computed(
     () => this.shown()?.shippingOptions.some((option) => option.method === 'express') ?? false
   );
+
   protected readonly options = computed(() => this.shown()?.shippingOptions ?? []);
 
   constructor() {
+    this.chosen = toSignal(this.method.valueChanges, { initialValue: this.method.value });
     // Express was chosen earlier but the cart no longer holds Lumen's own items: the API refuses
     // to price Express for it (422) rather than answering without the option, so fall back to
     // Standard, the only method such a cart has.

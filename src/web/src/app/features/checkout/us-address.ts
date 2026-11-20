@@ -57,23 +57,21 @@ export const US_STATES: readonly (readonly [string, string])[] = [
   ['WY', 'Wyoming'],
 ];
 
-const STATE_CODES = new Set(US_STATES.map(([code]) => code));
+const STATE_NAMES = /* @__PURE__ */ new Map(US_STATES);
 
-export function stateName(code: string): string {
-  return US_STATES.find(([candidate]) => candidate === code)?.[1] ?? code;
-}
+export const stateName = (code: string): string => STATE_NAMES.get(code) ?? code;
 
 /**
 ZIP (97209) or ZIP+4 (97209-1234).
 */
-export const ZIP_PATTERN = /^\d{5}(?:-\d{4})?$/;
+export const ZIP_PATTERN = /^\d{5}(?:-\d{4})?$/u;
 
-export function usStateValidator(control: AbstractControl<string>): ValidationErrors | null {
+export const usStateValidator = (control: AbstractControl<string>): ValidationErrors | null => {
   const value = control.value?.trim().toUpperCase();
-  return !value || STATE_CODES.has(value) ? null : { state: true };
-}
+  return !value || STATE_NAMES.has(value) ? null : { state: true };
+};
 
-export function zipValidator(control: AbstractControl<string>): ValidationErrors | null {
+export const zipValidator = (control: AbstractControl<string>): ValidationErrors | null => {
   const value = control.value?.trim();
   return !value || ZIP_PATTERN.test(value) ? null : { zip: true };
-}
+};

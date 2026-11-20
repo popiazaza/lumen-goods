@@ -21,43 +21,39 @@ import { US_ADDRESS, aCart, aPreview } from '../../testing/fixtures';
 import { anOrder } from '../../testing/order-fixtures';
 import { CheckoutReviewPage } from './checkout-review-page';
 
-@Component({ template: '<h1>Elsewhere</h1>' })
+@Component({ selector: 'app-stub-page', template: '<h1>Elsewhere</h1>' })
 class StubPage {}
 
 const PREVIEW_URL = '/api/v1/checkout/preview?shippingMethod=express';
 
-function aChange(overrides: Partial<CheckoutLineChangeDto> = {}): CheckoutLineChangeDto {
-  return {
-    cartLineId: 'line-socks',
-    productId: 'kestrel-K-7731',
-    name: 'Merino Trail Socks',
-    sellerName: 'Kestrel Outfitters',
-    kind: 'price_changed',
-    from: 16.22,
-    to: 17.31,
-    quantityFrom: null,
-    quantityTo: null,
-    available: null,
-    message: 'Price changed from $16.22 to $17.31',
-    ...overrides,
-  };
-}
+const aChange = (overrides: Partial<CheckoutLineChangeDto> = {}): CheckoutLineChangeDto => ({
+  cartLineId: 'line-socks',
+  productId: 'kestrel-K-7731',
+  name: 'Merino Trail Socks',
+  sellerName: 'Kestrel Outfitters',
+  kind: 'price_changed',
+  from: 16.22,
+  to: 17.31,
+  quantityFrom: null,
+  quantityTo: null,
+  available: null,
+  message: 'Price changed from $16.22 to $17.31',
+  ...overrides,
+});
 
-function conflict(
+const conflict = (
   changes: CheckoutLineChangeDto[],
   newTotal: number | null,
   canConfirm: boolean
-): CheckoutChangedProblem {
-  return {
-    type: CHECKOUT_CHANGED_PROBLEM,
-    title: 'Your order changed',
-    status: 409,
-    detail: 'A price changed since you reviewed your order. Check the new total and confirm again.',
-    changes,
-    newTotal,
-    canConfirm,
-  };
-}
+): CheckoutChangedProblem => ({
+  type: CHECKOUT_CHANGED_PROBLEM,
+  title: 'Your order changed',
+  status: 409,
+  detail: 'A price changed since you reviewed your order. Check the new total and confirm again.',
+  changes,
+  newTotal,
+  canConfirm,
+});
 
 describe('CheckoutReviewPage', () => {
   let fixture: ComponentFixture<CheckoutReviewPage>;
@@ -66,25 +62,25 @@ describe('CheckoutReviewPage', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
   const placeButton = () =>
     host().querySelector<HTMLButtonElement>('button.place') as HTMLButtonElement;
 
-  async function open(preview: CheckoutPreviewDto = aPreview()): Promise<void> {
+  const open = async (preview: CheckoutPreviewDto = aPreview()): Promise<void> => {
     fixture = TestBed.createComponent(CheckoutReviewPage);
     fixture.detectChanges();
     await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(preview));
     await fixture.whenStable();
-  }
+  };
 
-  async function placeAndConflict(problem: CheckoutChangedProblem): Promise<TestRequest> {
+  const placeAndConflict = async (problem: CheckoutChangedProblem): Promise<TestRequest> => {
     placeButton().click();
     const place = http.expectOne('/api/v1/checkout/orders');
     place.flush(problem, { status: 409, statusText: 'Conflict' });
     await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(aPreview({ total: 68.63 })));
     await fixture.whenStable();
     return place;
-  }
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -116,8 +112,8 @@ describe('CheckoutReviewPage', () => {
       'Ada Lovelace, 1200 NW Naito Pkwy, Portland, Oregon 97209, United States'
     );
     expect(
-      [...host().querySelectorAll('section.group h3')].map((h) => h.textContent?.trim())
-    ).toEqual(['Sold by Lumen Goods', 'Sold by Kestrel Outfitters']);
+      [...host().querySelectorAll(':scope section.group h3')].map((h) => h.textContent?.trim())
+    ).toStrictEqual(['Sold by Lumen Goods', 'Sold by Kestrel Outfitters']);
     expect(text('.review-total')).toBe('$67.46');
   });
 
@@ -127,16 +123,18 @@ describe('CheckoutReviewPage', () => {
     placeButton().click();
     const request = http.expectOne('/api/v1/checkout/orders');
 
-    expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({
-      checkoutKey: store.checkoutKey(),
-      lines: [
-        { productId: 'lumen-mug', quantity: 2, unitPrice: 18.5 },
-        { productId: 'kestrel-K-7731', quantity: 1, unitPrice: 16.22 },
-      ],
-      expectedTotal: 67.46,
-      shippingAddress: US_ADDRESS,
-      shippingMethod: 'express',
+    expect({ method: request.request.method, body: request.request.body }).toStrictEqual({
+      method: 'POST',
+      body: {
+        checkoutKey: store.checkoutKey(),
+        lines: [
+          { productId: 'lumen-mug', quantity: 2, unitPrice: 18.5 },
+          { productId: 'kestrel-K-7731', quantity: 1, unitPrice: 16.22 },
+        ],
+        expectedTotal: 67.46,
+        shippingAddress: US_ADDRESS,
+        shippingMethod: 'express',
+      },
     });
 
     const sentKey = request.request.body.checkoutKey;
@@ -183,12 +181,17 @@ describe('CheckoutReviewPage', () => {
     const banner = host().querySelector<HTMLElement>('.banner.changed') as HTMLElement;
 
     expect(document.activeElement).toBe(banner);
-    expect(text('.changes li')).toBe(
-      'Merino Trail Socks (Kestrel Outfitters): price changed from was $16.22 to $17.31'
-    );
-    expect(banner.querySelector('del')?.textContent).toContain('$16.22');
-    expect(text('.new-total')).toBe('$68.63');
-    expect(host().querySelector('button.place')).toBeNull();
+    expect({
+      change: text('.changes li'),
+      oldPrice: banner.querySelector('del')?.textContent,
+      newTotal: text('.new-total'),
+      placeButton: host().querySelector('button.place'),
+    }).toStrictEqual({
+      change: 'Merino Trail Socks (Kestrel Outfitters): price changed from was $16.22 to $17.31',
+      oldPrice: expect.stringContaining('$16.22'),
+      newTotal: '$68.63',
+      placeButton: null,
+    });
 
     host().querySelector<HTMLButtonElement>('button.confirm')?.click();
     const retry = http.expectOne('/api/v1/checkout/orders');
@@ -231,10 +234,10 @@ describe('CheckoutReviewPage', () => {
 
     expect(text('.changes li')).toBe('Merino Trail Socks (Kestrel Outfitters): Only 1 available');
     expect(host().querySelector('button.confirm')).toBeNull();
-    expect(host().querySelector('.banner.changed a')?.getAttribute('href')).toBe('/cart');
+    expect(host().querySelector(':scope .banner.changed a')?.getAttribute('href')).toBe('/cart');
 
     // Reviewing again shows the saved stock as a blocker, so Place order waits for the cart.
-    host().querySelector<HTMLButtonElement>('.banner.changed button.review-again')?.click();
+    host().querySelector<HTMLButtonElement>(':scope .banner.changed button.review-again')?.click();
     const limited = aChange({ kind: 'quantity_limited', available: 1, message: 'Only 1 left' });
     await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(aPreview({ blockers: [limited] })));
     await fixture.whenStable();
@@ -304,7 +307,9 @@ describe('CheckoutReviewPage', () => {
 
     expect(text('.place-error p')).toBe('We can’t ship to this address. Change it and try again.');
     expect(text('.place-error li')).toBe('Enter a 5-digit ZIP code, e.g. 97209.');
-    expect(host().querySelector('.place-error a')?.getAttribute('href')).toBe('/checkout/address');
+    expect(host().querySelector(':scope .place-error a')?.getAttribute('href')).toBe(
+      '/checkout/address'
+    );
   });
 
   it('starts a new checkout key when the API says this one is taken (409)', async () => {
@@ -355,7 +360,7 @@ describe('CheckoutReviewPage', () => {
     expect(text('.banner.error p')).toBe(
       "Express shipping is only offered for Lumen Goods' own items, and this cart has none."
     );
-    expect(host().querySelector('.banner.error a')?.getAttribute('href')).toBe(
+    expect(host().querySelector(':scope .banner.error a')?.getAttribute('href')).toBe(
       '/checkout/shipping'
     );
   });

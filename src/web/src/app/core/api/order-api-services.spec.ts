@@ -34,8 +34,9 @@ describe('Order and admin API services', () => {
 
     const order = firstValueFrom(api.get('LG 7/K'));
     http.expectOne('/api/v1/orders/LG%207%2FK').flush(anOrderDetail());
+    const detail = await order;
 
-    expect((await order).number).toBe('LG-7K3M9QX2');
+    expect(detail.number).toBe('LG-7K3M9QX2');
   });
 
   it('AdminOrdersApi sends only the filters that are set, repeating status (snake_case)', () => {
@@ -50,28 +51,37 @@ describe('Order and admin API services', () => {
       })
       .subscribe();
     // The API reads a bare date as a UTC day; the admin means their own, so local midnight goes.
-    const fromInstant = new Date(2026, 10, 1).toISOString();
+    const firstLocalMidnight = new Date(2026, 10, 1);
+    const fromInstant = firstLocalMidnight.toISOString();
     const { params } = http.expectOne((r) => r.url === '/api/v1/admin/orders').request;
 
-    expect(params.keys()).toEqual(['status', 'from', 'page', 'pageSize']);
-    expect(params.getAll('status')).toEqual([
-      'awaiting_payment',
-      'partially_refunded',
-      'needs_attention',
-    ]);
-    expect(params.get('from')).toBe(fromInstant);
-    expect([params.get('page'), params.get('pageSize')]).toEqual(['2', '24']);
+    expect({
+      keys: params.keys(),
+      status: params.getAll('status'),
+      from: params.get('from'),
+      page: params.get('page'),
+      pageSize: params.get('pageSize'),
+    }).toStrictEqual({
+      keys: ['status', 'from', 'page', 'pageSize'],
+      status: ['awaiting_payment', 'partially_refunded', 'needs_attention'],
+      from: fromInstant,
+      page: '2',
+      pageSize: '24',
+    });
 
     api.list({ from: '2026-11-01', to: '2026-11-01' }).subscribe();
     const day = http.expectOne(() => true).request.params;
-
-    expect(day.get('from')).toBe(fromInstant);
     // `to` is exclusive on the API, so the whole last day is the next local midnight.
-    expect(day.get('to')).toBe(new Date(2026, 10, 2).toISOString());
+    const nextLocalMidnight = new Date(2026, 10, 2);
+
+    expect({ from: day.get('from'), to: day.get('to') }).toStrictEqual({
+      from: fromInstant,
+      to: nextLocalMidnight.toISOString(),
+    });
 
     api.list({}).subscribe();
 
-    expect(http.expectOne('/api/v1/admin/orders').request.params.keys()).toEqual([]);
+    expect(http.expectOne('/api/v1/admin/orders').request.params.keys()).toStrictEqual([]);
   });
 
   it('AdminOrdersApi resolves a line with the decision and a trimmed note', async () => {
@@ -81,15 +91,18 @@ describe('Order and admin API services', () => {
     const request = http.expectOne('/api/v1/admin/orders/LG-1/lines/line-2/resolve');
 
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ decision: 'reject', note: 'lost' });
+    expect(request.request.body).toStrictEqual({ decision: 'reject', note: 'lost' });
 
     request.flush(anAdminOrder());
+    const order = await updated;
 
-    expect((await updated).customerEmail).toBe('customer@lumengoods.test');
+    expect(order.customerEmail).toBe('customer@lumengoods.test');
 
     api.resolveLine('LG-1', 'line-2', 'confirm', ' '.repeat(3)).subscribe();
 
-    expect(http.expectOne('/api/v1/admin/orders/LG-1/lines/line-2/resolve').request.body).toEqual({
+    expect(
+      http.expectOne('/api/v1/admin/orders/LG-1/lines/line-2/resolve').request.body
+    ).toStrictEqual({
       decision: 'confirm',
       note: null,
     });
@@ -122,14 +135,18 @@ describe('Order and admin API services', () => {
     api.create({ ...input, sku: null }).subscribe();
     const create = http.expectOne('/api/v1/admin/products');
 
-    expect(create.request.method).toBe('POST');
-    expect(create.request.body).toEqual({ ...input, sku: null });
+    expect({ method: create.request.method, body: create.request.body }).toStrictEqual({
+      method: 'POST',
+      body: { ...input, sku: null },
+    });
 
     api.update('p 1', { ...input, version: '41' }).subscribe();
     const update = http.expectOne('/api/v1/admin/products/p%201');
 
-    expect(update.request.method).toBe('PUT');
-    expect(update.request.body.version).toBe('41');
+    expect({ method: update.request.method, version: update.request.body.version }).toStrictEqual({
+      method: 'PUT',
+      version: '41',
+    });
 
     api.deactivate('p1').subscribe();
 

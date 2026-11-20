@@ -11,16 +11,16 @@ import { provideAppIcons } from './core/icons/app-icons';
 import { EMPTY_CART } from './core/api/cart.api';
 import { aCart, aCartLine } from './testing/fixtures';
 
-@Component({ template: '<h1>Page</h1>' })
+@Component({ selector: 'app-stub-page', template: '<h1>Page</h1>' })
 class StubPage {}
 
-function query<T extends Element>(fixture: ComponentFixture<App>, selector: string): T {
+const query = <T extends Element>(fixture: ComponentFixture<App>, selector: string): T => {
   const element = (fixture.nativeElement as HTMLElement).querySelector<T>(selector);
   if (!element) {
     throw new Error(`No element matches ${selector}`);
   }
   return element;
-}
+};
 
 describe('App shell', () => {
   let fixture: ComponentFixture<App>;
@@ -90,16 +90,20 @@ describe('App shell', () => {
     toggle.click();
     await fixture.whenStable();
 
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(menu.classList).toContain('open');
+    expect({
+      expanded: toggle.getAttribute('aria-expanded'),
+      menuOpen: menu.classList.contains('open'),
+    }).toStrictEqual({ expanded: 'true', menuOpen: true });
 
     // jsdom lays out at 1024px, where the toggle is display:none and cannot take real focus.
     const focus = vi.spyOn(toggle, 'focus');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await fixture.whenStable();
 
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(menu.classList).not.toContain('open');
-    expect(focus).toHaveBeenCalled();
+    expect({
+      expanded: toggle.getAttribute('aria-expanded'),
+      menuOpen: menu.classList.contains('open'),
+    }).toStrictEqual({ expanded: 'false', menuOpen: false });
+    expect(focus).toHaveBeenCalledWith();
   });
 });

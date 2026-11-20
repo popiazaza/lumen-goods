@@ -203,11 +203,12 @@ export class AdminOrdersApi {
  * `YYYY-MM-DD` plus `addDays`, at local midnight, as a UTC ISO instant ("2026-11-19T17:00:00.000Z"
  * for 2026-11-20 in UTC+7); `null` for no day.
  */
-function localMidnightUtc(day: string | null | undefined, addDays: number): string | null {
-  const parts = day?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!parts) {
+const localMidnightUtc = (day: string | null | undefined, addDays: number): string | null => {
+  const { year, month, date } =
+    /^(?<year>\d{4})-(?<month>\d{2})-(?<date>\d{2})$/u.exec(day ?? '')?.groups ?? {};
+  if (year === undefined || month === undefined || date === undefined) {
     return null;
   }
-  const [, year, month, date] = parts.map(Number);
-  return new Date(year, month - 1, date + addDays).toISOString();
-}
+  const midnight = new Date(Number(year), Number(month) - 1, Number(date) + addDays);
+  return midnight.toISOString();
+};

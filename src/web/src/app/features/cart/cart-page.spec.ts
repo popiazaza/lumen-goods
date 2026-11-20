@@ -12,8 +12,17 @@ import { provideAppIcons } from '../../core/icons/app-icons';
 import { aCart, aCartLine } from '../../testing/fixtures';
 import { CartPage } from './cart-page';
 
-@Component({ template: '<h1>Elsewhere</h1>' })
+@Component({ selector: 'app-stub-page', template: '<h1>Elsewhere</h1>' })
 class StubPage {}
+
+const text = (root: ParentNode | null | undefined, selector: string) =>
+  root?.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
+const button = (root: ParentNode, label: string) =>
+  [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) =>
+      b.getAttribute('aria-label') === label ||
+      b.textContent?.replaceAll(/\s+/gu, ' ').trim() === label
+  ) as HTMLButtonElement;
 
 const KESTREL_SOCKS = aCartLine({
   id: 'line-socks',
@@ -78,25 +87,17 @@ describe('CartPage', () => {
   let announcer: LiveAnnouncer;
 
   const host = () => fixture.nativeElement as HTMLElement;
-  const text = (root: ParentNode | null | undefined, selector: string) =>
-    root?.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const lineOf = (name: string) =>
     [...host().querySelectorAll<HTMLElement>('li.line')].find((li) =>
       li.querySelector('.name')?.textContent?.includes(name)
     ) as HTMLElement;
-  const button = (root: ParentNode, label: string) =>
-    [...root.querySelectorAll<HTMLButtonElement>('button')].find(
-      (b) =>
-        b.getAttribute('aria-label') === label ||
-        b.textContent?.replaceAll(/\s+/g, ' ').trim() === label
-    ) as HTMLButtonElement;
 
-  async function open(cart: CartDto): Promise<void> {
+  const open = async (cart: CartDto): Promise<void> => {
     fixture = TestBed.createComponent(CartPage);
     fixture.detectChanges();
     http.expectOne('/api/v1/cart').flush(cart);
     await fixture.whenStable();
-  }
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -126,17 +127,17 @@ describe('CartPage', () => {
 
     const groups = [...host().querySelectorAll('section.group')];
 
-    expect(groups.map((group) => text(group, 'h2'))).toEqual([
+    expect(groups.map((group) => text(group, 'h2'))).toStrictEqual([
       'Sold by Kestrel Outfitters',
       'Sold by Lumen Goods',
     ]);
     expect(groups.every((group) => text(group, '.ships') === 'Ships separately')).toBeTruthy();
 
-    const totals = [...host().querySelectorAll('.totals dt, .totals dd')].map((cell) =>
-      cell.textContent?.trim()
+    const totals = [...host().querySelectorAll(':scope .totals dt, :scope .totals dd')].map(
+      (cell) => cell.textContent?.trim()
     );
 
-    expect(totals).toEqual([
+    expect(totals).toStrictEqual([
       'Subtotal (3 items)',
       '$49.90',
       'Estimated shipping',
@@ -157,7 +158,9 @@ describe('CartPage', () => {
 
     const socks = lineOf('Merino Trail Socks');
 
-    expect([...socks.querySelectorAll('.notices li')].map((li) => li.textContent?.trim())).toEqual([
+    expect(
+      [...socks.querySelectorAll(':scope .notices li')].map((li) => li.textContent?.trim())
+    ).toStrictEqual([
       'Price went up from $16.22 to $17.31 since you added it.',
       'Stock is running low: only 2 left.',
     ]);
@@ -165,11 +168,15 @@ describe('CartPage', () => {
 
     const tote = lineOf('Waxed Canvas Tote');
 
-    expect(text(tote, '.notices li')).toBe(
-      'No longer available: Harbor Supply Co. stopped selling it. Remove it to check out.'
-    );
-    expect(text(tote, '.unit')).toBe('No longer priced');
-    expect(tote.querySelector('.acknowledge')).toBeNull();
+    expect({
+      notice: text(tote, '.notices li'),
+      unitPrice: text(tote, '.unit'),
+      acknowledge: tote.querySelector('.acknowledge'),
+    }).toStrictEqual({
+      notice: 'No longer available: Harbor Supply Co. stopped selling it. Remove it to check out.',
+      unitPrice: 'No longer priced',
+      acknowledge: null,
+    });
     expect(lineOf('Enamel Camp Mug').querySelector('.notices')).toBeNull();
   });
 
@@ -247,7 +254,9 @@ describe('CartPage', () => {
 
     button(line, 'Change to 2').click();
 
-    expect(http.expectOne('/api/v1/cart/lines/line-mug').request.body).toEqual({ quantity: 2 });
+    expect(http.expectOne('/api/v1/cart/lines/line-mug').request.body).toStrictEqual({
+      quantity: 2,
+    });
   });
 
   it('steps the quantity within 1 and the line’s maximum and announces the new total', async () => {
@@ -262,7 +271,7 @@ describe('CartPage', () => {
     const request = http.expectOne('/api/v1/cart/lines/line-socks');
 
     expect(request.request.method).toBe('PUT');
-    expect(request.request.body).toEqual({ quantity: 2 });
+    expect(request.request.body).toStrictEqual({ quantity: 2 });
 
     request.flush(
       aCart([{ ...KESTREL_SOCKS, quantity: 2, notices: LUMEN_MUG.notices }], {
@@ -321,7 +330,7 @@ describe('CartPage', () => {
     await snackBar.dismissWithAction();
     const add = http.expectOne('/api/v1/cart/lines');
 
-    expect(add.request.body).toEqual({ productId: 'lumen-mug', quantity: 2 });
+    expect(add.request.body).toStrictEqual({ productId: 'lumen-mug', quantity: 2 });
 
     add.flush(aCart([LUMEN_MUG, KESTREL_SOCKS]));
   });
@@ -330,7 +339,7 @@ describe('CartPage', () => {
     await open(EMPTY_CART);
 
     expect(text(host(), '.empty p')).toBe('Your cart is empty.');
-    expect(host().querySelector('.empty a')?.getAttribute('href')).toBe('/');
+    expect(host().querySelector(':scope .empty a')?.getAttribute('href')).toBe('/');
     expect(host().querySelector('button.checkout')).toBeNull();
   });
 

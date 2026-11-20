@@ -1,6 +1,7 @@
 import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { noop } from 'rxjs';
 import { aCart, aCartLine } from '../../testing/fixtures';
 import { CART_CHANGED_PROBLEM, CartDto } from '../api/cart.api';
 import { CartStateService } from './cart-state.service';
@@ -40,7 +41,7 @@ describe('CartStateService', () => {
     const request = http.expectOne('/api/v1/cart/lines');
 
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ productId: 'harbor-1', quantity: 4 });
+    expect(request.request.body).toStrictEqual({ productId: 'harbor-1', quantity: 4 });
 
     request.flush(aCart([aCartLine({ quantity: 2 })]));
 
@@ -86,8 +87,10 @@ describe('CartStateService', () => {
     cart.setQuantity('line 1', 3).subscribe();
     const put = http.expectOne('/api/v1/cart/lines/line%201');
 
-    expect(put.request.method).toBe('PUT');
-    expect(put.request.body).toEqual({ quantity: 3 });
+    expect({ method: put.request.method, body: put.request.body }).toStrictEqual({
+      method: 'PUT',
+      body: { quantity: 3 },
+    });
 
     put.flush(aCart([aCartLine({ quantity: 3 })]));
 
@@ -96,7 +99,7 @@ describe('CartStateService', () => {
 
     expect(ack.request.method).toBe('POST');
 
-    ack.flush(aCart());
+    ack.flush(aCart([aCartLine()]));
 
     cart.remove('line-1').subscribe();
     const remove = http.expectOne('/api/v1/cart/lines/line-1');
@@ -124,14 +127,14 @@ describe('CartStateService', () => {
   });
 
   it('keeps the last cart when a refresh fails, and reports an error only without one', () => {
-    cart.reload().subscribe({ error: () => {} });
+    cart.reload().subscribe({ error: noop });
     http.expectOne('/api/v1/cart').flush('down', { status: 503, statusText: 'Unavailable' });
 
     expect(cart.status()).toBe('error');
 
     cart.reload().subscribe();
-    http.expectOne('/api/v1/cart').flush(aCart());
-    cart.reload().subscribe({ error: () => {} });
+    http.expectOne('/api/v1/cart').flush(aCart([aCartLine()]));
+    cart.reload().subscribe({ error: noop });
     http.expectOne('/api/v1/cart').flush('down', { status: 503, statusText: 'Unavailable' });
 
     expect(cart.status()).toBe('loaded');
@@ -143,6 +146,6 @@ describe('CartStateService', () => {
   });
 
   it('needs a product id', () => {
-    expect(() => cart.add('', 1)).toThrow();
+    expect(() => cart.add('', 1)).toThrow('A product id is required to add to the cart.');
   });
 });

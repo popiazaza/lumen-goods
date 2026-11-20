@@ -1,0 +1,29 @@
+<nav aria-label="Checkout progress">
+  <p class="compact">Step {{ index() + 1 }} of {{ steps.length }}</p>
+  <ol>
+    @for (step of items(); track step.id) {
+      <li [class.current]="step.current" [class.done]="step.done">
+        @if (step.link) {
+          <a [routerLink]="['/checkout', step.id]">
+            <span class="marker" aria-hidden="true">
+              @if (step.done) {
+                <mat-icon svgIcon="check_circle" />
+              } @else {
+                {{ $index + 1 }}
+              }
+            </span>
+            <span>{{ step.label }}</span>
+            @if (step.done) {
+              <span class="cdk-visually-hidden">(done)</span>
+            }
+          </a>
+        } @else {
+          <span class="step" [attr.aria-current]="step.current ? 'step' : null">
+            <span class="marker" aria-hidden="true">{{ $index + 1 }}</span>
+            <span>{{ step.label }}</span>
+          </span>
+        }
+      </li>
+    }
+  </ol>
+</nav>

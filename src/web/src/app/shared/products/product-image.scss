@@ -1,0 +1,27 @@
+:host {
+  display: block;
+  overflow: hidden;
+  border-radius: var(--lg-radius-card);
+  aspect-ratio: 1;
+  background: var(--mat-sys-surface-container);
+}
+
+img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  color: var(--mat-sys-on-surface-variant);
+  place-items: center;
+
+  & mat-icon {
+    width: 48px;
+    height: 48px;
+  }
+}

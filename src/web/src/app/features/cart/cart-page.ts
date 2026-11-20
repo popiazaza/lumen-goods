@@ -5,7 +5,7 @@ import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, RouterLink } from '@angular/router';
-import { Observable, finalize } from 'rxjs';
+import { Observable, finalize, noop } from 'rxjs';
 import { CartDto, CartLineDto } from '../../core/api/cart.api';
 import { problemMessage } from '../../core/api/problem-details';
 import { SessionApi } from '../../core/api/session.api';
@@ -17,6 +17,8 @@ import { canAcknowledge, groupBySeller, noticesOf } from './cart-notices';
 The quantity selector's ceiling per line (BR-CART-03); the server's `maxQuantity` can be lower.
 */
 export const MAX_LINE_QUANTITY = 10;
+
+const money = (amount: number): string => formatCurrency(amount, 'en-US', '$', 'USD', '1.2-2');
 
 /**
  * The cart (`/cart`): lines grouped by seller, quantities, notices for lines whose price or stock
@@ -31,18 +33,29 @@ export const MAX_LINE_QUANTITY = 10;
 })
 export class CartPage {
   private readonly cartState = inject(CartStateService);
+
   private readonly router = inject(Router);
+
   private readonly announcer = inject(LiveAnnouncer);
+
   private readonly snackBar = inject(MatSnackBar);
-  protected readonly session = inject(SessionApi).session;
+
+  private readonly sessionApi = inject(SessionApi);
+
+  private readonly busy = signal<ReadonlySet<string>>(new Set());
+
+  protected readonly session = this.sessionApi.session;
 
   protected readonly cart = this.cartState.cart;
+
   protected readonly loadFailed = computed(
     () => this.cartState.status() === 'error' && !this.cart()
   );
+
   protected readonly mergeNotice = this.cartState.mergeNotice;
 
   protected readonly groups = computed(() => groupBySeller(this.cart()?.lines ?? []));
+
   protected readonly lineViews = computed(
     () =>
       new Map(
@@ -57,15 +70,18 @@ export class CartPage {
         ])
       )
   );
+
   /**
   Lines with something to say, for the summary banner above the list.
   */
   protected readonly changedLines = computed(() =>
     (this.cart()?.lines ?? []).filter((line) => this.lineViews().get(line.id)?.notices.length)
   );
+
   protected readonly blockingCount = computed(
     () => (this.cart()?.lines ?? []).filter((line) => line.blocksCheckout).length
   );
+
   /**
   Why Check out is disabled, linked to the button with `aria-describedby`.
   */
@@ -75,16 +91,77 @@ export class CartPage {
       ? '1 item can’t be ordered as it is. Remove it or lower its quantity to check out.'
       : `${count} items can’t be ordered as they are. Remove them or lower their quantities to check out.`;
   });
+
   protected readonly hasUnavailable = computed(() =>
     (this.cart()?.lines ?? []).some((line) => line.notices.unavailable)
   );
 
-  private readonly busy = signal<ReadonlySet<string>>(new Set());
   protected readonly lineErrors = signal<Readonly<Record<string, string>>>({});
 
   constructor() {
     // Fresh notices and prices every time the cart opens.
-    this.cartState.reload().subscribe({ error: () => {} });
+    this.cartState.reload().subscribe({ error: noop });
+  }
+
+  private undoRemove(line: CartLineDto): void {
+    this.cartState.add(line.product.id, line.quantity).subscribe({
+      next: () => this.say(`Put ${line.product.name} back in your cart.`),
+      error: (error: unknown) =>
+        this.say(problemMessage(error, `We couldn’t put ${line.product.name} back.`)),
+    });
+  }
+
+  private run(
+    line: CartLineDto,
+    request: Observable<CartDto>,
+    message: (cart: CartDto) => string,
+    afterSuccess?: () => void
+  ): void {
+    this.busy.update((busy) => {
+      const next = new Set(busy);
+      next.add(line.id);
+      return next;
+    });
+    this.setLineError(line.id, null);
+    request
+      .pipe(
+        finalize(() =>
+          this.busy.update((busy) => {
+            const next = new Set(busy);
+            next.delete(line.id);
+            return next;
+          })
+        )
+      )
+      .subscribe({
+        next: (cart) => {
+          const text = message(cart);
+          if (text) {
+            this.say(text);
+          }
+          afterSuccess?.();
+        },
+        error: (error: unknown) => {
+          this.setLineError(
+            line.id,
+            problemMessage(error, 'We couldn’t update this item. Try again.')
+          );
+          // The cart may have changed under us (422: stock moved); show the server's version.
+          this.cartState.reload().subscribe({ error: noop });
+        },
+      });
+  }
+
+  private setLineError(lineId: string, message: string | null): void {
+    this.lineErrors.update((errors) =>
+      message
+        ? { ...errors, [lineId]: message }
+        : Object.fromEntries(Object.entries(errors).filter(([id]) => id !== lineId))
+    );
+  }
+
+  private say(message: string): void {
+    void this.announcer.announce(message, 'polite');
   }
 
   protected isBusy(lineId: string): boolean {
@@ -92,7 +169,7 @@ export class CartPage {
   }
 
   protected retry(): void {
-    this.cartState.reload().subscribe({ error: () => {} });
+    this.cartState.reload().subscribe({ error: noop });
   }
 
   protected dismissMergeNotice(): void {
@@ -128,7 +205,7 @@ export class CartPage {
     }
     this.run(line, this.cartState.setQuantity(line.id, next), (cart) => {
       const updated = cart.lines.find((candidate) => candidate.id === line.id);
-      return `${line.product.name}: quantity ${updated?.quantity ?? next}. Cart total ${this.money(cart.totals.total)}.`;
+      return `${line.product.name}: quantity ${updated?.quantity ?? next}. Cart total ${money(cart.totals.total)}.`;
     });
   }
 
@@ -158,70 +235,5 @@ export class CartPage {
     if (this.cart()?.canCheckout) {
       void this.router.navigate(['/checkout']);
     }
-  }
-
-  private undoRemove(line: CartLineDto): void {
-    this.cartState.add(line.product.id, line.quantity).subscribe({
-      next: () => this.say(`Put ${line.product.name} back in your cart.`),
-      error: (error: unknown) =>
-        this.say(problemMessage(error, `We couldn’t put ${line.product.name} back.`)),
-    });
-  }
-
-  private run(
-    line: CartLineDto,
-    request: Observable<CartDto>,
-    message: (cart: CartDto) => string,
-    afterSuccess?: () => void
-  ): void {
-    this.busy.update((busy) => new Set(busy).add(line.id));
-    this.setLineError(line.id, null);
-    request
-      .pipe(
-        finalize(() =>
-          this.busy.update((busy) => {
-            const next = new Set(busy);
-            next.delete(line.id);
-            return next;
-          })
-        )
-      )
-      .subscribe({
-        next: (cart) => {
-          const text = message(cart);
-          if (text) {
-            this.say(text);
-          }
-          afterSuccess?.();
-        },
-        error: (error: unknown) => {
-          this.setLineError(
-            line.id,
-            problemMessage(error, 'We couldn’t update this item. Try again.')
-          );
-          // The cart may have changed under us (422: stock moved); show the server's version.
-          this.cartState.reload().subscribe({ error: () => {} });
-        },
-      });
-  }
-
-  private setLineError(lineId: string, message: string | null): void {
-    this.lineErrors.update((errors) => {
-      const next = { ...errors };
-      if (message) {
-        next[lineId] = message;
-      } else {
-        delete next[lineId];
-      }
-      return next;
-    });
-  }
-
-  private say(message: string): void {
-    void this.announcer.announce(message, 'polite');
-  }
-
-  private money(amount: number): string {
-    return formatCurrency(amount, 'en-US', '$', 'USD', '1.2-2');
   }
 }

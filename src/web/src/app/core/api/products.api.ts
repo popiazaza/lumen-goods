@@ -8,6 +8,7 @@ import { API_BASE_URL } from './api-base-url';
  * are configuration on the API, so the valid set and their names come from `GET /sellers`, never
  * from a list in the client.
  */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- names the API's open seller id; a union would hard-code partners
 export type ProductSource = string;
 
 export const PRODUCT_CATEGORIES = [
@@ -132,26 +133,26 @@ export class ProductsApi {
 /**
 Repeated keys for multi-value filters: `category=apparel&category=bags`.
 */
-function toHttpParams(search: ProductSearch): HttpParams {
+const toHttpParams = (search: ProductSearch): HttpParams => {
   let params = new HttpParams();
   const q = search.q?.trim();
   if (q) {
     params = params.set('q', q);
   }
-  if (search.categories != null) {
+  if (search.categories !== undefined) {
     for (const category of search.categories) {
       params = params.append('category', category);
     }
   }
-  if (search.sellers != null) {
+  if (search.sellers !== undefined) {
     for (const seller of search.sellers) {
       params = params.append('seller', seller);
     }
   }
-  if (search.minPrice != null) {
+  if (search.minPrice !== null && search.minPrice !== undefined) {
     params = params.set('minPrice', String(search.minPrice));
   }
-  if (search.maxPrice != null) {
+  if (search.maxPrice !== null && search.maxPrice !== undefined) {
     params = params.set('maxPrice', String(search.maxPrice));
   }
   if (search.inStock) {
@@ -167,4 +168,4 @@ function toHttpParams(search: ProductSearch): HttpParams {
     params = params.set('pageSize', String(search.pageSize));
   }
   return params;
-}
+};

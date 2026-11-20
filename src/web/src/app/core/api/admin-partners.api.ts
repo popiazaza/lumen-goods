@@ -79,15 +79,12 @@ export class AdminPartnersApi {
 /**
 Epoch ms of a status timestamp; `NaN` (never greater or equal) for `null` or junk.
 */
-export function instantOf(isoUtc: string | null): number {
-  return isoUtc ? Date.parse(isoUtc) : NaN;
-}
+export const instantOf = (isoUtc: string | null): number => (isoUtc ? Date.parse(isoUtc) : NaN);
 
 /**
  * The refresh requested at `requestedAt` (epoch ms) has run: the request is no longer pending and
  * an attempt started at or after it. An earlier scheduled sync moving `lastAttemptUtc` does not
  * count.
  */
-export function refreshHasRun(partner: PartnerStatus, requestedAt: number): boolean {
-  return partner.refreshRequestedUtc === null && instantOf(partner.lastAttemptUtc) >= requestedAt;
-}
+export const hasRefreshRun = (partner: PartnerStatus, requestedAt: number): boolean =>
+  partner.refreshRequestedUtc === null && instantOf(partner.lastAttemptUtc) >= requestedAt;

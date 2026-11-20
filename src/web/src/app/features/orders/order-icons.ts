@@ -26,13 +26,13 @@ const ORDER_ICON_PATHS: Readonly<Record<string, string>> = {
   arrow_back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
 };
 
-const registries = new WeakSet<MatIconRegistry>();
+const registries = /* @__PURE__ */ new WeakSet<MatIconRegistry>();
 
 /**
  * Registers the order and admin icons with Angular Material's icon registry, once per registry.
  * Call it from an injection context (a page's constructor or field initialiser).
  */
-export function registerOrderIcons(): void {
+export const registerOrderIcons = (): void => {
   const registry = inject(MatIconRegistry);
   if (registries.has(registry)) {
     return;
@@ -40,8 +40,8 @@ export function registerOrderIcons(): void {
   registries.add(registry);
   const sanitizer = inject(DomSanitizer);
   for (const [name, path] of Object.entries(ORDER_ICON_PATHS)) {
-    // Safe to trust: compile-time constants above, never user or server input.
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="${path}"/></svg>`;
+    // eslint-disable-next-line sonarjs/no-angular-bypass-sanitization -- addSvgIconLiteral takes SafeHtml; these SVGs are the constants above, never user or server input
     registry.addSvgIconLiteral(name, sanitizer.bypassSecurityTrustHtml(svg));
   }
-}
+};

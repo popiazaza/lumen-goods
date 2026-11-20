@@ -13,8 +13,10 @@ import { mergeNoticeFor } from './after-sign-in';
 import { RegisterPage } from './register-page';
 import { SignInPage } from './sign-in-page';
 
-@Component({ template: '<h1>Next page</h1>' })
+@Component({ selector: 'app-stub-page', template: '<h1>Next page</h1>' })
 class StubPage {}
+
+const url = () => TestBed.inject(Router).url;
 
 describe('Sign in and register', () => {
   let harness: RouterTestingHarness;
@@ -22,19 +24,18 @@ describe('Sign in and register', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
-  const url = () => TestBed.inject(Router).url;
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
 
-  function type(id: string, value: string): void {
+  const type = (id: string, value: string): void => {
     const input = host().querySelector<HTMLInputElement>(`#${id}`) as HTMLInputElement;
     input.value = value;
     input.dispatchEvent(new Event('input'));
-  }
+  };
 
-  async function submit(): Promise<void> {
+  const submit = async (): Promise<void> => {
     host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
     await harness.fixture.whenStable();
-  }
+  };
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -70,7 +71,7 @@ describe('Sign in and register', () => {
     await harness.navigateByUrl('/sign-in?returnUrl=%2Fcheckout%2Faddress');
 
     expect(text('.intro')).toBe('Sign in to check out. Your cart is saved and comes with you.');
-    expect(host().querySelector('.switch a')?.getAttribute('href')).toBe(
+    expect(host().querySelector(':scope .switch a')?.getAttribute('href')).toBe(
       '/register?returnUrl=%2Fcheckout%2Faddress'
     );
 
@@ -80,7 +81,10 @@ describe('Sign in and register', () => {
     const request = http.expectOne('/api/v1/auth/sign-in');
 
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ email: 'customer@lumen.test', password: 'Passw0rd!' });
+    expect(request.request.body).toStrictEqual({
+      email: 'customer@lumen.test',
+      password: 'Passw0rd!',
+    });
 
     request.flush(CUSTOMER_SESSION);
     http
@@ -88,11 +92,15 @@ describe('Sign in and register', () => {
       .flush(aCart([aCartLine(), aCartLine({ id: 'line-2', quantity: 2 })]));
     await harness.fixture.whenStable();
 
-    expect(url()).toBe('/checkout/address');
-    expect(TestBed.inject(SessionApi).isAuthenticated()).toBeTruthy();
-    expect(TestBed.inject(CartStateService).mergeNotice()).toBe(
-      'We merged your cart with the items saved in your account. It now has 3 items.'
-    );
+    expect({
+      url: url(),
+      isAuthenticated: TestBed.inject(SessionApi).isAuthenticated(),
+      mergeNotice: TestBed.inject(CartStateService).mergeNotice(),
+    }).toStrictEqual({
+      url: '/checkout/address',
+      isAuthenticated: true,
+      mergeNotice: 'We merged your cart with the items saved in your account. It now has 3 items.',
+    });
   });
 
   it('never follows a returnUrl to another site', async () => {
@@ -114,13 +122,15 @@ describe('Sign in and register', () => {
     await submit();
     await harness.fixture.whenStable();
 
-    const links = [...host().querySelectorAll('app-error-summary a')];
+    const links = [...host().querySelectorAll(':scope app-error-summary a')];
 
-    expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([
+    expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toStrictEqual([
       ['Enter your email address', '#sign-in-email'],
       ['Enter your password', '#sign-in-password'],
     ]);
-    expect(document.activeElement).toBe(host().querySelector('app-error-summary [role="alert"]'));
+    expect(document.activeElement).toBe(
+      host().querySelector(':scope app-error-summary [role="alert"]')
+    );
 
     (links[1] as HTMLAnchorElement).click();
 

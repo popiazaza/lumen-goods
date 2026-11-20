@@ -19,12 +19,18 @@ const FALLBACK_NAMES: Readonly<Record<string, string>> = {
 @Service()
 export class SellerDirectory {
   private readonly api = inject(SellersApi);
+
   private readonly loaded = rxResource({ stream: () => this.api.list() });
+
+  private readonly names = computed(
+    () => new Map(this.sellers().map((seller) => [seller.source, seller.name]))
+  );
 
   /**
   True once the API has answered; until then every seller id in a URL is kept as it is.
   */
   readonly isLoaded = computed(() => this.loaded.hasValue());
+
   readonly failed = computed(() => this.loaded.status() === 'error');
 
   /**
@@ -39,10 +45,6 @@ export class SellerDirectory {
   */
   readonly knownSources = computed<ReadonlySet<string> | null>(() =>
     this.isLoaded() ? new Set(this.sellers().map((seller) => seller.source)) : null
-  );
-
-  private readonly names = computed(
-    () => new Map(this.sellers().map((seller) => [seller.source, seller.name]))
   );
 
   /**

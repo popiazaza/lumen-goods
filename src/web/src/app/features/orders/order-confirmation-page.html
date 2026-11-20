@@ -77,7 +77,7 @@
             <li>
               <div>
                 <span class="name">{{ line.quantity }} × {{ line.name }}</span>
-                <span class="status" [class]="line.status">
+                <span class="status" [attr.data-status]="line.status">
                   <mat-icon aria-hidden="true" [svgIcon]="lineIcons[line.status]" />
                   {{ line.statusText }}
                 </span>

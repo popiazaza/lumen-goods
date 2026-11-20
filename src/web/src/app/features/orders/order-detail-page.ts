@@ -20,13 +20,19 @@ import {
   shippingLabel,
 } from './order-labels';
 import { OrderSummaryPanel } from './order-summary-panel';
-import { hasRefundOnItsWay, orderKeepsChanging, pollWhileUpdating } from './poll-while-updating';
+import { hasRefundOnItsWay, isOrderStillChanging, pollWhileUpdating } from './poll-while-updating';
 import { StatusBadge } from './status-badge';
 
 /**
 How often the page re-reads an order that is still updating.
 */
 export const ORDER_POLL_INTERVAL_MS = 5000;
+
+const orderStatusOf = (order: OrderDetailDto): StatusView =>
+  orderStatusView(order.status, order.statusText);
+
+const lineStatusOf = (line: OrderLineDto): StatusView =>
+  lineStatusView(line.status, line.statusText);
 
 /**
  * One of the customer's orders (`/orders/:id`, the order number): every line with its seller and
@@ -52,22 +58,25 @@ export const ORDER_POLL_INTERVAL_MS = 5000;
   styleUrl: './order-detail-page.scss',
 })
 export class OrderDetailPage {
+  private readonly api = inject(OrdersApi);
+
+  private readonly announcer = inject(LiveAnnouncer);
+
   /**
   The order number, bound from the `:id` route parameter.
   */
   readonly id = input.required<string>();
 
-  private readonly api = inject(OrdersApi);
-  private readonly announcer = inject(LiveAnnouncer);
-
   protected readonly order = rxResource({
     params: () => this.id(),
     stream: ({ params: number }) =>
-      pollWhileUpdating(() => this.api.get(number), ORDER_POLL_INTERVAL_MS, orderKeepsChanging),
+      pollWhileUpdating(() => this.api.get(number), ORDER_POLL_INTERVAL_MS, isOrderStillChanging),
   });
+
   protected readonly detail = computed(() =>
     this.order.hasValue() ? this.order.value() : undefined
   );
+
   protected readonly errorStatus = computed(() =>
     this.order.status() === 'error' ? (httpStatusOf(this.order.error()) ?? -1) : undefined
   );
@@ -75,6 +84,7 @@ export class OrderDetailPage {
   protected readonly lines = computed(() =>
     (this.detail()?.shipments ?? []).flatMap((shipment) => shipment.lines)
   );
+
   protected readonly rejectedCount = computed(
     () => this.lines().filter((line) => line.status === 'rejected').length
   );
@@ -84,7 +94,7 @@ export class OrderDetailPage {
   */
   protected readonly waitingText = computed(() => {
     const order = this.detail();
-    if (!order || !orderKeepsChanging(order)) {
+    if (!order || !isOrderStillChanging(order)) {
       return '';
     }
     const reasons: string[] = [];
@@ -112,17 +122,13 @@ export class OrderDetailPage {
 
   protected readonly shippingLabel = shippingLabel;
 
+  protected readonly orderStatus = orderStatusOf;
+
+  protected readonly lineStatus = lineStatusOf;
+
   constructor() {
     registerOrderIcons();
     this.announceLineChanges();
-  }
-
-  protected orderStatus(order: OrderDetailDto): StatusView {
-    return orderStatusView(order.status, order.statusText);
-  }
-
-  protected lineStatus(line: OrderLineDto): StatusView {
-    return lineStatusView(line.status, line.statusText);
   }
 
   /**
@@ -153,8 +159,5 @@ export class OrderDetailPage {
 /**
 "A", "A and B", "A, B and C".
 */
-export function joinNames(names: readonly string[]): string {
-  return names.length <= 1
-    ? (names[0] ?? '')
-    : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
-}
+export const joinNames = (names: readonly string[]): string =>
+  names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;

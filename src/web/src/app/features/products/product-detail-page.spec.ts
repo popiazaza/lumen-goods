@@ -13,8 +13,14 @@ import { provideAppIcons } from '../../core/icons/app-icons';
 import { SELLERS, aCart, aCartLine, aProduct } from '../../testing/fixtures';
 import { ProductDetailPage } from './product-detail-page';
 
-@Component({ template: '<h1>Elsewhere</h1>' })
+@Component({ selector: 'app-stub-page', template: '<h1>Elsewhere</h1>' })
 class StubPage {}
+
+/**
+At a limit the quantity buttons stay focusable and say they are disabled (disabledInteractive).
+*/
+const isDisabled = (button: HTMLButtonElement) =>
+  !button.disabled && button.getAttribute('aria-disabled') === 'true';
 
 describe('ProductDetailPage', () => {
   let harness: RouterTestingHarness;
@@ -23,9 +29,10 @@ describe('ProductDetailPage', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
+  const mainImage = () => host().querySelector(':scope .main-image img') as HTMLImageElement;
   const quantityInput = () =>
-    host().querySelector<HTMLInputElement>('.quantity input') as HTMLInputElement;
+    host().querySelector<HTMLInputElement>(':scope .quantity input') as HTMLInputElement;
   const byLabel = (label: string) =>
     host().querySelector<HTMLButtonElement>(
       `button[aria-label="${CSS.escape(label)}"]`
@@ -33,20 +40,20 @@ describe('ProductDetailPage', () => {
   const addButton = () =>
     host().querySelector<HTMLButtonElement>('button.add') as HTMLButtonElement;
 
-  async function open(product: ProductDto): Promise<void> {
+  const open = async (product: ProductDto): Promise<void> => {
     await harness.navigateByUrl(`/products/${product.id}`, ProductDetailPage);
     http.expectOne('/api/v1/sellers').flush(SELLERS);
     http.expectOne(`/api/v1/products/${product.id}`).flush(product);
     await harness.fixture.whenStable();
-  }
+  };
 
-  async function typeQuantity(value: string): Promise<void> {
+  const typeQuantity = async (value: string): Promise<void> => {
     const input = quantityInput();
     input.value = value;
     input.dispatchEvent(new Event('input'));
     input.dispatchEvent(new Event('blur'));
     await harness.fixture.whenStable();
-  }
+  };
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -86,17 +93,29 @@ describe('ProductDetailPage', () => {
       })
     );
 
-    expect(text('h1')).toBe('Alpine Down Parka');
-    expect(TestBed.inject(Title).getTitle()).toBe('Alpine Down Parka — Lumen Goods');
-    expect(text('.seller')).toBe('Sold by Kestrel Outfitters');
-    expect(text('.buy app-product-price')).toBe('$389.50');
-    expect(text('.buy app-availability-badge')).toBe('In stock');
+    expect({
+      heading: text('h1'),
+      title: TestBed.inject(Title).getTitle(),
+      seller: text('.seller'),
+      price: text('.buy app-product-price'),
+      availability: text('.buy app-availability-badge'),
+    }).toStrictEqual({
+      heading: 'Alpine Down Parka',
+      title: 'Alpine Down Parka — Lumen Goods',
+      seller: 'Sold by Kestrel Outfitters',
+      price: '$389.50',
+      availability: 'In stock',
+    });
 
-    const terms = [...host().querySelectorAll('.attributes dt')].map((dt) => dt.textContent);
-    const values = [...host().querySelectorAll('.attributes dd')].map((dd) => dd.textContent);
+    const terms = [...host().querySelectorAll(':scope .attributes dt')].map((dt) => dt.textContent);
+    const values = [...host().querySelectorAll(':scope .attributes dd')].map(
+      (dd) => dd.textContent
+    );
 
-    expect(terms).toEqual(['Color', 'Fill power', 'Size EU']);
-    expect(values).toEqual(['Navy', '800', '50']);
+    expect({ terms, values }).toStrictEqual({
+      terms: ['Color', 'Fill power', 'Size EU'],
+      values: ['Navy', '800', '50'],
+    });
   });
 
   it('renders an HTML description through Angular’s sanitiser, and plain text as text', async () => {
@@ -132,7 +151,6 @@ describe('ProductDetailPage', () => {
         ],
       })
     );
-    const mainImage = () => host().querySelector('.main-image img') as HTMLImageElement;
 
     expect(mainImage().getAttribute('src')).toBe('http://localhost/media/front.jpg');
     expect(mainImage().getAttribute('alt')).toBe('Tote, image 1 of 2');
@@ -145,15 +163,14 @@ describe('ProductDetailPage', () => {
     expect(second.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('bounds the quantity between 1 and the stock left', async () => {
+  it('bounds the quantity at 1, keeping Decrease focused', async () => {
     await open(aProduct({ availability: { status: 'low_stock', quantity: 3 } }));
-    // At a limit the buttons stay focusable and say they are disabled (disabledInteractive).
-    const isDisabled = (button: HTMLButtonElement) =>
-      !button.disabled && button.getAttribute('aria-disabled') === 'true';
 
-    expect(quantityInput().value).toBe('1');
-    expect(isDisabled(byLabel('Decrease quantity'))).toBeTruthy();
-    expect(text('mat-hint')).toBe('3 available');
+    expect({
+      value: quantityInput().value,
+      decreaseDisabled: isDisabled(byLabel('Decrease quantity')),
+      hint: text('mat-hint'),
+    }).toStrictEqual({ value: '1', decreaseDisabled: true, hint: '3 available' });
 
     byLabel('Decrease quantity').focus();
     byLabel('Decrease quantity').click();
@@ -161,20 +178,30 @@ describe('ProductDetailPage', () => {
 
     expect(quantityInput().value).toBe('1');
     expect(document.activeElement).toBe(byLabel('Decrease quantity'));
+  });
+
+  it('bounds the quantity at the stock left, keeping Increase focused', async () => {
+    await open(aProduct({ availability: { status: 'low_stock', quantity: 3 } }));
 
     byLabel('Increase quantity').click();
     byLabel('Increase quantity').focus();
     byLabel('Increase quantity').click();
     await harness.fixture.whenStable();
 
-    expect(quantityInput().value).toBe('3');
-    expect(isDisabled(byLabel('Increase quantity'))).toBeTruthy();
+    expect({
+      value: quantityInput().value,
+      increaseDisabled: isDisabled(byLabel('Increase quantity')),
+    }).toStrictEqual({ value: '3', increaseDisabled: true });
     expect(document.activeElement).toBe(byLabel('Increase quantity'));
 
     byLabel('Increase quantity').click();
     await harness.fixture.whenStable();
 
     expect(quantityInput().value).toBe('3');
+  });
+
+  it('bounds a typed quantity between 1 and the stock left', async () => {
+    await open(aProduct({ availability: { status: 'low_stock', quantity: 3 } }));
 
     await typeQuantity('25');
 
@@ -229,15 +256,17 @@ describe('ProductDetailPage', () => {
     addButton().click();
     const request = http.expectOne('/api/v1/cart/lines');
 
-    expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ productId: 'harbor-1', quantity: 2 });
+    expect({ method: request.request.method, body: request.request.body }).toStrictEqual({
+      method: 'POST',
+      body: { productId: 'harbor-1', quantity: 2 },
+    });
 
     request.flush(aCart([aCartLine({ quantity: 3 })]));
     await harness.fixture.whenStable();
 
     expect(cart.itemCount()).toBe(3);
     expect(text('.added span')).toBe('Added 2 to cart.');
-    expect(host().querySelector('.added a')?.getAttribute('href')).toBe('/cart');
+    expect(host().querySelector(':scope .added a')?.getAttribute('href')).toBe('/cart');
     expect(announcer.announce).toHaveBeenCalledWith(
       'Added to cart: 2 × Waxed Canvas Tote. Cart has 3 items.',
       'polite'
@@ -271,9 +300,9 @@ describe('ProductDetailPage', () => {
     TestBed.inject(LastCatalogueQuery).remember({ q: 'tote', category: ['bags'], page: '2' });
     await open(aProduct({ category: 'bags', name: 'Waxed Canvas Tote' }));
 
-    const crumbs = host().querySelectorAll('nav[aria-label="Breadcrumb"] li');
+    const crumbs = host().querySelectorAll(':scope nav[aria-label="Breadcrumb"] li');
 
-    expect([...crumbs].map((li) => li.textContent?.trim())).toEqual([
+    expect([...crumbs].map((li) => li.textContent?.trim())).toStrictEqual([
       'Shop',
       'Bags',
       'Waxed Canvas Tote',
@@ -307,7 +336,7 @@ describe('ProductDetailPage', () => {
 
     expect(text('[role="alert"] p')).toContain('couldn’t load this product');
 
-    (host().querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    (host().querySelector(':scope [role="alert"] button') as HTMLButtonElement).click();
     await vi.waitFor(() => http.expectOne('/api/v1/products/harbor-1').flush(aProduct()));
     await harness.fixture.whenStable();
 

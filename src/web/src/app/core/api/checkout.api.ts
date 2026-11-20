@@ -182,24 +182,23 @@ export const CHECKOUT_KEY_TAKEN_PROBLEM = 'urn:lumen:problem:checkout-key-taken'
 /**
 The lines of a preview as Place order sends them back.
 */
-export function reviewedLines(preview: CheckoutPreviewDto): PlaceOrderLine[] {
-  return preview.shipments.flatMap((shipment) =>
+export const reviewedLines = (preview: CheckoutPreviewDto): PlaceOrderLine[] =>
+  preview.shipments.flatMap((shipment) =>
     shipment.lines.map(({ productId, quantity, unitPrice }) => ({
       productId,
       quantity,
       unitPrice,
     }))
   );
-}
 
 /**
  * The reviewed lines with each `price_changed` line at its new price: what a confirmed Place order
  * sends after a 409 whose new amounts the customer accepted.
  */
-export function withNewPrices(
+export const withNewPrices = (
   lines: readonly PlaceOrderLine[],
   changes: readonly CheckoutLineChangeDto[]
-): PlaceOrderLine[] {
+): PlaceOrderLine[] => {
   const newPrices = new Map(
     changes
       .filter((change) => change.kind === 'price_changed' && change.to !== null)
@@ -209,12 +208,12 @@ export function withNewPrices(
     ...line,
     unitPrice: newPrices.get(line.productId) ?? line.unitPrice,
   }));
-}
+};
 
 /**
 The checkout-changed problem behind a failed Place order, if that is what it was.
 */
-export function checkoutChangedProblemOf(error: unknown): CheckoutChangedProblem | undefined {
+export const checkoutChangedProblemOf = (error: unknown): CheckoutChangedProblem | undefined => {
   const response = httpErrorOf(error);
   const body = response?.error as Partial<CheckoutChangedProblem> | null | undefined;
   if (response?.status === 409 && body?.type === CHECKOUT_CHANGED_PROBLEM) {
@@ -226,7 +225,7 @@ export function checkoutChangedProblemOf(error: unknown): CheckoutChangedProblem
     } as CheckoutChangedProblem;
   }
   return undefined;
-}
+};
 
 /**
  * Checkout (signed-in customers): `GET /checkout/preview` and `POST /checkout/orders`. The placed
@@ -239,7 +238,7 @@ export class CheckoutApi {
 
   preview(shippingMethod: ShippingMethod): Observable<CheckoutPreviewDto> {
     return this.http.get<CheckoutPreviewDto>(`${this.baseUrl}/checkout/preview`, {
-      params: new HttpParams().set('shippingMethod', shippingMethod),
+      params: new HttpParams({ fromObject: { shippingMethod } }),
     });
   }
 

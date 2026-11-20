@@ -1,0 +1,15 @@
+<div class="summary" role="alert" tabindex="-1">
+  <h2 class="title">
+    <mat-icon svgIcon="error" aria-hidden="true" />
+    {{ heading() }}
+  </h2>
+  <ul>
+    @for (problem of problems(); track problem.fieldId) {
+      <li>
+        <a [attr.href]="`#${problem.fieldId}`" (click)="focusField($event, problem.fieldId)">{{
+          problem.message
+        }}</a>
+      </li>
+    }
+  </ul>
+</div>

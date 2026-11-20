@@ -28,27 +28,28 @@ const KESTREL = aPartner({
   })),
 });
 
+const text = (root: ParentNode, selector: string) =>
+  root.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
+
 describe('AdminPartnersPage', () => {
   let fixture: ComponentFixture<AdminPartnersPage>;
   let http: HttpTestingController;
   let announcer: LiveAnnouncer;
 
   const host = () => fixture.nativeElement as HTMLElement;
-  const text = (root: ParentNode, selector: string) =>
-    root.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const card = (name: string) =>
     [...host().querySelectorAll<HTMLElement>('mat-card')].find((element) =>
       element.querySelector('h2')?.textContent?.includes(name)
     ) as HTMLElement;
   const refreshButton = (name: string) =>
-    card(name).querySelector<HTMLButtonElement>('.actions button') as HTMLButtonElement;
+    card(name).querySelector<HTMLButtonElement>(':scope .actions button') as HTMLButtonElement;
 
-  async function load(partners: PartnerStatus[] = [HARBOR, KESTREL]): Promise<void> {
+  const load = async (partners: PartnerStatus[] = [HARBOR, KESTREL]): Promise<void> => {
     fixture = TestBed.createComponent(AdminPartnersPage);
     fixture.detectChanges();
     http.expectOne('/api/v1/admin/partners').flush(partners);
     await fixture.whenStable();
-  }
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -76,21 +77,35 @@ describe('AdminPartnersPage', () => {
 
     const harbor = card('Harbor Supply Co.');
 
-    expect(text(harbor, '.health')).toBe('Last refresh succeeded');
-    expect(text(harbor, '.facts div:first-child dd')).toMatch(
-      /^12 minutes ago \(Nov 20, 2026, .+\)$/
-    );
-    expect(harbor.querySelector('time')?.getAttribute('datetime')).toBe('2026-11-20T06:00:00Z');
-    expect(text(harbor, '.number')).toBe('214');
-    expect(text(harbor, '.muted')).toBe('No recent errors.');
+    expect({
+      health: text(harbor, '.health'),
+      lastRefresh: text(harbor, '.facts div:first-child dd'),
+      lastRefreshAt: harbor.querySelector('time')?.getAttribute('datetime'),
+      liveProducts: text(harbor, '.number'),
+      errors: text(harbor, '.muted'),
+    }).toStrictEqual({
+      health: 'Last refresh succeeded',
+      lastRefresh: expect.stringMatching(/^12 minutes ago \(Nov 20, 2026, .+\)$/u),
+      lastRefreshAt: '2026-11-20T06:00:00Z',
+      liveProducts: '214',
+      errors: 'No recent errors.',
+    });
 
     const kestrel = card('Kestrel Outfitters');
 
-    expect(text(kestrel, '.health')).toBe('Last refresh failed');
-    expect(text(kestrel, '.last-error strong')).toBe('Last error');
-    expect(text(kestrel, '.last-error p')).toBe('Stock CSV timed out after 10 s');
-    expect(kestrel.querySelectorAll('.errors li')).toHaveLength(5);
-    expect(text(kestrel, '.errors li')).toContain('stock');
+    expect({
+      health: text(kestrel, '.health'),
+      lastErrorLabel: text(kestrel, '.last-error strong'),
+      lastError: text(kestrel, '.last-error p'),
+      errorsShown: kestrel.querySelectorAll(':scope .errors li').length,
+      firstError: text(kestrel, '.errors li'),
+    }).toStrictEqual({
+      health: 'Last refresh failed',
+      lastErrorLabel: 'Last error',
+      lastError: 'Stock CSV timed out after 10 s',
+      errorsShown: 5,
+      firstError: expect.stringContaining('stock'),
+    });
 
     const showAll = [...kestrel.querySelectorAll('button')].find((b) =>
       b.textContent?.includes('Show all')
@@ -98,8 +113,10 @@ describe('AdminPartnersPage', () => {
     showAll?.click();
     await fixture.whenStable();
 
-    expect(kestrel.querySelectorAll('.errors li')).toHaveLength(7);
-    expect(showAll?.getAttribute('aria-expanded')).toBe('true');
+    expect({
+      errorsShown: kestrel.querySelectorAll(':scope .errors li').length,
+      expanded: showAll?.getAttribute('aria-expanded'),
+    }).toStrictEqual({ errorsShown: 7, expanded: 'true' });
   });
 
   it('says how many products the mass-removal guard is holding back', async () => {
@@ -122,7 +139,7 @@ describe('AdminPartnersPage', () => {
   const QUEUED = { refreshRequestedUtc: '2026-11-20T06:10:00Z' };
   const isBusy = (name: string) => refreshButton(name).getAttribute('aria-disabled') === 'true';
 
-  async function startRefresh(name: string, partner: string): Promise<void> {
+  const startRefresh = async (name: string, partner: string): Promise<void> => {
     await load();
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
     refreshButton(name).click();
@@ -132,26 +149,43 @@ describe('AdminPartnersPage', () => {
 
     post.flush(null, ACCEPTED);
     fixture.detectChanges();
-  }
+  };
 
-  async function poll(partners: PartnerStatus[]): Promise<void> {
+  const poll = async (partners: PartnerStatus[]): Promise<void> => {
     await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
     http.expectOne('/api/v1/admin/partners').flush(partners);
     fixture.detectChanges();
-  }
+  };
+
+  /**
+  Answers `count` polls in a row with the same list; each poll waits for the one before it.
+  */
+  const pollRepeatedly = async (count: number, partners: PartnerStatus[]): Promise<void> => {
+    if (count === 0) {
+      return;
+    }
+    await poll(partners);
+    await pollRepeatedly(count - 1, partners);
+  };
 
   it('refreshes: POST, then polls every 3 s until the requested refresh has run', async () => {
     await startRefresh('Harbor Supply Co.', 'harbor');
 
-    expect(isBusy('Harbor Supply Co.')).toBeTruthy();
     // Stays focusable while busy (disabledInteractive), and a second click does nothing.
-    expect(refreshButton('Harbor Supply Co.').disabled).toBeFalsy();
-
     refreshButton('Harbor Supply Co.').click();
     http.expectNone('/api/v1/admin/partners/harbor/refresh');
 
-    expect(refreshButton('Harbor Supply Co.').textContent).toContain('Refreshing…');
-    expect(card('Harbor Supply Co.').querySelector('mat-progress-bar')).not.toBeNull();
+    expect({
+      busy: isBusy('Harbor Supply Co.'),
+      disabled: refreshButton('Harbor Supply Co.').disabled,
+      label: refreshButton('Harbor Supply Co.').textContent,
+      progressBar: card('Harbor Supply Co.').querySelector('mat-progress-bar'),
+    }).toStrictEqual({
+      busy: true,
+      disabled: false,
+      label: expect.stringContaining('Refreshing…'),
+      progressBar: expect.any(Element),
+    });
 
     // Not run yet: the request is still pending.
     http.expectNone('/api/v1/admin/partners');
@@ -188,11 +222,15 @@ describe('AdminPartnersPage', () => {
     await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS * 3);
     http.expectNone('/api/v1/admin/partners');
 
-    expect(isBusy('Harbor Supply Co.')).toBeFalsy();
-    expect(text(card('Harbor Supply Co.'), '.number')).toBe('220');
-    expect(text(card('Harbor Supply Co.'), '.outcome')).toBe(
-      'Harbor Supply Co. refreshed: 220 live products.'
-    );
+    expect({
+      busy: isBusy('Harbor Supply Co.'),
+      liveProducts: text(card('Harbor Supply Co.'), '.number'),
+      outcome: text(card('Harbor Supply Co.'), '.outcome'),
+    }).toStrictEqual({
+      busy: false,
+      liveProducts: '220',
+      outcome: 'Harbor Supply Co. refreshed: 220 live products.',
+    });
     expect(announcer.announce).toHaveBeenLastCalledWith(
       'Harbor Supply Co. refreshed: 220 live products.',
       'polite'
@@ -290,10 +328,10 @@ describe('AdminPartnersPage', () => {
   it('gives up polling after a minute and says the refresh may still be running', async () => {
     await startRefresh('Harbor Supply Co.', 'harbor');
 
-    const polls = REFRESH_POLL_TIMEOUT_MS / REFRESH_POLL_INTERVAL_MS;
-    for (let index = 0; index < polls; index++) {
-      await poll([{ ...HARBOR, ...QUEUED }, KESTREL]);
-    }
+    await pollRepeatedly(REFRESH_POLL_TIMEOUT_MS / REFRESH_POLL_INTERVAL_MS, [
+      { ...HARBOR, ...QUEUED },
+      KESTREL,
+    ]);
     await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
     http.expectNone('/api/v1/admin/partners');
     fixture.detectChanges();
@@ -313,7 +351,7 @@ describe('AdminPartnersPage', () => {
     await fixture.whenStable();
 
     expect(text(host(), '.state strong')).toBe('Sign in as an admin to see this page.');
-    expect(host().querySelector('.state a')?.getAttribute('href')).toBe('/sign-in');
+    expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe('/sign-in');
     expect(host().querySelector('mat-card')).toBeNull();
     expect(host().textContent?.includes('does not have the admin role')).toBe(status === 403);
   });
@@ -336,7 +374,7 @@ describe('AdminPartnersPage', () => {
     http.expectOne('/api/v1/admin/partners').flush('down', { status: 500, statusText: 'Error' });
     await fixture.whenStable();
 
-    (host().querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    (host().querySelector(':scope [role="alert"] button') as HTMLButtonElement).click();
     await vi.waitFor(() => http.expectOne('/api/v1/admin/partners').flush([HARBOR]));
     await fixture.whenStable();
 

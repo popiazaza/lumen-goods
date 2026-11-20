@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import { aPage, aPartner, aProduct } from '../../testing/fixtures';
-import { AdminPartnersApi, refreshHasRun } from './admin-partners.api';
+import { AdminPartnersApi, hasRefreshRun } from './admin-partners.api';
 import { ProductsApi } from './products.api';
 import { SellersApi } from './sellers.api';
 
@@ -45,7 +45,7 @@ describe('API services', () => {
 
     request.flush(page);
 
-    await expect(result).resolves.toEqual(page);
+    await expect(result).resolves.toStrictEqual(page);
   });
 
   it('ProductsApi.search leaves out empty filters', () => {
@@ -53,7 +53,7 @@ describe('API services', () => {
       .search({ q: '', categories: [], minPrice: null, inStock: false })
       .subscribe();
 
-    expect(http.expectOne('/api/v1/products').request.params.keys()).toEqual([]);
+    expect(http.expectOne('/api/v1/products').request.params.keys()).toStrictEqual([]);
   });
 
   it('ProductsApi.get escapes the id', () => {
@@ -67,7 +67,7 @@ describe('API services', () => {
 
     http.expectOne('/api/v1/sellers').flush([{ source: 'harbor', name: 'Harbor Supply Co.' }]);
 
-    await expect(result).resolves.toEqual([{ source: 'harbor', name: 'Harbor Supply Co.' }]);
+    await expect(result).resolves.toStrictEqual([{ source: 'harbor', name: 'Harbor Supply Co.' }]);
   });
 
   it('AdminPartnersApi lists partners and POSTs a refresh, reporting the server accept time', async () => {
@@ -96,14 +96,14 @@ describe('API services', () => {
     await expect(withoutDate).resolves.toBeNull();
   });
 
-  it('refreshHasRun needs the request consumed and an attempt at or after it', () => {
+  it('hasRefreshRun needs the request consumed and an attempt at or after it', () => {
     const at = Date.parse('2026-11-20T06:10:00Z');
     const ran = aPartner({ refreshRequestedUtc: null, lastAttemptUtc: '2026-11-20T06:10:00.000Z' });
 
-    expect(refreshHasRun(ran, at)).toBeTruthy();
-    expect(refreshHasRun({ ...ran, refreshRequestedUtc: '2026-11-20T06:10:00Z' }, at)).toBeFalsy();
-    expect(refreshHasRun({ ...ran, lastAttemptUtc: '2026-11-20T06:09:59.999Z' }, at)).toBeFalsy();
-    expect(refreshHasRun({ ...ran, lastAttemptUtc: null }, at)).toBeFalsy();
-    expect(refreshHasRun({ ...ran, lastAttemptUtc: '2026-11-20T08:10:00+02:00' }, at)).toBeTruthy();
+    expect(hasRefreshRun(ran, at)).toBeTruthy();
+    expect(hasRefreshRun({ ...ran, refreshRequestedUtc: '2026-11-20T06:10:00Z' }, at)).toBeFalsy();
+    expect(hasRefreshRun({ ...ran, lastAttemptUtc: '2026-11-20T06:09:59.999Z' }, at)).toBeFalsy();
+    expect(hasRefreshRun({ ...ran, lastAttemptUtc: null }, at)).toBeFalsy();
+    expect(hasRefreshRun({ ...ran, lastAttemptUtc: '2026-11-20T08:10:00+02:00' }, at)).toBeTruthy();
   });
 });

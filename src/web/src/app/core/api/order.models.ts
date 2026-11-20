@@ -237,6 +237,5 @@ const BRAND_NAMES: Readonly<Record<CardBrand, string>> = {
   other: 'Card',
 };
 
-export function cardBrandName(brand: CardBrand | null | undefined): string {
-  return (brand && BRAND_NAMES[brand]) || 'Card';
-}
+export const cardBrandName = (brand: CardBrand | null | undefined): string =>
+  (brand && BRAND_NAMES[brand]) || 'Card';

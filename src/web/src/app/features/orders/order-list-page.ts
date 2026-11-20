@@ -28,17 +28,18 @@ import { StatusBadge } from './status-badge';
 /**
 A 1-based page number from the URL; anything else is page 1.
 */
-export function parsePage(value: string | null): number {
+export const parsePage = (value: string | null): number => {
   const page = Number(value);
-  return Number.isInteger(page) && page >= 1 ? page : 1;
-}
+  return Number.isSafeInteger(page) && page >= 1 ? page : 1;
+};
+
+const summaryStatusView = (order: OrderSummaryDto): StatusView =>
+  orderStatusView(order.status, order.statusText);
 
 /**
 Query params for a page link; page 1 has none, so it has one URL.
 */
-export function pageQueryParams(page: number): Params {
-  return { page: page > 1 ? page : null };
-}
+export const pageQueryParams = (page: number): Params => ({ page: page > 1 ? page : null });
 
 /**
 The customer's order history (`/orders`), newest first, paged through `?page=`.
@@ -91,6 +92,8 @@ export class OrderListPage {
 
   protected readonly pageParams = pageQueryParams;
 
+  protected readonly statusOf = summaryStatusView;
+
   constructor() {
     registerOrderIcons();
     // Paging is a query-only navigation, so the router leaves focus on the page link; start the
@@ -108,9 +111,5 @@ export class OrderListPage {
       }
       previous = page;
     });
-  }
-
-  protected statusOf(order: OrderSummaryDto): StatusView {
-    return orderStatusView(order.status, order.statusText);
   }
 }

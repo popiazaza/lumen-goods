@@ -38,16 +38,19 @@ const LABELS: Readonly<Record<AddressField, string>> = {
   postalCode: 'ZIP code',
 };
 
-function text(field: AddressField, required: boolean, ...more: ValidatorFn[]): FormControl<string> {
-  return new FormControl('', {
+const text = (
+  field: AddressField,
+  isRequired: boolean,
+  ...more: ValidatorFn[]
+): FormControl<string> =>
+  new FormControl('', {
     nonNullable: true,
     validators: [
-      ...(required ? [Validators.required] : []),
+      ...(isRequired ? [Validators.required] : []),
       Validators.maxLength(MAX_LENGTH[field]),
       ...more,
     ],
   });
-}
 
 /**
 Checkout step 1 (`/checkout/address`): where to ship, US only.

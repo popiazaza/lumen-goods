@@ -1,20 +1,23 @@
-import { Component } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { provideRouteHeadingFocus } from './route-heading-focus';
 
+/**
+A page with a heading and a field; each route passes its own heading through the route data.
+*/
 @Component({
+  selector: 'app-test-page',
   template: `
-    <h1>Shop</h1>
+    <h1>{{ heading() }}</h1>
     <label for="filter">Filter</label>
     <input id="filter" />
   `,
 })
-class ShopPage {}
-
-@Component({ template: '<h1>Your cart</h1>' })
-class CartPage {}
+class TestPage {
+  readonly heading = input.required<string>();
+}
 
 describe('provideRouteHeadingFocus', () => {
   let main: HTMLElement;
@@ -23,10 +26,13 @@ describe('provideRouteHeadingFocus', () => {
   beforeEach(async () => {
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([
-          { path: '', component: ShopPage },
-          { path: 'cart', component: CartPage },
-        ]),
+        provideRouter(
+          [
+            { path: '', component: TestPage, data: { heading: 'Shop' } },
+            { path: 'cart', component: TestPage, data: { heading: 'Your cart' } },
+          ],
+          withComponentInputBinding()
+        ),
         provideRouteHeadingFocus(),
       ],
     });

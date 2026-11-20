@@ -9,16 +9,18 @@ import { CHECKOUT_STORAGE_KEY, CheckoutState } from '../../core/checkout/checkou
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { CUSTOMER_SESSION, US_ADDRESS } from '../../testing/fixtures';
 
+const url = () => TestBed.inject(Router).url;
+
 describe('checkout routes', () => {
   let http: HttpTestingController;
 
   /**
   Starts the app's router with a session and (optionally) checkout state saved in this tab.
   */
-  async function start(
+  const start = async (
     session: Session,
     saved?: Partial<CheckoutState>
-  ): Promise<RouterTestingHarness> {
+  ): Promise<RouterTestingHarness> => {
     if (saved) {
       sessionStorage.setItem(
         CHECKOUT_STORAGE_KEY,
@@ -44,9 +46,7 @@ describe('checkout routes', () => {
     http.expectOne('/api/v1/auth/session').flush(session);
     await ready;
     return RouterTestingHarness.create();
-  }
-
-  const url = () => TestBed.inject(Router).url;
+  };
 
   afterEach(() => sessionStorage.clear());
 

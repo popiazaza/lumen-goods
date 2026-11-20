@@ -1,0 +1,45 @@
+.summary-list {
+  display: grid;
+  margin: 0 0 var(--lg-space-4);
+  gap: var(--lg-space-3);
+
+  & > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--lg-space-2);
+  }
+
+  & dt {
+    font-weight: 600;
+  }
+
+  & dd {
+    flex: 1 1 14rem;
+    margin: 0;
+  }
+}
+
+.lines {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+
+  & li {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--lg-space-2) 0;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    gap: var(--lg-space-3);
+  }
+}
+
+.fee {
+  margin: var(--lg-space-2) 0 0;
+  text-align: right;
+}
+
+.changes {
+  padding-left: var(--lg-space-6);
+  margin: 0 0 var(--lg-space-3);
+}

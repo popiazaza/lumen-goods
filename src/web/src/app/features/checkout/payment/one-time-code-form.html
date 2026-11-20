@@ -1,0 +1,34 @@
+<form class="code-form" novalidate [formGroup]="form()" (ngSubmit)="verify.emit()">
+  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <mat-label>Verification code</mat-label>
+    <input
+      id="one-time-code"
+      matInput
+      type="text"
+      inputmode="numeric"
+      autocomplete="one-time-code"
+      formControlName="code"
+      required
+      [attr.aria-describedby]="describedBy()"
+      [attr.aria-invalid]="error() ? true : null"
+    />
+    @if (testCode(); as code) {
+      <mat-hint id="code-test">Test code: {{ code }} (no text message is sent)</mat-hint>
+    }
+  </mat-form-field>
+  @if (error()) {
+    <p id="code-error" class="field-error" role="alert">
+      <mat-icon svgIcon="error" aria-hidden="true" />
+      {{ error() }}
+    </p>
+  }
+  <p id="code-timer" class="timer" role="timer">
+    <mat-icon svgIcon="schedule" aria-hidden="true" />
+    Code expires in {{ countdown() }}
+  </p>
+  <div class="actions">
+    <button matButton="filled" type="submit" [attr.aria-disabled]="submitting()">
+      {{ submitting() ? 'Verifying…' : 'Verify' }}
+    </button>
+  </div>
+</form>

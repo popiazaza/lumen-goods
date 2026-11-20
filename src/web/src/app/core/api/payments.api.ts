@@ -90,12 +90,12 @@ export interface PaymentInProgressProblem {
 /**
 The running payment behind a 409 payment-in-progress, if that is what the error was.
 */
-export function paymentInProgressOf(error: unknown): PaymentInProgressProblem | undefined {
+export const paymentInProgressOf = (error: unknown): PaymentInProgressProblem | undefined => {
   const body = httpErrorOf(error)?.error as Partial<PaymentInProgressProblem> | null | undefined;
   return body?.type === PAYMENT_IN_PROGRESS_PROBLEM && body.payment
     ? (body as PaymentInProgressProblem)
     : undefined;
-}
+};
 /**
 409 from Pay: already paid, expired, or out of attempts.
 */
@@ -116,7 +116,12 @@ export const SAME_PAYMENT_ONLY_PROBLEM = 'urn:lumen:problem:same-payment-only';
 @Service()
 export class PaymentsApi {
   private readonly http = inject(HttpClient);
+
   private readonly baseUrl = inject(API_BASE_URL);
+
+  private paymentsUrl(orderNumber: string): string {
+    return `${this.baseUrl}/orders/${encodeURIComponent(orderNumber)}/payments`;
+  }
 
   /**
   202 with the payment's status: the charge runs on the server, independent of this request.
@@ -134,9 +139,5 @@ export class PaymentsApi {
       `${this.paymentsUrl(orderNumber)}/current/one-time-code`,
       { code }
     );
-  }
-
-  private paymentsUrl(orderNumber: string): string {
-    return `${this.baseUrl}/orders/${encodeURIComponent(orderNumber)}/payments`;
   }
 }

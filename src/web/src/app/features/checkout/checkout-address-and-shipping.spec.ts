@@ -13,8 +13,10 @@ import { US_ADDRESS, aPreview } from '../../testing/fixtures';
 import { CheckoutAddressPage } from './checkout-address-page';
 import { CheckoutShippingPage } from './checkout-shipping-page';
 
-@Component({ template: '<h1>Next</h1>' })
+@Component({ selector: 'app-stub-page', template: '<h1>Next</h1>' })
 class StubPage {}
+
+const url = () => TestBed.inject(Router).url;
 
 describe('Checkout address and shipping steps', () => {
   let harness: RouterTestingHarness;
@@ -23,16 +25,15 @@ describe('Checkout address and shipping steps', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
   const field = (id: string) =>
     host().querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`) as HTMLInputElement;
-  const url = () => TestBed.inject(Router).url;
 
-  function type(id: string, value: string): void {
+  const type = (id: string, value: string): void => {
     const element = field(id);
     element.value = value;
     element.dispatchEvent(new Event(element.tagName === 'SELECT' ? 'change' : 'input'));
-  }
+  };
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -66,7 +67,7 @@ describe('Checkout address and shipping steps', () => {
         ['name', 'line1', 'line2', 'city', 'region', 'postalCode'].map((name) =>
           field(`address-${name}`).getAttribute('autocomplete')
         )
-      ).toEqual([
+      ).toStrictEqual([
         'shipping name',
         'shipping address-line1',
         'shipping address-line2',
@@ -85,8 +86,10 @@ describe('Checkout address and shipping steps', () => {
       await harness.fixture.whenStable();
 
       expect(
-        [...host().querySelectorAll('app-error-summary li')].map((li) => li.textContent?.trim())
-      ).toEqual([
+        [...host().querySelectorAll(':scope app-error-summary li')].map((li) =>
+          li.textContent?.trim()
+        )
+      ).toStrictEqual([
         'Enter address line 1',
         'Enter city',
         'Select a state',
@@ -112,7 +115,7 @@ describe('Checkout address and shipping steps', () => {
       await harness.fixture.whenStable();
 
       expect(url()).toBe('/checkout/shipping');
-      expect(store.address()).toEqual({ ...US_ADDRESS, postalCode: '97209-1234' });
+      expect(store.address()).toStrictEqual({ ...US_ADDRESS, postalCode: '97209-1234' });
 
       await harness.navigateByUrl('/checkout/address');
 
@@ -135,7 +138,7 @@ describe('Checkout address and shipping steps', () => {
       expect(text('section.group:first-of-type .methods')).toContain('Express');
       expect(partner.querySelector('mat-radio-button')).toBeNull();
       expect(
-        partner.querySelector('.fixed-method')?.textContent?.replaceAll(/\s+/g, ' ').trim()
+        partner.querySelector('.fixed-method')?.textContent?.replaceAll(/\s+/gu, ' ').trim()
       ).toBe('Standard shipping, $4.99 · Partner shops ship Standard only.');
       expect(text('.muted')).toBe(
         'Your order arrives in 2 packages: each shop ships its own items.'
@@ -148,7 +151,7 @@ describe('Checkout address and shipping steps', () => {
       await harness.fixture.whenStable();
 
       const express = await TestbedHarnessEnvironment.loader(harness.fixture).getHarness(
-        MatRadioButtonHarness.with({ label: /Express/ })
+        MatRadioButtonHarness.with({ label: /Express/u })
       );
       void express.check();
       await vi.waitFor(() =>
@@ -160,7 +163,7 @@ describe('Checkout address and shipping steps', () => {
 
       expect(text('.totals .grand.price')).toBe('$75.46');
 
-      [...host().querySelectorAll<HTMLButtonElement>('.actions button')][0].click();
+      [...host().querySelectorAll<HTMLButtonElement>(':scope .actions button')][0].click();
       await harness.fixture.whenStable();
 
       expect(store.shippingMethod()).toBe('express');
@@ -205,7 +208,7 @@ describe('Checkout address and shipping steps', () => {
 
       expect(host().querySelector('[role="alert"]')).toBeNull();
 
-      [...host().querySelectorAll<HTMLButtonElement>('.actions button')][0].click();
+      [...host().querySelectorAll<HTMLButtonElement>(':scope .actions button')][0].click();
       await harness.fixture.whenStable();
 
       expect(store.shippingMethod()).toBe('standard');

@@ -1,0 +1,21 @@
+@let url = src();
+@if (url && !failed()) {
+  <img
+    decoding="async"
+    width="600"
+    height="600"
+    [ngSrc]="url"
+    [alt]="alt()"
+    [priority]="eager()"
+    (error)="failed.set(true)"
+  />
+} @else {
+  <div
+    class="placeholder"
+    role="img"
+    [attr.aria-label]="alt() ? `No image of ${alt()}` : null"
+    [attr.aria-hidden]="alt() ? null : 'true'"
+  >
+    <mat-icon svgIcon="image" aria-hidden="true" />
+  </div>
+}

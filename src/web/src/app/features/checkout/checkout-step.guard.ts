@@ -7,8 +7,9 @@ import { CHECKOUT_STEPS, CheckoutStep, CheckoutStore } from '../../core/checkout
  * a shipping method, payment a placed order); otherwise it sends the shopper to the first step
  * still to do. The payment step also opens for `?order=` (paying an order from its detail page).
  */
-export function checkoutStepGuard(step: CheckoutStep): CanActivateFn {
-  return (route) => {
+export const checkoutStepGuard =
+  (step: CheckoutStep): CanActivateFn =>
+  (route) => {
     const store = inject(CheckoutStore);
     if (store.reachable().has(step)) {
       return true;
@@ -22,4 +23,3 @@ export function checkoutStepGuard(step: CheckoutStep): CanActivateFn {
       ) ?? 'address';
     return inject(Router).createUrlTree(['/checkout', firstToDo]);
   };
-}

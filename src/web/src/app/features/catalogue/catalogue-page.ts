@@ -23,7 +23,7 @@ import { MatProgressBar } from '@angular/material/progress-bar';
 import { MatSelect } from '@angular/material/select';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
-import { PRODUCT_SORTS, ProductPage, ProductsApi } from '../../core/api/products.api';
+import { PRODUCT_SORTS, ProductPage, ProductSort, ProductsApi } from '../../core/api/products.api';
 import { Seller } from '../../core/api/sellers.api';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
 import { SellerDirectory } from '../../core/catalogue/seller-directory';
@@ -37,11 +37,11 @@ import {
   applyChange,
   catalogueQueryParams,
   clearFilters,
-  differsOnlyInPage,
+  isOnlyPageChange,
   pageWindow,
   parseCatalogueQuery,
   restrictSellers,
-  sameQuery,
+  isSameQuery,
   toProductSearch,
 } from './catalogue-query';
 import { ProductCard } from './product-card';
@@ -55,13 +55,15 @@ interface FilterChip {
   removal: CatalogueChange;
 }
 
-const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-const count = new Intl.NumberFormat('en-US');
+const usd = /* @__PURE__ */ new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const count = /* @__PURE__ */ new Intl.NumberFormat('en-US');
 
 /**
 Placeholder cards shown on the first load.
 */
-const SKELETON_CARDS = Array.from({ length: 8 }, (_, index) => index);
+const SKELETON_CARDS = /* @__PURE__ */ Array.from({ length: 8 }, (_, index) => index);
+
+const toSortOption = (value: ProductSort) => ({ value, label: SORT_LABELS[value] });
 
 /**
  * The catalogue (`/`). The URL's query string is the single source of truth: the page derives its
@@ -90,16 +92,25 @@ const SKELETON_CARDS = Array.from({ length: 8 }, (_, index) => index);
 })
 export class CataloguePage {
   private readonly route = inject(ActivatedRoute);
+
   private readonly router = inject(Router);
+
   private readonly injector = inject(Injector);
+
   private readonly productsApi = inject(ProductsApi);
+
   private readonly announcer = inject(LiveAnnouncer);
+
   private readonly bottomSheet = inject(MatBottomSheet);
+
   private readonly lastQuery = inject(LastCatalogueQuery);
-  protected readonly sellerDirectory = inject(SellerDirectory);
+
+  private readonly sellerDirectory = inject(SellerDirectory);
 
   private readonly resultsHeading = viewChild.required<ElementRef<HTMLElement>>('resultsHeading');
+
   private readonly filtersSheet = viewChild.required<TemplateRef<unknown>>('filtersSheet');
+
   private sheetRef: MatBottomSheetRef | undefined;
 
   private readonly queryParamMap = toSignal(this.route.queryParamMap, { requireSync: true });
@@ -107,13 +118,15 @@ export class CataloguePage {
   /**
   The state in the URL, parsed and cleaned; sellers checked against `GET /sellers` once loaded.
   */
+  protected readonly sellersFailed = this.sellerDirectory.failed;
+
   protected readonly query = computed(
     () =>
       restrictSellers(
         parseCatalogueQuery(this.queryParamMap()),
         this.sellerDirectory.knownSources()
       ),
-    { equal: sameQuery }
+    { equal: isSameQuery }
   );
 
   /**
@@ -141,14 +154,16 @@ export class CataloguePage {
     computation: (next, previous) => next ?? previous?.value,
   });
 
-  protected readonly sortOptions = PRODUCT_SORTS.map((value) => ({
-    value,
-    label: SORT_LABELS[value],
-  }));
+  protected readonly sortOptions = PRODUCT_SORTS.map(toSortOption);
+
   protected readonly skeletonCards = SKELETON_CARDS;
+
   protected readonly filterCount = computed(() => activeFilterCount(this.query()));
+
   protected readonly isError = computed(() => this.results.status() === 'error');
+
   protected readonly isBadRequest = computed(() => httpStatusOf(this.results.error()) === 400);
+
   protected readonly errorMessage = computed(() =>
     problemMessage(this.results.error(), 'Some filters in this link are not valid.')
   );
@@ -215,8 +230,68 @@ export class CataloguePage {
   }
 
   /**
+   * Filter and sort changes keep the scroll position: the router would otherwise jump to the top
+   * and hide the control that has focus (WCAG 2.4.11). Page links scroll to the top as usual.
+   */
+  private navigate(query: CatalogueQuery): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: catalogueQueryParams(query),
+      scroll: 'manual',
+    });
+  }
+
+  /**
+  Screen readers hear the new count after each change, not on the first load (WCAG 4.1.3).
+  */
+  private announceResultCounts(): void {
+    let isFirstLoad = true;
+    effect(() => {
+      if (this.results.status() !== 'resolved') {
+        return;
+      }
+      const totalCount = this.results.value()?.totalCount ?? 0;
+      if (!isFirstLoad) {
+        const message =
+          totalCount === 0
+            ? 'No products match'
+            : `${count.format(totalCount)} ${totalCount === 1 ? 'product' : 'products'}`;
+        void this.announcer.announce(message, 'polite');
+      }
+      isFirstLoad = false;
+    });
+  }
+
+  /**
+  Paging moves focus to the top of the new results instead of leaving it on a page link.
+  */
+  private focusResultsOnPageChange(): void {
+    let previous: CatalogueQuery | undefined;
+    effect(() => {
+      const query = this.query();
+      if (previous && isOnlyPageChange(previous, query)) {
+        untracked(() => this.focusResultsHeadingAfterRender());
+      }
+      previous = query;
+    });
+  }
+
+  private focusResultsHeadingAfterRender(): void {
+    afterNextRender(
+      { write: () => this.resultsHeading().nativeElement.focus() },
+      {
+        injector: this.injector,
+      }
+    );
+  }
+
+  /**
   Query params for a link to another page of the same results.
   */
+  protected sellerName(source: string): string {
+    return this.sellerDirectory.nameOf(source);
+  }
+
   protected pageParams(page: number): Params {
     return catalogueQueryParams({ ...this.query(), page });
   }
@@ -281,68 +356,11 @@ export class CataloguePage {
   protected closeFilters(): void {
     this.sheetRef?.dismiss();
   }
-
-  /**
-   * Filter and sort changes keep the scroll position: the router would otherwise jump to the top
-   * and hide the control that has focus (WCAG 2.4.11). Page links scroll to the top as usual.
-   */
-  private navigate(query: CatalogueQuery): void {
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: catalogueQueryParams(query),
-      scroll: 'manual',
-    });
-  }
-
-  /**
-  Screen readers hear the new count after each change, not on the first load (WCAG 4.1.3).
-  */
-  private announceResultCounts(): void {
-    let isFirstLoad = true;
-    effect(() => {
-      if (this.results.status() !== 'resolved') {
-        return;
-      }
-      const totalCount = this.results.value()?.totalCount ?? 0;
-      if (isFirstLoad) {
-        isFirstLoad = false;
-        return;
-      }
-      const message =
-        totalCount === 0
-          ? 'No products match'
-          : `${count.format(totalCount)} ${totalCount === 1 ? 'product' : 'products'}`;
-      void this.announcer.announce(message, 'polite');
-    });
-  }
-
-  /**
-  Paging moves focus to the top of the new results instead of leaving it on a page link.
-  */
-  private focusResultsOnPageChange(): void {
-    let previous: CatalogueQuery | undefined;
-    effect(() => {
-      const query = this.query();
-      if (previous && differsOnlyInPage(previous, query)) {
-        untracked(() => this.focusResultsHeadingAfterRender());
-      }
-      previous = query;
-    });
-  }
-
-  private focusResultsHeadingAfterRender(): void {
-    afterNextRender(
-      { write: () => this.resultsHeading().nativeElement.focus() },
-      {
-        injector: this.injector,
-      }
-    );
-  }
 }
 
-function priceRangeLabel(min: number | null, max: number | null): string {
+const priceRangeLabel = (min: number | null, max: number | null): string => {
   if (min !== null && max !== null) {
     return `${usd.format(min)} – ${usd.format(max)}`;
   }
   return min === null ? `Up to ${usd.format(max ?? 0)}` : `From ${usd.format(min)}`;
-}
+};

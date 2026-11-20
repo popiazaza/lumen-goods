@@ -8,21 +8,8 @@ The API's price as en-US USD with two decimals ("$1,234.50"), or "Price on reque
 @Component({
   selector: 'app-product-price',
   imports: [CurrencyPipe],
-  template: `
-    @if (price(); as price) {
-      <span class="price">{{
-        price.amount | currency: price.currency : 'symbol' : '1.2-2' : 'en-US'
-      }}</span>
-    } @else {
-      <span class="on-request">Price on request</span>
-    }
-  `,
-  styles: `
-    .on-request {
-      color: var(--mat-sys-on-surface-variant);
-      font-style: italic;
-    }
-  `,
+  templateUrl: './product-price.html',
+  styleUrl: './product-price.scss',
 })
 export class ProductPrice {
   readonly price = input.required<Money | null>();

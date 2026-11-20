@@ -14,9 +14,8 @@ const PAYMENT_EVENTS: Readonly<Record<PaymentEventType, StatusView>> = {
   refund_failed: { tone: 'error', icon: 'error', text: 'Refund failed' },
 };
 
-export function paymentEventView(type: PaymentEventType): StatusView {
-  return PAYMENT_EVENTS[type] ?? { tone: 'neutral', icon: 'info', text: humanise(type) };
-}
+export const paymentEventView = (type: PaymentEventType): StatusView =>
+  PAYMENT_EVENTS[type] ?? { tone: 'neutral', icon: 'info', text: humanise(type) };
 
 const PARTNER_ORDERS: Readonly<Record<PartnerOrder['status'], StatusView>> = {
   pending: { tone: 'neutral', icon: 'schedule', text: 'Not sent yet' },
@@ -31,7 +30,7 @@ const PARTNER_ORDERS: Readonly<Record<PartnerOrder['status'], StatusView>> = {
 /**
 A partner order that needs an admin says so first, whatever its stored status.
 */
-export function partnerOrderView(order: PartnerOrder): StatusView {
+export const partnerOrderView = (order: PartnerOrder): StatusView => {
   if (order.needsAttention) {
     return {
       tone: 'warning',
@@ -42,4 +41,4 @@ export function partnerOrderView(order: PartnerOrder): StatusView {
   return (
     PARTNER_ORDERS[order.status] ?? { tone: 'neutral', icon: 'info', text: humanise(order.status) }
   );
-}
+};

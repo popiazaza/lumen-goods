@@ -40,13 +40,19 @@ export const CHECKOUT_STORAGE_KEY = 'lumen.checkout.v1';
 @Service()
 export class CheckoutStore {
   private readonly storage = storageOf(inject(DOCUMENT));
+
   private readonly state = signal<CheckoutState>(this.restore());
+
   private readonly placed = signal<OrderDetailDto | null>(null);
 
   readonly checkoutKey = computed(() => this.state().checkoutKey);
+
   readonly address = computed(() => this.state().address);
+
   readonly shippingMethod = computed(() => this.state().shippingMethod);
+
   readonly orderNumber = computed(() => this.state().orderNumber);
+
   /**
   Place order's answer, while it is still this checkout's order (memory only).
   */
@@ -73,6 +79,26 @@ export class CheckoutStore {
     return steps;
   });
 
+  private update(change: (state: CheckoutState) => CheckoutState): void {
+    const next = change(this.state());
+    if (next === this.state()) {
+      return;
+    }
+    this.state.set(next);
+    if (this.storage) {
+      save(this.storage, JSON.stringify(next));
+    }
+  }
+
+  private restore(): CheckoutState {
+    const saved = this.storage ? load(this.storage) : null;
+    const parsed = saved ? parseJson(saved) : null;
+    // State saved before keys were tied to a review has no `keyReview`: treat it as unused.
+    return isCheckoutState(parsed)
+      ? { ...parsed, keyReview: parsed.keyReview ?? null }
+      : emptyState();
+  }
+
   /**
    * A changed address after Place order leaves the placed order behind: it keeps its old address,
    * so the payment step closes until the order is placed again. The key changes then, because
@@ -80,7 +106,7 @@ export class CheckoutStore {
    */
   setAddress(address: ShippingAddress): void {
     this.update((state) =>
-      sameAddress(state.address, address) ? state : { ...afterChange(state), address }
+      isSameAddress(state.address, address) ? state : { ...afterChange(state), address }
     );
   }
 
@@ -143,33 +169,6 @@ export class CheckoutStore {
     this.placed.set(null);
     this.update(() => emptyState());
   }
-
-  private update(change: (state: CheckoutState) => CheckoutState): void {
-    const next = change(this.state());
-    if (next === this.state()) {
-      return;
-    }
-    this.state.set(next);
-    try {
-      this.storage?.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // Storage full or blocked (private mode): the checkout still works until a refresh.
-    }
-  }
-
-  private restore(): CheckoutState {
-    try {
-      const saved = this.storage?.getItem(CHECKOUT_STORAGE_KEY);
-      const parsed: unknown = saved ? JSON.parse(saved) : null;
-      if (isCheckoutState(parsed)) {
-        // State saved before keys were tied to a review has no `keyReview`: treat it as unused.
-        return { ...parsed, keyReview: parsed.keyReview ?? null };
-      }
-    } catch {
-      // Unreadable or corrupt: start a fresh checkout.
-    }
-    return emptyState();
-  }
 }
 
 /**
@@ -180,12 +179,12 @@ export type ReviewedOrder = Omit<PlaceOrderRequest, 'checkoutKey'>;
 /**
  * One string per review, the same however the lines are ordered: two reviews match only if Place order would send the same lines, quantities, prices, total, address and method.
  */
-export function reviewFingerprint(review: ReviewedOrder): string {
+export const reviewFingerprint = (review: ReviewedOrder): string => {
   const address = review.shippingAddress;
   return JSON.stringify([
-    [...review.lines]
+    review.lines
       .map((line) => [line.productId, line.quantity, line.unitPrice] as const)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+      .toSorted(([a], [b]) => Number(a > b) - Number(a < b)),
     review.expectedTotal,
     review.shippingMethod,
     [
@@ -198,71 +197,112 @@ export function reviewFingerprint(review: ReviewedOrder): string {
       address.country,
     ],
   ]);
-}
+};
 
-function freshKey(): Pick<CheckoutState, 'checkoutKey' | 'keyReview'> {
-  return { checkoutKey: newCheckoutKey(), keyReview: null };
-}
+const freshKey = (): Pick<CheckoutState, 'checkoutKey' | 'keyReview'> => ({
+  checkoutKey: newCheckoutKey(),
+  keyReview: null,
+});
 
-function emptyState(): CheckoutState {
-  return { ...freshKey(), address: null, shippingMethod: null, orderNumber: null };
-}
+const emptyState = (): CheckoutState => ({
+  ...freshKey(),
+  address: null,
+  shippingMethod: null,
+  orderNumber: null,
+});
 
 /**
  * After Place order, a changed entry no longer matches the placed order, so payment closes until
  * the order is placed again. The key is left to `checkoutKeyFor`, which compares the whole review:
  * changing the method and back is still the first order's review, and gets that order back.
  */
-function afterChange(state: CheckoutState): CheckoutState {
-  return state.orderNumber ? { ...state, orderNumber: null } : state;
-}
+const afterChange = (state: CheckoutState): CheckoutState =>
+  state.orderNumber ? { ...state, orderNumber: null } : state;
 
-function sameAddress(a: ShippingAddress | null, b: ShippingAddress): boolean {
-  return !!a && (Object.keys(b) as (keyof ShippingAddress)[]).every((key) => a[key] === b[key]);
-}
+const isSameAddress = (a: ShippingAddress | null, b: ShippingAddress): boolean =>
+  !!a && (Object.keys(b) as (keyof ShippingAddress)[]).every((key) => a[key] === b[key]);
 
-function storageOf(document: Document): Storage | null {
-  try {
-    return document.defaultView?.sessionStorage ?? null;
-  } catch {
+const storageOf = (document: Document): Storage | null => {
+  const view = document.defaultView;
+  if (!view) {
     return null;
   }
-}
+  try {
+    return view.sessionStorage;
+  } catch {
+    // Blocked by the browser (cookies off): the checkout works without saving.
+    return null;
+  }
+};
+
+const save = (storage: Storage, value: string): void => {
+  try {
+    storage.setItem(CHECKOUT_STORAGE_KEY, value);
+  } catch {
+    // Storage full or blocked (private mode): the checkout still works until a refresh.
+  }
+};
+
+const load = (storage: Storage): string | null => {
+  try {
+    return storage.getItem(CHECKOUT_STORAGE_KEY);
+  } catch {
+    // Unreadable: start a fresh checkout.
+    return null;
+  }
+};
+
+const parseJson = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Corrupt: start a fresh checkout.
+    return null;
+  }
+};
 
 /**
 A random v4 UUID; `randomUUID` needs a secure context, `getRandomValues` does not.
 */
-export function newCheckoutKey(): string {
+export const newCheckoutKey = (): string => {
   if (typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
+  // eslint-disable-next-line unicorn/prefer-uint8array-hex -- Uint8Array#toHex (ES2026) is outside Angular 22's browser baseline
+  const hex = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('');
+  // RFC 9562 layout: version 4 is the 13th hex digit; the variant (10xx) makes the 17th 8, 9, a or b.
+  const variant = ((Number.parseInt(hex.slice(16, 17), 16) % 4) + 8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20)}`;
+};
 
-function isCheckoutState(value: unknown): value is CheckoutState {
+const SAVED_SHIPPING_METHODS: ReadonlySet<unknown> = /* @__PURE__ */ new Set([
+  null,
+  'standard',
+  'express',
+]);
+
+const isNullOrString = (value: unknown): boolean => value === null || typeof value === 'string';
+
+const isCheckoutState = (value: unknown): value is CheckoutState => {
   if (!value || typeof value !== 'object') {
     return false;
   }
   const state = value as Partial<CheckoutState>;
-  return (
-    typeof state.checkoutKey === 'string' &&
-    state.checkoutKey.length > 0 &&
-    (state.keyReview === undefined ||
-      state.keyReview === null ||
-      typeof state.keyReview === 'string') &&
-    (state.address === null || isAddress(state.address)) &&
-    (state.shippingMethod === null ||
-      state.shippingMethod === 'standard' ||
-      state.shippingMethod === 'express') &&
-    (state.orderNumber === null || typeof state.orderNumber === 'string')
-  );
-}
+  const hasKey = typeof state.checkoutKey === 'string' && state.checkoutKey.length > 0;
+  const hasKeyReview = state.keyReview === undefined || isNullOrString(state.keyReview);
+  const hasAddress = state.address === null || isAddress(state.address);
+  return [
+    hasKey,
+    hasKeyReview,
+    hasAddress,
+    SAVED_SHIPPING_METHODS.has(state.shippingMethod),
+    isNullOrString(state.orderNumber),
+  ].every(Boolean);
+};
 
-function isAddress(value: unknown): value is ShippingAddress {
+const isAddress = (value: unknown): value is ShippingAddress => {
   if (!value || typeof value !== 'object') {
     return false;
   }
@@ -273,4 +313,4 @@ function isAddress(value: unknown): value is ShippingAddress {
     ) &&
     (address['line2'] === null || typeof address['line2'] === 'string')
   );
-}
+};

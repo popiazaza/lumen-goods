@@ -40,7 +40,7 @@ import { clampQuantity, maxSelectableQuantity } from './quantity';
 /**
 The tags the server's sanitiser keeps (A-21); anything else is treated as plain text.
 */
-const ALLOWED_HTML = /<\/?(p|br|b|strong|i|em|ul|ol|li)\b[^>]*>/i;
+const ALLOWED_HTML = /<\/?(?:p|br|b|strong|i|em|ul|ol|li)\b[^>]*>/iu;
 
 /**
 Product detail (`/products/:id`): gallery, price, stock, description, attributes, Add to cart.
@@ -68,17 +68,23 @@ Product detail (`/products/:id`): gallery, price, stock, description, attributes
   styleUrl: './product-detail-page.scss',
 })
 export class ProductDetailPage {
+  private readonly productsApi = inject(ProductsApi);
+
+  private readonly cart = inject(CartStateService);
+
+  private readonly announcer = inject(LiveAnnouncer);
+
+  private readonly title = inject(Title);
+
+  protected readonly sellerDirectory = inject(SellerDirectory);
+
+  protected readonly lastQuery = inject(LastCatalogueQuery);
+
   /**
   The `:id` route param (`withComponentInputBinding`).
   */
   readonly id = input.required<string>();
 
-  private readonly productsApi = inject(ProductsApi);
-  private readonly cart = inject(CartStateService);
-  private readonly announcer = inject(LiveAnnouncer);
-  private readonly title = inject(Title);
-  protected readonly sellerDirectory = inject(SellerDirectory);
-  protected readonly lastQuery = inject(LastCatalogueQuery);
   protected readonly categoryLabel = categoryLabel;
 
   protected readonly product = rxResource({
@@ -89,7 +95,9 @@ export class ProductDetailPage {
   protected readonly loaded = computed<ProductDto | undefined>(() =>
     this.product.hasValue() ? this.product.value() : undefined
   );
+
   protected readonly isNotFound = computed(() => httpStatusOf(this.product.error()) === 404);
+
   protected readonly isError = computed(() => this.product.status() === 'error');
 
   /**
@@ -110,7 +118,9 @@ export class ProductDetailPage {
     const images = this.loaded()?.images ?? [];
     return [...images.filter((image) => image.isPrimary), ...images.filter((i) => !i.isPrimary)];
   });
+
   protected readonly selectedImage = linkedSignal({ source: this.images, computation: () => 0 });
+
   protected readonly mainImageAlt = computed(() => {
     const name = this.loaded()?.name ?? '';
     const total = this.images().length;
@@ -124,8 +134,8 @@ export class ProductDetailPage {
   protected readonly attributes = computed(() =>
     Object.entries(this.loaded()?.attributes ?? {}).map(([key, value]) => ({
       key,
-      label: humaniseAttributeKey(key),
       value,
+      label: humaniseAttributeKey(key),
     }))
   );
 
@@ -138,12 +148,13 @@ export class ProductDetailPage {
     const product = this.loaded();
     return product ? maxSelectableQuantity(product) : 0;
   });
+
   protected readonly canBuy = computed(() => this.maxQuantity() > 0);
 
   protected readonly quantityHint = computed(() => {
-    const quantity = this.loaded()?.availability.quantity;
+    const quantity = this.loaded()?.availability.quantity ?? null;
     const max = this.maxQuantity();
-    return quantity != null && quantity <= max ? `${max} available` : `Up to ${max} at a time`;
+    return quantity !== null && quantity <= max ? `${max} available` : `Up to ${max} at a time`;
   });
 
   /**
@@ -165,11 +176,15 @@ export class ProductDetailPage {
   protected readonly buyForm = new FormGroup({
     quantity: new FormControl(1, { nonNullable: true }),
   });
+
   protected readonly quantity = toSignal(this.buyForm.controls.quantity.valueChanges, {
     initialValue: 1,
   });
+
   protected readonly addedMessage = signal('');
+
   protected readonly addError = signal('');
+
   protected readonly adding = signal(false);
 
   constructor() {

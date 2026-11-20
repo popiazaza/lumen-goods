@@ -13,36 +13,7 @@ import { availabilityOf } from './availability';
     <mat-icon aria-hidden="true" [svgIcon]="label().icon" />
     <span>{{ label().text }}</span>
   `,
-  styles: `
-    :host {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--lg-space-1);
-      font: var(--mat-sys-label-large);
-    }
-
-    mat-icon {
-      width: 18px;
-      height: 18px;
-      flex: none;
-    }
-
-    :host(.available) {
-      color: var(--lg-status-success);
-    }
-
-    :host(.low) {
-      color: var(--lg-status-warning);
-    }
-
-    :host(.out) {
-      color: var(--mat-sys-error);
-    }
-
-    :host(.unavailable) {
-      color: var(--mat-sys-on-surface-variant);
-    }
-  `,
+  styleUrl: './availability-badge.scss',
   host: {
     '[class]': 'label().tone',
   },

@@ -98,7 +98,12 @@ export interface AdminProductFilter {
 @Service()
 export class AdminProductsApi {
   private readonly http = inject(HttpClient);
+
   private readonly baseUrl = inject(API_BASE_URL);
+
+  private productUrl(id: string): string {
+    return `${this.baseUrl}/admin/products/${encodeURIComponent(id)}`;
+  }
 
   /**
   Sorted by name.
@@ -152,9 +157,5 @@ export class AdminProductsApi {
   */
   media(): Observable<OwnMediaFile[]> {
     return this.http.get<OwnMediaFile[]>(`${this.baseUrl}/admin/own-media`);
-  }
-
-  private productUrl(id: string): string {
-    return `${this.baseUrl}/admin/products/${encodeURIComponent(id)}`;
   }
 }

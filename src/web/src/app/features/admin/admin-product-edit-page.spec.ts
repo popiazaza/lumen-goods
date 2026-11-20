@@ -18,8 +18,11 @@ import { provideAppIcons } from '../../core/icons/app-icons';
 import { anAdminProduct } from '../../testing/order-fixtures';
 import { AdminProductEditPage } from './admin-product-edit-page';
 
-@Component({ template: '<h1>Products</h1>' })
+@Component({ selector: 'app-stub-list-page', template: '<h1>Products</h1>' })
 class StubListPage {}
+
+const text = (root: ParentNode | null | undefined, selector: string) =>
+  root?.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
 
 const MUG = anAdminProduct();
 const PRODUCT_URL = `/api/v1/admin/products/${MUG.id}`;
@@ -36,8 +39,6 @@ describe('AdminProductEditPage', () => {
   let router: Router;
 
   const host = () => harness.routeNativeElement as HTMLElement;
-  const text = (root: ParentNode | null | undefined, selector: string) =>
-    root?.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const field = (label: string) =>
     [...host().querySelectorAll<HTMLElement>('mat-form-field')].find(
       (element) => element.querySelector('mat-label')?.textContent?.trim() === label
@@ -48,48 +49,47 @@ describe('AdminProductEditPage', () => {
   const hintOf = (label: string) => text(field(label), 'mat-hint');
   const button = (name: string) =>
     [...host().querySelectorAll<HTMLButtonElement>('button')].find(
-      (element) => element.textContent?.replaceAll(/\s+/g, ' ').trim() === name
+      (element) => element.textContent?.replaceAll(/\s+/gu, ' ').trim() === name
     ) as HTMLButtonElement;
   const libraryImage = (file: string) =>
     [...host().querySelectorAll<HTMLButtonElement>('.library-image')].find((element) =>
       element.textContent?.includes(file)
     ) as HTMLButtonElement;
 
-  async function type(label: string, value: string): Promise<void> {
+  const type = async (label: string, value: string): Promise<void> => {
     const element = input(label);
     element.value = value;
     element.dispatchEvent(new Event('input'));
     element.dispatchEvent(new Event('blur'));
     await harness.fixture.whenStable();
-  }
+  };
 
-  async function submit(): Promise<void> {
+  const submit = async (): Promise<void> => {
     (host().querySelector('button[type="submit"]') as HTMLButtonElement).click();
     await harness.fixture.whenStable();
-  }
+  };
 
-  async function openNew(): Promise<void> {
+  const openNew = async (): Promise<void> => {
     await harness.navigateByUrl('/admin/products/new', AdminProductEditPage);
     http.expectOne('/api/v1/admin/own-media').flush(MEDIA);
     await harness.fixture.whenStable();
-  }
+  };
 
-  async function openMug(product = MUG): Promise<void> {
-    await harness.navigateByUrl(`/admin/products/${product.id}`, AdminProductEditPage);
-    http.expectOne(PRODUCT_URL).flush(product);
+  const openMug = async (): Promise<void> => {
+    await harness.navigateByUrl(`/admin/products/${MUG.id}`, AdminProductEditPage);
+    http.expectOne(PRODUCT_URL).flush(MUG);
     http.expectOne('/api/v1/admin/own-media').flush(MEDIA);
     await harness.fixture.whenStable();
-  }
+  };
 
-  async function nextSave(method: 'POST' | 'PUT'): Promise<TestRequest> {
-    return vi.waitFor(() =>
+  const nextSave = (method: 'POST' | 'PUT'): Promise<TestRequest> =>
+    vi.waitFor(() =>
       http.expectOne(
         (r) =>
           r.method === method &&
           r.url === (method === 'POST' ? '/api/v1/admin/products' : PRODUCT_URL)
       )
     );
-  }
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -126,11 +126,18 @@ describe('AdminProductEditPage', () => {
     await submit();
     http.expectNone('/api/v1/admin/products');
 
-    expect(errorOf('Name')).toBe('Name is required.');
-    expect(errorOf('Category')).toBe('Category is required.');
-    expect(errorOf('Price')).toBe('Price is required.');
-    // Keyboard users land on the first field to fix.
-    expect(document.activeElement).toBe(input('Name'));
+    expect({
+      name: errorOf('Name'),
+      category: errorOf('Category'),
+      price: errorOf('Price'),
+      // Keyboard users land on the first field to fix.
+      isNameFocused: document.activeElement === input('Name'),
+    }).toStrictEqual({
+      name: 'Name is required.',
+      category: 'Category is required.',
+      price: 'Price is required.',
+      isNameFocused: true,
+    });
 
     await type('Price', '18.555');
 
@@ -141,14 +148,12 @@ describe('AdminProductEditPage', () => {
     expect(errorOf('Price')).toBe('Price must be more than $0.00.');
 
     await type('On hand', '2.5');
-
-    expect(errorOf('On hand')).toBe('Enter a whole number.');
-
     await type('SKU (optional)', '-bad');
 
-    expect(errorOf('SKU (optional)')).toBe(
-      'Use 2 to 32 letters, digits or dashes, starting with a letter or digit.'
-    );
+    expect({ onHand: errorOf('On hand'), sku: errorOf('SKU (optional)') }).toStrictEqual({
+      onHand: 'Enter a whole number.',
+      sku: 'Use 2 to 32 letters, digits or dashes, starting with a letter or digit.',
+    });
   });
 
   it('creates a product with attributes and images, then returns to the list', async () => {
@@ -180,7 +185,7 @@ describe('AdminProductEditPage', () => {
     await submit();
     const post = await nextSave('POST');
 
-    expect(post.request.body).toEqual({
+    expect(post.request.body).toStrictEqual({
       sku: null,
       name: 'Trail Mug',
       description: 'Keeps coffee warm.',
@@ -200,16 +205,29 @@ describe('AdminProductEditPage', () => {
   it('edits a product, sending the version it was loaded with', async () => {
     await openMug();
 
-    expect(text(host(), 'h1')).toBe('Edit product');
-    expect(text(host(), '.subtitle')).toContain('Enamel Camp Mug · SKU LG-MUG-01 · Active');
-    expect(input('Name').value).toBe('Enamel Camp Mug');
-    expect(input('Price').value).toBe('18.50');
-    expect(input('On hand').value).toBe('10');
-    expect(hintOf('On hand')).toBe('2 reserved by orders awaiting payment');
-    expect(input('Name 1').value).toBe('color');
-    expect(input('Value 2').value).toBe('Enamel steel');
-    expect(text(host(), '.chosen li')).toContain('Main image');
+    expect({ heading: text(host(), 'h1'), subtitle: text(host(), '.subtitle') }).toStrictEqual({
+      heading: 'Edit product',
+      subtitle: expect.stringContaining('Enamel Camp Mug · SKU LG-MUG-01 · Active'),
+    });
+    // The SKU can only be set when the product is created.
     expect(field('SKU (optional)')).toBeUndefined();
+    expect({
+      name: input('Name').value,
+      price: input('Price').value,
+      onHand: input('On hand').value,
+      onHandHint: hintOf('On hand'),
+      firstAttributeName: input('Name 1').value,
+      secondAttributeValue: input('Value 2').value,
+      firstImage: text(host(), '.chosen li'),
+    }).toStrictEqual({
+      name: 'Enamel Camp Mug',
+      price: '18.50',
+      onHand: '10',
+      onHandHint: '2 reserved by orders awaiting payment',
+      firstAttributeName: 'color',
+      secondAttributeValue: 'Enamel steel',
+      firstImage: expect.stringContaining('Main image'),
+    });
 
     await type('Name', 'Enamel Camp Mug, 12 oz');
     (
@@ -219,7 +237,7 @@ describe('AdminProductEditPage', () => {
 
     const put = await nextSave('PUT');
 
-    expect(put.request.body).toEqual({
+    expect(put.request.body).toStrictEqual({
       version: '41',
       name: 'Enamel Camp Mug, 12 oz',
       description: 'A sturdy enamel mug.',
@@ -253,7 +271,8 @@ describe('AdminProductEditPage', () => {
     await openMug();
 
     await submit();
-    (await nextSave('PUT')).flush(
+    const put = await nextSave('PUT');
+    put.flush(
       {
         title: 'The product is not valid',
         status: 400,
@@ -281,7 +300,8 @@ describe('AdminProductEditPage', () => {
     await type('Price', '19.00');
 
     await submit();
-    (await nextSave('PUT')).flush(
+    const put = await nextSave('PUT');
+    put.flush(
       {
         title: 'Changed by someone else',
         status: 409,
@@ -296,30 +316,52 @@ describe('AdminProductEditPage', () => {
       reserved: 3,
       version: '44',
     });
-    (
-      await vi.waitFor(() => http.expectOne((r) => r.method === 'GET' && r.url === PRODUCT_URL))
-    ).flush(latest);
+    const reload = await vi.waitFor(() =>
+      http.expectOne((r) => r.method === 'GET' && r.url === PRODUCT_URL)
+    );
+    reload.flush(latest);
     await harness.fixture.whenStable();
 
-    expect(text(host(), '#conflict strong')).toBe('Changed by someone else');
-    expect(document.activeElement?.id).toBe('conflict');
+    expect({
+      title: text(host(), '#conflict strong'),
+      focusedId: document.activeElement?.id,
+      subtitle: text(host(), '.subtitle'),
+    }).toStrictEqual({
+      title: 'Changed by someone else',
+      focusedId: 'conflict',
+      subtitle: expect.stringContaining('Enamel Camp Mug'),
+    });
     // The admin's edits are still in the form...
-    expect(input('Name').value).toBe('Camp Mug (my edit)');
-    expect(input('Price').value).toBe('19.00');
-    expect(input('Description').value).toBe('A sturdy enamel mug.');
+    expect({
+      name: input('Name').value,
+      price: input('Price').value,
+      description: input('Description').value,
+    }).toStrictEqual({
+      name: 'Camp Mug (my edit)',
+      price: '19.00',
+      description: 'A sturdy enamel mug.',
+    });
     // ...and every field where the saved version differs says what it is now.
-    expect(hintOf('Name')).toBe('Saved now: Enamel Camp Mug');
-    expect(hintOf('Price')).toBe('Saved now: $18.50');
-    expect(hintOf('Description')).toBe('Saved now: Their new description.');
-    expect(hintOf('Category')).toBeUndefined();
-    expect(text(host(), '.subtitle')).toContain('Enamel Camp Mug');
+    expect({
+      name: hintOf('Name'),
+      price: hintOf('Price'),
+      description: hintOf('Description'),
+      hasCategoryHint: hintOf('Category') !== undefined,
+    }).toStrictEqual({
+      name: 'Saved now: Enamel Camp Mug',
+      price: 'Saved now: $18.50',
+      description: 'Saved now: Their new description.',
+      hasCategoryHint: false,
+    });
 
     await submit();
     const retry = await nextSave('PUT');
 
-    expect(retry.request.body.version).toBe('44');
-    expect(retry.request.body.name).toBe('Camp Mug (my edit)');
-    expect(retry.request.body.description).toBe('A sturdy enamel mug.');
+    expect(retry.request.body).toMatchObject({
+      version: '44',
+      name: 'Camp Mug (my edit)',
+      description: 'A sturdy enamel mug.',
+    });
 
     retry.flush({ ...latest, name: 'Camp Mug (my edit)', version: '45' });
     await harness.fixture.whenStable();
@@ -331,13 +373,15 @@ describe('AdminProductEditPage', () => {
     await openMug();
     await type('Name', 'Mine');
     await submit();
-    (await nextSave('PUT')).flush(
+    const put = await nextSave('PUT');
+    put.flush(
       { title: 'Changed by someone else', status: 409 },
       { status: 409, statusText: 'Conflict' }
     );
-    (
-      await vi.waitFor(() => http.expectOne((r) => r.method === 'GET' && r.url === PRODUCT_URL))
-    ).flush(anAdminProduct({ name: 'Theirs', version: '50' }));
+    const reload = await vi.waitFor(() =>
+      http.expectOne((r) => r.method === 'GET' && r.url === PRODUCT_URL)
+    );
+    reload.flush(anAdminProduct({ name: 'Theirs', version: '50' }));
     await harness.fixture.whenStable();
 
     button('Discard my edits and use the saved version').click();
@@ -352,7 +396,8 @@ describe('AdminProductEditPage', () => {
     await type('On hand', '2');
 
     await submit();
-    (await nextSave('PUT')).flush(
+    const put = await nextSave('PUT');
+    put.flush(
       {
         title: 'On hand cannot go below reserved stock',
         status: 409,

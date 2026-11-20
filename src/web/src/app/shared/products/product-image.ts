@@ -1,3 +1,4 @@
+import { NgOptimizedImage } from '@angular/common';
 import { Component, input, linkedSignal } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 
@@ -7,59 +8,9 @@ import { MatIcon } from '@angular/material/icon';
  */
 @Component({
   selector: 'app-product-image',
-  imports: [MatIcon],
-  template: `
-    @if (src() && !failed()) {
-      <img
-        decoding="async"
-        width="600"
-        height="600"
-        [src]="src()"
-        [alt]="alt()"
-        [attr.loading]="eager() ? 'eager' : 'lazy'"
-        [attr.fetchpriority]="eager() ? 'high' : null"
-        (error)="failed.set(true)"
-      />
-    } @else {
-      <div
-        class="placeholder"
-        role="img"
-        [attr.aria-label]="alt() ? 'No image of ' + alt() : null"
-        [attr.aria-hidden]="alt() ? null : 'true'"
-      >
-        <mat-icon svgIcon="image" aria-hidden="true" />
-      </div>
-    }
-  `,
-  styles: `
-    :host {
-      display: block;
-      aspect-ratio: 1;
-      overflow: hidden;
-      border-radius: var(--lg-radius-card);
-      background: var(--mat-sys-surface-container);
-    }
-
-    img {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .placeholder {
-      display: grid;
-      place-items: center;
-      width: 100%;
-      height: 100%;
-      color: var(--mat-sys-on-surface-variant);
-
-      mat-icon {
-        width: 48px;
-        height: 48px;
-      }
-    }
-  `,
+  imports: [NgOptimizedImage, MatIcon],
+  templateUrl: './product-image.html',
+  styleUrl: './product-image.scss',
 })
 export class ProductImage {
   readonly src = input<string | null | undefined>(null);

@@ -1,0 +1,6 @@
+<mat-icon svgIcon="lock" class="icon" />
+<p><strong>Sign in as an admin to see this page.</strong></p>
+@if (status() === 403) {
+  <p>You are signed in with an account that does not have the admin role.</p>
+}
+<a matButton="filled" routerLink="/sign-in" [queryParams]="{ returnUrl: returnUrl() }">Sign in</a>

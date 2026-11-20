@@ -25,6 +25,7 @@
 
 .title {
   margin: 0;
+  grid-area: title;
   overflow-wrap: anywhere;
 }
 
@@ -33,10 +34,6 @@
   gap: var(--lg-space-4);
   grid-template-areas: 'title' 'gallery' 'buy' 'details';
   grid-template-columns: minmax(0, 1fr);
-}
-
-.title {
-  grid-area: title;
 }
 
 .gallery {
@@ -204,9 +201,11 @@
 @media (width >= 840px) {
   .product.ready {
     column-gap: var(--lg-space-8);
-    grid-template-areas: 'gallery title' 'gallery buy' 'details details';
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto 1fr auto;
+    grid-template:
+      'gallery title' auto
+      'gallery buy' 1fr
+      'details details' auto
+      / minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .skeleton {

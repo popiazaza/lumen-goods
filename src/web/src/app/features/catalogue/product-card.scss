@@ -1,0 +1,74 @@
+:host {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--lg-radius-card);
+  background: var(--mat-sys-surface-container-lowest);
+  transition: box-shadow 150ms ease;
+
+  &:hover {
+    box-shadow: var(--mat-sys-level2);
+  }
+
+  &:focus-within {
+    outline: 3px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+}
+
+// The card is not sellable: grey the photo, keep the text at full contrast.
+:host(.unavailable) .image {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.image {
+  border-radius: 0;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: var(--lg-space-3);
+  gap: var(--lg-space-1);
+}
+
+.name {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  font: var(--mat-sys-title-small);
+  -webkit-line-clamp: 2;
+
+  & a {
+    color: var(--mat-sys-on-surface);
+    text-decoration: none;
+
+    // The card outline shows focus.
+    &:focus-visible {
+      outline: none;
+    }
+
+    &::after {
+      position: absolute;
+      content: '';
+      inset: 0;
+    }
+  }
+}
+
+.seller {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
+}
+
+.price-line {
+  padding-top: var(--lg-space-1);
+  margin-top: auto;
+  font: var(--mat-sys-title-medium);
+}

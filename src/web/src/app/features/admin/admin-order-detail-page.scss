@@ -26,8 +26,7 @@
 }
 
 .action-error,
-.attention,
-.last-error {
+.attention {
   display: flex;
   align-items: flex-start;
   gap: var(--lg-space-2);
@@ -150,14 +149,6 @@ code {
   padding-left: var(--lg-space-3);
   border-bottom: none;
   border-left: 2px solid var(--mat-sys-outline-variant);
-}
-
-.last-error {
-  padding: var(--lg-space-2);
-  border-radius: 8px;
-  background: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
-  overflow-wrap: anywhere;
 }
 
 .amount {

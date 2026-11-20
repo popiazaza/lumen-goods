@@ -7,6 +7,7 @@ import { OrderDetailDto, OrderLineDto, RefundStatus } from '../../core/api/order
 import { provideAppIcons } from '../../core/icons/app-icons';
 import {
   SOCKS_LINE,
+  aCardPayment,
   aSettledOrderDetail,
   anOrderDetail,
   anOrderLine,
@@ -16,48 +17,66 @@ import { ORDER_POLL_INTERVAL_MS, OrderDetailPage } from './order-detail-page';
 const NUMBER = 'LG-7K3M9QX2';
 const URL = `/api/v1/orders/${NUMBER}`;
 
+const text = (root: ParentNode, selector: string) =>
+  root.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
+/**
+`<dl>` rows as "label value".
+*/
+const rows = (root: ParentNode, selector: string) =>
+  [...root.querySelectorAll(selector)].map((element) =>
+    [...element.children].map((child) => child.textContent?.trim()).join(' ')
+  );
+const row = (root: ParentNode, selector: string) => rows(root, selector)[0];
+
+const oneLineOrder = (line: Partial<OrderLineDto>): OrderDetailDto => {
+  const order = anOrderDetail({ isUpdating: false });
+  return {
+    ...order,
+    shipments: [{ ...order.shipments[1], lines: [{ ...SOCKS_LINE, ...line }] }],
+  };
+};
+
 describe('OrderDetailPage', () => {
   let fixture: ComponentFixture<OrderDetailPage>;
   let http: HttpTestingController;
   let announcer: LiveAnnouncer;
 
   const host = () => fixture.nativeElement as HTMLElement;
-  const text = (root: ParentNode, selector: string) =>
-    root.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
-  /**
-  `<dl>` rows as "label value".
-  */
-  const rows = (root: ParentNode, selector: string) =>
-    [...root.querySelectorAll(selector)].map((element) =>
-      [...element.children].map((child) => child.textContent?.trim()).join(' ')
-    );
-  const row = (root: ParentNode, selector: string) => rows(root, selector)[0];
+  const summary = () => host().querySelector('app-order-summary-panel') as HTMLElement;
   const shipment = (seller: string) =>
     [...host().querySelectorAll<HTMLElement>('.shipment')].find(
       (element) => element.querySelector('h3')?.textContent?.trim() === seller
     ) as HTMLElement;
   const lineBadges = () =>
-    [...host().querySelectorAll<HTMLElement>('.line app-status-badge')].map((badge) => ({
+    [...host().querySelectorAll<HTMLElement>(':scope .line app-status-badge')].map((badge) => ({
       text: badge.textContent?.trim(),
       icon: badge.querySelector('mat-icon')?.getAttribute('data-mat-icon-name'),
       tone: [...badge.classList].find((name) => name.startsWith('tone-')),
     }));
+  /**
+  The Kestrel line's status, the refund's badge and the updating note, while a refund is paid back.
+  */
+  const refundProgress = () => ({
+    line: lineBadges()[1].text,
+    refund: text(summary(), '.refunds li app-status-badge'),
+    updating: text(host(), '.updating'),
+  });
 
   /**
   Lets the resource take the flushed answer (a microtask), then renders.
   */
-  async function settle(): Promise<void> {
+  const settle = async (): Promise<void> => {
     await vi.advanceTimersByTimeAsync(0);
     fixture.detectChanges();
-  }
+  };
 
-  function open(): void {
+  const open = (): void => {
     fixture = TestBed.createComponent(OrderDetailPage);
     fixture.componentRef.setInput('id', NUMBER);
     fixture.detectChanges();
-  }
+  };
 
-  async function show(order: OrderDetailDto | { status: number }): Promise<void> {
+  const show = async (order: OrderDetailDto | { status: number }): Promise<void> => {
     open();
     const request = http.expectOne(URL);
     if ('number' in order) {
@@ -69,15 +88,7 @@ describe('OrderDetailPage', () => {
       );
     }
     await fixture.whenStable();
-  }
-
-  function oneLineOrder(line: Partial<OrderLineDto>): OrderDetailDto {
-    const order = anOrderDetail({ isUpdating: false });
-    return {
-      ...order,
-      shipments: [{ ...order.shipments[1], lines: [{ ...SOCKS_LINE, ...line }] }],
-    };
-  }
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -125,7 +136,7 @@ describe('OrderDetailPage', () => {
   ] as const)('shows a $status line as "$statusText" with the $icon icon', async (line) => {
     await show(oneLineOrder({ status: line.status, statusText: line.statusText }));
 
-    expect(lineBadges()).toEqual([
+    expect(lineBadges()).toStrictEqual([
       { text: line.statusText || 'Needs attention', icon: line.icon, tone: line.tone },
     ]);
   });
@@ -133,12 +144,26 @@ describe('OrderDetailPage', () => {
   it('groups lines by seller with each shipment method and fee', async () => {
     await show(anOrderDetail({ isUpdating: false }));
 
-    expect(text(shipment('Lumen Goods'), '.shipping')).toBe('Express shipping, $12.99');
-    expect(text(shipment('Lumen Goods'), '.line .name')).toBe('Enamel Camp Mug');
-    expect(text(shipment('Lumen Goods'), '.line .muted')).toBe('2 × $18.50');
-    expect(text(shipment('Lumen Goods'), '.line-total')).toBe('$37.00');
-    expect(text(shipment('Kestrel Outfitters'), '.shipping')).toBe('Standard shipping, $4.99');
-    expect(text(shipment('Kestrel Outfitters'), '.line .name')).toBe('Merino Trail Socks');
+    const lumen = shipment('Lumen Goods');
+    const kestrel = shipment('Kestrel Outfitters');
+
+    expect({
+      lumen: {
+        shipping: text(lumen, '.shipping'),
+        name: text(lumen, '.line .name'),
+        quantity: text(lumen, '.line .muted'),
+        lineTotal: text(lumen, '.line-total'),
+      },
+      kestrel: { shipping: text(kestrel, '.shipping'), name: text(kestrel, '.line .name') },
+    }).toStrictEqual({
+      lumen: {
+        shipping: 'Express shipping, $12.99',
+        name: 'Enamel Camp Mug',
+        quantity: '2 × $18.50',
+        lineTotal: '$37.00',
+      },
+      kestrel: { shipping: 'Standard shipping, $4.99', name: 'Merino Trail Socks' },
+    });
     expect(text(host(), '.overview')).toContain('Processing');
   });
 
@@ -181,28 +206,37 @@ describe('OrderDetailPage', () => {
 
     const kestrel = shipment('Kestrel Outfitters');
 
-    expect(text(kestrel, '.shipping')).toBe('Standard shipping, $4.99 (refunded)');
-    expect(kestrel.querySelector('.shipping s')?.textContent).toBe('$4.99');
-    expect(text(kestrel, '.line-total s')).toBe('You don’t pay: $16.22');
+    expect({
+      shipping: text(kestrel, '.shipping'),
+      struckFee: kestrel.querySelector(':scope .shipping s')?.textContent,
+      lineTotal: text(kestrel, '.line-total s'),
+    }).toStrictEqual({
+      shipping: 'Standard shipping, $4.99 (refunded)',
+      struckFee: '$4.99',
+      lineTotal: 'You don’t pay: $16.22',
+    });
     expect(text(host(), '.notice')).toContain('1 item couldn’t be supplied.');
+    expect({
+      refunded: row(summary(), '.refunded'),
+      netPaid: row(summary(), '.refunded + .total'),
+      // The line and the shipping fee it paid back, as separate amounts.
+      breakdown: rows(summary(), '.breakdown > div'),
+      refundBadge: text(summary(), '.refunds li app-status-badge'),
+    }).toStrictEqual({
+      refunded: 'Refunded −$22.51',
+      netPaid: 'Net paid $52.95',
+      breakdown: ['Merino Trail Socks $17.52', 'Shipping fee $4.99'],
+      refundBadge: 'Refunded',
+    });
 
-    const summary = host().querySelector('app-order-summary-panel') as HTMLElement;
+    const refund = text(summary(), '.refunds li');
 
-    expect(row(summary, '.refunded')).toBe('Refunded −$22.51');
-    expect(row(summary, '.refunded + .total')).toBe('Net paid $52.95');
-    // The line and the shipping fee it paid back, as separate amounts.
-    expect(rows(summary, '.breakdown > div')).toEqual([
-      'Merino Trail Socks $17.52',
-      'Shipping fee $4.99',
-    ]);
-    expect(text(summary, '.refunds li')).toContain('$22.51');
-    expect(text(summary, '.refunds li app-status-badge')).toBe('Refunded');
-    expect(text(summary, '.refunds li')).toContain('to Visa ending 1111');
+    expect(refund).toContain('$22.51');
+    expect(refund).toContain('to Visa ending 1111');
   });
 
   it('summarises the payment: card brand and last 4, or the wallet', async () => {
     await show(aSettledOrderDetail());
-    const summary = () => host().querySelector('app-order-summary-panel') as HTMLElement;
 
     expect(text(summary(), '.method')).toBe('Visa ending 1111');
     expect(row(summary(), '.total')).toBe('Total charged $75.46');
@@ -210,11 +244,11 @@ describe('OrderDetailPage', () => {
     expect(summary().querySelector('.refunded')).toBeNull();
 
     fixture.destroy();
-    const order = aSettledOrderDetail();
-    await show({
-      ...order,
-      payment: { ...order.payment!, method: 'wallet', cardBrand: null, cardLast4: null },
-    });
+    await show(
+      aSettledOrderDetail({
+        payment: aCardPayment({ method: 'wallet', cardBrand: null, cardLast4: null }),
+      })
+    );
 
     expect(text(summary(), '.method')).toBe('Lumen wallet');
   });
@@ -243,7 +277,7 @@ describe('OrderDetailPage', () => {
     http.expectOne(URL).flush(aSettledOrderDetail());
     fixture.detectChanges();
 
-    expect(lineBadges().map((badge) => badge.text)).toEqual([
+    expect(lineBadges().map((badge) => badge.text)).toStrictEqual([
       'Confirmed',
       'Confirmed by Kestrel Outfitters',
     ]);
@@ -280,9 +314,9 @@ describe('OrderDetailPage', () => {
       totals: { ...order.totals, refunded: 22.51, netPaid: 52.95 },
       refunds: [
         {
+          status,
           id: 'refund-1',
           amount: 22.51,
-          status,
           reason: 'Not supplied by Kestrel Outfitters',
           lineIds: [SOCKS_LINE.id],
           shippingAmount: 4.99,
@@ -291,34 +325,39 @@ describe('OrderDetailPage', () => {
         },
       ],
     });
-    const refundBadge = () => text(host(), 'app-order-summary-panel .refunds li app-status-badge');
 
     open();
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
     http.expectOne(URL).flush(refunding('pending', 'Not supplied, refund pending'));
     await settle();
 
-    expect(lineBadges()[1].text).toBe('Not supplied, refund pending');
-    expect(text(host(), '.updating')).toBe(
-      'Your refund is on its way back to your Visa ending 1111. This page updates by itself.'
-    );
-    expect(refundBadge()).toBe('Pending');
+    expect(refundProgress()).toStrictEqual({
+      line: 'Not supplied, refund pending',
+      refund: 'Pending',
+      updating:
+        'Your refund is on its way back to your Visa ending 1111. This page updates by itself.',
+    });
 
     // A failed attempt is retried by the API: still pending for the customer, still refreshing.
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
     http.expectOne(URL).flush(refunding('failed', 'Not supplied, refund pending'));
     fixture.detectChanges();
 
-    expect(refundBadge()).toBe('Pending');
-    expect(text(host(), '.updating')).toContain('Your refund is on its way back');
+    expect(refundProgress()).toStrictEqual({
+      line: 'Not supplied, refund pending',
+      refund: 'Pending',
+      updating: expect.stringContaining('Your refund is on its way back'),
+    });
 
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
     http.expectOne(URL).flush(refunding('succeeded', 'Not supplied, refunded $22.51'));
     fixture.detectChanges();
 
-    expect(lineBadges()[1].text).toBe('Not supplied, refunded $22.51');
-    expect(refundBadge()).toBe('Refunded');
-    expect(text(host(), '.updating')).toBe('');
+    expect(refundProgress()).toStrictEqual({
+      line: 'Not supplied, refunded $22.51',
+      refund: 'Refunded',
+      updating: '',
+    });
     expect(announcer.announce).toHaveBeenCalledWith(
       'Merino Trail Socks: Not supplied, refunded $22.51',
       'polite'
@@ -363,7 +402,7 @@ describe('OrderDetailPage', () => {
 
     expect(text(host(), 'h1')).toBe(`Order ${NUMBER}`);
     expect(text(host(), '.state strong')).toBe(`We can’t find order ${NUMBER}.`);
-    expect(host().querySelector('.state a')?.getAttribute('href')).toBe('/orders');
+    expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe('/orders');
     expect(host().querySelector('[role="alert"]')).toBeNull();
   });
 
@@ -371,7 +410,7 @@ describe('OrderDetailPage', () => {
     await show({ status: 401 });
 
     expect(text(host(), '.state strong')).toBe('Sign in to see this order.');
-    expect(host().querySelector('.state a')?.getAttribute('href')).toBe(
+    expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe(
       `/sign-in?returnUrl=%2Forders%2F${NUMBER}`
     );
   });
@@ -379,7 +418,7 @@ describe('OrderDetailPage', () => {
   it('offers Retry when the order fails to load', async () => {
     await show({ status: 500 });
 
-    (host().querySelector('[role="alert"] button') as HTMLButtonElement).click();
+    (host().querySelector(':scope [role="alert"] button') as HTMLButtonElement).click();
     await vi.waitFor(() => http.expectOne(URL).flush(aSettledOrderDetail()));
     await fixture.whenStable();
 
@@ -395,6 +434,8 @@ describe('OrderDetailPage', () => {
       ],
     });
 
-    expect(host().querySelector('.line img')?.getAttribute('src')).toBe('/media/own/mug.png');
+    expect(host().querySelector(':scope .line img')?.getAttribute('src')).toBe(
+      '/media/own/mug.png'
+    );
   });
 });

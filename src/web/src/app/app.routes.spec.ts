@@ -44,18 +44,21 @@ import { ADMIN_SESSION, CUSTOMER_SESSION, US_ADDRESS } from './testing/fixtures'
 /**
 Flattens the route tree into absolute path patterns, e.g. "/orders/:id/confirmation".
 */
-function pathPatterns(table: Route[], parent = ''): string[] {
-  return table.flatMap((route) => {
+const pathPatterns = (table: Route[], parent = ''): string[] =>
+  table.flatMap((route) => {
     const path = [parent, route.path ?? ''].filter(Boolean).join('/');
     return [`/${path}`, ...pathPatterns(route.children ?? [], path)];
   });
-}
+
+const byText = (a: string, b: string): number => a.localeCompare(b);
 
 describe('app routes', () => {
-  it('define exactly the storefront and admin pages from the brief', () => {
-    const patterns = [...new Set(pathPatterns(routes))].sort();
+  afterEach(() => sessionStorage.clear());
 
-    expect(patterns).toEqual(
+  it('define exactly the storefront and admin pages from the brief', () => {
+    const patterns = [...new Set(pathPatterns(routes))].toSorted(byText);
+
+    expect(patterns).toStrictEqual(
       [
         '/',
         '/products/:id',
@@ -78,7 +81,7 @@ describe('app routes', () => {
         '/admin/orders/:id',
         '/admin/partners',
         '/**',
-      ].sort()
+      ].toSorted(byText)
     );
   });
 
@@ -104,8 +107,6 @@ describe('app routes', () => {
     { url: '/admin/partners', finalUrl: '/admin/partners', page: AdminPartnersPage, heading: 'Partner status', title: 'Partner status — Admin' },
     { url: '/no-such-page', finalUrl: '/no-such-page', page: NotFoundPage, heading: 'Page not found', title: 'Page not found' },
   ];
-
-  afterEach(() => sessionStorage.clear());
 
   it.each(pages)('$url lazy-loads "$heading"', async ({ url, finalUrl, page, heading, title }) => {
     TestBed.configureTestingModule({

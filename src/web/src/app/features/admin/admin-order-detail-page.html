@@ -169,78 +169,7 @@
           <ul class="partner-orders">
             @for (partnerOrder of admin.partnerOrders; track partnerOrder.id) {
               <li>
-                <div class="item-head">
-                  <h3>Line {{ partnerOrder.lineNumber }}: {{ partnerOrder.sellerName }}</h3>
-                  <app-status-badge [status]="partnerOrderView(partnerOrder)" />
-                </div>
-                <dl class="pairs">
-                  <div>
-                    <dt>Our reference</dt>
-                    <dd>
-                      <code>{{ partnerOrder.externalRef }}</code>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Partner order or ticket</dt>
-                    <dd>
-                      @if (partnerOrder.partnerOrderId) {
-                        <code>{{ partnerOrder.partnerOrderId }}</code>
-                      } @else {
-                        None yet
-                      }
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Attempts</dt>
-                    <dd>{{ partnerOrder.attempts }}</dd>
-                  </div>
-                  @if (partnerOrder.nextAttemptUtc) {
-                    <div>
-                      <dt>Next attempt</dt>
-                      <dd>{{ partnerOrder.nextAttemptUtc | date: 'medium' }}</dd>
-                    </div>
-                  }
-                  @if (partnerOrder.submittedUtc) {
-                    <div>
-                      <dt>Sent</dt>
-                      <dd>{{ partnerOrder.submittedUtc | date: 'medium' }}</dd>
-                    </div>
-                  }
-                  @if (partnerOrder.acceptedUtc) {
-                    <div>
-                      <dt>Accepted</dt>
-                      <dd>{{ partnerOrder.acceptedUtc | date: 'medium' }}</dd>
-                    </div>
-                  }
-                  @if (partnerOrder.decidedUtc) {
-                    <div>
-                      <dt>Decided</dt>
-                      <dd>{{ partnerOrder.decidedUtc | date: 'medium' }}</dd>
-                    </div>
-                  }
-                  @if (partnerOrder.reason) {
-                    <div>
-                      <dt>Reason</dt>
-                      <dd class="wrap">{{ partnerOrder.reason }}</dd>
-                    </div>
-                  }
-                </dl>
-                @if (partnerOrder.outcomeUnknown) {
-                  <p class="last-error">
-                    <mat-icon svgIcon="warning" />
-                    <span
-                      ><strong>Outcome unknown:</strong> a send may have reached
-                      {{ partnerOrder.sellerName }} without an answer, so it may hold this order.
-                      Check with {{ partnerOrder.sellerName }} before rejecting the line.</span
-                    >
-                  </p>
-                }
-                @if (partnerOrder.lastError) {
-                  <p class="last-error">
-                    <mat-icon svgIcon="error" />
-                    <span><strong>Last error:</strong> {{ partnerOrder.lastError }}</span>
-                  </p>
-                }
+                <app-partner-order-details [partnerOrder]="partnerOrder" />
               </li>
             }
           </ul>

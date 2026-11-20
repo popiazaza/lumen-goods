@@ -174,34 +174,12 @@
           <p class="muted">No images: the shop shows a placeholder.</p>
         } @else {
           <p class="muted">The first image is the main one in the shop.</p>
-          <ol class="chosen">
-            @for (file of chosen; track file) {
-              <li>
-                <img alt="" width="64" height="64" [src]="imageUrls().get(file) ?? ''" />
-                <span class="file">{{ file }}</span>
-                @if ($first) {
-                  <span class="main"><mat-icon svgIcon="star" />Main image</span>
-                } @else {
-                  <button
-                    matButton
-                    type="button"
-                    [attr.aria-label]="`Make ${file} the main image`"
-                    (click)="makeMain(file)"
-                  >
-                    Make main
-                  </button>
-                }
-                <button
-                  matButton
-                  type="button"
-                  [attr.aria-label]="`Remove ${file}`"
-                  (click)="toggleImage(file)"
-                >
-                  Remove
-                </button>
-              </li>
-            }
-          </ol>
+          <app-chosen-images
+            [files]="chosen"
+            [imageUrls]="imageUrls()"
+            (mainChosen)="makeMain($event)"
+            (removed)="toggleImage($event)"
+          />
         }
         @if (form.controls.images.touched && error('images'); as message) {
           <p class="group-error" tabindex="-1">{{ message }}</p>
@@ -212,27 +190,12 @@
 
         <h3>Image library</h3>
         @if (media.hasValue()) {
-          <ul class="library">
-            @for (image of media.value(); track image.file) {
-              <li>
-                <button
-                  type="button"
-                  class="library-image"
-                  [attr.aria-pressed]="isSelected(image.file)"
-                  [disabled]="!isSelected(image.file) && chosen.length >= maxImages"
-                  (click)="toggleImage(image.file)"
-                >
-                  <img alt="" width="96" height="96" loading="lazy" [src]="image.url" />
-                  <span>{{ image.file }}</span>
-                  @if (isSelected(image.file)) {
-                    <span class="picked"><mat-icon svgIcon="check_circle" />Chosen</span>
-                  }
-                </button>
-              </li>
-            } @empty {
-              <li class="muted">The image library is empty.</li>
-            }
-          </ul>
+          <app-image-library
+            [images]="media.value()"
+            [chosen]="chosen"
+            [maxImages]="maxImages"
+            (toggled)="toggleImage($event)"
+          />
         } @else if (media.status() === 'error') {
           <p role="alert">
             We couldn’t load the image library.

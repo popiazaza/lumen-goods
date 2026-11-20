@@ -49,19 +49,25 @@ Create an account (`/register?returnUrl=`): email and password, then signed in.
   styleUrl: './account-form.scss',
 })
 export class RegisterPage {
-  readonly returnUrl = input<string>();
-
   private readonly sessionApi = inject(SessionApi);
+
   private readonly afterSignIn = inject(AfterSignIn);
+
   private readonly injector = inject(Injector);
+
   private readonly summary = viewChild(ErrorSummary);
 
+  readonly returnUrl = input<string>();
+
   protected readonly session = this.sessionApi.session;
+
   protected readonly minPasswordLength = MIN_PASSWORD_LENGTH;
+
   protected readonly returnParams = computed(() => {
     const returnUrl = safeReturnUrl(this.returnUrl(), '');
     return returnUrl ? { returnUrl } : {};
   });
+
   protected readonly continueUrl = computed(() => safeReturnUrl(this.returnUrl()));
 
   protected readonly form = new FormGroup({
@@ -74,14 +80,57 @@ export class RegisterPage {
       validators: [Validators.required, Validators.minLength(MIN_PASSWORD_LENGTH)],
     }),
   });
+
   protected readonly showPassword = signal(false);
+
   protected readonly submitting = signal(false);
+
   protected readonly problems = signal<readonly FormProblem[]>([]);
+
   protected readonly failure = signal<string | null>(null);
+
   /**
   Messages from the API's validation problem, shown under their fields.
   */
   protected readonly serverErrors = signal<{ email?: string; password?: string }>({});
+
+  private showProblems(): void {
+    const problems: FormProblem[] = [];
+    if (this.form.controls.email.invalid) {
+      problems.push({ fieldId: 'register-email', message: this.emailError() });
+    }
+    if (this.form.controls.password.invalid) {
+      problems.push({ fieldId: 'register-password', message: this.passwordError() });
+    }
+    this.problems.set(problems);
+    afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
+  }
+
+  /**
+  A 400 validation problem lands on its fields (keys `Email`, `Password`); anything else on top.
+  */
+  private failed(error: unknown): void {
+    const errors = problemOf(error)?.errors;
+    const pick = (key: string) =>
+      Object.entries(errors ?? {})
+        .find(([name]) => name.toLowerCase() === key)?.[1]
+        ?.join(' ');
+    const email = pick('email');
+    const password = pick('password');
+    if (email || password) {
+      this.serverErrors.set({ email, password });
+      if (email) {
+        this.form.controls.email.setErrors({ server: true });
+      }
+      if (password) {
+        this.form.controls.password.setErrors({ server: true });
+      }
+      this.form.markAllAsTouched();
+      this.showProblems();
+      return;
+    }
+    this.failure.set(problemMessage(error, 'We couldn’t create your account. Try again.'));
+  }
 
   protected emailError(): string {
     const control = this.form.controls.email;
@@ -120,43 +169,5 @@ export class RegisterPage {
       .complete(this.sessionApi.register({ email: email.trim(), password }), this.returnUrl())
       .pipe(finalize(() => this.submitting.set(false)))
       .subscribe({ error: (error: unknown) => this.failed(error) });
-  }
-
-  private showProblems(): void {
-    const problems: FormProblem[] = [];
-    if (this.form.controls.email.invalid) {
-      problems.push({ fieldId: 'register-email', message: this.emailError() });
-    }
-    if (this.form.controls.password.invalid) {
-      problems.push({ fieldId: 'register-password', message: this.passwordError() });
-    }
-    this.problems.set(problems);
-    afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
-  }
-
-  /**
-  A 400 validation problem lands on its fields (keys `Email`, `Password`); anything else on top.
-  */
-  private failed(error: unknown): void {
-    const errors = problemOf(error)?.errors;
-    const pick = (key: string) =>
-      Object.entries(errors ?? {})
-        .find(([name]) => name.toLowerCase() === key)?.[1]
-        ?.join(' ');
-    const email = pick('email');
-    const password = pick('password');
-    if (email || password) {
-      this.serverErrors.set({ email, password });
-      if (email) {
-        this.form.controls.email.setErrors({ server: true });
-      }
-      if (password) {
-        this.form.controls.password.setErrors({ server: true });
-      }
-      this.form.markAllAsTouched();
-      this.showProblems();
-      return;
-    }
-    this.failure.set(problemMessage(error, 'We couldn’t create your account. Try again.'));
   }
 }

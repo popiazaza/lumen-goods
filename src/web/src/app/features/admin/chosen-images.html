@@ -1,0 +1,32 @@
+<ol class="chosen">
+  @for (file of files(); track file) {
+    <li>
+      @if (imageUrls().get(file); as url) {
+        <img alt="" width="64" height="64" [ngSrc]="url" />
+      } @else {
+        <span class="no-thumbnail"></span>
+      }
+      <span class="file">{{ file }}</span>
+      @if ($first) {
+        <span class="main"><mat-icon svgIcon="star" />Main image</span>
+      } @else {
+        <button
+          matButton
+          type="button"
+          [attr.aria-label]="`Make ${file} the main image`"
+          (click)="mainChosen.emit(file)"
+        >
+          Make main
+        </button>
+      }
+      <button
+        matButton
+        type="button"
+        [attr.aria-label]="`Remove ${file}`"
+        (click)="removed.emit(file)"
+      >
+        Remove
+      </button>
+    </li>
+  }
+</ol>

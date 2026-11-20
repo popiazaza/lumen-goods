@@ -55,14 +55,13 @@ const ICON_PATHS: Readonly<Record<string, string>> = {
 /**
 Registers the app's SVG icons with Angular Material's icon registry.
 */
-export function provideAppIcons(): EnvironmentProviders {
-  return provideEnvironmentInitializer(() => {
+export const provideAppIcons = (): EnvironmentProviders =>
+  provideEnvironmentInitializer(() => {
     const registry = inject(MatIconRegistry);
     const sanitizer = inject(DomSanitizer);
     for (const [name, path] of Object.entries(ICON_PATHS)) {
-      // Safe to trust: compile-time constants above, never user or server input.
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="${path}"/></svg>`;
+      // eslint-disable-next-line sonarjs/no-angular-bypass-sanitization -- addSvgIconLiteral takes SafeHtml; these SVGs are the constants above, never user or server input
       registry.addSvgIconLiteral(name, sanitizer.bypassSecurityTrustHtml(svg));
     }
   });
-}

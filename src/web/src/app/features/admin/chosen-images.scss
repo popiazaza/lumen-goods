@@ -1,0 +1,42 @@
+:host {
+  display: block;
+}
+
+.chosen {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  gap: var(--lg-space-2);
+  list-style: none;
+
+  & li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lg-space-2);
+  }
+
+  & img,
+  & .no-thumbnail {
+    border-radius: 8px;
+    background: var(--mat-sys-surface-container);
+    object-fit: cover;
+  }
+
+  & .no-thumbnail {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+.file {
+  flex: 1 1 8rem;
+  overflow-wrap: anywhere;
+}
+
+.main {
+  display: inline-flex;
+  align-items: center;
+  color: var(--mat-sys-primary);
+  gap: var(--lg-space-1);
+}

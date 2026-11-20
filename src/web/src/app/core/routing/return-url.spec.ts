@@ -12,6 +12,7 @@ describe('safeReturnUrl', () => {
     'https://evil.example/',
     '//evil.example',
     '/\\evil.example',
+    // eslint-disable-next-line no-script-url -- the attack input this test proves is rejected
     'javascript:alert(1)',
     '/\t/evil.example',
     'checkout',
@@ -25,8 +26,8 @@ describe('safeReturnUrl', () => {
   });
 
   it('builds "Sign in" link params that come back to the current page', () => {
-    expect(signInQueryParams('/cart')).toEqual({ returnUrl: '/cart' });
-    expect(signInQueryParams('/')).toEqual({});
-    expect(signInQueryParams('/sign-in?returnUrl=%2Fcart')).toEqual({});
+    expect(signInQueryParams('/cart')).toStrictEqual({ returnUrl: '/cart' });
+    expect(signInQueryParams('/')).toStrictEqual({});
+    expect(signInQueryParams('/sign-in?returnUrl=%2Fcart')).toStrictEqual({});
   });
 });

@@ -19,16 +19,20 @@ import { provideAppIcons } from '../../core/icons/app-icons';
 import { aPagedResult, anAdminOrderSummary } from '../../testing/order-fixtures';
 import { AdminOrdersPage } from './admin-orders-page';
 
-@Component({ template: '<h1>Order</h1>' })
+@Component({ selector: 'app-stub-order-page', template: '<h1>Order</h1>' })
 class StubOrderPage {}
 
 /**
 The instant the page sends for local midnight of a day (`YYYY-MM-DD` plus `addDays`).
 */
-function localMidnight(day: string, addDays = 0): string {
+const localMidnight = (day: string, addDays = 0): string => {
   const [year, month, date] = day.split('-').map(Number);
-  return new Date(year, month - 1, date + addDays).toISOString();
-}
+  const midnight = new Date(year, month - 1, date + addDays);
+  return midnight.toISOString();
+};
+
+const text = (root: ParentNode, selector: string) =>
+  root.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
 
 const PAID = anAdminOrderSummary();
 const ATTENTION = anAdminOrderSummary({
@@ -46,32 +50,29 @@ describe('AdminOrdersPage', () => {
   let router: Router;
 
   const host = () => harness.routeNativeElement as HTMLElement;
-  const text = (root: ParentNode, selector: string) =>
-    root.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const dateInput = (name: 'from' | 'to') =>
     host().querySelector(`input[name="${CSS.escape(name)}"]`) as HTMLInputElement;
 
-  async function nextRequest(): Promise<TestRequest> {
-    return vi.waitFor(() => {
+  const nextRequest = (): Promise<TestRequest> =>
+    vi.waitFor(() => {
       const [request] = http.match((r) => r.url === '/api/v1/admin/orders');
       if (!request) {
         throw new Error('No orders request yet');
       }
       return request;
     });
-  }
 
-  async function respond(page: PagedResult<AdminOrderSummary>): Promise<TestRequest> {
+  const respond = async (page: PagedResult<AdminOrderSummary>): Promise<TestRequest> => {
     const request = await nextRequest();
     request.flush(page);
     await harness.fixture.whenStable();
     return request;
-  }
+  };
 
-  async function open(url: string, page = aPagedResult([PAID, ATTENTION])) {
+  const open = async (url: string, page = aPagedResult([PAID, ATTENTION])) => {
     await harness.navigateByUrl(url, AdminOrdersPage);
     return respond(page);
-  }
+  };
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -104,18 +105,29 @@ describe('AdminOrdersPage', () => {
     // own: from local midnight, to the next local midnight after the last day (exclusive).
     const { params } = request.request;
 
-    expect(params.getAll('status')).toEqual(['paid', 'refunded', 'needs_attention']);
-    expect(params.get('from')).toBe(localMidnight('2026-11-01'));
-    expect(params.get('to')).toBe(localMidnight('2026-11-20', 1));
-    expect([params.get('page'), params.get('pageSize')]).toEqual(['2', '24']);
+    expect({
+      status: params.getAll('status'),
+      from: params.get('from'),
+      to: params.get('to'),
+      page: params.get('page'),
+      pageSize: params.get('pageSize'),
+    }).toStrictEqual({
+      status: ['paid', 'refunded', 'needs_attention'],
+      from: localMidnight('2026-11-01'),
+      to: localMidnight('2026-11-20', 1),
+      page: '2',
+      pageSize: '24',
+    });
 
     const status = await loader.getHarness(MatSelectHarness);
 
     await expect(status.getValueText()).resolves.toBe(
       'Paid, in progress, Refunded, Needs attention'
     );
-    expect(dateInput('from').value).toBe('2026-11-01');
-    expect(dateInput('to').value).toBe('2026-11-20');
+    expect({ from: dateInput('from').value, to: dateInput('to').value }).toStrictEqual({
+      from: '2026-11-01',
+      to: '2026-11-20',
+    });
   });
 
   it('ignores dates that are not real days', async () => {
@@ -185,16 +197,25 @@ describe('AdminOrdersPage', () => {
 
     expect(rows).toHaveLength(2);
 
-    const link = rows[0].querySelector('a') as HTMLAnchorElement;
+    const [paid, attention] = rows;
+    const link = paid.querySelector('a') as HTMLAnchorElement;
 
-    expect(link.textContent?.trim()).toBe('LG-7K3M9QX2');
-    expect(link.getAttribute('href')).toBe('/admin/orders/LG-7K3M9QX2');
-    expect(rows[0].textContent).toContain('customer@lumengoods.test');
-    expect(rows[0].textContent).toContain('Lumen Goods, Kestrel Outfitters');
-    expect(rows[0].textContent).toContain('$75.46');
+    expect({
+      number: link.textContent?.trim(),
+      href: link.getAttribute('href'),
+      customer: text(paid, '.mat-column-customer'),
+      sellers: text(paid, '.mat-column-sellers'),
+      total: text(paid, '.mat-column-total'),
+    }).toStrictEqual({
+      number: 'LG-7K3M9QX2',
+      href: '/admin/orders/LG-7K3M9QX2',
+      customer: 'customer@lumengoods.test',
+      sellers: 'Lumen Goods, Kestrel Outfitters',
+      total: '$75.46',
+    });
     expect(
-      [...rows[1].querySelectorAll('app-status-badge')].map((badge) => badge.textContent?.trim())
-    ).toEqual(['Processing', 'Needs attention']);
+      [...attention.querySelectorAll('app-status-badge')].map((badge) => badge.textContent?.trim())
+    ).toStrictEqual(['Processing', 'Needs attention']);
     expect(text(host(), '.count')).toBe('2 orders');
   });
 
@@ -208,7 +229,7 @@ describe('AdminOrdersPage', () => {
 
     expect(text(host(), '.state strong')).toBe('No orders match these filters.');
 
-    (host().querySelector('.state button') as HTMLButtonElement).click();
+    (host().querySelector(':scope .state button') as HTMLButtonElement).click();
     await respond(aPagedResult([PAID]));
 
     expect(router.url).toBe('/admin/orders');
@@ -216,7 +237,8 @@ describe('AdminOrdersPage', () => {
 
   it('shows the API’s message for filters it rejects', async () => {
     await harness.navigateByUrl('/admin/orders?from=2026-11-20&to=2026-11-01', AdminOrdersPage);
-    (await nextRequest()).flush(
+    const request = await nextRequest();
+    request.flush(
       { title: 'The order list query is not valid', detail: 'from must be on or before to.' },
       { status: 400, statusText: 'Bad Request' }
     );
@@ -227,7 +249,8 @@ describe('AdminOrdersPage', () => {
 
   it.each([401, 403])('asks the user to sign in as an admin on %d', async (status) => {
     await harness.navigateByUrl('/admin/orders', AdminOrdersPage);
-    (await nextRequest()).flush({ title: 'Denied', status }, { status, statusText: 'Denied' });
+    const request = await nextRequest();
+    request.flush({ title: 'Denied', status }, { status, statusText: 'Denied' });
     await harness.fixture.whenStable();
 
     expect(text(host(), 'app-admin-access-denied strong')).toBe(
