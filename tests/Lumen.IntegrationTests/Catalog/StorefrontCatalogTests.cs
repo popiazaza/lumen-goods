@@ -307,7 +307,7 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
         var detail = await (await _client.GetAsync($"/api/v1/products/{partner.Id}", Ct)).ReadAsync<ProductDto>();
 
         list.Should().NotContain("kestrel:8080").And.NotContain("partner-only");
-        detail.Images.Should().ContainSingle().Which.Url.Should().Be($"http://localhost/media/{partner.Id}/0");
+        detail.Images.Should().ContainSingle().Which.Url.Should().Be(ProductMapping.ImageUrl("http://localhost", partner.Id, 0, partner.Images[0].SourceUrl));
     }
 
     [Fact]

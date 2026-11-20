@@ -47,12 +47,16 @@ public sealed class ProductQueriesTests
 
     [Theory]
     [Trait("BR", "BR-CAT-02")]
-    [InlineData(true, 10.0, true)]
-    [InlineData(true, null, false)]
-    [InlineData(false, 10.0, false)]
-    public void BR_CAT_02_sellable_needs_an_active_priced_product(bool isActive, double? price, bool expected)
+    [InlineData(true, true, 10.0, true)]
+    [InlineData(true, true, null, false)]
+    [InlineData(false, true, 10.0, false)]
+    [InlineData(true, false, 10.0, false)]
+    [InlineData(false, false, 10.0, false)]
+    [InlineData(true, false, null, false)]
+    public void BR_CAT_02_sellable_needs_an_active_listed_priced_product(bool isActive, bool isListed, double? price, bool expected)
     {
         var product = Make(null, 0, 3, AvailabilityStatus.InStock, isActive, (decimal?)price);
+        product.IsListed = isListed;
 
         IsSellableSql(product).Should().Be(expected);
         product.IsSellable.Should().Be(expected);
