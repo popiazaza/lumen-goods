@@ -1,4 +1,6 @@
+using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
+using Lumen.Api.Partners;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -12,9 +14,19 @@ namespace Lumen.Api.Infrastructure.Data;
 public sealed class LumenDbContext(DbContextOptions<LumenDbContext> options)
     : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>(options)
 {
+    public DbSet<Product> Products => Set<Product>();
+
+    public DbSet<PartnerSyncState> PartnerSyncStates => Set<PartnerSyncState>();
+
+    public DbSet<PartnerSyncError> PartnerSyncErrors => Set<PartnerSyncError>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        // Table and column names follow EF Core's PascalCase defaults everywhere (like the Identity tables), so
+        // hand-written SQL always quotes them the same way.
+        builder.HasPostgresExtension("pg_trgm");
         builder.ApplyConfigurationsFromAssembly(typeof(LumenDbContext).Assembly);
     }
 }
