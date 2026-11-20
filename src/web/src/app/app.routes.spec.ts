@@ -93,7 +93,7 @@ describe('app routes', () => {
     { url: '/checkout/payment', finalUrl: '/checkout/payment', page: CheckoutPaymentPage, heading: 'Payment', title: 'Payment — Checkout' },
     { url: '/orders', finalUrl: '/orders', page: OrderListPage, heading: 'Your orders', title: 'Your orders' },
     { url: '/orders/1001', finalUrl: '/orders/1001', page: OrderDetailPage, heading: 'Order 1001', title: 'Order details' },
-    { url: '/orders/1001/confirmation', finalUrl: '/orders/1001/confirmation', page: OrderConfirmationPage, heading: 'Order 1001 confirmed', title: 'Order confirmed' },
+    { url: '/orders/1001/confirmation', finalUrl: '/orders/1001/confirmation', page: OrderConfirmationPage, heading: 'Order 1001', title: 'Order confirmation' },
     { url: '/admin', finalUrl: '/admin/products', page: AdminProductsPage, heading: 'Products', title: 'Products — Admin' },
     { url: '/admin/products/new', finalUrl: '/admin/products/new', page: AdminProductEditPage, heading: 'New product', title: 'New product — Admin' },
     { url: '/admin/products/p-7', finalUrl: '/admin/products/p-7', page: AdminProductEditPage, heading: 'Edit product', title: 'Edit product — Admin' },

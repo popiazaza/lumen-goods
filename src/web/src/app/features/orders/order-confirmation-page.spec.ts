@@ -221,6 +221,73 @@ describe('OrderConfirmationPage', () => {
     );
   });
 
+  it('says the payment is being confirmed while it runs, and refreshes until it is paid', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    fixture = TestBed.createComponent(OrderConfirmationPage);
+    fixture.componentRef.setInput('id', 'LG-7K3M9QX2');
+    fixture.detectChanges();
+    http.expectOne(ORDER_URL).flush(
+      anOrder({
+        status: 'payment_processing',
+        canPay: false,
+        isUpdating: true,
+        payment: aCardPayment({ status: 'processing', completedUtc: null }),
+      }),
+    );
+    fixture.detectChanges();
+
+    expect(text('h1')).toBe('Confirming payment for order LG-7K3M9QX2');
+    expect(text('.confirming')).toContain('We’re confirming your payment with the card provider.');
+    expect(host().textContent).not.toMatch(/cancelled|not been charged/);
+
+    await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS);
+    http.expectOne(ORDER_URL).flush(aPaidOrder({ isUpdating: false }));
+    fixture.detectChanges();
+
+    expect(text('h1')).toBe('Order LG-7K3M9QX2 confirmed');
+  });
+
+  it('keeps refreshing a failed payment the card provider has yet to settle', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    fixture = TestBed.createComponent(OrderConfirmationPage);
+    fixture.componentRef.setInput('id', 'LG-7K3M9QX2');
+    fixture.detectChanges();
+    const unsettled = anOrder({
+      canPay: false,
+      isUpdating: false,
+      payment: aCardPayment({ status: 'failed', completedUtc: null }),
+    });
+    http.expectOne(ORDER_URL).flush(unsettled);
+    fixture.detectChanges();
+
+    expect(text('h1')).toBe('Confirming payment for order LG-7K3M9QX2');
+    expect(host().textContent).not.toMatch(/cancelled|not been charged/);
+    await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS);
+    http.expectOne(ORDER_URL).flush(unsettled);
+  });
+
+  it('says cancelled and not charged only for an expired order', async () => {
+    await open(anOrder({ status: 'expired', canPay: false }));
+
+    expect(text('h1')).toBe('Order LG-7K3M9QX2 was not paid');
+    expect(host().textContent).toContain(
+      'This order was not paid, so it was cancelled. You have not been charged.',
+    );
+  });
+
+  it('never says confirmed while loading or after an error', async () => {
+    fixture = TestBed.createComponent(OrderConfirmationPage);
+    fixture.componentRef.setInput('id', 'LG-7K3M9QX2');
+    fixture.detectChanges();
+    expect(text('h1')).toBe('Order LG-7K3M9QX2');
+
+    http.expectOne(ORDER_URL).flush('down', { status: 503, statusText: 'Service Unavailable' });
+    await fixture.whenStable();
+
+    expect(text('[role="alert"]')).toContain('We couldn’t load your order.');
+    expect(text('h1')).toBe('Order LG-7K3M9QX2');
+  });
+
   it('says so when the order is not in the account', async () => {
     fixture = TestBed.createComponent(OrderConfirmationPage);
     fixture.componentRef.setInput('id', 'LG-7K3M9QX2');

@@ -31,6 +31,24 @@ export const CONFIRMATION_POLL_LIMIT_MS = 10 * 60_000;
 
 type Read = { order: OrderDetailDto } | { error: unknown };
 
+function paymentFailed(order: OrderDetailDto): boolean {
+  return order.status === 'awaiting_payment' && order.payment?.status === 'failed';
+}
+
+/**
+ * Besides what the API counts as updating (`orderKeepsChanging`, which covers a payment being
+ * confirmed), keep reading while the order waits on something only the server's jobs finish: a
+ * Failed payment the card provider has yet to settle (BR-PAY-05), or an order that can no longer
+ * be paid and is about to be closed. Otherwise the page would stop on a state that is not the end.
+ */
+function keepsChanging(order: OrderDetailDto): boolean {
+  return (
+    orderKeepsChanging(order) ||
+    paymentFailed(order) ||
+    (order.status === 'awaiting_payment' && !order.canPay)
+  );
+}
+
 const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
   pending: 'schedule',
   awaiting_partner: 'schedule',
@@ -43,7 +61,7 @@ const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
  * Order confirmation (`/orders/:id/confirmation`): the order number, items by seller, what was
  * charged (and refunded), and what happens next. Partner lines confirm later (BR-ORD-01) and a
  * line they cannot supply is refunded later still, so the page re-reads the order while it can
- * change on its own (`orderKeepsChanging`).
+ * change on its own (`keepsChanging`).
  */
 @Component({
   selector: 'app-order-confirmation-page',
@@ -73,18 +91,35 @@ export class OrderConfirmationPage {
     );
   });
 
-  /** One `<h1>` for every state, so the focus the router puts on it survives the load. */
+  /**
+   * The card provider has yet to say how the payment ended: still running, or Failed and waiting
+   * for the gateway's status (BR-PAY-05), when the card may or may not have been charged.
+   */
+  protected readonly confirming = computed(() => {
+    const order = this.order();
+    return (
+      !!order && !this.isPaid() && (order.status === 'payment_processing' || paymentFailed(order))
+    );
+  });
+
+  /**
+   * One `<h1>` for every state, so the focus the router puts on it survives the load. It says
+   * "confirmed" only once the API says the order is paid, never while loading or after an error.
+   */
   protected readonly heading = computed(() => {
     const order = this.order();
-    if (this.state() === 'not-found') {
-      return 'Order not found';
+    if (!order) {
+      return this.state() === 'not-found' ? 'Order not found' : `Order ${this.id()}`;
     }
-    if (!order || this.isPaid()) {
-      return `Order ${this.id()} confirmed`;
+    if (this.isPaid()) {
+      return `Order ${order.number} confirmed`;
     }
-    return order.status === 'expired'
-      ? `Order ${order.number} was not paid`
-      : `Order ${order.number} is awaiting payment`;
+    if (this.confirming()) {
+      return `Confirming payment for order ${order.number}`;
+    }
+    return order.status === 'awaiting_payment' && order.canPay
+      ? `Order ${order.number} is awaiting payment`
+      : `Order ${order.number} was not paid`;
   });
 
   protected readonly paymentText = computed(() => {
@@ -146,7 +181,7 @@ export class OrderConfirmationPage {
         // Stop when nothing can change any more, or when the first read already failed. A later
         // failed re-read keeps the last answer on screen and tries again.
         takeWhile(
-          (read) => ('order' in read ? orderKeepsChanging(read.order) : this.order() !== null),
+          (read) => ('order' in read ? keepsChanging(read.order) : this.order() !== null),
           true,
         ),
         takeUntilDestroyed(this.destroyRef),

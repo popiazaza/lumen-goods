@@ -18,7 +18,8 @@ p {
   font: var(--mat-sys-body-medium);
 }
 
-.thanks {
+.thanks,
+.confirming {
   display: flex;
   gap: var(--lg-space-3);
   padding: var(--lg-space-4);
@@ -28,6 +29,14 @@ p {
   > mat-icon {
     flex: none;
     color: var(--lg-status-success);
+  }
+}
+
+.confirming {
+  margin: 0 0 var(--lg-space-3);
+
+  > mat-icon {
+    color: var(--mat-sys-on-surface-variant);
   }
 }
 

@@ -30,13 +30,32 @@
         Each shop ships its items separately. You can follow every item on your order page.
       </p>
     </section>
+  } @else if (confirming()) {
+    <div class="confirming" role="status">
+      <mat-icon svgIcon="schedule" aria-hidden="true" />
+      <div>
+        <p><strong>Confirming your payment</strong></p>
+        <p>
+          We’re confirming your payment with the card provider. This page updates on its own, and
+          the result will also be in <a routerLink="/orders">Your orders</a>.
+        </p>
+      </div>
+    </div>
+    @if (order.canPay) {
+      <p>You can also try the same card again: you won’t be charged twice.</p>
+      <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
+        >Go to payment</a
+      >
+    }
   } @else if (order.canPay) {
     <p>This order is placed but not paid yet. We hold its prices and items until the hold ends.</p>
     <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
       >Pay now</a
     >
-  } @else {
+  } @else if (order.status === 'expired') {
     <p>This order was not paid, so it was cancelled. You have not been charged.</p>
+  } @else {
+    <p role="status">This order can no longer be paid. This page updates on its own.</p>
   }
 
   <section aria-labelledby="items-heading">
