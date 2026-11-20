@@ -1,0 +1,197 @@
+<h1>Shop</h1>
+
+@if (query().q) {
+  <p class="search-summary">
+    Search results for <strong>“{{ query().q }}”</strong>
+    <a routerLink="." [queryParams]="clearSearchParams()">Clear search</a>
+  </p>
+}
+
+<div class="layout">
+  <aside class="sidebar" aria-labelledby="filters-heading">
+    <h2 id="filters-heading" class="panel-title">Filters</h2>
+    <app-catalogue-filters
+      [query]="query()"
+      [sellers]="sellerDirectory.sellers()"
+      (filtersChange)="apply($event)"
+    />
+  </aside>
+
+  <section class="results" aria-labelledby="results-heading">
+    <div class="toolbar">
+      <h2 #resultsHeading id="results-heading" class="count" tabindex="-1">{{ countText() }}</h2>
+      <button matButton="outlined" type="button" class="filters-button" (click)="openFilters()">
+        <mat-icon svgIcon="filter_list" />
+        Filters
+        @if (filterCount() > 0) {
+          ({{ filterCount() }})
+        }
+      </button>
+      <mat-form-field class="sort" appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Sort by</mat-label>
+        <mat-select [value]="query().sort" (selectionChange)="apply({ sort: $event.value })">
+          @for (option of sortOptions; track option.value) {
+            <mat-option [value]="option.value">{{ option.label }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    @if (chips().length > 0) {
+      <div class="applied">
+        <mat-chip-set role="list" aria-label="Applied filters">
+          @for (chip of chips(); track chip.key) {
+            <mat-chip role="listitem" (removed)="removeChip(chip)">
+              {{ chip.label }}
+              <button matChipRemove [attr.aria-label]="'Remove filter: ' + chip.label">
+                <mat-icon svgIcon="cancel" />
+              </button>
+            </mat-chip>
+          }
+        </mat-chip-set>
+        <button matButton type="button" (click)="clearAll()">Clear all</button>
+      </div>
+    }
+
+    <div class="progress">
+      @if (results.isLoading() && page()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Loading products" />
+      }
+    </div>
+
+    @if (isError()) {
+      <div class="state" role="alert">
+        <mat-icon svgIcon="error" class="state-icon" />
+        @if (isBadRequest()) {
+          <h3>Some filters in this link are not valid</h3>
+          <p>{{ errorMessage() }}</p>
+          <button matButton="filled" type="button" (click)="clearAll()">Clear all filters</button>
+        } @else {
+          <h3>We couldn’t load products</h3>
+          <p>Check your connection and try again. Your search and filters are kept.</p>
+          <button matButton="filled" type="button" (click)="results.reload()">
+            <mat-icon svgIcon="refresh" />
+            Retry
+          </button>
+        }
+      </div>
+    } @else if (page(); as page) {
+      @if (page.items.length > 0) {
+        <ul class="grid" [class.stale]="results.isLoading()" [attr.aria-busy]="results.isLoading()">
+          @for (product of page.items; track product.id) {
+            <li>
+              <app-product-card
+                [product]="product"
+                [sellerName]="sellerDirectory.nameOf(product.source)"
+              />
+            </li>
+          }
+        </ul>
+
+        <div class="paging">
+          <p class="range">{{ rangeText() }}</p>
+          @if (page.totalPages > 1) {
+            <nav aria-label="Pages">
+              <ul class="pages">
+                @if (page.page > 1) {
+                  <li>
+                    <a class="step" routerLink="." [queryParams]="pageParams(page.page - 1)">
+                      <mat-icon svgIcon="chevron_left" />
+                      Previous
+                    </a>
+                  </li>
+                }
+                @for (link of pageLinks(); track $index) {
+                  <li>
+                    @if (link === null) {
+                      <span class="gap" aria-hidden="true">…</span>
+                    } @else if (link === page.page) {
+                      <a
+                        class="number current"
+                        routerLink="."
+                        [queryParams]="pageParams(link)"
+                        aria-current="page"
+                        [attr.aria-label]="'Page ' + link"
+                        >{{ link }}</a
+                      >
+                    } @else {
+                      <a
+                        class="number"
+                        routerLink="."
+                        [queryParams]="pageParams(link)"
+                        [attr.aria-label]="'Page ' + link"
+                        >{{ link }}</a
+                      >
+                    }
+                  </li>
+                }
+                @if (page.page < page.totalPages) {
+                  <li>
+                    <a class="step" routerLink="." [queryParams]="pageParams(page.page + 1)">
+                      Next
+                      <mat-icon svgIcon="chevron_right" />
+                    </a>
+                  </li>
+                }
+              </ul>
+            </nav>
+          }
+        </div>
+      } @else if (page.totalCount > 0) {
+        <div class="state">
+          <h3>There is no page {{ query().page }}</h3>
+          <p>These results have {{ page.totalPages }} pages.</p>
+          <a matButton="filled" routerLink="." [queryParams]="pageParams(page.totalPages)"
+            >Go to the last page</a
+          >
+        </div>
+      } @else {
+        <div class="state">
+          <mat-icon svgIcon="search" class="state-icon" />
+          <h3>No products match</h3>
+          @if (query().q) {
+            <p>
+              Nothing matches “{{ query().q }}”{{ filterCount() > 0 ? ' with these filters' : '' }}.
+            </p>
+          } @else {
+            <p>Nothing matches these filters.</p>
+          }
+          @if (filterCount() > 0) {
+            <button matButton="filled" type="button" (click)="clearAll()">Clear all filters</button>
+          } @else {
+            <a matButton="filled" routerLink="/">Browse all products</a>
+          }
+        </div>
+      }
+    } @else {
+      <div class="grid" aria-hidden="true">
+        @for (card of skeletonCards; track card) {
+          <div class="skeleton">
+            <div class="skeleton-image"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line short"></div>
+          </div>
+        }
+      </div>
+    }
+  </section>
+</div>
+
+<ng-template #filtersSheet>
+  <div class="sheet">
+    <h2 class="panel-title" tabindex="-1">Filters</h2>
+    <app-catalogue-filters
+      [query]="query()"
+      [sellers]="sellerDirectory.sellers()"
+      (filtersChange)="apply($event)"
+    />
+    <div class="sheet-actions">
+      @if (filterCount() > 0) {
+        <button matButton type="button" (click)="clearAll(false)">Clear all</button>
+      }
+      <button matButton="filled" type="button" (click)="closeFilters()">
+        {{ page() ? 'Show ' + countText() : 'Show results' }}
+      </button>
+    </div>
+  </div>
+</ng-template>

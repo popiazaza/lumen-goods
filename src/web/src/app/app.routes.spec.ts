@@ -1,3 +1,5 @@
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
 import {
@@ -74,6 +76,9 @@ describe('app routes', () => {
       providers: [
         provideRouter(routes, withComponentInputBinding()),
         { provide: TitleStrategy, useClass: PageTitleStrategy },
+        // Pages load data; the requests stay pending, so each page shows its loading heading.
+        provideHttpClient(),
+        provideHttpClientTesting(),
       ],
     });
     const harness = await RouterTestingHarness.create();
