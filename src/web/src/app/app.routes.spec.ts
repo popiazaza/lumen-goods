@@ -34,7 +34,7 @@ import { OrderConfirmationPage } from './features/orders/order-confirmation-page
 import { OrderDetailPage } from './features/orders/order-detail-page';
 import { OrderListPage } from './features/orders/order-list-page';
 import { ProductDetailPage } from './features/products/product-detail-page';
-import { CUSTOMER_SESSION, US_ADDRESS } from './testing/fixtures';
+import { ADMIN_SESSION, CUSTOMER_SESSION, US_ADDRESS } from './testing/fixtures';
 
 // Every page is imported here as well as lazily by the route table. The routes still load them
 // through `loadComponent`, but each page's chunk is already evaluated when its test starts, so a
@@ -116,7 +116,8 @@ describe('app routes', () => {
         provideAppIcons(),
       ],
     });
-    // Checkout needs a signed-in customer and the earlier steps done (its guards).
+    // Checkout needs a signed-in customer and the earlier steps done (its guards); admin pages an
+    // admin.
     sessionStorage.setItem(
       CHECKOUT_STORAGE_KEY,
       JSON.stringify({
@@ -127,7 +128,9 @@ describe('app routes', () => {
       }),
     );
     const session = TestBed.inject(SessionApi).ready();
-    TestBed.inject(HttpTestingController).expectOne('/api/v1/auth/session').flush(CUSTOMER_SESSION);
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/v1/auth/session')
+      .flush(url.startsWith('/admin') ? ADMIN_SESSION : CUSTOMER_SESSION);
     await session;
     const harness = await RouterTestingHarness.create();
 

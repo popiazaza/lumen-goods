@@ -1,5 +1,10 @@
 import { Routes } from '@angular/router';
 
+/**
+ * The admin pages, under `/admin`. `app.routes.ts` matches them for admins only (`adminGuard`);
+ * the pages still show "Sign in as an admin" when the API answers 401 or 403, as a session can
+ * end or lose the role while a page is open.
+ */
 export const adminRoutes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'products' },
   {
