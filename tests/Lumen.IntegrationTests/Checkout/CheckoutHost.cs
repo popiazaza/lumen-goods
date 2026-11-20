@@ -52,6 +52,8 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
 
     public OrderClaimHook Claims { get; } = new();
 
+    public UnpaidCountHook UnpaidCounts { get; } = new();
+
     public WebApplicationFactory<Program> App { get; private set; } = null!;
 
     public static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -79,7 +81,7 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(Clock);
-                services.ConfigureDbContext<LumenDbContext>(options => options.AddInterceptors(Claims));
+                services.ConfigureDbContext<LumenDbContext>(options => options.AddInterceptors(Claims, UnpaidCounts));
                 services.AddSingleton<MockPaymentGateway>();
                 services.AddSingleton<IPaymentGateway>(sp =>
                 {
@@ -316,6 +318,30 @@ public sealed class OrderClaimHook : DbCommandInterceptor
     {
         if (command.CommandText.StartsWith("UPDATE \"Orders\"", StringComparison.Ordinal)
             && Interlocked.Exchange(ref _beforeNextClaim, null) is { } step)
+        {
+            await step();
+        }
+
+        return result;
+    }
+}
+
+/// <summary>
+/// Runs a step just before the API's next count of a customer's unpaid orders (BR-CHK-03), so a test can commit another
+/// order exactly between Place order's checkout key lookup and its count. Does nothing unless armed.
+/// </summary>
+public sealed class UnpaidCountHook : DbCommandInterceptor
+{
+    private Func<Task>? _beforeNextCount;
+
+    public void BeforeNextCount(Func<Task> step) => _beforeNextCount = step;
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.StartsWith("SELECT count(*)::int", StringComparison.Ordinal)
+            && command.CommandText.Contains("FROM \"Orders\"", StringComparison.Ordinal)
+            && Interlocked.Exchange(ref _beforeNextCount, null) is { } step)
         {
             await step();
         }
