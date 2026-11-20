@@ -163,7 +163,7 @@ sequenceDiagram
         OJ->>P: POST with the same reference<br/>every time, or poll the ticket
         alt Harbor 201 or 200, Kestrel CONFIRMED
             OJ->>DB: line Confirmed
-        else Harbor 409/422, REJECTED, or not accepted in 30 min
+        else Harbor 409/422, REJECTED, or never reached it in 30 min
             OJ->>DB: line Rejected and<br/>Refund Pending
             RJ->>G: refund, key = refund id<br/>(wallet: credit instead)
             RJ->>DB: Refund Succeeded
@@ -171,13 +171,11 @@ sequenceDiagram
     end
 ```
 
-Each step claims in a short transaction, calls out with none open, then records the result. An accepted partner line with no decision after 24 h goes to an admin, not to a refund ([0004][adr4], [0005][adr5], [rules][rules-chk]).
+Each step claims in a short transaction, calls out with none open, then records the result. A line is refunded automatically only when the partner cannot have the order. If a send's outcome is unknown (a timeout after sending, a 5xx), or an accepted line has no decision after 24 h, it goes to an admin instead ([0004][adr4], [0005][adr5], [rules][rules-chk]).
 
 ### (c) Lifecycles
 
-Copied from [Orders/README.md][orders-readme], which `TransitionTableTests` keeps identical to the transition tables in code. Copy them again when a table changes.
-
-**Order**
+Orders, order lines, partner orders, payments and refunds each move through a transition table in `Lumen.Domain/Orders`; a move that is not in its table throws. All five state diagrams are in [Orders/README.md][orders-readme], generated from those tables and checked by `TransitionTableTests`, so they cannot drift from the code. The order's own lifecycle:
 
 ```mermaid
 stateDiagram-v2
@@ -196,77 +194,7 @@ stateDiagram-v2
     Expired --> [*]
 ```
 
-**Order line**
-
-```mermaid
-stateDiagram-v2
-    [*] --> Pending
-    Pending --> Confirmed: own item, order paid
-    Pending --> AwaitingPartner: partner item, order paid
-    AwaitingPartner --> Confirmed: partner confirmed
-    AwaitingPartner --> Rejected: partner rejected or given up, refunded
-    AwaitingPartner --> NeedsAttention: accepted, no decision after 24 h
-    NeedsAttention --> Confirmed: partner or admin confirmed
-    NeedsAttention --> Rejected: partner or admin rejected, refunded
-    Confirmed --> [*]
-    Rejected --> [*]
-```
-
-**Partner order** (one per partner line)
-
-```mermaid
-stateDiagram-v2
-    [*] --> Pending
-    Pending --> Submitted: sent, same reference on every retry
-    Pending --> GivenUp: not accepted within 30 min
-    Submitted --> Confirmed: Harbor created the order
-    Submitted --> Accepted: Kestrel ticket RECEIVED
-    Submitted --> Rejected: Harbor 409 or 422
-    Submitted --> GivenUp: not accepted within 30 min
-    Accepted --> Confirmed: Kestrel CONFIRMED
-    Accepted --> Rejected: Kestrel REJECTED
-    Accepted --> ClosedByAdmin: admin resolved the line
-    Confirmed --> [*]
-    Rejected --> [*]
-    GivenUp --> [*]
-    ClosedByAdmin --> [*]
-```
-
-**Payment** (one row per attempt)
-
-<!-- "#58;" is ":" escaped: Mermaid rejects a second colon in a transition label. Copy the README's diagram again once TransitionTable.ToMermaid escapes it. -->
-
-```mermaid
-stateDiagram-v2
-    [*] --> Created
-    Created --> Processing: sent to the gateway
-    Processing --> Succeeded: approved
-    Processing --> Declined: declined
-    Processing --> RequiresAction: one-time code needed
-    Processing --> Error: gateway error, not a decline
-    RequiresAction --> Succeeded: right code in time
-    RequiresAction --> Declined: wrong code
-    RequiresAction --> Expired: code expired, late or never entered
-    Error --> Processing: automatic retry, same payment id
-    Error --> Failed: retry errored too, or never ran
-    Failed --> Processing: Try again by the customer, same payment id
-    Failed --> Succeeded: gateway status#58; it was charged
-    Failed --> Declined: gateway status#58; never charged
-    Succeeded --> [*]
-    Declined --> [*]
-    Expired --> [*]
-```
-
-**Refund**
-
-```mermaid
-stateDiagram-v2
-    [*] --> Pending
-    Pending --> Succeeded: gateway or wallet confirmed
-    Pending --> Failed: gateway error or no answer
-    Failed --> Pending: retried with the same refund id
-    Succeeded --> [*]
-```
+Once paid, the order's status is derived from its lines: all confirmed is Completed, all final with some refunded is PartiallyRefunded, all refunded is Refunded.
 
 ## 5. Data model
 
@@ -405,7 +333,7 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 - **Strict re-confirmation**: a price drop also sends the customer back to confirm.
 - **PostgreSQL search**: `ILIKE` with `OFFSET` paging lasts to about 100,000 products.
 - **In-memory image cache**: lost on restart; refilling it spends Harbor's image budget.
-- **Partners that never answer**: unaccepted orders are refunded after 30 min; accepted but undecided ones go to an admin after 24 h.
+- **Partners that never answer**: after 30 min a line is refunded only if no send can have reached the partner; an unknown outcome, or an accepted line undecided after 24 h, goes to an admin, because a refunded line that still ships loses the goods.
 
 [adr2]: docs/adr/0002-modular-monolith-in-one-api-host.md
 [adr3]: docs/adr/0003-partner-integration-adapters-sync-image-proxy.md
