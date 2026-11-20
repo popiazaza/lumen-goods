@@ -12,6 +12,8 @@ namespace Lumen.Api.Carts;
 /// availability. A product only in the guest cart moves over as it was, notices included.
 /// Safe to replay and to run twice at once: the guest cart is deleted with its xmin as the concurrency check, so of two
 /// merges of the same guest cart only one commits; the other re-reads, finds no guest cart and changes nothing.
+/// Safe to call again after a failure: the merge commits in one SaveChanges or not at all, and the cookie is expired
+/// only after it committed, so an error (which sign-in logs and moves past) leaves the guest cart for the next sign-in.
 /// </summary>
 internal sealed class CartMergeService(
     IServiceScopeFactory scopes,

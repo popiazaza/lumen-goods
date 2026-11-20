@@ -173,6 +173,28 @@ public sealed class CartMergeTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-CART-01")]
+    public async Task BR_CART_01_a_merge_that_did_not_finish_leaves_the_guest_cart_for_the_next_sign_in()
+    {
+        var a = await factory.OwnProductAsync();
+        var customerId = await factory.NewCustomerAsync();
+        await factory.SaveAsync(SavedCart(customerId, (a, 1)));
+        var (guest, token) = GuestCart((a, 2));
+        await factory.SaveAsync(guest);
+
+        // Sign-in logs a failed merge and goes on; here the request is aborted before the merge commits.
+        await FluentActions.Awaiting(() => MergeAsync(token, customerId, new CancellationToken(canceled: true)))
+            .Should().ThrowAsync<OperationCanceledException>();
+        (await factory.GuestCartExistsAsync(token)).Should().BeTrue();
+        (await LoadCustomerCartAsync(customerId)).Lines.Should().ContainSingle().Which.Quantity.Should().Be(1);
+
+        await MergeAsync(token, customerId);
+
+        (await LoadCustomerCartAsync(customerId)).Lines.Should().ContainSingle().Which.Quantity.Should().Be(3);
+        (await factory.GuestCartExistsAsync(token)).Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-01")]
     public async Task BR_CART_01_signing_in_without_a_guest_cart_leaves_the_saved_cart_alone()
     {
         var a = await factory.OwnProductAsync();
@@ -185,12 +207,12 @@ public sealed class CartMergeTests(LumenApiFactory factory)
         (await browser.GetCartAsync()).LineFor(a).Quantity.Should().Be(2);
     }
 
-    private async Task MergeAsync(string guestToken, Guid customerId)
+    private async Task MergeAsync(string guestToken, Guid customerId, CancellationToken? cancellationToken = null)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var http = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
         http.Request.Headers.Cookie = $"{GuestCartToken.CookieName}={guestToken}";
-        await scope.ServiceProvider.GetRequiredService<ICartMergeService>().MergeGuestCartAsync(http, customerId, Ct);
+        await scope.ServiceProvider.GetRequiredService<ICartMergeService>().MergeGuestCartAsync(http, customerId, cancellationToken ?? Ct);
     }
 
     private Task<Cart> LoadCustomerCartAsync(Guid customerId) =>
