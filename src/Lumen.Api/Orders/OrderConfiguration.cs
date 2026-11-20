@@ -150,7 +150,7 @@ internal sealed class PartnerOrderConfiguration : IEntityTypeConfiguration<Partn
         builder.Property(p => p.Source).HasMaxLength(32);
         builder.Property(p => p.ExternalRef).HasMaxLength(64);
         builder.HasIndex(p => p.ExternalRef).IsUnique();
-        builder.Property(p => p.PartnerOrderId).HasMaxLength(64);
+        builder.Property(p => p.PartnerOrderId).HasMaxLength(PartnerOrder.MaxPartnerOrderIdLength);
         builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(32);
         builder.Property(p => p.Reason).HasMaxLength(500);
         builder.Property(p => p.LastError).HasMaxLength(2000);

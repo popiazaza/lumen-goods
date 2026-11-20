@@ -78,6 +78,10 @@ public sealed record PaymentEventDto(
 /// <summary>A partner order as the admin order page shows it (BR-ORD-01, BR-ORD-04).</summary>
 /// <param name="Status">pending | submitted | accepted | confirmed | rejected | given_up | closed_by_admin.</param>
 /// <param name="NeedsAttention">Its line needs an admin decision; resolve it with <see cref="ResolveOrderLineRequest"/>.</param>
+/// <param name="OutcomeUnknown">
+/// A send may have reached the partner without Lumen learning the result (BR-ORD-04): the partner may hold the order, so
+/// it is not refunded automatically. Check with the partner before rejecting the line.
+/// </param>
 public sealed record PartnerOrderDto(
     Guid Id,
     Guid OrderLineId,
@@ -94,7 +98,8 @@ public sealed record PartnerOrderDto(
     DateTime? SubmittedUtc,
     DateTime? AcceptedUtc,
     DateTime? DecidedUtc,
-    bool NeedsAttention);
+    bool NeedsAttention,
+    bool OutcomeUnknown = false);
 
 /// <summary>
 /// <c>POST /api/v1/admin/orders/{number}/lines/{lineId}/resolve</c> (BR-ORD-04): an admin confirms a line that needs
