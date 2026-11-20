@@ -36,7 +36,7 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 - One typed service per API resource in `src/app/core/api/` (e.g. `products.api.ts` exporting `ProductsApi`) built on `HttpClient`. Components never call `HttpClient` directly.
 - Give components signals (`httpResource`, `toSignal`) and render explicit loading, empty and error states.
 - Errors are RFC 9457 `ProblemDetails`: show `title`/`detail`, map `errors` onto form fields.
-- XSRF: the API sets the `XSRF-TOKEN` cookie and `HttpClient` returns it as `X-XSRF-TOKEN`. Don't work around it.
+- XSRF: `SessionApi` (`session.api.ts`) loads `GET /api/v1/auth/session` at start-up, which sets the `XSRF-TOKEN` cookie; `HttpClient` echoes it as `X-XSRF-TOKEN` on every POST/PUT/PATCH/DELETE. Read the user from `SessionApi.session()`.
 
 ## No business logic in the client
 

@@ -1,6 +1,7 @@
 import {
   ApplicationConfig,
   DEFAULT_CURRENCY_CODE,
+  provideAppInitializer,
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
 } from '@angular/core';
@@ -12,6 +13,7 @@ import {
   withInMemoryScrolling,
 } from '@angular/router';
 import { routes } from './app.routes';
+import { loadSessionOnStartup } from './core/api/session.api';
 import { provideAppIcons } from './core/icons/app-icons';
 import { PageTitleStrategy } from './core/routing/page-title-strategy';
 import { provideRouteHeadingFocus } from './core/routing/route-heading-focus';
@@ -33,6 +35,8 @@ export const appConfig: ApplicationConfig = {
       withFetch(),
       withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' }),
     ),
+    // GET /api/v1/auth/session sets that cookie, so load it before anything can POST.
+    provideAppInitializer(loadSessionOnStartup),
     { provide: DEFAULT_CURRENCY_CODE, useValue: 'USD' },
     provideAppIcons(),
   ],
