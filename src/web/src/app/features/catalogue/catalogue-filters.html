@@ -1,0 +1,59 @@
+<fieldset>
+  <legend>Category</legend>
+  @for (category of categories; track category) {
+    <mat-checkbox
+      [checked]="query().categories.includes(category)"
+      (change)="toggleCategory(category, $event.checked)"
+      >{{ categoryLabel(category) }}</mat-checkbox
+    >
+  }
+</fieldset>
+
+<fieldset>
+  <legend>Seller</legend>
+  @for (seller of sellers(); track seller.source) {
+    <mat-checkbox
+      [checked]="query().sellers.includes(seller.source)"
+      (change)="toggleSeller(seller.source, $event.checked)"
+      >{{ seller.name }}</mat-checkbox
+    >
+  }
+  @if (sellersFailed()) {
+    <p class="note">The seller list couldn’t be loaded.</p>
+  }
+</fieldset>
+
+<fieldset>
+  <legend>Price (USD)</legend>
+  <form class="price" [formGroup]="priceForm" (ngSubmit)="applyPrice()" novalidate>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Min</mat-label>
+      <span matTextPrefix>$&nbsp;</span>
+      <input matInput formControlName="min" inputmode="decimal" autocomplete="off" />
+      @if (priceForm.controls.min.hasError('price')) {
+        <mat-error>Enter an amount like 25 or 25.50</mat-error>
+      }
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Max</mat-label>
+      <span matTextPrefix>$&nbsp;</span>
+      <input
+        matInput
+        formControlName="max"
+        inputmode="decimal"
+        autocomplete="off"
+        [errorStateMatcher]="rangeMatcher"
+      />
+      @if (priceForm.controls.max.hasError('price')) {
+        <mat-error>Enter an amount like 25 or 25.50</mat-error>
+      } @else if (priceForm.hasError('range')) {
+        <mat-error>Max must be at least the min</mat-error>
+      }
+    </mat-form-field>
+    <button matButton="outlined" type="submit">Apply price</button>
+  </form>
+</fieldset>
+
+<mat-slide-toggle [checked]="query().inStock" (change)="setInStock($event.checked)"
+  >In stock only</mat-slide-toggle
+>

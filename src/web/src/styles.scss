@@ -52,6 +52,10 @@ html {
   --lg-content-max: 1280px;
   --lg-gutter: 16px;
   --lg-header-height: 64px;
+  // M3 has no success or warning role. Both pass 4.5:1 on every light surface; badges always pair
+  // them with an icon and text (WCAG 1.4.1).
+  --lg-status-success: #1b6b30;
+  --lg-status-warning: #8a4b00;
 
   @media (min-width: 960px) {
     --lg-gutter: 24px;

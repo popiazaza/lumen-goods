@@ -14,8 +14,10 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 
 ## Layout
 
-- `src/app/core/`: app-wide code: `api/` (typed API services), `cart/`, `layout/` (header, footer), `routing/` (titles, focus), `icons/`.
+- `src/app/core/`: app-wide code: `api/` (typed API services), `cart/`, `catalogue/` (seller names, last catalogue query), `layout/` (header, footer), `routing/` (titles, focus), `icons/`.
 - `src/app/features/<area>/`: catalogue, products, cart, account, checkout, orders, admin. Pages are `<name>-page.ts`, lazy via `loadComponent`; child routes in `<area>.routes.ts`.
+- `src/app/shared/`: presentational pieces used by more than one feature (price, stock badge, product image).
+- `src/app/testing/`: test data builders for specs; never imported by app code.
 - Theme: `src/styles.scss` (M3 `mat.theme`, `--lg-*` tokens); palette in `src/styles/_theme-colors.scss` (generated).
 
 ## Angular conventions
@@ -34,7 +36,9 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 
 - Base path `/api/v1` (the `API_BASE_URL` token), always same-origin and relative. Never hard-code a host.
 - One typed service per API resource in `src/app/core/api/` (e.g. `products.api.ts` exporting `ProductsApi`) built on `HttpClient`. Components never call `HttpClient` directly.
-- Give components signals (`httpResource`, `toSignal`) and render explicit loading, empty and error states.
+- Give components signals (`rxResource` over the service's Observable, `httpResource`, `toSignal`) and render explicit loading, empty and error states. `resource.value()` throws in the error state: read it behind `hasValue()`.
+- The catalogue's URL is its state: `features/catalogue/catalogue-query.ts` parses and writes the query params; controls navigate, they never hold filter state of their own. Filter and sort navigations pass `scroll: 'manual'` so the page does not jump; paging keeps the router's scroll-to-top.
+- Partners are API configuration: the seller list, valid `seller` values and names come from `GET /sellers` (`SellerDirectory`). Never hard-code partner ids in the client.
 - Errors are RFC 9457 `ProblemDetails`: show `title`/`detail`, map `errors` onto form fields.
 - XSRF: `SessionApi` (`session.api.ts`) loads `GET /api/v1/auth/session` at start-up, which sets the `XSRF-TOKEN` cookie; `HttpClient` echoes it as `X-XSRF-TOKEN` on every POST/PUT/PATCH/DELETE. Read the user from `SessionApi.session()`.
 
@@ -58,3 +62,4 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 ## Tests
 
 - Vitest via `ng test`, `*.spec.ts` next to the code. Prefer Material harnesses and `RouterTestingHarness` to DOM internals.
+- Mock the API with `provideHttpClientTesting()` and `HttpTestingController`. A pending request keeps the app unstable, so `fixture.whenStable()` (and harness actions, which call it) wait for it: flush first, or wait for the URL/request with `vi.waitFor`.
