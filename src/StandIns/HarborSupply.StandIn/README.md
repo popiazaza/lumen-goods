@@ -60,8 +60,10 @@ docker compose exec harbor dotnet HarborSupply.StandIn.dll list
 dotnet run --project src/StandIns/HarborSupply.StandIn -- set-stock HSC-10021 0
 ```
 
-Exit codes: `0` done (or nothing to change), `1` unknown item, `2` bad arguments (usage is printed).
-Settings can be passed as `--Harbor:DatabasePath=/path/harbor.db`.
+Exit codes: `0` done (or nothing to change), `1` unknown item, `2` unknown command or bad arguments (usage is
+printed, nothing is touched). Settings such as `--Harbor:DatabasePath=/path/harbor.db` may go before or after the
+command. Any word that is not a setting selects the CLI, so a typo never starts a second server; settings alone
+(for example `--urls http://+:8080`) start the server as usual.
 
 ## Seed data
 
@@ -90,10 +92,10 @@ conformance scenario from the requirements analysis carry its ID, e.g. `[Trait("
 | `401` error code | `UNAUTHORIZED` | The contract fixes the status and body shape but not the code |
 | Other error codes not named in the contract | `400 INVALID_REQUEST`, `404 NOT_FOUND` (unknown route or image), `405 METHOD_NOT_ALLOWED`, `429 RATE_LIMITED`, `500 INTERNAL_ERROR`, always in the standard body | "Standard error body, used for every 4xx and 5xx" |
 | Invalid query parameters | `400 INVALID_REQUEST` for `limit` outside 1 to 25 or not a whole number, a cursor this service did not issue, or an `updated_since` that is not ISO 8601 with a zone. Never clamped silently. An empty value (`?cursor=`) counts as not sent | A silent clamp would hide client bugs; the contract gives the valid range |
-| Cursor format | Opaque base64url of JSON `{"u": updated_at, "c": item_code}` of the last item on the page. Items are ordered by `(updated_at, item_code)` and each page starts strictly after the cursor | A keyset cursor cannot skip items when others change between pages, as an offset cursor (like the sample's `{"o":25}`) can. An item changed during a pass moves to the end and is returned again later in that pass; nothing is skipped |
+| Cursor format | Opaque base64url of JSON `{"u": updated_at, "c": item_code}` of the last item on the page, with `updated_at` at full precision. Items are ordered by `(updated_at, item_code)` and each page starts strictly after the cursor | A keyset cursor cannot skip items when others change between pages, as an offset cursor (like the sample's `{"o":25}`) can. An item changed during a pass moves to the end and is returned again later in that pass; nothing is skipped |
 | `updated_since` with a cursor | Optional on later pages; the result is the same either way, because every row after the cursor is already newer than `updated_since` | Clients differ in whether they resend filters |
-| `updated_since` boundary and format | Strictly after (`updated_at > updated_since`). Accepts `2026-10-02T09:15:00Z`, fractional seconds, or an explicit offset such as `+02:00` (converted to UTC). No zone is a `400` | "Returns only items changed after it", and "UTC timestamp" |
-| `updated_at` precision | UTC, whole seconds, `Z` suffix, as in the sample. Two changes in the same second share a timestamp, so a client should overlap its watermark a little | Matches the sample format; `updated_since` then compares exactly the values clients see |
+| `updated_since` boundary and format | Strictly after (`updated_at > updated_since`), compared with the stored full-precision `updated_at`. Accepts `2026-10-02T09:15:00Z`, fractional seconds, or an explicit offset such as `+02:00` (converted to UTC). No zone is a `400` | "Returns only items changed after it", and "UTC timestamp" |
+| `updated_at` precision | Stored, filtered, sorted and put in cursors at full clock precision. The JSON shows it as in the sample: UTC, whole seconds, `Z` suffix, with the fraction cut (never rounded up). Sending a shown value back as `updated_since` can therefore return an item changed in that same second again, but never misses a later change | Matches the sample format without losing changes: truncating stored times would make two changes in one second equal, and a strictly-after filter would then skip the second one. The worst case is a duplicate, which an idempotent client absorbs |
 | What bumps `updated_at` | Any field change: an order reducing stock, and every CLI change. Items are never deleted, only discontinued | The contract has no deletion signal; `updated_since` is the only change feed |
 | LIMITED range | `0` is `SOLD_OUT`, `1` to `10` is `LIMITED` (with `on_hand`), more is `AVAILABLE` (no `on_hand`) | The contract names the statuses but no thresholds. 1 to 10 gives LIMITED items on both sides of Lumen's own low-stock line of 5 |
 | Images | `media[].href` is an absolute path, `/media/{item_code}/{view}.png`, resolved against the service origin (not under `/v2`). Images are generated PNG placeholders (a colour per item, a shape per view), served as `image/png`. They need the key like every request | The sample's `href` is also an absolute path. PNG is generated in code with no imaging library; the extension matches the bytes, so `.png` rather than the sample's `.jpg` |

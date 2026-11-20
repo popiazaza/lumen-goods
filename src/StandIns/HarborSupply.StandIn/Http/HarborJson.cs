@@ -9,7 +9,10 @@ internal static class HarborJson
     // and no case-insensitive matching: what the code says is exactly what goes over the wire.
     public static readonly JsonSerializerOptions Options = new();
 
-    /// <summary>The contract's timestamp format: UTC, whole seconds, "Z" suffix (2026-10-02T09:15:00Z).</summary>
+    /// <summary>
+    /// The contract's timestamp format: UTC, whole seconds, "Z" suffix (2026-10-02T09:15:00Z). The fraction is cut,
+    /// never rounded up: a client that sends a shown value back as updated_since must not land after a real change.
+    /// </summary>
     public static string FormatTimestamp(DateTime utc) =>
         utc.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
 }

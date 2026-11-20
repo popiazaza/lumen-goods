@@ -11,7 +11,7 @@ internal sealed class CatalogueStore(IDbContextFactory<HarborDbContext> dbFactor
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
         var items = db.Items.AsNoTracking();
 
-        // Strictly after, as worded: "Returns only items changed after it".
+        // Strictly after, as worded ("Returns only items changed after it"), against the full-precision stored time.
         if (query.UpdatedSince is { } since)
         {
             items = items.Where(i => i.UpdatedAt > since);

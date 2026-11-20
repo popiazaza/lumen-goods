@@ -15,7 +15,8 @@ internal sealed class HarborDbContext(DbContextOptions<HarborDbContext> options)
             item.ToTable("Items");
             item.HasKey(i => i.ItemCode);
 
-            // SQLite has no UTC type; mark values read back as UTC so they format with "Z".
+            // SQLite has no UTC type; mark values read back as UTC so they format with "Z". EF stores the full
+            // precision as text (yyyy-MM-dd HH:mm:ss.FFFFFFF), which compares and sorts in time order.
             item.Property(i => i.UpdatedAt).HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
             // The paging order: keyset over (updated_at, item_code).

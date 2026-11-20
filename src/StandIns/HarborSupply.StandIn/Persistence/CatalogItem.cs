@@ -28,7 +28,11 @@ internal sealed class CatalogItem
 
     public List<ItemProp> Props { get; init; } = [];
 
-    /// <summary>UTC, whole seconds (the precision the contract shows), so updated_since compares exactly what clients see.</summary>
+    /// <summary>
+    /// UTC at full clock precision. Filtering, ordering and cursors use this value; only the JSON shows it cut to whole
+    /// seconds. Two changes in the same second therefore still compare in order, so an updated_since built from a
+    /// shown value can return an item again but never misses one.
+    /// </summary>
     public DateTime UpdatedAt { get; private set; }
 
     public static CatalogItem Create(
@@ -81,8 +85,7 @@ internal sealed class CatalogItem
         }
     }
 
-    private void Touch(DateTimeOffset now) =>
-        UpdatedAt = new DateTime(now.UtcTicks - (now.UtcTicks % TimeSpan.TicksPerSecond), DateTimeKind.Utc);
+    private void Touch(DateTimeOffset now) => UpdatedAt = now.UtcDateTime;
 }
 
 internal sealed class ItemProp
