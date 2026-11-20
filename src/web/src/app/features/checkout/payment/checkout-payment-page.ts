@@ -72,6 +72,7 @@ import {
 import { WalletApi } from '../../../core/api/wallet.api';
 import { CartStateService } from '../../../core/cart/cart-state.service';
 import { CheckoutStore } from '../../../core/checkout/checkout-store';
+import { signInQueryParams } from '../../../core/routing/return-url';
 import { ErrorSummary, FormProblem } from '../../../shared/forms/error-summary';
 import { CheckoutSteps } from '../checkout-steps';
 import {
@@ -116,7 +117,15 @@ const PAID_ORDER: ReadonlySet<OrderStatus> = new Set([
   'refunded',
 ]);
 
-type Phase = 'loading' | 'load-error' | 'choose' | 'processing' | 'code' | 'paid' | 'closed';
+type Phase =
+  | 'loading'
+  | 'load-error'
+  | 'signed-out'
+  | 'choose'
+  | 'processing'
+  | 'code'
+  | 'paid'
+  | 'closed';
 
 /** The last attempt's outcome, shown above the form (and kept until the next attempt). */
 interface Outcome {
@@ -212,6 +221,17 @@ export class CheckoutPaymentPage {
   protected readonly phase = signal<Phase>('loading');
   protected readonly loadError = signal('');
   protected readonly closedReason = signal('');
+  protected readonly closedHeading = signal('');
+  /** Sign in again and come back to this order's payment (the `?order=` survives the store). */
+  protected readonly signInParams = computed(() =>
+    signInQueryParams(
+      this.router.serializeUrl(
+        this.router.createUrlTree(['/checkout/payment'], {
+          queryParams: { order: this.orderNumber() },
+        }),
+      ),
+    ),
+  );
   protected readonly outcome = signal<Outcome | null>(null);
   protected readonly submitting = signal(false);
   protected readonly problems = signal<readonly FormProblem[]>([]);
@@ -378,7 +398,7 @@ export class CheckoutPaymentPage {
       .subscribe({
         next: ({ order, payment }) => {
           if (!order && !payment) {
-            this.close(`We couldn’t find order ${number} in your account.`);
+            this.notFound(number);
             return;
           }
           this.orderDetail.set(order);
@@ -386,15 +406,46 @@ export class CheckoutPaymentPage {
           then?.();
         },
         error: (error: unknown) => {
-          this.loadError.set(
-            problemMessage(
-              error,
-              'We couldn’t load your order. Check your connection and try again.',
-            ),
-          );
-          this.phase.set('load-error');
+          if (httpStatusOf(error) === 401) {
+            this.signedOut();
+            return;
+          }
+          this.loadFailed(error);
         },
       });
+  }
+
+  private loadFailed(error: unknown): void {
+    this.stopPolling();
+    this.loadError.set(
+      problemMessage(error, 'We couldn’t load your order. Check your connection and try again.'),
+    );
+    this.phase.set('load-error');
+  }
+
+  private notFound(number: string): void {
+    this.close(`We couldn’t find order ${number} in your account.`, 'Order not found');
+  }
+
+  /**
+   * The session ended (401): the page can no longer read the payment, which carries on without it.
+   * Signing in again comes back here, with the order in the URL.
+   */
+  private signedOut(): void {
+    this.stopPolling();
+    this.enter('signed-out');
+  }
+
+  /** A status read the server refused: stop, since asking again gets the same answer. */
+  private pollFailed(error: unknown): void {
+    const status = httpStatusOf(error);
+    if (status === 401) {
+      this.signedOut();
+    } else if (status === 404) {
+      this.notFound(this.orderNumber());
+    } else {
+      this.loadFailed(error);
+    }
   }
 
   /** Moves the page to whatever the server says the payment is doing now. */
@@ -489,18 +540,30 @@ export class CheckoutPaymentPage {
     this.stopPolling();
     this.polling = timer(PAYMENT_POLL_INTERVAL_MS, PAYMENT_POLL_INTERVAL_MS)
       .pipe(
-        // A dropped request is not an answer: keep waiting, never show "failed" for it.
-        exhaustMap(() => this.payments.current(number).pipe(catchError(() => of(null)))),
+        // A dropped request or a server error is not an answer: keep waiting, never show "failed"
+        // for it. Any other error (401, 403, 404) would answer the same every time: stop.
+        exhaustMap(() =>
+          this.payments
+            .current(number)
+            .pipe(
+              catchError((error: unknown) =>
+                isTransient(error) ? of(null) : throwError(() => error),
+              ),
+            ),
+        ),
         filter((payment): payment is PaymentStatusDto => payment !== null),
         takeWhile(stillChanging, true),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((payment) => {
-        if (stillChanging(payment)) {
-          this.payment.set(payment);
-        } else {
-          this.show(payment);
-        }
+      .subscribe({
+        next: (payment) => {
+          if (stillChanging(payment)) {
+            this.payment.set(payment);
+          } else {
+            this.show(payment);
+          }
+        },
+        error: (error: unknown) => this.pollFailed(error),
       });
   }
 
@@ -520,9 +583,10 @@ export class CheckoutPaymentPage {
     void this.router.navigate(['/orders', number, 'confirmation'], { replaceUrl: true });
   }
 
-  private close(reason: string): void {
+  private close(reason: string, heading = 'This order can’t be paid'): void {
     this.stopPolling();
     this.closedReason.set(reason);
+    this.closedHeading.set(heading);
     this.enter('closed');
     this.endCheckoutOf(this.orderNumber());
   }
@@ -642,8 +706,7 @@ export class CheckoutPaymentPage {
         return;
       }
     }
-    const status = httpStatusOf(error);
-    if (status === undefined || status === 0 || status >= 500) {
+    if (httpStatusOf(error) === undefined || isTransient(error)) {
       // The request may have reached the API, and a charge started, before the answer was lost (a
       // dropped connection, or a 502/504 from the proxy): only the server knows. Read the payment
       // again and show that; paying again is safe, as one payment runs per order (BR-PAY-01).
@@ -828,6 +891,12 @@ export class CheckoutPaymentPage {
     );
     afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
   }
+}
+
+/** No answer (status 0) or a server error (5xx): the same request may well work in a moment. */
+function isTransient(error: unknown): boolean {
+  const status = httpStatusOf(error);
+  return status === 0 || (status !== undefined && status >= 500);
 }
 
 /** A read whose 404 is an answer (no such order, or no payment yet) rather than a failure. */

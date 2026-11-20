@@ -162,7 +162,7 @@ describe('CheckoutPaymentPage', () => {
     it('says so when neither the order nor a payment of it can be found', async () => {
       await open(null, { order: null });
 
-      expect(text('#closed-heading')).toBe('This order can’t be paid');
+      expect(text('#closed-heading')).toBe('Order not found');
       expect(text('.state p')).toBe(`We couldn’t find order ${ORDER} in your account.`);
     });
 
@@ -376,8 +376,58 @@ describe('CheckoutPaymentPage', () => {
       await settle();
       expect(text('#processing-heading')).toBe('Confirming your payment…');
 
+      await settle(PAYMENT_POLL_INTERVAL_MS);
+      http.expectOne(CURRENT_URL).error(new ProgressEvent('error'));
+      await settle();
+      expect(text('#processing-heading')).toBe('Confirming your payment…');
+
       await poll(aPaymentStatus({ status: 'processing' }));
       expect(text('#processing-heading')).toBe('Confirming your payment…');
+    });
+
+    it('stops polling when signed out (401) and offers to sign in and come back', async () => {
+      await open(aPaymentStatus({ status: 'processing' }));
+
+      await settle(PAYMENT_POLL_INTERVAL_MS);
+      http
+        .expectOne(CURRENT_URL)
+        .flush({ title: 'Unauthorized' }, { status: 401, statusText: 'Unauthorized' });
+      await settle();
+
+      expect(text('#signed-out-heading')).toBe('Sign in to see your payment');
+      expect(document.activeElement).toBe(host().querySelector('#signed-out-heading'));
+      expect(host().querySelector('.state a')?.getAttribute('href')).toBe(
+        `/sign-in?returnUrl=${encodeURIComponent(`/checkout/payment?order=${ORDER}`)}`,
+      );
+      await settle(PAYMENT_POLL_INTERVAL_MS * 3);
+      http.expectNone(CURRENT_URL);
+    });
+
+    it('stops polling when the order is not found (404)', async () => {
+      await open(aPaymentStatus({ status: 'processing' }));
+
+      await settle(PAYMENT_POLL_INTERVAL_MS);
+      http.expectOne(CURRENT_URL).flush({ title: 'Not Found' }, NOT_FOUND);
+      await settle();
+
+      expect(text('#closed-heading')).toBe('Order not found');
+      expect(text('.state p')).toBe(`We couldn’t find order ${ORDER} in your account.`);
+      await settle(PAYMENT_POLL_INTERVAL_MS * 3);
+      http.expectNone(CURRENT_URL);
+    });
+
+    it('stops polling with the API’s reason on another refusal (403)', async () => {
+      await open(aPaymentStatus({ status: 'processing' }));
+
+      await settle(PAYMENT_POLL_INTERVAL_MS);
+      http
+        .expectOne(CURRENT_URL)
+        .flush({ title: 'Forbidden' }, { status: 403, statusText: 'Forbidden' });
+      await settle();
+
+      expect(text('.banner.error p')).toBe('Forbidden');
+      await settle(PAYMENT_POLL_INTERVAL_MS * 3);
+      http.expectNone(CURRENT_URL);
     });
 
     it('shows the running payment when another tab already started one', async () => {

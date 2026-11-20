@@ -33,9 +33,22 @@
     </div>
   }
 
+  @case ('signed-out') {
+    <section class="state" aria-labelledby="signed-out-heading">
+      <h2 #phaseHeading id="signed-out-heading" tabindex="-1">Sign in to see your payment</h2>
+      <p>
+        You were signed out, so we can’t show how your payment is going. Signing out doesn’t stop
+        it: sign in again to come back to this order.
+      </p>
+      <div class="actions">
+        <a matButton="filled" routerLink="/sign-in" [queryParams]="signInParams()">Sign in</a>
+      </div>
+    </section>
+  }
+
   @case ('closed') {
     <section class="state" aria-labelledby="closed-heading">
-      <h2 #phaseHeading id="closed-heading" tabindex="-1">This order can’t be paid</h2>
+      <h2 #phaseHeading id="closed-heading" tabindex="-1">{{ closedHeading() }}</h2>
       <p>{{ closedReason() }}</p>
       <div class="actions">
         <a matButton="filled" routerLink="/cart">Go to your cart</a>
