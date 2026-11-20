@@ -1,15 +1,18 @@
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatBadgeHarness } from '@angular/material/badge/testing';
 import { Router, provideRouter } from '@angular/router';
 import { App } from './app';
-import { routes } from './app.routes';
 import { CartStateService } from './core/cart/cart-state.service';
 import { provideAppIcons } from './core/icons/app-icons';
 import { EMPTY_CART } from './core/api/cart.api';
 import { aCart, aCartLine } from './testing/fixtures';
+
+@Component({ template: '<h1>Page</h1>' })
+class StubPage {}
 
 function query<T extends Element>(fixture: ComponentFixture<App>, selector: string): T {
   const element = (fixture.nativeElement as HTMLElement).querySelector<T>(selector);
@@ -27,7 +30,10 @@ describe('App shell', () => {
     TestBed.configureTestingModule({
       imports: [App],
       providers: [
-        provideRouter(routes),
+        // The shell is under test, not the pages (app.routes.spec.ts covers those). A stub page
+        // keeps navigation free of lazy chunks and of the pages' own requests, so the shell's
+        // tests do not wait on how fast the machine loads the catalogue.
+        provideRouter([{ path: '**', component: StubPage }]),
         provideAppIcons(),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -70,12 +76,9 @@ describe('App shell', () => {
     input.dispatchEvent(new Event('input'));
     query<HTMLFormElement>(fixture, 'form[role="search"]').dispatchEvent(new Event('submit'));
 
-    // Not whenStable(): the catalogue's product request stays pending in HttpTestingController.
-    // The first lazy load of the catalogue chunk can take over a second while the whole suite
-    // runs in parallel, so allow longer than waitFor's 1 s default.
-    await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/?q=desk%20lamp'), {
-      timeout: 5000,
-    });
+    await fixture.whenStable();
+
+    expect(TestBed.inject(Router).url).toBe('/?q=desk%20lamp');
   });
 
   it('opens the mobile menu and closes it with Escape, returning focus to the toggle', async () => {
