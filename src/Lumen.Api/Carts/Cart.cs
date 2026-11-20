@@ -93,7 +93,10 @@ public static class GuestCartToken
 
     public const int HashLength = 32;
 
-    /// <summary>A new random token for the cookie (base64url, 43 characters).</summary>
+    /// <summary>Length of a token: 32 random bytes in base64url without padding.</summary>
+    public const int TokenLength = 43;
+
+    /// <summary>A new random token for the cookie (base64url, <see cref="TokenLength"/> characters).</summary>
     public static string NewToken() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
 
     /// <summary>What <see cref="Cart.AnonymousTokenHash"/> stores for a cookie token.</summary>
