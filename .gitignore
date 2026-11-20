@@ -15,14 +15,12 @@ dist/
 *.tsbuildinfo
 npm-debug.log*
 
-# Local data and secrets (anchored: a bare "data/" would also hide Infrastructure/Data/ on
-# case-insensitive file systems)
+# Local data and secrets. SQLite files are matched by extension, never by a "data/" folder rule:
+# git on Windows/macOS ignores case, so such a rule would also hide source folders named "Data".
 .env
 *.db
 *.db-shm
 *.db-wal
-/data/
-/src/StandIns/*/data/
 
 # Editors
 .idea/
