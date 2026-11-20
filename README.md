@@ -129,7 +129,7 @@ Docker running (the integration tests start PostgreSQL with Testcontainers).
 | PostgreSQL | 18.7 |
 | Angular, Angular Material | 22.3.0 |
 | TypeScript / Node.js | 6.0.3 / 26.13.1 (LTS) |
-| nginx | 1.30.6 (unprivileged image) |
+| nginx | 1.30.7 (unprivileged image) |
 | xUnit v3 / Testcontainers | 4.0.3 / 4.17.0 |
 
 Every NuGet version is pinned in `Directory.Packages.props`, npm versions in `src/web/package-lock.json`.
