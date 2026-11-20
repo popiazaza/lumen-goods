@@ -10,7 +10,7 @@ namespace Lumen.IntegrationTests.Partners;
 
 /// <summary>The sync jobs end to end: fake partners over HTTP, the real engine, the real products table.</summary>
 [Collection(PartnerSyncCollection.Name)]
-public sealed class PartnerSyncTests(LumenApiFactory factory) : IAsyncLifetime
+public sealed class PartnerSyncTests(PartnerDatabase database) : IAsyncLifetime
 {
     private const string Harbor = ProductSources.Harbor;
     private const string Kestrel = ProductSources.Kestrel;
@@ -26,7 +26,7 @@ public sealed class PartnerSyncTests(LumenApiFactory factory) : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _app = PartnerTestHost.Create(factory, _harbor, _kestrel);
+        _app = PartnerTestHost.Create(database, _harbor, _kestrel);
         await _app.ResetPartnerDataAsync();
         PartnerTestHost.SeedDefaults(_harbor, _kestrel);
     }
@@ -332,7 +332,7 @@ public sealed class PartnerSyncTests(LumenApiFactory factory) : IAsyncLifetime
         _kestrel.ClearCalls();
 
         // The rate is configuration: a changed Fx:EurToUsd takes effect with the next start of the API.
-        await using var restarted = PartnerTestHost.Create(factory, _harbor, _kestrel, b => b.UseSetting("Fx:EurToUsd", "1.2000"));
+        await using var restarted = PartnerTestHost.Create(database, _harbor, _kestrel, b => b.UseSetting("Fx:EurToUsd", "1.2000"));
         var run = await restarted.Job(Kestrel).RunOnceAsync(Ct);
 
         run.Catalogue.Should().BeEquivalentTo(new { Result = CatalogueRunResult.Applied, Updated = 4 });
