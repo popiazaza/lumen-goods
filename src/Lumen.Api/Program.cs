@@ -6,6 +6,7 @@ using Lumen.Api.Infrastructure;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Infrastructure.Json;
 using Lumen.Api.Infrastructure.Security;
+using Lumen.Api.Infrastructure.Telemetry;
 using Lumen.Api.Orders;
 using Lumen.Api.Partners;
 using Lumen.Api.Payments;
@@ -15,6 +16,7 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddLumenTelemetry(builder.Configuration);
 builder.Services.AddProblemDetails();
 builder.Services.ConfigureHttpJsonOptions(options => JsonDefaults.Configure(options.SerializerOptions));
 builder.Services.AddValidation();

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.Telemetry;
 using Lumen.Domain.Payments;
 using Microsoft.EntityFrameworkCore;
 
@@ -83,26 +84,40 @@ internal sealed class CardChargeProcess(
     public async Task RunAsync(Guid paymentId, CardNumber card)
     {
         // Detached on purpose: nothing cancels a charge once it has been sent (CancellationToken.None throughout).
-        var amount = await db.Payments.AsNoTracking().Where(p => p.Id == paymentId).Select(p => p.Amount).SingleAsync(CancellationToken.None);
-        var status = await recorder.RecordAsync(paymentId, await ChargeAsync(paymentId, card, amount), CancellationToken.None);
+        var charge = await db.Payments.AsNoTracking().Where(p => p.Id == paymentId)
+            .Join(db.Orders, p => p.OrderId, o => o.Id, (p, o) => new ChargeTarget(p.Id, o.Number, p.Amount))
+            .SingleAsync(CancellationToken.None);
+        var status = await recorder.RecordAsync(paymentId, await ChargeAsync(charge, card, LumenTelemetry.FirstTry), CancellationToken.None);
         if (status == PaymentStatus.Error && await recorder.StartAutomaticRetryAsync(paymentId, CancellationToken.None))
         {
             logger.LogInformation("Payment {Payment}: gateway error, retrying once with the same payment id", paymentId);
-            await recorder.RecordAsync(paymentId, await ChargeAsync(paymentId, card, amount), CancellationToken.None);
+            await recorder.RecordAsync(paymentId, await ChargeAsync(charge, card, LumenTelemetry.AutomaticRetry), CancellationToken.None);
         }
     }
 
-    private async Task<GatewayChargeResult> ChargeAsync(Guid paymentId, CardNumber card, decimal amount)
+    /// <summary>One gateway call, traced as its own span (card 0059: an Error first try, then the automatic retry).</summary>
+    private async Task<GatewayChargeResult> ChargeAsync(ChargeTarget charge, CardNumber card, string attempt)
     {
+        using var activity = LumenTelemetry.Source.StartActivity("card charge");
+        activity?.SetTag(LumenTelemetry.OrderNumber, charge.OrderNumber)
+            .SetTag(LumenTelemetry.PaymentId, charge.PaymentId.ToString())
+            .SetTag(LumenTelemetry.Attempt, attempt);
+        GatewayChargeResult result;
         try
         {
-            return await gateway.ChargeAsync(new GatewayChargeRequest(paymentId, card, amount), CancellationToken.None);
+            result = await gateway.ChargeAsync(new GatewayChargeRequest(charge.PaymentId, card, charge.Amount), CancellationToken.None);
         }
         catch (Exception ex)
         {
             // Treated as a gateway error: the same payment id is safe to send again, the gateway answers it once.
-            logger.LogWarning(ex, "Gateway call for payment {Payment} failed", paymentId);
-            return GatewayChargeResult.Failure($"Gateway call failed: {ex.GetType().Name}");
+            logger.LogWarning(ex, "Gateway call for payment {Payment} failed", charge.PaymentId);
+            activity?.AddException(ex);
+            result = GatewayChargeResult.Failure($"Gateway call failed: {ex.GetType().Name}");
         }
+
+        LumenTelemetry.SetOutcome(activity, result.Status.ToString(), result.Status == GatewayChargeStatus.Error ? result.Error : null);
+        return result;
     }
+
+    private sealed record ChargeTarget(Guid PaymentId, string OrderNumber, decimal Amount);
 }

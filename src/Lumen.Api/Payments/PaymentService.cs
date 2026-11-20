@@ -1,4 +1,5 @@
 using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.Telemetry;
 using Lumen.Api.Orders;
 using Lumen.Api.Wallets;
 using Lumen.Domain.Orders;
@@ -57,6 +58,7 @@ internal sealed class PaymentService(
     DetachedPaymentRunner runner,
     WalletService wallets,
     TimeProvider time,
+    LumenMetrics metrics,
     ILogger<PaymentService> logger)
 {
     public async Task<PayOutcome> PayAsync(Guid customerId, string orderNumber, PayRequest request, CancellationToken cancellationToken)
@@ -146,6 +148,12 @@ internal sealed class PaymentService(
             await transaction.RollbackAsync(CancellationToken.None);
             logger.LogWarning(ex, "Order {Number}: second open payment refused by the database", order.Number);
             return new PayOutcome.InProgress(order.Id);
+        }
+
+        if (payment.Method == PaymentMethod.Wallet)
+        {
+            // The wallet's outcome was committed just now; a card's is counted when the gateway's answer is recorded.
+            metrics.PaymentChanged(PaymentStatus.Processing, payment.Status);
         }
 
         if (card is not null)

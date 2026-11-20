@@ -139,6 +139,17 @@ What each suite proves (the integration tests run the real API on PostgreSQL 18)
 CI runs them all plus a `docker compose up` smoke test on every pull request that changes code. Outside Docker you
 need .NET SDK 10.0.404 (`global.json`), Node.js 26.13 or later, and Docker running.
 
+## Seeing what it does
+
+OpenTelemetry traces, metrics and logs can go to a local Aspire dashboard. Nothing is exported unless you ask:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889 docker compose --profile observability up --build
+```
+
+Open http://localhost:18888, pay with card 4242 0000 0000 0059, and open the `POST /api/v1/orders/{number}/payments`
+trace: the first try errors, the automatic retry is approved, each with its SQL.
+
 ## Changing it live
 
 Hot reload for the API and web app against the compose database and stand-ins:
