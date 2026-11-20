@@ -76,7 +76,8 @@ public sealed class TransitionTable<TState>
         sb.Append($"    [*] --> {Initial}\n");
         foreach (var t in Transitions)
         {
-            sb.Append($"    {t.From} --> {t.To}: {t.When}\n");
+            // A second colon ends the label early and Mermaid rejects the diagram, so it is written as its entity code.
+            sb.Append($"    {t.From} --> {t.To}: {t.When.Replace(":", "#58;", StringComparison.Ordinal)}\n");
         }
 
         foreach (var state in Enum.GetValues<TState>().Where(IsFinal))

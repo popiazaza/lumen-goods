@@ -1,6 +1,6 @@
 # Assumptions
 
-Where the spec is silent or ambiguous, these are the choices this build makes. IDs are stable: code comments and tests cite them (e.g. `A-21`). Rows describe the agreed behaviour of the submitted build.
+Where the spec is silent or ambiguous, these are the choices this build makes. IDs are stable: code comments and tests cite them (e.g. `A-21`). Rows describe the behaviour of the submitted build.
 Contract interpretations for the partner stand-ins live in each stand-in's README, as the spec asks; section C summarises them.
 
 ## A. Money, tax, shipping, currency

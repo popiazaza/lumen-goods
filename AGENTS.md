@@ -21,11 +21,11 @@ in one cart, with one payment and one order. Four deliverables in one repo:
 ## Commands
 
 ```bash
-docker compose up --build          # run everything (http://localhost:8080)
-dotnet build LumenGoods.slnx       # build all .NET projects
-dotnet test LumenGoods.slnx        # all .NET tests (integration tests need Docker running)
-dotnet test --filter "BR=BR-PAY-01"  # tests for one business rule
-cd src/web && npm test             # Angular unit tests
+docker compose up --build                                           # run everything (http://localhost:8080)
+dotnet build LumenGoods.slnx                                        # build all .NET projects
+dotnet test --solution LumenGoods.slnx                              # all .NET tests (integration tests need Docker running)
+dotnet test --solution LumenGoods.slnx --filter-trait "BR=BR-PAY-01"  # tests for one business rule
+cd src/web && npm test                                              # Angular unit tests
 ```
 
 ## Skills

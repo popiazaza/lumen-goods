@@ -18,7 +18,7 @@ Checkout and stock, Payment, Orders and refunds, Admin):
 - **Spec requirement:** a short quote of the spec line it serves.
 - **Scenarios:** Given / When / Then with concrete amounts. Compute amounts with `MoneyMath`: per line, rounded
   half away from zero, never banker's rounding.
-- **Tests:** leave `*planned* · <layer>` until the tests exist.
+- **Tests:** the two or three main test classes. While they are being written put `*planned*`, and never merge a row that still says it.
 
 Also update the "Requirement → rules" table if a new requirement is covered. If the rule fills a gap the spec
 leaves open, add or update the assumption in `docs/ASSUMPTIONS.md`.
@@ -51,6 +51,6 @@ public void BR_PAY_06_a_short_balance_cannot_pay_and_is_left_unchanged() { ... }
 
 ## 4. Close the loop
 
-- Replace `*planned*` in the row's Tests cell with links to the test files, with a few words on what each proves.
+- Replace `*planned*` in the row's Tests cell with links to the two or three main test classes. The ID filter finds the rest.
 - If the customer sees the rule (a message, a disabled option), cover it in the Angular page's spec in `src/web`.
 - Run `dotnet test --solution LumenGoods.slnx` and `cd src/web && npm test` before pushing.

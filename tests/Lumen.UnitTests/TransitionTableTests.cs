@@ -122,6 +122,12 @@ public sealed class TransitionTableTests
 
             """.ReplaceLineEndings("\n"));
 
+    [Fact]
+    public void A_colon_inside_a_label_is_escaped_so_mermaid_can_render_it() =>
+        new TransitionTable<Light>(Light.Red,
+                [new(Light.Red, Light.Green, "status: go"), new(Light.Green, Light.Amber, "slow"), new(Light.Amber, Light.Off, "stop")])
+            .ToMermaid().Should().Contain("    Red --> Green: status#58; go\n");
+
     public static TheoryData<string, string> Diagrams() => new()
     {
         { nameof(OrderTransitions.Order), OrderTransitions.Order.ToMermaid() },

@@ -20,9 +20,9 @@ The spec requires the partner stand-ins to share no database or code with Lumen 
 
 ## Decision
 
-`Lumen.Api` is the only Lumen back-end process: minimal-API feature folders (`Catalog`, `Partners`, `Identity`, `Admin` today; `Cart`, `Checkout`, `Orders`, `Payments`, `Wallet` next), one `DbContext`, one PostgreSQL database.
-Rules with no I/O live in `Lumen.Domain` (no EF Core, no HTTP). Background work runs as hosted services in the same process: one `PartnerSyncJob` per partner today, the partner-order job and expiry housekeeping later.
-The payment mock will sit in the same process behind `IPaymentGateway` ([0005](0005-payments-charge-then-refund-one-partner-order-per-line.md)).
+`Lumen.Api` is the only Lumen back-end process: minimal-API feature folders (`Catalog`, `Partners`, `Identity`, `Admin`, `Carts`, `Checkout`, `Orders`, `Payments`, `Wallets`), one `DbContext`, one PostgreSQL database.
+Rules with no I/O live in `Lumen.Domain` (no EF Core, no HTTP). Background work runs as hosted services in the same process: one `PartnerSyncJob` per partner, `PartnerOrderJob`, `PaymentWindowJob` and `RefundJob`.
+The payment mock sits in the same process behind `IPaymentGateway` ([0005](0005-payments-charge-then-refund-one-partner-order-per-line.md)).
 
 The two stand-ins are separate projects and containers, each with its own SQLite database. Architecture tests fail the build if a stand-in references any project or uses a `Lumen` namespace, and each stand-in's own tests inspect its compiled assembly. Partner base URLs are configuration, so any other implementation of the contracts can replace a stand-in.
 

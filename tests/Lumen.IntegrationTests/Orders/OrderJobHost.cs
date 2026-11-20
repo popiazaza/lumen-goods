@@ -12,7 +12,6 @@ using Lumen.Domain.Orders;
 using Lumen.Domain.Payments;
 using Lumen.Domain.Pricing;
 using Lumen.IntegrationTests.Catalog;
-using Lumen.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
