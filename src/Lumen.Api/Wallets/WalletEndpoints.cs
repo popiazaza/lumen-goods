@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
@@ -29,6 +30,7 @@ internal static class WalletEndpoints
     private static async Task<Results<Ok<WalletDto>, ProblemHttpResult>> GetWallet(
         ClaimsPrincipal user,
         LumenDbContext db,
+        WalletService wallets,
         IOptions<WalletOptions> options,
         IOptions<IdentityOptions> identity,
         CancellationToken cancellationToken)
@@ -39,6 +41,13 @@ internal static class WalletEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Sign in to see your wallet");
         }
 
+        // BR-PAY-06: every customer has a wallet, opened on first use if registration could not open it. The customer
+        // role decides (it is in the session's claims): staff accounts such as the admin never get mock money.
+        if (user.IsInRole(Roles.Customer))
+        {
+            await wallets.EnsureOpenAsync(customerId, cancellationToken);
+        }
+
         var balance = await db.Wallets.AsNoTracking()
             .Where(w => w.CustomerId == customerId)
             .Select(w => (decimal?)w.Balance)
@@ -46,7 +55,7 @@ internal static class WalletEndpoints
         if (balance is null)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: "No wallet",
-                detail: "This account has no wallet. Wallets belong to customer accounts.");
+                detail: "Wallets belong to customer accounts, and this account is not one.");
         }
 
         var transactions = await db.WalletTransactions.AsNoTracking()

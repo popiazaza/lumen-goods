@@ -83,6 +83,27 @@ public sealed class WalletEndpointTests(LumenApiFactory factory)
     }
 
     [Fact]
+    [Trait("BR", "BR-PAY-06")]
+    public async Task BR_PAY_06_a_customer_whose_wallet_was_not_opened_at_registration_gets_it_on_first_look()
+    {
+        var session = factory.CreateSession();
+        var customerId = await factory.CustomerIdAsync(await session.RegisterAsync());
+        // As if opening the wallet had failed during registration.
+        await factory.WithDbAsync(async db =>
+        {
+            await db.WalletTransactions.Where(t => t.CustomerId == customerId).ExecuteDeleteAsync(Ct);
+            await db.Wallets.Where(w => w.CustomerId == customerId).ExecuteDeleteAsync(Ct);
+        });
+
+        var first = await (await session.GetAsync(WalletUrl)).ReadAsync<WalletDto>();
+        var again = await (await session.GetAsync(WalletUrl)).ReadAsync<WalletDto>();
+
+        first.Balance.Should().Be(500.00m);
+        first.RecentTransactions.Should().ContainSingle().Which.Kind.Should().Be(WalletTransactionKind.Seed);
+        again.Should().BeEquivalentTo(first, "opening is idempotent");
+    }
+
+    [Fact]
     public async Task Anonymous_callers_get_401()
     {
         var anonymous = factory.CreateSession();
@@ -99,5 +120,7 @@ public sealed class WalletEndpointTests(LumenApiFactory factory)
         var response = await admin.GetAsync(WalletUrl);
 
         await response.ShouldBeProblemAsync(HttpStatusCode.NotFound);
+        (await factory.WithDbResultAsync(db => db.Wallets.CountAsync(w => db.Users.Any(u => u.Id == w.CustomerId && u.Email == "admin@lumengoods.test"), Ct)))
+            .Should().Be(0, "staff accounts never get a wallet");
     }
 }
