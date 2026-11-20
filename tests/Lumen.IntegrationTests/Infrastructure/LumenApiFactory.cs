@@ -18,9 +18,8 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
     {
         await _database.StartAsync();
 
-        // Build the host (migrations, seeding) once, here. WebApplicationFactory creates its server lazily and without
-        // a lock, so test classes touching Services/CreateClient in parallel could otherwise start two hosts that
-        // migrate and seed the same database at the same time.
+        // Start the API once, before any test runs. WebApplicationFactory builds its server lazily and not thread-safely,
+        // so test classes running in parallel could otherwise start two hosts that migrate and seed at the same time.
         _ = Server;
     }
 
