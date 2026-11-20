@@ -26,6 +26,25 @@ public sealed class PartnerOrdersOptions : IValidatableObject
     [Range(typeof(TimeSpan), "00:05:00", "30.00:00:00")]
     public TimeSpan NeedsAttentionAfter { get; init; } = TimeSpan.FromHours(24);
 
+    /// <summary>The longest wait between two sends of a partner order that keeps failing (the waits double up to it).</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
+    public TimeSpan MaxRetryDelay { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>The longest wait between two polls of an accepted ticket that stays undecided (the waits grow up to it).</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "06:00:00")]
+    public TimeSpan MaxPollInterval { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How long a claimed partner order is reserved for the job instance calling its partner. If that instance dies
+    /// mid-call, another one picks the order up after this; the resend reuses the same reference, so it is safe.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:30", "01:00:00")]
+    public TimeSpan ClaimTimeout { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Partner orders one run claims at most; the rest wait for the next run a few seconds later.</summary>
+    [Range(1, 10_000)]
+    public int BatchSize { get; init; } = 20;
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (PollInterval >= NeedsAttentionAfter)
@@ -37,12 +56,18 @@ public sealed class PartnerOrdersOptions : IValidatableObject
         {
             yield return new ValidationResult("RetryDelay must be shorter than GiveUpAfter, or nothing is ever retried.", [nameof(RetryDelay)]);
         }
+
+        if (MaxRetryDelay < RetryDelay || MaxPollInterval < PollInterval)
+        {
+            yield return new ValidationResult("MaxRetryDelay and MaxPollInterval must not be shorter than RetryDelay and PollInterval.",
+                [nameof(MaxRetryDelay), nameof(MaxPollInterval)]);
+        }
     }
 }
 
 /// <summary>
 /// Orders after Place order: the customer's order pages, partner orders (BR-ORD-01), refunds (BR-ORD-03), and the
-/// admin orders pages (BR-ORD-04). Wired once in Program.cs; the orders work fills in the endpoints and the jobs.
+/// admin orders pages (BR-ORD-04). Wired once in Program.cs; the order endpoints are filled in next.
 /// </summary>
 internal static class OrdersFeature
 {
@@ -52,6 +77,14 @@ internal static class OrdersFeature
             .Bind(configuration.GetSection(PartnerOrdersOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        services.AddPartnerOrderGateways();
+        services.AddSingleton<SellerDirectory>();
+        services.AddScoped<PartnerOrderProcessor>();
+
+        // A singleton, so tests can call RunOnceAsync on the instance the host runs; started only when Jobs:Enabled.
+        services.AddSingleton<PartnerOrderJob>();
+        services.AddHostedService(sp => sp.GetRequiredService<PartnerOrderJob>());
         return services;
     }
 
