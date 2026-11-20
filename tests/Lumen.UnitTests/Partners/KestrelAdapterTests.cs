@@ -4,8 +4,10 @@ using Lumen.Api.Catalog;
 using Lumen.Api.Partners.Kestrel;
 using Lumen.Api.Partners.Mapping;
 using Lumen.Api.Partners.Ports;
+using Lumen.Api.Partners.Sync;
 using Lumen.Domain.Catalog;
 using Microsoft.Extensions.DependencyInjection;
+using Polly.CircuitBreaker;
 using static Lumen.UnitTests.Partners.PartnerTestKit;
 
 namespace Lumen.UnitTests.Partners;
@@ -279,6 +281,37 @@ public sealed class KestrelAdapterTests
         result.Levels["K-3"].Should().Be(StockLevel.Unknown);
         new AvailabilityPolicy().Describe(result.Levels["K-3"].Quantity, result.Levels["K-3"].StatusWhenQuantityUnknown)
             .Should().Be(new Availability(AvailabilityStatus.OutOfStock, null));
+    }
+
+    [Fact]
+    public async Task Failing_images_open_only_the_image_breaker_so_feed_stock_and_orders_keep_going()
+    {
+        var kestrel = new StubPartner(r => r.Uri.AbsolutePath.StartsWith("/img/", StringComparison.Ordinal)
+            ? StubPartner.Status(HttpStatusCode.InternalServerError)
+            : StubPartner.Status(HttpStatusCode.OK));
+        await using var services = Services(kestrel: kestrel);
+        var registration = services.GetRequiredService<PartnerRegistry>().Get(ProductSources.Kestrel);
+        var clients = services.GetRequiredService<IHttpClientFactory>();
+        using var images = clients.CreateClient(registration.ImageHttpClientName);
+        using var main = clients.CreateClient(registration.HttpClientName);
+
+        var opened = false;
+        for (var i = 0; i < 10 && !opened; i++)
+        {
+            try
+            {
+                (await images.GetAsync($"http://kestrel.test/img/{i}.png", Ct)).Dispose();
+            }
+            catch (BrokenCircuitException)
+            {
+                opened = true;
+            }
+        }
+
+        opened.Should().BeTrue("enough failing image requests open the image client's breaker");
+        using var feed = await main.GetAsync("http://kestrel.test/feed/products.xml", Ct);
+        feed.StatusCode.Should().Be(HttpStatusCode.OK, "the breaker that the feed, stock, live checks and orders use is still closed");
+        kestrel.Requests.Should().AllSatisfy(r => r.Header("Authorization").Should().StartWith("Basic "), "images carry Kestrel's credentials too");
     }
 
     [Fact]

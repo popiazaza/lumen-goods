@@ -21,6 +21,12 @@ internal sealed class KestrelCatalogSource(
 {
     public const string HttpClientName = "partner-kestrel";
 
+    /// <summary>
+    /// Same credentials and pipeline settings, but its own circuit breaker: failing images must not open the breaker
+    /// that the feed, stock, live checks and partner orders go through.
+    /// </summary>
+    public const string ImageHttpClientName = "partner-kestrel-images";
+
     private const int MaxWatermarkLength = 200;
 
     public string Partner => ProductSources.Kestrel;

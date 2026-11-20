@@ -81,6 +81,7 @@ internal static class PartnerTestHost
             services.AddHttpClient(HarborCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
             services.AddHttpClient(HarborCatalogSource.ImageHttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
             services.AddHttpClient(KestrelCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => kestrel);
+            services.AddHttpClient(KestrelCatalogSource.ImageHttpClientName).ConfigurePrimaryHttpMessageHandler(() => kestrel);
         });
     }
 

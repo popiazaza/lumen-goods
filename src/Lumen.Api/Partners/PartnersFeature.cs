@@ -58,6 +58,8 @@ internal static class PartnersFeature
         services.AddTransient<KestrelBasicAuthHandler>();
         services.AddPartnerHttpClient<KestrelOptions>(KestrelCatalogSource.HttpClientName)
             .AddHttpMessageHandler<KestrelBasicAuthHandler>();
+        services.AddPartnerHttpClient<KestrelOptions>(KestrelCatalogSource.ImageHttpClientName)
+            .AddHttpMessageHandler<KestrelBasicAuthHandler>();
         services.AddSingleton<KestrelCatalogSource>();
         services.AddSingleton<KestrelStockSource>();
         services.AddPartner(
@@ -66,7 +68,7 @@ internal static class PartnersFeature
             sp => sp.GetRequiredService<KestrelCatalogSource>(),
             sp => sp.GetRequiredService<KestrelStockSource>(),
             sp => sp.GetRequiredService<IOptionsMonitor<KestrelOptions>>().CurrentValue,
-            imageHttpClientName: KestrelCatalogSource.HttpClientName);
+            imageHttpClientName: KestrelCatalogSource.ImageHttpClientName);
 
         services.AddSingleton<PartnerImageCache>();
         services.AddSingleton<PartnerImageProxy>();
