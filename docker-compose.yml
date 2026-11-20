@@ -1,7 +1,15 @@
 # One command runs everything: docker compose up --build
 # Storefront: http://localhost:8080  (API docs: http://localhost:8080/api/docs)
 # Partner sandboxes for inspection: Harbor http://localhost:8081, Kestrel http://localhost:8082
+# Published ports bind to 127.0.0.1 only: the demo accounts have published passwords.
 name: lumen-goods
+
+x-tcp-healthcheck: &tcp-healthcheck
+  # The .NET runtime images have bash but no curl; a TCP connect proves Kestrel (the web server) is listening.
+  test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+  interval: 3s
+  timeout: 3s
+  retries: 30
 
 services:
   db:
@@ -32,6 +40,12 @@ services:
       # Demo accounts listed in the README; off in the base (production) configuration.
       Seed__Enabled: "true"
       Logging__Console__FormatterName: json
+    healthcheck:
+      # Healthy only once migrations and seeding are done and the database answers (/health).
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q Healthy <&3"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
     depends_on:
       db:
         condition: service_healthy
@@ -45,9 +59,10 @@ services:
     build:
       context: src/web
     ports:
-      - "${WEB_PORT:-8080}:8080"
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   harbor:
@@ -55,9 +70,10 @@ services:
       context: .
       dockerfile: src/StandIns/HarborSupply.StandIn/Dockerfile
     ports:
-      - "${HARBOR_PORT:-8081}:8080"
+      - "127.0.0.1:${HARBOR_PORT:-8081}:8080"
     volumes:
       - harbor-data:/app/data
+    healthcheck: *tcp-healthcheck
     restart: unless-stopped
 
   kestrel:
@@ -65,9 +81,10 @@ services:
       context: .
       dockerfile: src/StandIns/KestrelOutfitters.StandIn/Dockerfile
     ports:
-      - "${KESTREL_PORT:-8082}:8080"
+      - "127.0.0.1:${KESTREL_PORT:-8082}:8080"
     volumes:
       - kestrel-data:/app/data
+    healthcheck: *tcp-healthcheck
     restart: unless-stopped
 
 volumes:
