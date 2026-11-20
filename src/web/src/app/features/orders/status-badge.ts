@@ -23,6 +23,8 @@ import { StatusView } from './order-labels';
       font: var(--mat-sys-label-large);
       line-height: 1.25;
       color: var(--mat-sys-on-surface-variant);
+      /* never stretched by a column flex or grid parent: a badge is as wide as its text */
+      width: fit-content;
       max-width: 100%;
     }
 
