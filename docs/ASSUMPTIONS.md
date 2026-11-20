@@ -1,0 +1,86 @@
+# Assumptions
+
+Where the spec is silent or ambiguous, these are the choices this build makes. IDs are stable: code comments and tests cite them (e.g. `A-49`).
+Contract interpretations for the partner stand-ins live in each stand-in's README, as the spec asks; the rows here marked as partner behaviour summarise them.
+
+## A. Money, tax, shipping, currency
+
+| ID | Assumption |
+|---|---|
+| A-01 | **Sales tax**: one configurable rate (default **8%**) applied to every order's product lines, including partner items (Lumen is the reseller). Computed only in `PricingService` (`Pricing:TaxRate`), so per-state rates or a tax provider would replace one class. Chosen over a per-state table because the spec's own sample address (Portland, OR) has no state sales tax and would show $0.00 tax in a demo |
+| A-02 | **Shipping is not taxed**; tax applies to product lines only |
+| A-03 | Tax is computed per line and rounded to the cent; order tax = sum of line taxes (so refunds are exact) |
+| A-04 | Before an address exists, the cart shows **estimated** tax (default state) and estimated Standard shipping, labelled "estimated" |
+| A-05 | **Shipping is charged per seller shipment** (each seller ships separately). Standard **$4.99** per shipment. Express **$12.99** offered **only for Lumen's own items**, because partner order formats carry no shipping method |
+| A-06 | No free-shipping threshold or discounts (offers are a planned feature) |
+| A-07 | **EUR→USD** uses a **fixed rate from configuration** (default 1.0850, no markup). The rate used is stored on each order line. Production would use a daily reference rate (e.g. ECB) |
+| A-08 | Convert the **unit** price, round **half away from zero** to cents (never .NET's default banker's rounding). Test: 1.249,00 EUR × 1.0850 = 1355.165 → **$1,355.17** |
+| A-09 | **Any** price change between review and payment, **up or down**, stops the order and asks the customer to re-confirm (strictest reading of "never pay a price they have not seen") |
+| A-10 | A product with no valid price (Harbor `null`, unparseable Kestrel price) is shown as "Price on request" with `sellable: false` |
+| A-11 | Amounts display as en-US USD with 2 decimals (`$1,355.17`) |
+
+## B. Catalogue and display
+
+| ID | Assumption |
+|---|---|
+| A-12 | Name/description language: English if present, else German as-is (no machine translation). A product with no name at all is not listed |
+| A-13 | Availability is derived from the quantity whenever it is known: 0 → out of stock, 1–5 → low stock, ≥6 → in stock. Harbor AVAILABLE → in stock, quantity unknown (`null`). Harbor SOLD_OUT → 0 |
+| A-14 | Kestrel stock is unknown until the stock endpoint answers; **unknown = not sellable** (never shown "in stock" without evidence). Refs missing from the stock CSV are treated as unknown |
+| A-15 | Kestrel `restock_date` is stored but not shown (it isn't in the storefront format) |
+| A-16 | Products in unmapped categories are hidden. Category mappings live in configuration |
+| A-17 | **Listing**: discontinued, inactive and deactivated products are hidden from the catalogue, but their detail page still opens and says "No longer available" (so carts, bookmarks and order history keep working). Price-on-request items **are** listed |
+| A-18 | **"Newest"** = when Lumen first saw the product (own products: created date), not last updated |
+| A-19 | Attribute keys are normalised with a small dictionary then camelCase (`colour`/`Colour` → `color`) |
+| A-20 | Images: Kestrel `large` preferred, else `thumb`; none → placeholder. Partner images are fetched by Lumen (with the partner's credentials) and served from Lumen URLs; the browser never calls a partner |
+| A-21 | Partner HTML descriptions are sanitised server-side to a small allowlist (p, br, b, strong, i, em, ul, ol, li); everything else is stripped |
+| A-22 | Search is case-insensitive over name and description. Category and seller filters allow several values; price range is inclusive; "in stock only" = sellable and in/low stock. 24 per page. Sort is included in the URL |
+
+## C. Partners and stand-ins
+
+| ID | Assumption |
+|---|---|
+| A-23 | Harbor rate limit: fixed 60-second window per key; `Retry-After` = whole seconds to the window reset. Image requests also need the key and count toward the limit (literal reading of "every request") |
+| A-24 | Harbor cursor is opaque to Lumen (the stand-in uses a keyset cursor); `updated_since` is strictly-after; any change (including stock after an order) bumps `updated_at`; items are never hard-deleted, only discontinued |
+| A-25 | Harbor LIMITED = 1–10 on hand in the stand-in (so both "low" and "in stock" mappings get exercised). Invalid parameters → 400 with the standard error body |
+| A-26 | A Harbor 409/422 does **not** use up the `external_ref`; Lumen never reuses a ref anyway |
+| A-27 | Kestrel: the 2–4 s delay and 1-in-10 503 apply to every authenticated feed request (including 304s); unknown ticket → 404 empty body; ordering an inactive product → accepted, then REJECTED out of stock |
+| A-28 | Kestrel delivery has no region/line2 fields: Street = "line1, line2"; the region is not sent |
+| A-29 | Partner data can change during a demo via a **command-line tool inside each stand-in** (e.g. `set-stock`, `set-price`), never an HTTP endpoint |
+| A-30 | Stock changes count as catalogue changes for the 15-minute rule |
+
+## D. Checkout, payment, orders
+
+| ID | Assumption |
+|---|---|
+| A-31 | Partner orders are placed **only after** payment succeeds (partners have no cancel). One partner order **per line** |
+| A-32 | Payment is **charged once** at checkout; whatever a partner can't supply is **refunded automatically** |
+| A-33 | Card 0059: the back end retries once with the **same payment id**; if that also fails the customer's "Try again" reuses the same payment |
+| A-34 | Card 0042: the customer sees "Confirming your payment…" for up to ~20 s; leaving or refreshing the page doesn't cancel it |
+| A-35 | **OTP**: one code entry per challenge; wrong code → that attempt is declined and the customer can try again (new code). Max **5** payment attempts per order. No SMS: the payment page shows a hint "test code: 123456" |
+| A-36 | Card form: number, name, expiry (not in the past), CVC. Only brand + last 4 digits are stored |
+| A-37 | Stolen-card decline shows the customer a generic "card declined" message; the admin sees the real reason |
+| A-38 | **Wallet**: seeded customer has **$2,000.00** (enough for the >1.000 EUR item); newly registered customers start with **$500.00** (mock money). No top-up. **One payment method per order** (wallet *or* card) |
+| A-39 | Refunds go back to the original method (wallet: instant credit; card: mock refund) |
+| A-40 | A refund covers the line + its tax, plus that seller's shipping fee if **all** that seller's lines failed. Total refunds never exceed the amount charged |
+| A-41 | Order numbers look like `LG-7K3M9QX2` (random, not sequential); partner refs are `{orderNo}-{line}` |
+| A-42 | The price shown at review is held for **15 minutes**; own stock is reserved when the order is placed (not on add-to-cart), released if payment fails or the 15 minutes run out |
+| A-43 | **Partner never answers**: if a partner order was never accepted after retries for 30 min → refund that line. If Kestrel accepted it but stays undecided for 24 h → flag "Needs attention" for an admin, **no automatic refund** (the goods might still ship) |
+| A-44 | Customers **can't cancel** an order after paying (partners have no cancel; support/returns are a planned feature) |
+| A-45 | Lumen's own items go straight to "Confirmed" when paid; shipping/tracking is out of scope |
+
+## E. Cart, accounts, admin, running it
+
+| ID | Assumption |
+|---|---|
+| A-46 | Mini-cart count = total quantity, not number of lines |
+| A-47 | Guest cart merge: same product → quantities added, capped by availability and 10 per line; registering also merges |
+| A-48 | Guest cart lives 30 days in a cookie-identified server cart |
+| A-49 | A product that disappears or is deactivated stays in the cart marked "No longer available"; checkout is blocked until it's removed |
+| A-50 | Registration: unique email, ASP.NET Identity password rules; no email verification or password reset (no email infrastructure yet) |
+| A-51 | **Single launch country: US.** The spec never names a country; inferred from USD-only prices, "sales tax", the sample addresses (Portland, OR, US) and "more countries" being a planned feature. The country is a config value; addresses use US rules (50 states + DC, 5-digit or ZIP+4) |
+| A-52 | Admin can't hard-delete own products (orders reference them); deactivate/reactivate only. Stock edits are rejected if they'd drop below what's already reserved |
+| A-53 | "Refresh now" runs a sync immediately in the background; a second click while running shows "running" |
+| A-54 | "Live products" = visible in the shop; "recent errors" = last 50 sync/order errors |
+| A-55 | `docker compose up --build` includes the front-end build, migrations and seeding; no manual steps. Plain HTTP on `localhost` |
+| A-56 | **.NET 10 LTS** on purpose: .NET 11 is GA but its PostgreSQL provider is not stable yet; adopting a brand-new major before its ecosystem catches up is a risk not worth taking for a production launch |
+| A-57 | English-only UI |
