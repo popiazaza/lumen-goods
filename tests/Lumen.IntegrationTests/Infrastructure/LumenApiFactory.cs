@@ -39,6 +39,7 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
         // No background partner sync in tests: it would call whatever answers on the dev partner ports and could unlist
         // rows the catalogue tests insert. Partner tests run the jobs explicitly (PartnerTestHost, RunOnceAsync).
         builder.UseSetting("Jobs:Enabled", "false");
+        builder.UseSetting("Docs:Enabled", "true");
     }
 
     public ApiSession CreateSession() => new(CreateClient());
