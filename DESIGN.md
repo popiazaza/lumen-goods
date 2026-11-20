@@ -249,7 +249,12 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 - Partner HTML is sanitised on the server to an allow-list ([A-21][assumptions]). nginx and Angular add a CSP.
 - XML DTDs are refused (no XXE).
 - The image proxy fetches only from allow-listed origins and follows no redirects (SSRF guard).
-- The card number and CVC stay in memory; only brand and last 4 digits are stored.
+- The card number and CVC stay in memory; only brand and last 4 digits are stored, and `CardDetails` never prints them.
+- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP; sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer. A 429 is ProblemDetails with `Retry-After`.
+- At most 3 unpaid orders per customer (BR-CHK-03), so one account cannot keep own stock reserved.
+- nginx answers only for `localhost` and `127.0.0.1` and the API's `AllowedHosts` matches, against DNS rebinding. Another hostname needs both changed.
+- Data Protection keys live on a volume, so a restart keeps sessions and XSRF tokens valid. In production they would be encrypted with a key vault.
+- API answers carry `Cache-Control: no-store`.
 
 **Configuration over code.** Every setting a reviewer may change is an `IOptions<T>` validated at start-up, set in `src/Lumen.Api/appsettings.json` and overridable by environment variables.
 
@@ -323,6 +328,9 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 | Harbor rate budget | Config `Partners:Harbor:RateLimit` | `Unit/Partners/HarborAdapterTests.cs` |
 | Sync intervals | Config `Partners:*:CatalogueInterval`, `FullSyncInterval`, `StockInterval` | `Unit/Partners/SyncPolicyTests.cs` |
 | Price hold, attempts | Config `Payments:OrderHold`, `MaxAttemptsPerOrder` | `Unit/Payments/PaymentWindowPolicyTests.cs` |
+| Unpaid orders per customer | Config `Checkout:MaxUnpaidOrdersPerCustomer` | `Int/Checkout/PlaceOrderTests.cs` (BR-CHK-03) |
+| Rate limits | Config `RateLimiting:*` | `Int/Identity/RateLimitTests.cs` |
+| Serve another hostname | `src/web/nginx.conf` `server_name`; `AllowedHosts` of `api` in `docker-compose.yml` | the compose smoke test in `.github/workflows/ci.yml` |
 
 ## 10. Decisions I'd revisit
 
@@ -332,10 +340,11 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 | Charge, then refund ([0005][adr5]) | The mock gateway has no separate capture; partner stock is checked at Place order, so refunds are rare | A real provider: authorise at payment, capture only what partners confirmed |
 | Re-confirm every price change, drops too ([A-09][assumptions]) | One rule, easy to test: nothing is charged that the customer did not see | Customers abandoning at the drop notice: accept a drop silently and charge the lower price |
 | Kestrel prices as fresh as its feed ([0004][adr4]) | Kestrel has no per-item price endpoint; the feed is read every 3 min | Kestrel adds a price lookup, or its prices change within minutes: check them live at Place order, as for Harbor |
-| One API replica ([0002][adr2]) | Limiters, the sync lock, the image cache and Data Protection keys live in the process: nothing to coordinate | A second replica (about 1,000 requests/s at the two-year normal peak, §7): web replicas plus a jobs deployment, shared limiter, sync lease and key ring |
+| One API replica ([0002][adr2]) | Rate limiters, the per-email sign-in queue, the sync lock and the image cache live in the process: nothing to coordinate | A second replica (about 1,000 requests/s at the two-year normal peak, §7): web replicas plus a jobs deployment, shared limiter, sync lease and key ring |
 | Two large units kept whole: the payment page (969 lines of TypeScript, 319 of template) and `PartnerOrderProcessor` (571 lines) | Both move money and are well covered (885 lines of page spec, `PartnerOrderJobTests`); splitting them in the last days risked regressions for no change in behaviour | The next change to either: the page into card form, one-time-code panel and status poller; the processor into claim, send and give-up steps |
 | Typed Reactive Forms, not Angular 22 Signal Forms | Mature and documented, and every form's tests are written against them | A form being reworked anyway: move it to Signal Forms, one form at a time |
 | `ILogger` message templates, no `LoggerMessage` source generators | Logs are already structured; at today's volume the saved allocations don't matter | Busy hot paths (sync, partner order job): generated `[LoggerMessage]` methods, with CA1848 as a warning |
+| Account lockout per email plus per-IP limits | Stops mass lockouts and password spraying with no extra service | Targeted lockouts from many IPs: a step-up (CAPTCHA or email code) after a few failures instead of a hard lock |
 | Migrations run at API start-up | `docker compose up` needs no extra step | A second replica or a real pipeline: a `dotnet ef migrations bundle` step before deploy (§8) |
 
 [adr2]: docs/adr/0002-modular-monolith-in-one-api-host.md
