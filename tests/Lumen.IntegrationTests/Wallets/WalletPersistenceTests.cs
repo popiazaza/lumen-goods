@@ -20,7 +20,7 @@ public sealed class WalletPersistenceTests(LumenApiFactory factory)
     {
         var customerId = await factory.NewCustomerAsync();
         await using var scope = factory.Services.CreateAsyncScope();
-        (await scope.ServiceProvider.GetRequiredService<WalletAccounts>().OpenAsync(customerId, balance, Ct)).Should().BeTrue();
+        (await scope.ServiceProvider.GetRequiredService<WalletService>().OpenAsync(customerId, balance, Ct)).Should().BeTrue();
         return customerId;
     }
 
@@ -64,12 +64,48 @@ public sealed class WalletPersistenceTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-PAY-06")]
+    public async Task BR_PAY_06_a_wallet_opens_lazily_with_500_dollars_once_however_often_it_is_ensured()
+    {
+        var customerId = await factory.NewCustomerAsync();
+
+        async Task<bool> EnsureAsync()
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<WalletService>().EnsureOpenAsync(customerId, Ct);
+        }
+
+        var firstUses = await Task.WhenAll(EnsureAsync(), EnsureAsync(), EnsureAsync());
+        var later = await EnsureAsync();
+
+        firstUses.Count(created => created).Should().Be(1);
+        later.Should().BeFalse();
+        await using var db = factory.NewContext();
+        (await db.Wallets.SingleAsync(w => w.CustomerId == customerId, Ct)).Balance.Should().Be(500.00m);
+        (await db.WalletTransactions.SingleAsync(t => t.CustomerId == customerId, Ct)).Kind.Should().Be(WalletTransactionKind.Seed);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-PAY-06")]
+    public async Task BR_PAY_06_a_wallet_that_cannot_be_opened_at_registration_does_not_fail_it()
+    {
+        var notACustomer = Guid.NewGuid();
+        await using var scope = factory.Services.CreateAsyncScope();
+
+        await FluentActions.Awaiting(() => scope.ServiceProvider.GetRequiredService<WalletService>().TryEnsureOpenAsync(notACustomer))
+            .Should().NotThrowAsync();
+
+        var db = scope.ServiceProvider.GetRequiredService<Lumen.Api.Infrastructure.Data.LumenDbContext>();
+        (await db.Wallets.AnyAsync(w => w.CustomerId == notACustomer, Ct)).Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-PAY-06")]
     public async Task BR_PAY_06_opening_a_wallet_twice_changes_nothing()
     {
         var customerId = await NewCustomerWithWalletAsync(500.00m);
 
         await using var scope = factory.Services.CreateAsyncScope();
-        (await scope.ServiceProvider.GetRequiredService<WalletAccounts>().OpenAsync(customerId, 9999.00m, Ct)).Should().BeFalse();
+        (await scope.ServiceProvider.GetRequiredService<WalletService>().OpenAsync(customerId, 9999.00m, Ct)).Should().BeFalse();
 
         var db = scope.ServiceProvider.GetRequiredService<Lumen.Api.Infrastructure.Data.LumenDbContext>();
         (await db.Wallets.SingleAsync(w => w.CustomerId == customerId, Ct)).Balance.Should().Be(500.00m);
@@ -98,7 +134,7 @@ public sealed class WalletPersistenceTests(LumenApiFactory factory)
         var order = await factory.NewSavedOrderAsync();
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            await scope.ServiceProvider.GetRequiredService<WalletAccounts>().OpenAsync(order.CustomerId, 500.00m, Ct);
+            await scope.ServiceProvider.GetRequiredService<WalletService>().OpenAsync(order.CustomerId, 500.00m, Ct);
         }
 
         var payment = OrderingTestData.NewPayment(order.Id, PaymentStatus.Succeeded, PaymentMethod.Wallet);
@@ -115,7 +151,7 @@ public sealed class WalletPersistenceTests(LumenApiFactory factory)
         var order = await factory.NewSavedOrderAsync();
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            await scope.ServiceProvider.GetRequiredService<WalletAccounts>().OpenAsync(order.CustomerId, 500.00m, Ct);
+            await scope.ServiceProvider.GetRequiredService<WalletService>().OpenAsync(order.CustomerId, 500.00m, Ct);
         }
 
         var payment = OrderingTestData.NewPayment(order.Id, PaymentStatus.Succeeded, PaymentMethod.Wallet);
@@ -140,7 +176,7 @@ public sealed class WalletPersistenceTests(LumenApiFactory factory)
         var order = await factory.NewSavedOrderAsync();
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            await scope.ServiceProvider.GetRequiredService<WalletAccounts>().OpenAsync(order.CustomerId, 500.00m, Ct);
+            await scope.ServiceProvider.GetRequiredService<WalletService>().OpenAsync(order.CustomerId, 500.00m, Ct);
         }
 
         var payment = OrderingTestData.NewPayment(order.Id, PaymentStatus.Succeeded, PaymentMethod.Wallet);

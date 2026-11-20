@@ -32,14 +32,15 @@ internal static class WalletFeature
             .Bind(configuration.GetSection(WalletOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        services.AddScoped<WalletAccounts>();
+        services.AddScoped<WalletService>();
         return services;
     }
 
     /// <summary>
     /// Wallet endpoints under /api/v1 (signed-in customer):
     /// <list type="bullet">
-    /// <item><c>GET /wallet</c> → <see cref="WalletDto"/></item>
+    /// <item><c>GET /wallet</c> → <see cref="WalletDto"/>; calls <see cref="WalletService.EnsureOpenAsync"/> first, so a
+    /// customer whose wallet was not opened at registration gets it now (paying by wallet does the same)</item>
     /// </list>
     /// </summary>
     public static RouteGroupBuilder MapWalletEndpoints(this RouteGroupBuilder api) => api;
