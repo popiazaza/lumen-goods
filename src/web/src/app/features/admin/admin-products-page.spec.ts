@@ -16,6 +16,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { AdminProduct } from '../../core/api/admin-products.api';
 import { PagedResult } from '../../core/api/paged-result';
 import { provideAppIcons } from '../../core/icons/app-icons';
+import { itemAt } from '../../testing/items';
 import { aPagedResult, anAdminProduct } from '../../testing/order-fixtures';
 import { AdminProductsPage } from './admin-products-page';
 
@@ -108,7 +109,9 @@ describe('AdminProductsPage', () => {
     );
     expect((host().querySelector('input[name="q"]') as HTMLInputElement).value).toBe('mug');
 
-    const [status, category] = await loader.getAllHarnesses(MatSelectHarness);
+    const selects = await loader.getAllHarnesses(MatSelectHarness);
+    const status = itemAt(selects, 0);
+    const category = itemAt(selects, 1);
 
     await expect(status.getValueText()).resolves.toBe('Inactive');
     await expect(category.getValueText()).resolves.toBe('Home');
@@ -126,7 +129,7 @@ describe('AdminProductsPage', () => {
     expect(router.url).toBe('/admin/products?q=lamp');
     expect(searched.request.params.get('q')).toBe('lamp');
 
-    const [status] = await loader.getAllHarnesses(MatSelectHarness);
+    const status = itemAt(await loader.getAllHarnesses(MatSelectHarness), 0);
     await status.open();
     const choosing = status.clickOptions({ text: 'Active' });
     await respond(aPagedResult([]));
@@ -139,7 +142,9 @@ describe('AdminProductsPage', () => {
   it('lists products with a link to edit, SKU, price, stock and status', async () => {
     await open('/admin/products');
 
-    const [mug, lamp] = rows();
+    const listed = rows();
+    const mug = itemAt(listed, 0);
+    const lamp = itemAt(listed, 1);
     const link = mug.querySelector('a') as HTMLAnchorElement;
 
     expect({

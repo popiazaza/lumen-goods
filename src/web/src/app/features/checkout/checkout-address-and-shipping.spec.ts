@@ -10,6 +10,7 @@ import { SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM } from '../../core/api/checkout.a
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { US_ADDRESS, aPreview } from '../../testing/fixtures';
+import { itemAt } from '../../testing/items';
 import { CheckoutAddressPage } from './checkout-address-page';
 import { CheckoutShippingPage } from './checkout-shipping-page';
 
@@ -132,7 +133,9 @@ describe('Checkout address and shipping steps', () => {
       http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview());
       await harness.fixture.whenStable();
 
-      const [own, partner] = [...host().querySelectorAll<HTMLElement>('section.group')];
+      const groups = host().querySelectorAll<HTMLElement>('section.group');
+      const own = itemAt(groups, 0);
+      const partner = itemAt(groups, 1);
 
       expect(own.querySelectorAll('mat-radio-button')).toHaveLength(2);
       expect(text('section.group:first-of-type .methods')).toContain('Express');
@@ -163,7 +166,7 @@ describe('Checkout address and shipping steps', () => {
 
       expect(text('.totals .grand.price')).toBe('$75.46');
 
-      [...host().querySelectorAll<HTMLButtonElement>(':scope .actions button')][0].click();
+      itemAt(host().querySelectorAll<HTMLButtonElement>(':scope .actions button'), 0).click();
       await harness.fixture.whenStable();
 
       expect(store.shippingMethod()).toBe('express');
@@ -208,7 +211,7 @@ describe('Checkout address and shipping steps', () => {
 
       expect(host().querySelector('[role="alert"]')).toBeNull();
 
-      [...host().querySelectorAll<HTMLButtonElement>(':scope .actions button')][0].click();
+      itemAt(host().querySelectorAll<HTMLButtonElement>(':scope .actions button'), 0).click();
       await harness.fixture.whenStable();
 
       expect(store.shippingMethod()).toBe('standard');

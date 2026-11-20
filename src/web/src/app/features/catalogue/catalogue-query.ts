@@ -175,7 +175,7 @@ export const activeFilterCount = (query: CatalogueQuery): number => {
 The API request for this state. Sort is always explicit so the API's default cannot drift.
 */
 export const toProductSearch = (query: CatalogueQuery): ProductSearch => ({
-  q: query.q || undefined,
+  ...(query.q !== '' && { q: query.q }),
   categories: query.categories,
   sellers: query.sellers,
   minPrice: query.minPrice,

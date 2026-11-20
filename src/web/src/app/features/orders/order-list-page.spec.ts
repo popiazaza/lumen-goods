@@ -9,6 +9,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { provideAppIcons } from '../../core/icons/app-icons';
+import { itemAt } from '../../testing/items';
 import { aPagedResult, anOrderSummary } from '../../testing/order-fixtures';
 import { OrderListPage, parsePage } from './order-list-page';
 
@@ -94,7 +95,9 @@ describe('OrderListPage', () => {
 
     expect(cards()).toHaveLength(2);
 
-    const [first, second] = cards();
+    const shown = cards();
+    const first = itemAt(shown, 0);
+    const second = itemAt(shown, 1);
 
     expect({
       title: text(first, 'h3'),
@@ -163,7 +166,7 @@ describe('OrderListPage', () => {
     expect({
       pager: pager(),
       previousLink: previous?.getAttribute('href'),
-      firstOrder: text(cards()[0], 'h3'),
+      firstOrder: text(itemAt(cards(), 0), 'h3'),
     }).toStrictEqual({
       pager: ['Previous', 'Next', 'Page 2 of 3'],
       previousLink: '/orders',

@@ -15,6 +15,7 @@ import {
 } from '../../core/api/admin-orders.api';
 import { OrderDetailDto, RefundStatus } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
+import { itemAt } from '../../testing/items';
 import {
   SOCKS_LINE,
   aPartnerOrder,
@@ -36,9 +37,9 @@ const needingAttention = (): AdminOrder => {
     order: {
       ...order,
       shipments: [
-        order.shipments[0],
+        itemAt(order.shipments, 0),
         {
-          ...order.shipments[1],
+          ...itemAt(order.shipments, 1),
           lines: [{ ...SOCKS_LINE, status: 'needs_attention', statusText: 'Delayed' }],
         },
       ],
@@ -60,9 +61,9 @@ const rejected = (refundStatus: RefundStatus = 'pending'): AdminOrder => {
     statusText: isPaidBack ? 'Partially refunded' : 'Partial refund pending',
     isUpdating: refundStatus === 'pending',
     shipments: [
-      before.order.shipments[0],
+      itemAt(before.order.shipments, 0),
       {
-        ...before.order.shipments[1],
+        ...itemAt(before.order.shipments, 1),
         feeRefunded: true,
         lines: [
           {
@@ -215,7 +216,8 @@ describe('AdminOrderDetailPage', () => {
       'Approved',
     ]);
 
-    const [, declined, gatewayError] = events;
+    const declined = itemAt(events, 1);
+    const gatewayError = itemAt(events, 2);
 
     expect({
       amount: text(declined, '.amount'),
@@ -252,7 +254,9 @@ describe('AdminOrderDetailPage', () => {
       })
     );
 
-    const [kestrel, harbor] = [...section('Partner orders').querySelectorAll('li')];
+    const partnerOrders = section('Partner orders').querySelectorAll('li');
+    const kestrel = itemAt(partnerOrders, 0);
+    const harbor = itemAt(partnerOrders, 1);
 
     expect({
       heading: text(kestrel, 'h3'),
@@ -373,9 +377,9 @@ describe('AdminOrderDetailPage', () => {
       order: {
         ...before.order,
         shipments: [
-          before.order.shipments[0],
+          itemAt(before.order.shipments, 0),
           {
-            ...before.order.shipments[1],
+            ...itemAt(before.order.shipments, 1),
             lines: [
               { ...SOCKS_LINE, status: 'confirmed', statusText: 'Confirmed by Kestrel Outfitters' },
             ],

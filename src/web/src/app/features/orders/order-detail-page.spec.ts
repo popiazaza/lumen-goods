@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { OrderDetailDto, OrderLineDto, RefundStatus } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
+import { itemAt } from '../../testing/items';
 import {
   SOCKS_LINE,
   aCardPayment,
@@ -32,7 +33,7 @@ const oneLineOrder = (line: Partial<OrderLineDto>): OrderDetailDto => {
   const order = anOrderDetail({ isUpdating: false });
   return {
     ...order,
-    shipments: [{ ...order.shipments[1], lines: [{ ...SOCKS_LINE, ...line }] }],
+    shipments: [{ ...itemAt(order.shipments, 1), lines: [{ ...SOCKS_LINE, ...line }] }],
   };
 };
 
@@ -57,7 +58,7 @@ describe('OrderDetailPage', () => {
   The Kestrel line's status, the refund's badge and the updating note, while a refund is paid back.
   */
   const refundProgress = () => ({
-    line: lineBadges()[1].text,
+    line: itemAt(lineBadges(), 1).text,
     refund: text(summary(), '.refunds li app-status-badge'),
     updating: text(host(), '.updating'),
   });
@@ -175,9 +176,9 @@ describe('OrderDetailPage', () => {
       statusText: 'Partially refunded',
       isUpdating: false,
       shipments: [
-        order.shipments[0],
+        itemAt(order.shipments, 0),
         {
-          ...order.shipments[1],
+          ...itemAt(order.shipments, 1),
           feeRefunded: true,
           lines: [
             {
@@ -304,9 +305,9 @@ describe('OrderDetailPage', () => {
       // The API counts only a pending refund as updating; a failed one waits for its retry.
       isUpdating: status === 'pending',
       shipments: [
-        order.shipments[0],
+        itemAt(order.shipments, 0),
         {
-          ...order.shipments[1],
+          ...itemAt(order.shipments, 1),
           feeRefunded: true,
           lines: [{ ...SOCKS_LINE, status: 'rejected', statusText, refundedAmount: 17.52 }],
         },
@@ -430,7 +431,7 @@ describe('OrderDetailPage', () => {
     await show({
       ...order,
       shipments: [
-        { ...order.shipments[0], lines: [anOrderLine({ imageUrl: '/media/own/mug.png' })] },
+        { ...itemAt(order.shipments, 0), lines: [anOrderLine({ imageUrl: '/media/own/mug.png' })] },
       ],
     });
 

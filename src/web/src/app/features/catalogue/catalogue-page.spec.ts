@@ -14,6 +14,7 @@ import { ProductPage } from '../../core/api/products.api';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { SELLERS, aPage, aProduct } from '../../testing/fixtures';
+import { itemAt } from '../../testing/items';
 import { CataloguePage } from './catalogue-page';
 
 @Component({ selector: 'app-stub-product-page', template: '<h1>Product</h1>' })
@@ -236,7 +237,9 @@ describe('CataloguePage', () => {
 
   it('applies a validated price range', async () => {
     await open('/');
-    const [min, max] = host().querySelectorAll<HTMLInputElement>(':scope aside .price input');
+    const prices = host().querySelectorAll<HTMLInputElement>(':scope aside .price input');
+    const min = itemAt(prices, 0);
+    const max = itemAt(prices, 1);
 
     min.value = '60';
     min.dispatchEvent(new Event('input'));
@@ -278,11 +281,11 @@ describe('CataloguePage', () => {
       'Next',
     ]);
 
-    const next = links.at(-1) as HTMLAnchorElement;
+    const next = itemAt(links, links.length - 1);
 
     expect({
       next: next.getAttribute('href'),
-      page1: links[1].getAttribute('href'),
+      page1: itemAt(links, 1).getAttribute('href'),
       current: host().querySelector('[aria-current="page"]')?.textContent?.trim(),
       range: text('.range'),
     }).toStrictEqual({

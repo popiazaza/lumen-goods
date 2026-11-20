@@ -11,6 +11,7 @@ import { CartStateService } from '../../core/cart/cart-state.service';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { SELLERS, aCart, aCartLine, aProduct } from '../../testing/fixtures';
+import { itemAt } from '../../testing/items';
 import { ProductDetailPage } from './product-detail-page';
 
 @Component({ selector: 'app-stub-page', template: '<h1>Elsewhere</h1>' })
@@ -307,11 +308,11 @@ describe('ProductDetailPage', () => {
       'Bags',
       'Waxed Canvas Tote',
     ]);
-    expect(crumbs[0].querySelector('a')?.getAttribute('href')).toBe(
+    expect(itemAt(crumbs, 0).querySelector('a')?.getAttribute('href')).toBe(
       '/?q=tote&category=bags&page=2'
     );
-    expect(crumbs[1].querySelector('a')?.getAttribute('href')).toBe('/?category=bags');
-    expect(crumbs[2].getAttribute('aria-current')).toBe('page');
+    expect(itemAt(crumbs, 1).querySelector('a')?.getAttribute('href')).toBe('/?category=bags');
+    expect(itemAt(crumbs, 2).getAttribute('aria-current')).toBe('page');
   });
 
   it('shows a friendly not-found page for a 404', async () => {

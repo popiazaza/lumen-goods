@@ -224,7 +224,7 @@ export const fieldError = (field: ProductField, errors: ValidationErrors | null)
 The API's error keys (`onHand`, `attributes.color`, `images[0]`) mapped to form fields.
 */
 export const fieldOfErrorKey = (key: string): ProductField | undefined => {
-  const [head] = key.split(/[.[]/u, 1);
+  const [head = ''] = key.split(/[.[]/u, 1);
   return PRODUCT_FIELDS.find((field) => field.toLowerCase() === head.toLowerCase());
 };
 

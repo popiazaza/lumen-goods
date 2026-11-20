@@ -16,6 +16,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { AdminOrderSummary } from '../../core/api/admin-orders.api';
 import { PagedResult } from '../../core/api/paged-result';
 import { provideAppIcons } from '../../core/icons/app-icons';
+import { itemAt } from '../../testing/items';
 import { aPagedResult, anAdminOrderSummary } from '../../testing/order-fixtures';
 import { AdminOrdersPage } from './admin-orders-page';
 
@@ -26,8 +27,8 @@ class StubOrderPage {}
 The instant the page sends for local midnight of a day (`YYYY-MM-DD` plus `addDays`).
 */
 const localMidnight = (day: string, addDays = 0): string => {
-  const [year, month, date] = day.split('-').map(Number);
-  const midnight = new Date(year, month - 1, date + addDays);
+  const parts = day.split('-').map(Number);
+  const midnight = new Date(itemAt(parts, 0), itemAt(parts, 1) - 1, itemAt(parts, 2) + addDays);
   return midnight.toISOString();
 };
 
@@ -197,7 +198,8 @@ describe('AdminOrdersPage', () => {
 
     expect(rows).toHaveLength(2);
 
-    const [paid, attention] = rows;
+    const paid = itemAt(rows, 0);
+    const attention = itemAt(rows, 1);
     const link = paid.querySelector('a') as HTMLAnchorElement;
 
     expect({

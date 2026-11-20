@@ -60,9 +60,10 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 - `npm run lint` must pass. Fix template a11y findings; don't disable the rules.
 - CSP: nginx sends a strict policy and `autoCsp` hashes the bootstrap scripts. No inline scripts, `eval`, inline event attributes or third-party hosts.
 
-## Lint
+## Lint and types
 
 - The code is linted and formatted by [Ultracite](https://www.ultracite.ai/) (ESLint, Prettier and Stylelint presets; project rules in `eslint.config.mjs`). `npm run fix` fixes what it can; review its diff, then fix the rest by hand. Every rule changed in `eslint.config.mjs` or disabled on a line says why; add one only for a real conflict with Angular, the browser baseline or the API, never to make the check pass.
+- TypeScript is `strict` plus `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`; templates are `strictTemplates` with extended diagnostics as errors. No `!` non-null assertions: narrow, or use `itemAt` from `testing/items.ts` in specs.
 
 ## Tests
 

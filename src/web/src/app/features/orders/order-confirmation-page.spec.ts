@@ -4,6 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { OrderDetailDto, RefundStatus } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
+import { itemAt } from '../../testing/items';
 import { aCardPayment, anOrder, anOrderLine } from '../../testing/order-fixtures';
 import { CONFIRMATION_POLL_MS, OrderConfirmationPage } from './order-confirmation-page';
 
@@ -18,11 +19,11 @@ const aPaidOrder = (overrides: Partial<OrderDetailDto> = {}): OrderDetailDto => 
     payment: aCardPayment({ amount: 67.46 }),
     shipments: [
       {
-        ...order.shipments[0],
+        ...itemAt(order.shipments, 0),
         lines: [anOrderLine({ status: 'confirmed', statusText: 'Confirmed' })],
       },
       {
-        ...order.shipments[1],
+        ...itemAt(order.shipments, 1),
         lines: [
           anOrderLine({
             id: 'order-line-2',
@@ -114,18 +115,19 @@ describe('OrderConfirmationPage', () => {
 
   it('shows a refunded line and the refund against what was charged', async () => {
     const order = aPaidOrder();
+    const kestrel = itemAt(order.shipments, 1);
     await open(
       aPaidOrder({
         status: 'partially_refunded',
         isUpdating: false,
         shipments: [
-          order.shipments[0],
+          itemAt(order.shipments, 0),
           {
-            ...order.shipments[1],
+            ...kestrel,
             feeRefunded: true,
             lines: [
               {
-                ...order.shipments[1].lines[0],
+                ...itemAt(kestrel.lines, 0),
                 status: 'rejected',
                 statusText: 'Not supplied, refunded $17.52',
               },
@@ -154,6 +156,8 @@ describe('OrderConfirmationPage', () => {
 
   it('keeps re-reading while a refund is on its way, until it is paid back', async () => {
     const paid = aPaidOrder();
+    const kestrel = itemAt(paid.shipments, 1);
+    const socks = itemAt(kestrel.lines, 0);
     /**
     Kestrel rejected the socks; the refund is recorded with this status.
     */
@@ -163,11 +167,11 @@ describe('OrderConfirmationPage', () => {
         // The API counts only a pending refund as updating; a failed one waits for its retry.
         isUpdating: status === 'pending',
         shipments: [
-          paid.shipments[0],
+          itemAt(paid.shipments, 0),
           {
-            ...paid.shipments[1],
+            ...kestrel,
             feeRefunded: true,
-            lines: [{ ...paid.shipments[1].lines[0], status: 'rejected', statusText }],
+            lines: [{ ...socks, status: 'rejected', statusText }],
           },
         ],
         refunds: [
@@ -176,7 +180,7 @@ describe('OrderConfirmationPage', () => {
             id: 'refund-1',
             amount: 22.51,
             reason: 'Not supplied by Kestrel Outfitters',
-            lineIds: [paid.shipments[1].lines[0].id],
+            lineIds: [socks.id],
             shippingAmount: 4.99,
             createdUtc: '2026-11-20T08:05:00Z',
             completedUtc: status === 'succeeded' ? '2026-11-20T08:06:00Z' : null,
@@ -215,8 +219,9 @@ describe('OrderConfirmationPage', () => {
 
     await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS);
     const confirmed = aPaidOrder({ isUpdating: false });
-    confirmed.shipments[1].lines[0] = {
-      ...confirmed.shipments[1].lines[0],
+    const kestrelLines = itemAt(confirmed.shipments, 1).lines;
+    kestrelLines[0] = {
+      ...itemAt(kestrelLines, 0),
       status: 'confirmed',
       statusText: 'Confirmed by Kestrel Outfitters',
     };

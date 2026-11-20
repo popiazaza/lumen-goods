@@ -92,7 +92,10 @@ export class RegisterPage {
   /**
   Messages from the API's validation problem, shown under their fields.
   */
-  protected readonly serverErrors = signal<{ email?: string; password?: string }>({});
+  protected readonly serverErrors = signal<{ email: string | null; password: string | null }>({
+    email: null,
+    password: null,
+  });
 
   private showProblems(): void {
     const problems: FormProblem[] = [];
@@ -114,7 +117,7 @@ export class RegisterPage {
     const pick = (key: string) =>
       Object.entries(errors ?? {})
         .find(([name]) => name.toLowerCase() === key)?.[1]
-        ?.join(' ');
+        ?.join(' ') ?? null;
     const email = pick('email');
     const password = pick('password');
     if (email || password) {
