@@ -22,7 +22,7 @@ At phone width:
 2. [`PaymentService.cs`](src/Lumen.Api/Payments/PaymentService.cs), [`CardChargeProcess.cs`](src/Lumen.Api/Payments/CardChargeProcess.cs), [`MockPaymentGateway.cs`](src/Lumen.Api/Payments/MockPaymentGateway.cs): an atomic claim, the payment id as gateway key, and card 0059's one retry that still charges once.
 3. [`PartnerOrderProcessor.cs`](src/Lumen.Api/Orders/PartnerOrderProcessor.cs): one partner order per line; at 30 minutes a line is refunded only if no send can have reached the partner, else an admin decides.
 4. [`RefundCalculator.cs`](src/Lumen.Domain/Orders/RefundCalculator.cs): exact refunds: the line and its tax, plus the shipping fee only when nothing else ships from that seller.
-5. [`PlaceOrderTests.cs`](tests/Lumen.IntegrationTests/Checkout/PlaceOrderTests.cs#L113): two customers race for the last unit on real PostgreSQL; one order, one 409.
+5. [`OwnStockRaceTests.cs`](tests/Lumen.IntegrationTests/Checkout/OwnStockRaceTests.cs): 50 customers race for 7 units on real PostgreSQL; exactly 7 orders, and reserved never exceeds on hand.
 6. [`docs/BUSINESS-RULES.md`](docs/BUSINESS-RULES.md): every rule with Given/When/Then scenarios and links to its tests.
 
 ## Deviations from the brief
@@ -125,6 +125,14 @@ More scenarios (price changes, removed products, Harbor): the [demo-scenarios sk
 dotnet test --solution LumenGoods.slnx                              # all .NET tests; integration tests need Docker
 dotnet test --solution LumenGoods.slnx --filter-trait "BR=BR-PAY-05"  # the tests for one business rule
 cd src/web && npm ci && npm test                                    # Angular unit tests
+```
+
+End to end, against a running stack (`docker compose up --build -d --wait`): the seeded customer buys from all three
+sellers with card 0059 and the order completes; a wallet payment lowers the balance by exactly the total. Without
+`LUMEN_E2E_URL` these tests are skipped; CI runs them in the compose job.
+
+```bash
+LUMEN_E2E_URL=http://localhost:8080 dotnet test --project tests/Lumen.EndToEndTests
 ```
 
 What each suite proves (the integration tests run the real API on PostgreSQL 18): [DESIGN.md §6](DESIGN.md#6-crosscutting-concepts).

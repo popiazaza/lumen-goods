@@ -10,6 +10,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/HarborSupply.StandIn.Tests/HarborSupply.StandIn.Tests.csproj" />
     <Project Path="tests/KestrelOutfitters.StandIn.Tests/KestrelOutfitters.StandIn.Tests.csproj" />
+    <Project Path="tests/Lumen.EndToEndTests/Lumen.EndToEndTests.csproj" />
     <Project Path="tests/Lumen.IntegrationTests/Lumen.IntegrationTests.csproj" />
     <Project Path="tests/Lumen.UnitTests/Lumen.UnitTests.csproj" />
   </Folder>
