@@ -24,12 +24,12 @@ The containers run with invariant globalization, and .NET's default `Math.Round`
 - **FX** (BR-MONEY-01): EUR to USD per unit at the configured `Fx:EurToUsd` (default 1.0850), rounded to the cent; a line is unit price times quantity with no further rounding. The rate is stored on the product and copied onto each order line when the order is placed. 1.249,00 EUR becomes 1355.165, then $1,355.17 (banker's rounding would give .16).
 - **Tax** (BR-MONEY-02): one configurable rate (default 8 %) on every product line, partner items included, because Lumen is the seller of record. Computed and rounded per line; the order's tax is the sum, so a refunded line's tax is exact. Shipping is not taxed. Not per state: the spec's sample address is in Portland, Oregon, which has no sales tax, so a per-state demo would show $0.00 tax.
 - **Shipping** (BR-SHIP-01): one shipment per seller in the order, Standard $4.99 each. Express ($12.99) only for Lumen's own shipment, because partner order payloads carry no shipping method. The fee is stored per shipment and can afterwards only be refunded.
-- Tax and shipping are calculated only in `PricingService`, which cart, review and order all use.
+- Tax and shipping are calculated only in `PricingService`, which cart, review and order will all use.
 
 ## Consequences
 
 - Good: one rounding rule and one pricing service, so cart, review, order and refund cannot disagree; the rule examples are unit tests.
-- Good: a new FX rate re-prices partner products through the content hash ([0003](0003-partner-integration-adapters-sync-image-proxy.md)) and carts flag the new price; placed orders keep the rate they were charged at.
+- Good: a new FX rate re-prices partner products through the content hash ([0003](0003-partner-integration-adapters-sync-image-proxy.md)) and carts will flag the new price; placed orders keep the rate they were charged at.
 - Bad: a flat 8 % is wrong for most real US addresses (state and local rates, marketplace rules). Right for a demo, not for launch.
 - Bad: a fixed rate drifts from the market, and Lumen carries the currency risk on Kestrel items.
 - Bad: a cart with items from all three sellers pays three shipping fees ($14.97 on Standard), which customers may question.

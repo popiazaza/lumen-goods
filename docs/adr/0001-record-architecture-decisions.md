@@ -19,7 +19,7 @@ They need to live next to the code, change through pull requests, and be short e
 
 ## Decision
 
-We write MADR 4 minimal records, one decision per file, in `docs/adr/`, named `NNNN-short-title.md` and listed in [README.md](README.md).
+We write records based on MADR 4 minimal, one decision per file, in `docs/adr/`, named `NNNN-short-title.md` and listed in [README.md](README.md).
 Sections: Status, Context, Considered options, Decision, Consequences (good, bad, and what we would change at scale) and More information (code paths, business rule IDs, a few public sources). One record fits on about one screen.
 
 An accepted record is not rewritten. A changed decision gets a new record, and the old one's status becomes "Superseded by NNNN". Small corrections, such as a moved file path, are fine.

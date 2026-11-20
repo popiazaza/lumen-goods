@@ -20,7 +20,7 @@ The spec talks about "amounts charged" and "any refund". Card 0042 answers after
 ## Decision
 
 - **Mock gateway** in process behind `IPaymentGateway`. The test cards are one table (`CardBehaviours`), special numbers matched before the Luhn rule. Only brand and last 4 digits are stored.
-- **Charge, then refund.** A rejected line refunds its subtotal and its own tax, plus that seller's shipping once all of its lines are rejected, capped at the amount charged, to the original method: card refund or wallet credit (`RefundCalculator`, BR-ORD-03). This follows the spec's wording and keeps one money path, with no authorization expiry to manage.
+- **Charge, then refund.** A rejected line refunds its subtotal and its own tax, plus that seller's shipping once all of its lines are rejected, never more than the amount charged (inconsistent data throws), to the original method: card refund or wallet credit (`RefundCalculator`, BR-ORD-03). This follows the spec's wording and keeps one money path, with no authorization expiry to manage.
 - **Never twice.** Each attempt is a payment row whose id is the gateway idempotency key. A gateway error, not a decline, is retried once automatically with the same id, so 0059 is approved with one charge (BR-PAY-05). Declines are never retried. At most 5 attempts per order.
 - **Slow gateway.** The charge runs in a background task, not inside the HTTP request: the request returns "processing", the page polls the payment status, and refreshing or closing the page cancels nothing (BR-PAY-04).
 - **Wallet:** a balance with `CHECK (Balance >= 0)`, debited by one conditional `UPDATE` plus a log row in the same transaction. One payment method per order; no card and wallet split (BR-PAY-06).

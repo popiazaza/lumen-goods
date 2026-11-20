@@ -34,7 +34,7 @@ Why: each consistency rule above needs one local transaction (reserve stock and 
 - Good: five containers, one `docker compose up`, one Lumen process to debug.
 - Good: the stand-ins are real HTTP peers, so the adapters are tested against the contracts, not against shared DTOs.
 - Bad: jobs share CPU, memory and the connection pool with requests, so a heavy sync can slow the storefront. Feature boundaries are folders, not enforced modules; only the stand-in boundary is tested.
-- Bad: jobs and Harbor's rate limiter are per process. A second API replica would run every sync twice and double Harbor traffic, so the API runs as one replica for now.
+- Bad: jobs and Harbor's rate limiter are per process. Sync schedules live in PostgreSQL, but a second API replica could start overlapping runs (no lock yet) and its own Harbor buckets would together exceed 60 a minute, so the API runs as one replica for now (a shared limiter and a lease fix both).
 - At scale: first run the same image as a separate jobs deployment, with jobs switched off on the web replicas (`Jobs:Enabled`, already used by the tests). Then split along the feature folders where load or team ownership demands it, partner integration first (50+ partners), with an outbox and a broker between the parts. A real PSP adapter replaces the mock behind the same interface.
 
 ## More information
