@@ -48,8 +48,8 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     }
 
     [Fact]
-    [Trait("BR", "BR-CAT-03")]
-    public async Task BR_CAT_03_unlisted_products_are_hidden_from_the_list_but_still_resolve_by_id()
+    [Trait("BR", "BR-CAT-02")]
+    public async Task BR_CAT_02_unlisted_products_are_hidden_from_the_list_but_still_resolve_by_id()
     {
         var m = NewMarker();
         var listed = Own($"{m} Listed");
@@ -79,8 +79,8 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     }
 
     [Fact]
-    [Trait("BR", "BR-CAT-04")]
-    public async Task BR_CAT_04_search_is_case_insensitive_over_name_and_description()
+    [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_search_is_case_insensitive_over_name_and_description()
     {
         var m = NewMarker();
         var d = NewMarker();
@@ -97,8 +97,8 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     }
 
     [Fact]
-    [Trait("BR", "BR-CAT-04")]
-    public async Task BR_CAT_04_search_treats_like_wildcards_and_backslashes_literally()
+    [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_search_treats_like_wildcards_and_backslashes_literally()
     {
         var m = NewMarker();
         await factory.InsertAsync(
@@ -142,8 +142,8 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     }
 
     [Fact]
-    [Trait("BR", "BR-CAT-04")]
-    public async Task BR_CAT_04_price_range_is_inclusive_and_leaves_out_unpriced_products()
+    [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_price_range_is_inclusive_and_leaves_out_unpriced_products()
     {
         var m = NewMarker();
         await factory.InsertAsync(
@@ -159,8 +159,8 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     }
 
     [Fact]
-    [Trait("BR", "BR-CAT-04")]
-    public async Task BR_CAT_04_in_stock_only_keeps_products_that_can_be_bought_now()
+    [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_in_stock_only_keeps_products_that_can_be_bought_now()
     {
         var m = NewMarker();
         await factory.InsertAsync(
@@ -220,8 +220,8 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     [InlineData("name_asc", new[] { "Alpha", "Bravo", "Charlie", "Delta" })]
     [InlineData("newest", new[] { "Bravo", "Delta", "Alpha", "Charlie" })]
     [InlineData("", new[] { "Bravo", "Delta", "Alpha", "Charlie" })]
-    [Trait("BR", "BR-CAT-04")]
-    public async Task BR_CAT_04_sorts_put_unpriced_products_last_and_newest_means_first_seen(string sort, string[] expected)
+    [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_sorts_put_unpriced_products_last_and_newest_means_first_seen(string sort, string[] expected)
     {
         var m = NewMarker();
         await factory.InsertAsync(
@@ -240,8 +240,8 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     [InlineData("price_desc")]
     [InlineData("name_asc")]
     [InlineData("newest")]
-    [Trait("BR", "BR-CAT-04")]
-    public async Task BR_CAT_04_equal_sort_keys_are_ordered_by_id_so_no_item_repeats_or_vanishes_across_pages(string sort)
+    [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_equal_sort_keys_are_ordered_by_id_so_no_item_repeats_or_vanishes_across_pages(string sort)
     {
         var m = NewMarker();
         var twins = Enumerable.Range(0, 7).Select(_ => Own($"{m} Twin", price: 15.00m)).ToList();

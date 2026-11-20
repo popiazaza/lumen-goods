@@ -51,7 +51,7 @@ internal static class StorefrontCatalogEndpoints
             [.. page.Select(p => p.ToDto(policy, baseUrl))], paging, totalCount));
     }
 
-    /// <summary>BR-CAT-03: resolves unlisted products too, so carts, bookmarks and order history keep working.</summary>
+    /// <summary>BR-CAT-02: resolves unlisted products too, so carts, bookmarks and order history keep working.</summary>
     private static async Task<Results<Ok<ProductDto>, ProblemHttpResult>> GetProduct(
         string id,
         LumenDbContext db,

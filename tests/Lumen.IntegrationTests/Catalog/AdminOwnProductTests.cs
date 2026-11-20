@@ -214,8 +214,8 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
     }
 
     [Fact]
-    [Trait("BR", "BR-ADM-02")]
-    public async Task BR_ADM_02_on_hand_cannot_be_set_below_the_reserved_units()
+    [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_on_hand_cannot_be_set_below_the_reserved_units()
     {
         var reserved = Own($"{NewMarker()} Reserved lamp", onHand: 5, reserved: 3);
         await factory.InsertAsync(reserved);
@@ -232,8 +232,8 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
     }
 
     [Fact]
-    [Trait("BR", "BR-ADM-03")]
-    public async Task BR_ADM_03_deactivating_hides_the_product_but_keeps_it_and_reactivating_lists_it_again()
+    [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_deactivating_hides_the_product_but_keeps_it_and_reactivating_lists_it_again()
     {
         var m = NewMarker();
         var (admin, created) = await CreateAsync(NewProduct($"{m} Lantern"));

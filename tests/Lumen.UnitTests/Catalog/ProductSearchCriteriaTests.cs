@@ -79,8 +79,8 @@ public sealed class ProductSearchCriteriaTests
     [InlineData("a_b", @"%a\_b%")]
     [InlineData(@"c\d", @"%c\\d%")]
     [InlineData("plain", "%plain%")]
-    [Trait("BR", "BR-CAT-04")]
-    public void BR_CAT_04_search_text_is_matched_literally(string term, string pattern)
+    [Trait("BR", "BR-CAT-03")]
+    public void BR_CAT_03_search_text_is_matched_literally(string term, string pattern)
     {
         LikePattern.Contains(term).Should().Be(pattern);
     }

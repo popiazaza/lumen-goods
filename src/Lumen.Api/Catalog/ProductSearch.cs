@@ -154,14 +154,14 @@ public sealed record ProductSearchCriteria(
 }
 
 /// <summary>
-/// BR-CAT-03 and BR-CAT-04: what a catalogue listing contains and in which order. Everything runs in SQL, so paging
+/// BR-CAT-02 and BR-CAT-03: what a catalogue listing contains and in which order. Everything runs in SQL, so paging
 /// and totals are exact.
 /// </summary>
 internal static class ProductSearch
 {
     public static IQueryable<Product> Filter(this IQueryable<Product> products, ProductSearchCriteria criteria)
     {
-        // BR-CAT-03: unlisted products (inactive, deactivated, dropped by a partner, unmapped category) never appear in
+        // BR-CAT-02: unlisted products (inactive, deactivated, dropped by a partner, unmapped category) never appear in
         // a listing or search; they still resolve by id.
         var query = products.Where(p => p.IsListed);
 
@@ -185,7 +185,7 @@ internal static class ProductSearch
             query = query.Where(p => sellers.Contains(p.Source));
         }
 
-        // BR-CAT-04: the price range is inclusive and compares the USD price; a product without a price has no
+        // BR-CAT-03: the price range is inclusive and compares the USD price; a product without a price has no
         // place in a price range, so any price bound excludes it.
         if (criteria.MinPrice is { } min)
         {
@@ -197,7 +197,7 @@ internal static class ProductSearch
             query = query.Where(p => p.PriceUsd != null && p.PriceUsd <= max);
         }
 
-        // BR-CAT-04 "in stock only" (A-22): can be bought right now, so sellable (BR-CAT-02) and in or low stock
+        // BR-CAT-03 "in stock only" (A-22): can be bought right now, so sellable (BR-CAT-02) and in or low stock
         // (BR-CAT-01). The shared expressions keep the filter equal to the badge the product format shows.
         if (criteria.InStockOnly)
         {
@@ -208,7 +208,7 @@ internal static class ProductSearch
     }
 
     /// <summary>
-    /// BR-CAT-04: products without a price sort last in both price directions, and the id is always the final
+    /// BR-CAT-03: products without a price sort last in both price directions, and the id is always the final
     /// tie-breaker so equal sort keys never make an item repeat or vanish between pages.
     /// </summary>
     public static IOrderedQueryable<Product> Sort(this IQueryable<Product> products, ProductSort sort) => sort switch

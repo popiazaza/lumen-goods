@@ -173,7 +173,7 @@ internal static class AdminProductEndpoints
             return ChangedBySomeoneElse();
         }
 
-        // BR-ADM-02: units already reserved by orders awaiting payment stay covered by stock on hand, so an edit can
+        // BR-ADM-01: units already reserved by orders awaiting payment stay covered by stock on hand, so an edit can
         // never make Lumen oversell what it has promised (the database check constraint is the backstop).
         if (fields.OnHand < product.Reserved)
         {
@@ -289,7 +289,7 @@ internal sealed record AdminProductContext(
     }
 
     /// <summary>
-    /// BR-ADM-03: own products are never deleted (orders reference them). Deactivating hides the product from the
+    /// BR-ADM-01: own products are never deleted (orders reference them). Deactivating hides the product from the
     /// catalogue and makes it unsellable; it still resolves by id. Idempotent, and a single UPDATE of the status
     /// columns, so it cannot overwrite a stock reservation made at the same moment.
     /// </summary>
