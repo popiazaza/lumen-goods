@@ -83,7 +83,7 @@ import { StatusBadge } from './status-badge';
             <li>
               <div class="refund-head">
                 <span class="amount">{{ refund.amount | currency }}</span>
-                <app-status-badge [status]="refundStatus(refund.status)" />
+                <app-status-badge [status]="refundStatus(refund.status, admin())" />
               </div>
               <p>{{ refund.reason }}</p>
               <dl class="pairs breakdown">
@@ -132,6 +132,8 @@ import { StatusBadge } from './status-badge';
 })
 export class OrderSummaryPanel {
   readonly order = input.required<OrderDetailDto>();
+  /** The admin order page: refunds show their real status (a failed one says so). */
+  readonly admin = input(false);
 
   protected readonly methodLabel = computed(() => {
     const payment = this.order().payment;

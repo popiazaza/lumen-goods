@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { OrderDetailDto, OrderLineDto } from '../../core/api/order.models';
+import { OrderDetailDto, OrderLineDto, RefundStatus } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import {
   SOCKS_LINE,
@@ -178,7 +178,7 @@ describe('OrderDetailPage', () => {
     const kestrel = shipment('Kestrel Outfitters');
     expect(text(kestrel, '.shipping')).toBe('Standard shipping, $4.99 (refunded)');
     expect(kestrel.querySelector('.shipping s')?.textContent).toBe('$4.99');
-    expect(text(kestrel, '.line-total s')).toBe('Refunded: $16.22');
+    expect(text(kestrel, '.line-total s')).toBe('You don’t pay: $16.22');
     expect(text(host(), '.notice')).toContain('1 item couldn’t be supplied.');
 
     const summary = host().querySelector('app-order-summary-panel') as HTMLElement;
@@ -244,6 +244,72 @@ describe('OrderDetailPage', () => {
     );
 
     // isUpdating is false: no more requests, however long the page stays open.
+    await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS * 10);
+    http.expectNone(URL);
+  });
+
+  it('refreshes while a refund is on its way back, failed retries included, until it is paid', async () => {
+    const order = aSettledOrderDetail();
+    /** Kestrel could not supply the socks; the refund for them has this status. */
+    const refunding = (status: RefundStatus, statusText: string): OrderDetailDto => ({
+      ...order,
+      status: 'partially_refunded',
+      statusText: status === 'succeeded' ? 'Partially refunded' : 'Partial refund pending',
+      // The API counts only a pending refund as updating; a failed one waits for its retry.
+      isUpdating: status === 'pending',
+      shipments: [
+        order.shipments[0],
+        {
+          ...order.shipments[1],
+          feeRefunded: true,
+          lines: [{ ...SOCKS_LINE, status: 'rejected', statusText, refundedAmount: 17.52 }],
+        },
+      ],
+      totals: { ...order.totals, refunded: 22.51, netPaid: 52.95 },
+      refunds: [
+        {
+          id: 'refund-1',
+          amount: 22.51,
+          status,
+          reason: 'Not supplied by Kestrel Outfitters',
+          lineIds: [SOCKS_LINE.id],
+          shippingAmount: 4.99,
+          createdUtc: '2026-11-20T08:05:00Z',
+          completedUtc: status === 'succeeded' ? '2026-11-20T08:06:00Z' : null,
+        },
+      ],
+    });
+    const refundBadge = () =>
+      text(host(), 'app-order-summary-panel .refunds li app-status-badge');
+
+    open();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
+    http.expectOne(URL).flush(refunding('pending', 'Not supplied, refund pending'));
+    await settle();
+    expect(lineBadges()[1].text).toBe('Not supplied, refund pending');
+    expect(text(host(), '.updating')).toBe(
+      'Your refund is on its way back to your Visa ending 1111. This page updates by itself.',
+    );
+    expect(refundBadge()).toBe('Pending');
+
+    // A failed attempt is retried by the API: still pending for the customer, still refreshing.
+    await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
+    http.expectOne(URL).flush(refunding('failed', 'Not supplied, refund pending'));
+    fixture.detectChanges();
+    expect(refundBadge()).toBe('Pending');
+    expect(text(host(), '.updating')).toContain('Your refund is on its way back');
+
+    await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
+    http.expectOne(URL).flush(refunding('succeeded', 'Not supplied, refunded $22.51'));
+    fixture.detectChanges();
+    expect(lineBadges()[1].text).toBe('Not supplied, refunded $22.51');
+    expect(refundBadge()).toBe('Refunded');
+    expect(text(host(), '.updating')).toBe('');
+    expect(announcer.announce).toHaveBeenCalledWith(
+      'Merino Trail Socks: Not supplied, refunded $22.51',
+      'polite',
+    );
+
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS * 10);
     http.expectNone(URL);
   });

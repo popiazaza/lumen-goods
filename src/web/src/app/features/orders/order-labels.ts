@@ -99,8 +99,14 @@ const REFUND_LOOKS: Readonly<Record<RefundStatus, StatusView>> = {
   failed: { tone: 'error', icon: 'error', text: 'Failed, will retry' },
 };
 
-export function refundStatusView(status: RefundStatus): StatusView {
-  return REFUND_LOOKS[status] ?? { ...FALLBACK_LOOK, text: humanise(status) };
+/**
+ * The admin sees a failed refund as failed. The customer sees it as pending, like the API's line
+ * wording ("Not supplied, refund pending"): it is retried until it is paid back, and nothing is
+ * theirs to do.
+ */
+export function refundStatusView(status: RefundStatus, forAdmin = false): StatusView {
+  const shown = !forAdmin && status === 'failed' ? 'pending' : status;
+  return REFUND_LOOKS[shown] ?? { ...FALLBACK_LOOK, text: humanise(status) };
 }
 
 /** `needs_attention` -> "Needs attention": a readable fallback for a value this client does not know. */

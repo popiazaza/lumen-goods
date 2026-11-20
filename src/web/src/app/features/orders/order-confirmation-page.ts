@@ -22,8 +22,9 @@ import {
   cardBrandName,
 } from '../../core/api/order.models';
 import { httpStatusOf } from '../../core/api/problem-details';
+import { orderKeepsChanging } from './poll-while-updating';
 
-/** How often the page re-reads the order while a partner decides (`isUpdating`). */
+/** How often the page re-reads the order while a partner decides or a refund is on its way. */
 export const CONFIRMATION_POLL_MS = 5000;
 /** Stop polling after this long; the order page keeps the history. */
 export const CONFIRMATION_POLL_LIMIT_MS = 10 * 60_000;
@@ -40,8 +41,9 @@ const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
 
 /**
  * Order confirmation (`/orders/:id/confirmation`): the order number, items by seller, what was
- * charged (and refunded), and what happens next. Partner lines confirm later (BR-ORD-01), so the
- * page re-reads the order while the API says it is still updating.
+ * charged (and refunded), and what happens next. Partner lines confirm later (BR-ORD-01) and a
+ * line they cannot supply is refunded later still, so the page re-reads the order while it can
+ * change on its own (`orderKeepsChanging`).
  */
 @Component({
   selector: 'app-order-confirmation-page',
@@ -105,7 +107,8 @@ export class OrderConfirmationPage {
       } else if (statuses.some((status) => status === 'needs_attention')) {
         text = `${shipment.sellerName} hasn’t answered yet. Our team is following up.`;
       } else if (statuses.every((status) => status === 'rejected')) {
-        text = `${shipment.sellerName} couldn’t supply these items, so we refunded them.`;
+        // The refund may still be on its way: each line's status says whether it is paid back.
+        text = `${shipment.sellerName} couldn’t supply these items, so you don’t pay for them. The refund goes back to how you paid.`;
       } else if (shipment.source === OWN_SOURCE) {
         text = 'We’re packing your Lumen Goods items.';
       } else {
@@ -143,7 +146,7 @@ export class OrderConfirmationPage {
         // Stop when nothing can change any more, or when the first read already failed. A later
         // failed re-read keeps the last answer on screen and tries again.
         takeWhile(
-          (read) => ('order' in read ? read.order.isUpdating : this.order() !== null),
+          (read) => ('order' in read ? orderKeepsChanging(read.order) : this.order() !== null),
           true,
         ),
         takeUntilDestroyed(this.destroyRef),

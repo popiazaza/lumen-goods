@@ -12,9 +12,15 @@ import { OrdersApi } from '../../core/api/orders.api';
 import { httpStatusOf } from '../../core/api/problem-details';
 import { ProductImage } from '../../shared/products/product-image';
 import { registerOrderIcons } from './order-icons';
-import { StatusView, lineStatusView, orderStatusView, shippingLabel } from './order-labels';
+import {
+  StatusView,
+  lineStatusView,
+  orderStatusView,
+  paymentMethodLabel,
+  shippingLabel,
+} from './order-labels';
 import { OrderSummaryPanel } from './order-summary-panel';
-import { pollWhileUpdating } from './poll-while-updating';
+import { hasRefundOnItsWay, orderKeepsChanging, pollWhileUpdating } from './poll-while-updating';
 import { StatusBadge } from './status-badge';
 
 /** How often the page re-reads an order that is still updating. */
@@ -23,7 +29,8 @@ export const ORDER_POLL_INTERVAL_MS = 5000;
 /**
  * One of the customer's orders (`/orders/:id`, the order number): every line with its seller and
  * its own status (BR-ORD-02), shipments, refunds (BR-ORD-03), totals and payment. Re-reads the
- * order every few seconds while something can still change on its own, then stops.
+ * order every few seconds while something can still change on its own (a payment, a partner, a
+ * refund on its way back), then stops.
  */
 @Component({
   selector: 'app-order-detail-page',
@@ -52,7 +59,7 @@ export class OrderDetailPage {
   protected readonly order = rxResource({
     params: () => this.id(),
     stream: ({ params: number }) =>
-      pollWhileUpdating(() => this.api.get(number), ORDER_POLL_INTERVAL_MS),
+      pollWhileUpdating(() => this.api.get(number), ORDER_POLL_INTERVAL_MS, orderKeepsChanging),
   });
   protected readonly detail = computed(() =>
     this.order.hasValue() ? this.order.value() : undefined,
@@ -71,17 +78,30 @@ export class OrderDetailPage {
   /** What the page is waiting for while it refreshes itself. */
   protected readonly waitingText = computed(() => {
     const order = this.detail();
-    if (!order?.isUpdating) {
+    if (!order || !orderKeepsChanging(order)) {
       return '';
     }
-    const shops = (order.shipments ?? [])
+    const reasons: string[] = [];
+    if (order.status === 'payment_processing') {
+      reasons.push('Waiting for your payment to be confirmed.');
+    }
+    const shops = order.shipments
       .filter((shipment) => shipment.lines.some((line) => line.status === 'awaiting_partner'))
       .map((shipment) => shipment.sellerName);
-    const waitingFor =
-      shops.length > 0
-        ? `Waiting for ${joinNames(shops)} to confirm.`
-        : 'Waiting for your payment to be confirmed.';
-    return `${waitingFor} This page updates by itself.`;
+    if (shops.length > 0) {
+      reasons.push(`Waiting for ${joinNames(shops)} to confirm.`);
+    }
+    if (hasRefundOnItsWay(order)) {
+      reasons.push(
+        order.payment
+          ? `Your refund is on its way back to your ${paymentMethodLabel(order.payment)}.`
+          : 'Your refund is on its way back.',
+      );
+    }
+    if (reasons.length === 0) {
+      reasons.push('Your order is being updated.');
+    }
+    return `${reasons.join(' ')} This page updates by itself.`;
   });
 
   protected readonly shippingLabel = shippingLabel;

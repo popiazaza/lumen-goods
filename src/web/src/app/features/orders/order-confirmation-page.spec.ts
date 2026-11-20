@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { OrderDetailDto } from '../../core/api/order.models';
+import { OrderDetailDto, RefundStatus } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { aCardPayment, anOrder, anOrderLine } from '../../testing/order-fixtures';
 import { CONFIRMATION_POLL_MS, OrderConfirmationPage } from './order-confirmation-page';
@@ -135,8 +135,56 @@ describe('OrderConfirmationPage', () => {
     expect(all('.totals dt').slice(4)).toEqual(['Refunded', 'You paid']);
     expect(all('.totals dd').slice(4)).toEqual(['−$22.51', '$44.95']);
     expect(all('.next li')[1]).toBe(
-      'Kestrel Outfitters couldn’t supply these items, so we refunded them.',
+      'Kestrel Outfitters couldn’t supply these items, so you don’t pay for them. The refund goes back to how you paid.',
     );
+  });
+
+  it('keeps re-reading while a refund is on its way, until it is paid back', async () => {
+    const paid = aPaidOrder();
+    /** Kestrel rejected the socks; the refund is recorded with this status. */
+    const refunding = (status: RefundStatus, statusText: string): OrderDetailDto =>
+      aPaidOrder({
+        status: 'partially_refunded',
+        // The API counts only a pending refund as updating; a failed one waits for its retry.
+        isUpdating: status === 'pending',
+        shipments: [
+          paid.shipments[0],
+          {
+            ...paid.shipments[1],
+            feeRefunded: true,
+            lines: [{ ...paid.shipments[1].lines[0], status: 'rejected', statusText }],
+          },
+        ],
+        refunds: [
+          {
+            id: 'refund-1',
+            amount: 22.51,
+            status,
+            reason: 'Not supplied by Kestrel Outfitters',
+            lineIds: [paid.shipments[1].lines[0].id],
+            shippingAmount: 4.99,
+            createdUtc: '2026-11-20T08:05:00Z',
+            completedUtc: status === 'succeeded' ? '2026-11-20T08:06:00Z' : null,
+          },
+        ],
+      });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    fixture = TestBed.createComponent(OrderConfirmationPage);
+    fixture.componentRef.setInput('id', 'LG-7K3M9QX2');
+    fixture.detectChanges();
+    http.expectOne(ORDER_URL).flush(refunding('pending', 'Not supplied, refund pending'));
+    fixture.detectChanges();
+    expect(all('.lines .status')[1]).toBe('Not supplied, refund pending');
+
+    await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS);
+    http.expectOne(ORDER_URL).flush(refunding('failed', 'Not supplied, refund pending'));
+    await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS);
+    http.expectOne(ORDER_URL).flush(refunding('succeeded', 'Not supplied, refunded $22.51'));
+    fixture.detectChanges();
+
+    expect(all('.lines .status')[1]).toBe('Not supplied, refunded $22.51');
+    await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS * 3);
+    http.expectNone(ORDER_URL);
   });
 
   it('re-reads the order while a partner decides, and stops when nothing can change', async () => {
