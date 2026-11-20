@@ -10,7 +10,7 @@ they drift apart, so they can be copied into DESIGN.md as they are.
 | Order | `OrderTransitions.Order` | BR-PAY-01, BR-STOCK-01, BR-ORD-02 |
 | Order line | `OrderTransitions.Line` | BR-ORD-02, BR-ORD-03, BR-ORD-04 |
 | Partner order (one per partner line) | `OrderTransitions.PartnerOrder` | BR-ORD-01, BR-ORD-04 |
-| Payment (one per attempt) | `PaymentTransitions.Payment` | BR-PAY-01, BR-PAY-03, BR-PAY-05 |
+| Payment | `PaymentTransitions.Payment` | BR-PAY-01, BR-PAY-03, BR-PAY-05, BR-STOCK-01 |
 
 ## Order
 
@@ -107,10 +107,11 @@ stateDiagram-v2
 
 ## Payment
 
-One payment per attempt; the payment id is the gateway idempotency key, so retrying it can never charge twice (BR-PAY-01).
-A gateway error (not a decline) is retried once automatically, then on the customer's Try again, always with the same
-payment id (BR-PAY-05). Card 0034 waits for a one-time code that approves, declines or expires the attempt
-(`OneTimeCodePolicy`, BR-PAY-03). At most 5 attempts per order (`PaymentWindowPolicy`).
+The payment id is the gateway idempotency key, so retrying it can never charge twice (BR-PAY-01). A gateway error
+(not a decline) is retried once automatically with the same payment id; if that errors too, or never runs, the payment
+is Failed. Lumen cannot tell whether a Failed charge went through, so the customer's Try again reuses the same payment
+id (BR-PAY-05). Card 0034 waits for a one-time code that approves, declines or expires the payment (`OneTimeCodePolicy`,
+BR-PAY-03). At most 5 attempts per order.
 
 ```mermaid
 stateDiagram-v2
@@ -122,12 +123,40 @@ stateDiagram-v2
     Processing --> Error: gateway error, not a decline
     RequiresAction --> Succeeded: right code in time
     RequiresAction --> Declined: wrong code
-    RequiresAction --> Expired: code expired
-    Error --> Processing: retried with the same payment id
+    RequiresAction --> Expired: code expired, late or never entered
+    Error --> Processing: automatic retry, same payment id
+    Error --> Failed: retry errored too, or never ran
+    Failed --> Processing: Try again by the customer, same payment id
     Succeeded --> [*]
     Declined --> [*]
     Expired --> [*]
 ```
+
+### When a payment holds the order (`PaymentWindowPolicy`)
+
+The order cannot expire while its payment is in progress (BR-STOCK-01). "In progress" is decided by
+`IsPaymentInProgress(payment, now)`, never by the caller, and every in-progress state ends on its own, so an abandoned
+payment cannot hold the order and its reserved stock forever:
+
+| Payment status | In progress |
+|---|---|
+| Created, Processing | Always: a gateway call is under way and may still charge |
+| RequiresAction | Until the one-time code expires (5 minutes after it was issued) |
+| Error | While its one automatic retry is still to come: not used yet, and within `AutomaticRetryWindow` (30 s) |
+| Succeeded, Declined, Failed, Expired | Never: these are outcomes |
+
+What follows each outcome (`NextOrderStatusAfter(outcome, failedAttemptsBefore, placedAt, now)`):
+
+| Payment outcome | Order becomes |
+|---|---|
+| Succeeded | Paid, even after the hold ended (the order was waiting for this payment) |
+| Declined, Failed, Expired | AwaitingPayment while the hold lasts and attempts are left; otherwise Expired (stock released) |
+
+The expiry job, for each order awaiting payment or with a payment processing:
+
+1. If `ClosingOutcome(payment, now)` returns an outcome (an abandoned code → Expired, an error whose retry errored or
+   never ran → Failed), move the payment to it and the order to `NextOrderStatusAfter(...)`.
+2. Otherwise, if `MustExpireOrder(failedAttempts, placedAt, now, payment)`, move the order to Expired and release its stock.
 
 ## Refunds (BR-ORD-03)
 

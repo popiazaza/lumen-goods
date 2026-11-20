@@ -13,7 +13,9 @@ public sealed class PaymentTransitionTests
         (PaymentStatus.RequiresAction, PaymentStatus.Succeeded),
         (PaymentStatus.RequiresAction, PaymentStatus.Declined),
         (PaymentStatus.RequiresAction, PaymentStatus.Expired),
-        (PaymentStatus.Error, PaymentStatus.Processing));
+        (PaymentStatus.Error, PaymentStatus.Processing),
+        (PaymentStatus.Error, PaymentStatus.Failed),
+        (PaymentStatus.Failed, PaymentStatus.Processing));
 
     [Theory]
     [MemberData(nameof(PaymentMoves))]
@@ -37,11 +39,14 @@ public sealed class PaymentTransitionTests
 
     [Fact]
     [Trait("BR", "BR-PAY-05")]
-    public void BR_PAY_05_a_gateway_error_is_not_final_and_is_retried_as_the_same_payment()
-    {
-        PaymentTransitions.Payment.IsFinal(PaymentStatus.Error).Should().BeFalse();
-        PaymentTransitions.Payment.NextStates(PaymentStatus.Error).Should().Equal(PaymentStatus.Processing);
-    }
+    public void BR_PAY_05_a_gateway_error_is_retried_as_the_same_payment_or_ends_failed() =>
+        PaymentTransitions.Payment.NextStates(PaymentStatus.Error)
+            .Should().BeEquivalentTo([PaymentStatus.Processing, PaymentStatus.Failed]);
+
+    [Fact]
+    [Trait("BR", "BR-PAY-05")]
+    public void BR_PAY_05_after_a_failed_retry_the_customer_tries_again_with_the_same_payment() =>
+        PaymentTransitions.Payment.NextStates(PaymentStatus.Failed).Should().Equal(PaymentStatus.Processing);
 
     [Fact]
     [Trait("BR", "BR-PAY-05")]
