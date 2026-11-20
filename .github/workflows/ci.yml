@@ -70,6 +70,14 @@ jobs:
             http://localhost:8080/api/v1/auth/sign-in | grep -q '"admin"'
           curl -fsS -H "X-Harbor-Key: harbor-dev-key-123" "http://localhost:8081/v2/catalog/items?limit=1" > /dev/null
           curl -fsS -u lumen:kestrel-secret "http://localhost:8082/stock?refs=K-7731" | grep -q '^ref;units;restock_date'
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      # Black-box purchases over HTTP against the stack above: a three-seller card order completing, and a wallet payment.
+      - name: End-to-end purchase tests
+        env:
+          LUMEN_E2E_URL: http://localhost:8080
+        run: dotnet test --project tests/Lumen.EndToEndTests/Lumen.EndToEndTests.csproj -c Release --output detailed
       - if: failure()
         run: docker compose logs --no-color
       - if: always()
