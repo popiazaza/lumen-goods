@@ -17,13 +17,7 @@ internal static class WalletEndpoints
             .WithTags("Wallet")
             .WithName("GetWallet")
             .RequireAuthorization()
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .AddEndpointFilter(async (context, next) =>
-            {
-                // Personal and changes with every payment: never cached.
-                context.HttpContext.Response.Headers.CacheControl = "no-store";
-                return await next(context);
-            });
+            .ProducesProblem(StatusCodes.Status404NotFound);
         return api;
     }
 

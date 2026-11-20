@@ -36,6 +36,7 @@ builder.Services.AddLumenRateLimiting(builder.Configuration);
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UseNoStoreForApi();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseAuthentication();
@@ -56,7 +57,7 @@ api.MapAdminOrderEndpoints();
 api.MapWalletEndpoints();
 
 app.MapMediaEndpoints();
-app.MapHealthChecks("/health");
+app.MapLumenHealthChecks();
 
 if (app.Configuration.GetValue("Docs:Enabled", app.Environment.IsDevelopment()))
 {
