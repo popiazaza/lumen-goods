@@ -2,7 +2,10 @@ namespace Lumen.Domain.Orders;
 
 /// <summary>What the refund calculator needs to know about a paid order, read in the transaction that records the refund.</summary>
 /// <param name="AmountCharged">What the customer paid for the order (the order's grand total).</param>
-/// <param name="AmountRefunded">The sum of every refund already recorded for the order.</param>
+/// <param name="AmountRefunded">
+/// The sum of every refund already recorded for the order, whatever its <see cref="RefundStatus"/>: a Pending or
+/// Failed refund will still be paid out (a failed one is retried, never replaced).
+/// </param>
 public sealed record PaidOrderSnapshot(
     IReadOnlyList<PaidOrderLine> Lines,
     IReadOnlyList<PaidShipment> Shipments,

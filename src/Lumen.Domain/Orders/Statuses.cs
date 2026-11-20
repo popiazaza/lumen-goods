@@ -36,6 +36,20 @@ public enum OrderLineStatus
     Rejected,
 }
 
+/// <summary>
+/// A stored refund to the original payment method (BR-ORD-03), sent outside the database transaction that recorded
+/// it. Its id is the gateway idempotency key. Allowed changes: <see cref="OrderTransitions.Refund"/>.
+/// </summary>
+public enum RefundStatus
+{
+    /// <summary>Recorded with its amount; not confirmed by the gateway (card) or the wallet yet.</summary>
+    Pending,
+    Succeeded,
+
+    /// <summary>The gateway did not confirm it; retried later with the same refund id, never replaced by a new refund.</summary>
+    Failed,
+}
+
 /// <summary>The order Lumen places with a partner for one line (BR-ORD-01). Allowed changes: <see cref="OrderTransitions.PartnerOrder"/>.</summary>
 public enum PartnerOrderStatus
 {

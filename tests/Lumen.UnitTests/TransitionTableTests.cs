@@ -128,6 +128,7 @@ public sealed class TransitionTableTests
         { nameof(OrderTransitions.Line), OrderTransitions.Line.ToMermaid() },
         { nameof(OrderTransitions.PartnerOrder), OrderTransitions.PartnerOrder.ToMermaid() },
         { nameof(PaymentTransitions.Payment), PaymentTransitions.Payment.ToMermaid() },
+        { nameof(OrderTransitions.Refund), OrderTransitions.Refund.ToMermaid() },
     };
 
     [Theory]

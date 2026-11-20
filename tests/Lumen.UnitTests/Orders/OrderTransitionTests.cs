@@ -37,6 +37,26 @@ public sealed class OrderTransitionTests
         (PartnerOrderStatus.Accepted, PartnerOrderStatus.Confirmed),
         (PartnerOrderStatus.Accepted, PartnerOrderStatus.Rejected));
 
+    public static TheoryData<RefundStatus, RefundStatus, bool> RefundMoves() => TransitionCases.AllPairs(
+        (RefundStatus.Pending, RefundStatus.Succeeded),
+        (RefundStatus.Pending, RefundStatus.Failed),
+        (RefundStatus.Failed, RefundStatus.Pending));
+
+    [Theory]
+    [MemberData(nameof(RefundMoves))]
+    [Trait("BR", "BR-ORD-03")]
+    public void BR_ORD_03_refund_status_moves_only_along_its_table(RefundStatus from, RefundStatus to, bool legal) =>
+        TransitionCases.AssertMove(OrderTransitions.Refund, from, to, legal);
+
+    [Fact]
+    [Trait("BR", "BR-ORD-03")]
+    public void BR_ORD_03_a_failed_refund_is_retried_not_abandoned_and_a_succeeded_one_is_final()
+    {
+        OrderTransitions.Refund.Initial.Should().Be(RefundStatus.Pending);
+        OrderTransitions.Refund.NextStates(RefundStatus.Failed).Should().Equal(RefundStatus.Pending);
+        OrderTransitions.Refund.IsFinal(RefundStatus.Succeeded).Should().BeTrue();
+    }
+
     [Theory]
     [MemberData(nameof(OrderMoves))]
     [Trait("BR", "BR-PAY-01")]

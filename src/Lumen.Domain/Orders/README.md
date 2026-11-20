@@ -11,6 +11,7 @@ they drift apart, so they can be copied into DESIGN.md as they are.
 | Order line | `OrderTransitions.Line` | BR-ORD-02, BR-ORD-03, BR-ORD-04 |
 | Partner order (one per partner line) | `OrderTransitions.PartnerOrder` | BR-ORD-01, BR-ORD-04 |
 | Payment | `PaymentTransitions.Payment` | BR-PAY-01, BR-PAY-03, BR-PAY-05, BR-STOCK-01 |
+| Refund | `OrderTransitions.Refund` | BR-ORD-03 |
 
 ## Order
 
@@ -159,6 +160,21 @@ The expiry job, for each order awaiting payment or with a payment processing:
 2. Otherwise, if `MustExpireOrder(failedAttempts, placedAt, now, payment)`, move the order to Expired and release its stock.
 
 ## Refunds (BR-ORD-03)
+
+A refund is stored (Pending, with its amount and lines) in the transaction that rejects the lines, and sent to the
+original payment method outside it, because no payment I/O may run inside a database transaction. **The refund id is the
+gateway idempotency key**: a Failed refund is retried with the same id (Failed → Pending → sent again), never replaced
+by a new refund, so the customer is never paid back twice. Wallet refunds credit the balance in the recording
+transaction, so they go straight from Pending to Succeeded.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Succeeded: gateway or wallet confirmed
+    Pending --> Failed: gateway error or no answer
+    Failed --> Pending: retried with the same refund id
+    Succeeded --> [*]
+```
 
 `RefundCalculator.Calculate(order, rejectedLineIds)` returns what to refund when lines are rejected:
 

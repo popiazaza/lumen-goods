@@ -57,4 +57,16 @@ public static class OrderTransitions
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.Confirmed, "Kestrel CONFIRMED"),
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.Rejected, "Kestrel REJECTED"),
     ]);
+
+    /// <summary>
+    /// BR-ORD-03: a refund is recorded (Pending) in the transaction that rejects the line, then sent to the gateway
+    /// outside it. The refund id is the gateway idempotency key, so a retry (Failed → Pending → sent again) can never
+    /// pay the customer twice. Wallet refunds credit the balance in the recording transaction (Pending → Succeeded).
+    /// </summary>
+    public static readonly TransitionTable<RefundStatus> Refund = new(RefundStatus.Pending,
+    [
+        new(RefundStatus.Pending, RefundStatus.Succeeded, "gateway or wallet confirmed"),
+        new(RefundStatus.Pending, RefundStatus.Failed, "gateway error or no answer"),
+        new(RefundStatus.Failed, RefundStatus.Pending, "retried with the same refund id"),
+    ]);
 }
