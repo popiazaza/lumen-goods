@@ -45,5 +45,6 @@ function focusMainHeading(document: Document): void {
   if (!target.hasAttribute('tabindex')) {
     target.setAttribute('tabindex', '-1');
   }
-  target.focus();
+  // The router's scroll restoration owns the scroll position; focus must not fight it.
+  target.focus({ preventScroll: true });
 }

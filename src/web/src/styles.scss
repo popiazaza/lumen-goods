@@ -51,15 +51,16 @@ html {
   --lg-radius-card: 12px;
   --lg-content-max: 1280px;
   --lg-gutter: 16px;
-  // Sticky header: two rows (brand, search) on phones, one row from 960px.
-  --lg-header-height: 120px;
-
-  // Keep focused elements clear of the sticky header (WCAG 2.4.11).
-  scroll-padding-top: calc(var(--lg-header-height) + var(--lg-space-4));
+  --lg-header-height: 64px;
 
   @media (min-width: 960px) {
     --lg-gutter: 24px;
-    --lg-header-height: 64px;
+  }
+
+  // The header is sticky only from this size (header.scss): keep focused elements clear of it
+  // (WCAG 2.4.11).
+  @media (min-width: 960px) and (min-height: 480px) {
+    scroll-padding-top: calc(var(--lg-header-height) + var(--lg-space-4));
   }
 }
 
