@@ -140,15 +140,30 @@ describe('ProductDetailPage', () => {
 
   it('bounds the quantity between 1 and the stock left', async () => {
     await open(aProduct({ availability: { status: 'low_stock', quantity: 3 } }));
+    // At a limit the buttons stay focusable and say they are disabled (disabledInteractive).
+    const isDisabled = (button: HTMLButtonElement) =>
+      !button.disabled && button.getAttribute('aria-disabled') === 'true';
     expect(quantityInput().value).toBe('1');
-    expect(byLabel('Decrease quantity').disabled).toBe(true);
+    expect(isDisabled(byLabel('Decrease quantity'))).toBe(true);
     expect(text('mat-hint')).toBe('3 available');
 
+    byLabel('Decrease quantity').focus();
+    byLabel('Decrease quantity').click();
+    await harness.fixture.whenStable();
+    expect(quantityInput().value).toBe('1');
+    expect(document.activeElement).toBe(byLabel('Decrease quantity'));
+
     byLabel('Increase quantity').click();
+    byLabel('Increase quantity').focus();
     byLabel('Increase quantity').click();
     await harness.fixture.whenStable();
     expect(quantityInput().value).toBe('3');
-    expect(byLabel('Increase quantity').disabled).toBe(true);
+    expect(isDisabled(byLabel('Increase quantity'))).toBe(true);
+    expect(document.activeElement).toBe(byLabel('Increase quantity'));
+
+    byLabel('Increase quantity').click();
+    await harness.fixture.whenStable();
+    expect(quantityInput().value).toBe('3');
 
     await typeQuantity('25');
     expect(quantityInput().value).toBe('3');

@@ -185,7 +185,14 @@ export class ProductDetailPage {
     });
   }
 
-  protected step(delta: number): void {
+  protected step(delta: number, event: Event): void {
+    // The form field focuses its input on any click inside it; keep focus on the button so a
+    // keyboard user can press + or - again.
+    event.stopPropagation();
+    // The buttons stay focusable when disabled (disabledInteractive), so clicks still arrive here.
+    if (!this.canBuy()) {
+      return;
+    }
     const control = this.buyForm.controls.quantity;
     control.setValue(clampQuantity(control.value + delta, this.maxQuantity()));
   }

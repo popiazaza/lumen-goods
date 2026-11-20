@@ -58,8 +58,9 @@
             matIconPrefix
             type="button"
             aria-label="Decrease quantity"
+            disabledInteractive
             [disabled]="!canBuy() || quantity() <= 1"
-            (click)="step(-1)"
+            (click)="step(-1, $event)"
           >
             <mat-icon svgIcon="remove" />
           </button>
@@ -77,8 +78,9 @@
             matIconSuffix
             type="button"
             aria-label="Increase quantity"
+            disabledInteractive
             [disabled]="!canBuy() || quantity() >= maxQuantity()"
-            (click)="step(1)"
+            (click)="step(1, $event)"
           >
             <mat-icon svgIcon="add" />
           </button>
