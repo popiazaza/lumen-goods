@@ -27,6 +27,9 @@
               "media": "bundled-media"
             },
             "browser": "src/main.ts",
+            "security": {
+              "autoCsp": true
+            },
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [

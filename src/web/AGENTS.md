@@ -53,6 +53,7 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 - Targets at least 24 px (44 px on phones), no horizontal scroll at 320 px, visible focus, never colour alone (icon and text).
 - Never block paste or autofill; use `autocomplete` tokens on sign-in, address and card fields.
 - `npm run lint` must pass. Fix template a11y findings; don't disable the rules.
+- CSP: nginx sends a strict policy and `autoCsp` hashes the bootstrap scripts. No inline scripts, `eval`, inline event attributes or third-party hosts.
 
 ## Tests
 
