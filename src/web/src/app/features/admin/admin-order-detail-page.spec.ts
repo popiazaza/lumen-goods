@@ -394,7 +394,9 @@ describe('AdminOrderDetailPage', () => {
     const partner = section('Partner orders');
     expect(text(partner, 'app-status-badge')).toBe('Needs attention: outcome unknown');
     expect(text(partner, '.last-error')).toContain('Outcome unknown:');
-    expect(text(partner, '.last-error')).toContain('Check with Kestrel Outfitters before rejecting');
+    expect(text(partner, '.last-error')).toContain(
+      'Check with Kestrel Outfitters before rejecting',
+    );
 
     button('Reject line 2, Merino Trail Socks')?.click();
     await fixture.whenStable();

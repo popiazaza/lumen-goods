@@ -70,8 +70,10 @@ export class AdminOrderDetailPage {
   protected readonly order = rxResource({
     params: () => this.id(),
     stream: ({ params: number }) =>
-      pollWhileUpdating(() => this.api.get(number), ADMIN_ORDER_POLL_INTERVAL_MS, (admin) =>
-        orderKeepsChanging(admin.order),
+      pollWhileUpdating(
+        () => this.api.get(number),
+        ADMIN_ORDER_POLL_INTERVAL_MS,
+        (admin) => orderKeepsChanging(admin.order),
       ),
   });
   protected readonly detail = computed(() =>

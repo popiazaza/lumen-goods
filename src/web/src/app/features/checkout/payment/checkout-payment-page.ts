@@ -347,8 +347,7 @@ export class CheckoutPaymentPage {
     // read cannot find the order either.
     const placed = this.store.placedOrder();
     forkJoin({
-      order:
-        placed?.number === number ? of(placed) : notFoundAsNull(this.orders.get(number)),
+      order: placed?.number === number ? of(placed) : notFoundAsNull(this.orders.get(number)),
       payment: notFoundAsNull(this.payments.current(number)),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))

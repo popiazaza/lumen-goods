@@ -279,8 +279,7 @@ describe('OrderDetailPage', () => {
         },
       ],
     });
-    const refundBadge = () =>
-      text(host(), 'app-order-summary-panel .refunds li app-status-badge');
+    const refundBadge = () => text(host(), 'app-order-summary-panel .refunds li app-status-badge');
 
     open();
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
