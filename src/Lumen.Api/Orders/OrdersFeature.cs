@@ -67,7 +67,7 @@ public sealed class PartnerOrdersOptions : IValidatableObject
 
 /// <summary>
 /// Orders after Place order: the customer's order pages, partner orders (BR-ORD-01), refunds (BR-ORD-03), and the
-/// admin orders pages (BR-ORD-04). Wired once in Program.cs; the order endpoints are filled in next.
+/// admin orders pages (BR-ORD-04). Wired once in Program.cs.
 /// </summary>
 internal static class OrdersFeature
 {
@@ -80,6 +80,7 @@ internal static class OrdersFeature
 
         services.AddPartnerOrderGateways();
         services.AddSingleton<SellerDirectory>();
+        services.AddScoped<OrderDetailReader>();
         services.AddScoped<PartnerOrderProcessor>();
 
         // A singleton, so tests can call RunOnceAsync on the instance the host runs; started only when Jobs:Enabled.
@@ -95,7 +96,7 @@ internal static class OrdersFeature
     /// <item><c>GET /orders/{number}</c> → <see cref="OrderDetailDto"/></item>
     /// </list>
     /// </summary>
-    public static RouteGroupBuilder MapOrderEndpoints(this RouteGroupBuilder api) => api;
+    public static RouteGroupBuilder MapOrderEndpoints(this RouteGroupBuilder api) => api.MapCustomerOrders();
 
     /// <summary>
     /// Admin orders under /api/v1/admin (admin role):
@@ -108,5 +109,5 @@ internal static class OrdersFeature
     /// <item><c>POST /admin/orders/{number}/lines/{lineId}/resolve</c> <see cref="ResolveOrderLineRequest"/> → <see cref="AdminOrderDto"/></item>
     /// </list>
     /// </summary>
-    public static RouteGroupBuilder MapAdminOrderEndpoints(this RouteGroupBuilder api) => api;
+    public static RouteGroupBuilder MapAdminOrderEndpoints(this RouteGroupBuilder api) => api.MapAdminOrders();
 }
