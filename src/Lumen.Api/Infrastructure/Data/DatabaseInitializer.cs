@@ -1,3 +1,4 @@
+using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +39,7 @@ internal static class DatabaseInitializer
 
         await EnsureRolesAsync(scope.ServiceProvider);
         await SeedDemoAccountsAsync(scope.ServiceProvider, logger);
+        await OwnProductSeed.SeedAsync(scope.ServiceProvider, logger, cancellationToken);
     }
 
     /// <summary>Roles are reference data that registration depends on, so they exist in every environment.</summary>
