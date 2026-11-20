@@ -1,0 +1,141 @@
+# Order, line, partner order and payment lifecycles
+
+Every status change in Lumen Goods goes through a `TransitionTable<TState>` (`src/Lumen.Domain/TransitionTable.cs`):
+`table.Move(from, to)` returns the new status or throws `InvalidOperationException` for a change the table does not list.
+The diagrams below are generated from the tables by `TransitionTable.ToMermaid()`, and `TransitionTableTests` fails if
+they drift apart, so they can be copied into DESIGN.md as they are.
+
+| Entity | Table | Rules |
+|---|---|---|
+| Order | `OrderTransitions.Order` | BR-PAY-01, BR-STOCK-01, BR-ORD-02 |
+| Order line | `OrderTransitions.Line` | BR-ORD-02, BR-ORD-03, BR-ORD-04 |
+| Partner order (one per partner line) | `OrderTransitions.PartnerOrder` | BR-ORD-01, BR-ORD-04 |
+| Payment (one per attempt) | `PaymentTransitions.Payment` | BR-PAY-01, BR-PAY-03, BR-PAY-05 |
+
+## Order
+
+A payment can start only by claiming the order (AwaitingPayment → PaymentProcessing, one conditional update), so only
+one payment runs per order and a paid order can never be paid again (BR-PAY-01). The order expires only when no
+payment is in progress: the hold ran out, or the last allowed attempt failed (BR-STOCK-01, `PaymentWindowPolicy`).
+After payment the status follows the lines (`OrderStatusDerivation.Derive`, BR-ORD-02).
+
+```mermaid
+stateDiagram-v2
+    [*] --> AwaitingPayment
+    AwaitingPayment --> PaymentProcessing: payment started (atomic claim)
+    AwaitingPayment --> Expired: hold over, no payment in progress
+    PaymentProcessing --> Paid: payment succeeded
+    PaymentProcessing --> AwaitingPayment: payment failed, can retry
+    PaymentProcessing --> Expired: payment failed, no attempts or hold left
+    Paid --> Completed: every line confirmed
+    Paid --> PartiallyRefunded: all lines final, some refunded
+    Paid --> Refunded: every line refunded
+    Completed --> [*]
+    PartiallyRefunded --> [*]
+    Refunded --> [*]
+    Expired --> [*]
+```
+
+What the customer sees:
+
+| Stored status | Customer sees |
+|---|---|
+| AwaitingPayment, PaymentProcessing | Awaiting payment / Confirming your payment |
+| Paid | Processing (some lines still wait for a partner) |
+| Completed | Completed |
+| PartiallyRefunded | Partially refunded (refunds listed per line) |
+| Refunded | Refunded |
+| Expired | Expired |
+
+## Order line
+
+Own lines are confirmed when the order is paid; partner lines wait for their partner order. A rejected line is
+refunded in the same step (`RefundCalculator`, BR-ORD-03). A line whose partner accepted but has not decided after
+24 hours needs an admin and is not refunded automatically, because the goods may still ship (BR-ORD-04).
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Confirmed: own item, order paid
+    Pending --> AwaitingPartner: partner item, order paid
+    AwaitingPartner --> Confirmed: partner confirmed
+    AwaitingPartner --> Rejected: partner rejected or given up, refunded
+    AwaitingPartner --> NeedsAttention: accepted, no decision after 24 h
+    NeedsAttention --> Confirmed: partner or admin confirmed
+    NeedsAttention --> Rejected: partner or admin rejected, refunded
+    Confirmed --> [*]
+    Rejected --> [*]
+```
+
+| Line status | Customer sees (BR-ORD-02) |
+|---|---|
+| Pending | (order not paid yet) |
+| AwaitingPartner | Awaiting {shop} |
+| NeedsAttention | Delayed |
+| Confirmed | Confirmed (by {shop} for partner lines) |
+| Rejected | Not supplied, refunded $X |
+
+## Partner order
+
+Written in the transaction that marks the order Paid, then sent by a background job; every retry reuses the reference
+`{orderNo}-{line}`, so a resend never orders twice (BR-ORD-01). Harbor answers synchronously (201, or 200 for a reference
+it already has: Confirmed; 409/422: Rejected). Kestrel returns a ticket (RECEIVED = Accepted) and decides later. A partner
+order not accepted within 30 minutes of payment is given up and its line refunded; an accepted one is never given up
+automatically (BR-ORD-04).
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Submitted: sent, same reference on every retry
+    Pending --> GivenUp: not accepted within 30 min
+    Submitted --> Confirmed: Harbor created the order
+    Submitted --> Accepted: Kestrel ticket RECEIVED
+    Submitted --> Rejected: Harbor 409 or 422
+    Submitted --> GivenUp: not accepted within 30 min
+    Accepted --> Confirmed: Kestrel CONFIRMED
+    Accepted --> Rejected: Kestrel REJECTED
+    Confirmed --> [*]
+    Rejected --> [*]
+    GivenUp --> [*]
+```
+
+| Partner order | Its line |
+|---|---|
+| Confirmed | Confirmed |
+| Rejected, GivenUp | Rejected (refunded) |
+| Accepted for more than 24 hours | NeedsAttention |
+
+## Payment
+
+One payment per attempt; the payment id is the gateway idempotency key, so retrying it can never charge twice (BR-PAY-01).
+A gateway error (not a decline) is retried once automatically, then on the customer's Try again, always with the same
+payment id (BR-PAY-05). Card 0034 waits for a one-time code that approves, declines or expires the attempt
+(`OneTimeCodePolicy`, BR-PAY-03). At most 5 attempts per order (`PaymentWindowPolicy`).
+
+```mermaid
+stateDiagram-v2
+    [*] --> Created
+    Created --> Processing: sent to the gateway
+    Processing --> Succeeded: approved
+    Processing --> Declined: declined
+    Processing --> RequiresAction: one-time code needed
+    Processing --> Error: gateway error, not a decline
+    RequiresAction --> Succeeded: right code in time
+    RequiresAction --> Declined: wrong code
+    RequiresAction --> Expired: code expired
+    Error --> Processing: retried with the same payment id
+    Succeeded --> [*]
+    Declined --> [*]
+    Expired --> [*]
+```
+
+## Refunds (BR-ORD-03)
+
+`RefundCalculator.Calculate(order, rejectedLineIds)` returns what to refund when lines are rejected:
+
+- each newly rejected line's subtotal + its own tax (tax is stored per line, so this is exact);
+- plus the seller's shipping fee once every line of that shipment is rejected (earlier rejections count) and the fee was not refunded yet;
+- nothing for a line that is already Rejected, so seeing the same rejection twice refunds once;
+- capped so that all refunds together never exceed the amount charged.
+
+Example: a Lumen line and a Kestrel line of 2 × $16.22 (tax $2.60). Kestrel rejects it: $32.44 + $2.60 + $4.99 = $40.03.
