@@ -28,5 +28,6 @@
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.17.0" />
     <PackageVersion Include="Respawn" Version="7.0.0" />
+    <PackageVersion Include="CsCheck" Version="5.0.1" />
   </ItemGroup>
 </Project>
