@@ -6,20 +6,19 @@ import { OrderDetailDto } from '../../core/api/order.models';
  * still change on its own, and completes as soon as it cannot. Unsubscribing (leaving the page)
  * stops it.
  *
- * Only the first load can fail: a failed refresh keeps the last answer on screen and tries again at
- * the next tick, so a network blip does not replace the order with an error page.
+ * Only the first load can fail: a failed refresh keeps the last answer on screen and tries again at the next tick, so a network blip does not replace the order with an error page.
  */
 export function pollWhileUpdating<T>(
   load: () => Observable<T>,
   intervalMs: number,
-  keepsChanging: (latest: T) => boolean,
+  keepsChanging: (latest: T) => boolean
 ): Observable<T> {
   return load().pipe(
     expand((latest) =>
       keepsChanging(latest)
         ? timer(intervalMs).pipe(switchMap(() => load().pipe(catchError(() => of(latest)))))
-        : EMPTY,
-    ),
+        : EMPTY
+    )
   );
 }
 
@@ -34,7 +33,9 @@ export function orderKeepsChanging(order: OrderDetailDto): boolean {
   return order.isUpdating || hasRefundOnItsWay(order);
 }
 
-/** A refund recorded but not paid back yet (pending, or failed and waiting for its retry). */
+/**
+A refund recorded but not paid back yet (pending, or failed and waiting for its retry).
+*/
 export function hasRefundOnItsWay(order: OrderDetailDto): boolean {
   return order.refunds.some((refund) => refund.status !== 'succeeded');
 }

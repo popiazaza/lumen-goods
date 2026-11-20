@@ -8,7 +8,9 @@ import {
   newCheckoutKey,
 } from './checkout-store';
 
-/** What Place order sends for the reviewed cart, apart from the key. */
+/**
+What Place order sends for the reviewed cart, apart from the key.
+*/
 function aReview(overrides: Partial<ReviewedOrder> = {}): ReviewedOrder {
   return {
     lines: [
@@ -23,7 +25,9 @@ function aReview(overrides: Partial<ReviewedOrder> = {}): ReviewedOrder {
 }
 
 describe('CheckoutStore', () => {
-  /** A new store, as after a page refresh: only sessionStorage survives. */
+  /**
+  A new store, as after a page refresh: only sessionStorage survives.
+  */
   function freshStore(): CheckoutStore {
     TestBed.resetTestingModule();
     return TestBed.inject(CheckoutStore);
@@ -59,7 +63,7 @@ describe('CheckoutStore', () => {
     store.setShippingMethod('standard');
     store.setOrderNumber('LG-1');
 
-    expect(freshStore().reachable().has('payment')).toBe(true);
+    expect(freshStore().reachable().has('payment')).toBeTruthy();
   });
 
   it('keeps the order when nothing changed after Place order, and closes payment when something did', () => {
@@ -71,11 +75,13 @@ describe('CheckoutStore', () => {
 
     store.setAddress({ ...US_ADDRESS });
     store.setShippingMethod('standard');
+
     expect(store.orderNumber()).toBe('LG-1');
 
     store.setShippingMethod('express');
+
     expect(store.orderNumber()).toBeNull();
-    expect(store.reachable().has('payment')).toBe(false);
+    expect(store.reachable().has('payment')).toBeFalsy();
     // The new review gets a new key, so it can never be answered with LG-1.
     expect(store.checkoutKeyFor(aReview({ shippingMethod: 'express' }))).not.toBe(used);
   });
@@ -91,6 +97,7 @@ describe('CheckoutStore', () => {
     expect(freshStore().placedOrder()).toBeNull();
 
     store.setShippingMethod('express');
+
     expect(store.placedOrder()).toBeNull();
   });
 
@@ -101,7 +108,9 @@ describe('CheckoutStore', () => {
     // A plain resubmit (the first attempt failed on the network), also after a page refresh, and
     // with the lines in another order: the API answers with the order the first one may have made.
     expect(store.checkoutKeyFor(aReview())).toBe(first);
+
     const reversed = aReview().lines.reverse();
+
     expect(freshStore().checkoutKeyFor(aReview({ lines: reversed }))).toBe(first);
 
     // Anything reviewed differently is a different order: a quantity, a line, a price and total,
@@ -114,6 +123,7 @@ describe('CheckoutStore', () => {
       { shippingMethod: 'express', expectedTotal: 75.46 },
     ];
     const keys = changes.map((change) => store.checkoutKeyFor(aReview(change)));
+
     expect(new Set([first, ...keys]).size).toBe(changes.length + 1);
     // Each new key is kept for its own resubmit.
     expect(store.checkoutKeyFor(aReview(changes[4]))).toBe(keys[4]);
@@ -144,6 +154,7 @@ describe('CheckoutStore', () => {
 
     // The shopper went back and changed the cart: a new order, never LG-1.
     const next = store.checkoutKeyFor(aReview({ expectedTotal: 59.95 }));
+
     expect(next).not.toBe(used);
     expect(store.checkoutKeyFor(aReview({ expectedTotal: 59.95 }))).toBe(next);
   });
@@ -166,7 +177,7 @@ describe('CheckoutStore', () => {
         address: US_ADDRESS,
         shippingMethod: 'standard',
         orderNumber: null,
-      }),
+      })
     );
     const store = freshStore();
 
@@ -201,15 +212,17 @@ describe('CheckoutStore', () => {
 
   it('ignores corrupt or foreign saved state', () => {
     sessionStorage.setItem(CHECKOUT_STORAGE_KEY, '{"checkoutKey": 42}');
+
     expect(freshStore().address()).toBeNull();
 
     sessionStorage.setItem(CHECKOUT_STORAGE_KEY, 'not json');
+
     expect(freshStore().checkoutKey()).toBeTruthy();
   });
 
   it('makes v4 UUIDs', () => {
     expect(newCheckoutKey()).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
     );
   });
 });

@@ -51,7 +51,9 @@ const STATUS_FILTER_LABELS: Readonly<Record<AdminOrderStatusFilter, string>> = {
   needs_attention: 'Needs attention',
 };
 
-/** Admin: every order, filtered by status and placed date, paged; the URL holds the view. */
+/**
+Admin: every order, filtered by status and placed date, paged; the URL holds the view.
+*/
 @Component({
   selector: 'app-admin-orders-page',
   imports: [
@@ -96,7 +98,9 @@ export class AdminOrdersPage {
     params: () => this.query(),
     stream: ({ params }) => this.api.list(params),
   });
-  /** The last page that loaded: stays on screen (dimmed) while the next one loads. */
+  /**
+  The last page that loaded: stays on screen (dimmed) while the next one loads.
+  */
   protected readonly result = linkedSignal<
     PagedResult<AdminOrderSummary> | undefined,
     PagedResult<AdminOrderSummary> | undefined
@@ -113,7 +117,7 @@ export class AdminOrdersPage {
   protected readonly errorMessage = computed(() =>
     httpStatusOf(this.orders.error()) === 400
       ? problemMessage(this.orders.error(), 'These filters are not valid.')
-      : 'We couldn’t load the orders. Check your connection and try again.',
+      : 'We couldn’t load the orders. Check your connection and try again.'
   );
   protected readonly hasFilters = computed(() => hasOrderFilters(this.query()));
 
@@ -148,17 +152,19 @@ export class AdminOrdersPage {
   }
 
   protected changePage(event: PageEvent): void {
-    const pageSize = event.pageSize;
+    const { pageSize } = event;
     const page = pageSize === this.query().pageSize ? event.pageIndex + 1 : 1;
     this.navigate({ ...this.query(), page, pageSize }, 'auto');
   }
 
-  /** Filters keep the scroll position (focus stays on the control); paging goes to the top. */
+  /**
+  Filters keep the scroll position (focus stays on the control); paging goes to the top.
+  */
   private navigate(query: AdminOrdersQuery, scroll: 'manual' | 'auto'): void {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: adminOrdersQueryParams(query),
-      ...(scroll === 'manual' ? { scroll: 'manual' as const } : {}),
+      ...(scroll === 'manual' && { scroll: 'manual' as const }),
     });
   }
 }

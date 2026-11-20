@@ -1,6 +1,8 @@
 import { AbstractControl, ValidationErrors } from '@angular/forms';
 
-/** US states and DC, as [code, name]: Lumen ships to the US only at launch (A-51). */
+/**
+US states and DC, as [code, name]: Lumen ships to the US only at launch (A-51).
+*/
 export const US_STATES: readonly (readonly [string, string])[] = [
   ['AL', 'Alabama'],
   ['AK', 'Alaska'],
@@ -61,7 +63,9 @@ export function stateName(code: string): string {
   return US_STATES.find(([candidate]) => candidate === code)?.[1] ?? code;
 }
 
-/** ZIP (97209) or ZIP+4 (97209-1234). */
+/**
+ZIP (97209) or ZIP+4 (97209-1234).
+*/
 export const ZIP_PATTERN = /^\d{5}(?:-\d{4})?$/;
 
 export function usStateValidator(control: AbstractControl<string>): ValidationErrors | null {

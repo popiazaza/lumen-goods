@@ -2,8 +2,8 @@
 
 :host {
   display: grid;
-  gap: var(--lg-space-4);
   align-content: start;
+  gap: var(--lg-space-4);
 }
 
 @include order-page.section;
@@ -14,7 +14,7 @@
   border-top: 1px solid var(--mat-sys-outline-variant);
   font-weight: 600;
 
-  dt {
+  & dt {
     color: var(--mat-sys-on-surface);
   }
 }
@@ -27,12 +27,12 @@
 
 .refunds {
   display: grid;
-  gap: var(--lg-space-3);
-  margin: 0;
   padding: 0;
+  margin: 0;
+  gap: var(--lg-space-3);
   list-style: none;
 
-  li {
+  & li {
     display: grid;
     gap: var(--lg-space-1);
   }
@@ -51,8 +51,8 @@
 }
 
 .amount {
-  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 address {

@@ -11,7 +11,7 @@ import { PagedResult } from '../core/api/paged-result';
 
 export function aPagedResult<T>(
   items: T[],
-  overrides: Partial<PagedResult<T>> = {},
+  overrides: Partial<PagedResult<T>> = {}
 ): PagedResult<T> {
   return {
     items,
@@ -68,7 +68,9 @@ export const SOCKS_LINE = anOrderLine({
   statusText: 'Awaiting Kestrel Outfitters',
 });
 
-/** The contract's example: a Lumen line confirmed, a Kestrel line still awaiting its partner. */
+/**
+The contract's example: a Lumen line confirmed, a Kestrel line still awaiting its partner.
+*/
 export function anOrderDetail(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
   return {
     number: 'LG-7K3M9QX2',
@@ -135,8 +137,7 @@ export function aCardPayment(overrides: Partial<PaymentSummaryDto> = {}): Paymen
 }
 
 /**
- * Place order's answer: the same order before payment, Standard shipping for both sellers, every
- * line pending, the payment step open.
+ * Place order's answer: the same order before payment, Standard shipping for both sellers, every line pending, the payment step open.
  */
 export function anOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
   const order = anOrderDetail();
@@ -164,7 +165,9 @@ export function anOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto
   };
 }
 
-/** The same order once Kestrel has answered: every line final, nothing left to wait for. */
+/**
+The same order once Kestrel has answered: every line final, nothing left to wait for.
+*/
 export function aSettledOrderDetail(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
   const order = anOrderDetail();
   return {

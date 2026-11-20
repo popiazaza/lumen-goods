@@ -5,7 +5,7 @@ describe('safeReturnUrl', () => {
     'follows the in-app path %j',
     (url) => {
       expect(safeReturnUrl(url)).toBe(url);
-    },
+    }
   );
 
   it.each([

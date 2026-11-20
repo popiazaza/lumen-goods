@@ -104,7 +104,7 @@ export function aCartLine(overrides: Partial<CartLineDto> = {}): CartLineDto {
 
 export function aCart(
   lines: CartLineDto[] = [aCartLine()],
-  overrides: Partial<CartDto> = {},
+  overrides: Partial<CartDto> = {}
 ): CartDto {
   return {
     lines,

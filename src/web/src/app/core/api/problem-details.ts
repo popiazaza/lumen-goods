@@ -1,6 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-/** RFC 9457 error body returned by Lumen.Api for every 4xx and 5xx. */
+/**
+RFC 9457 error body returned by Lumen.Api for every 4xx and 5xx.
+*/
 export interface ProblemDetails {
   type?: string;
   title?: string;
@@ -23,24 +25,29 @@ export function httpErrorOf(error: unknown): HttpErrorResponse | undefined {
   return undefined;
 }
 
-/** HTTP status of a failed call, or `undefined` for non-HTTP errors (0 means the network failed). */
+/**
+HTTP status of a failed call, or `undefined` for non-HTTP errors (0 means the network failed).
+*/
 export function httpStatusOf(error: unknown): number | undefined {
   return httpErrorOf(error)?.status;
 }
 
-/** True for 401 (signed out) and 403 (signed in without the right role). */
+/**
+True for 401 (signed out) and 403 (signed in without the right role).
+*/
 export function isAccessDenied(error: unknown): boolean {
   const status = httpStatusOf(error);
   return status === 401 || status === 403;
 }
 
-/** The ProblemDetails body of a failed call, if the API sent one. */
+/**
+The ProblemDetails body of a failed call, if the API sent one.
+*/
 export function problemOf(error: unknown): ProblemDetails | undefined {
   const body: unknown = httpErrorOf(error)?.error;
-  if (body && typeof body === 'object' && ('title' in body || 'detail' in body)) {
-    return body as ProblemDetails;
-  }
-  return undefined;
+  return body && typeof body === 'object' && ('title' in body || 'detail' in body)
+    ? (body as ProblemDetails)
+    : undefined;
 }
 
 /**
@@ -64,7 +71,9 @@ export function validationErrorsOf(error: unknown): Readonly<Record<string, stri
   return httpStatusOf(error) === 400 ? (problemOf(error)?.errors ?? {}) : {};
 }
 
-/** Human-readable text for a failed call: the API's `detail` or `title`, else the fallback. */
+/**
+Human-readable text for a failed call: the API's `detail` or `title`, else the fallback.
+*/
 export function problemMessage(error: unknown, fallback: string): string {
   const problem = problemOf(error);
   return problem?.detail?.trim() || problem?.title?.trim() || fallback;

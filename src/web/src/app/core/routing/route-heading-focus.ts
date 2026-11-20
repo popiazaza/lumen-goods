@@ -26,9 +26,9 @@ export function provideRouteHeadingFocus(): EnvironmentProviders {
       .subscribe((event) => {
         const path = event.urlAfterRedirects.split(/[?#]/, 1)[0];
         const isFirstNavigation = previousPath === undefined;
-        const pathChanged = path !== previousPath;
+        const isPathChanged = path !== previousPath;
         previousPath = path;
-        if (isFirstNavigation || !pathChanged) {
+        if (isFirstNavigation || !isPathChanged) {
           return;
         }
         afterNextRender({ write: () => focusMainHeading(document) }, { injector });

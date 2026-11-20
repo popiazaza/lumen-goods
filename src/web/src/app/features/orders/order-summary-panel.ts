@@ -132,11 +132,13 @@ import { StatusBadge } from './status-badge';
 })
 export class OrderSummaryPanel {
   readonly order = input.required<OrderDetailDto>();
-  /** The admin order page: refunds show their real status (a failed one says so). */
+  /**
+  The admin order page: refunds show their real status (a failed one says so).
+  */
   readonly admin = input(false);
 
   protected readonly methodLabel = computed(() => {
-    const payment = this.order().payment;
+    const { payment } = this.order();
     return payment ? paymentMethodLabel(payment) : '';
   });
   protected readonly paymentStatus = paymentStatusView;
@@ -147,11 +149,13 @@ export class OrderSummaryPanel {
       new Map(
         this.order()
           .shipments.flatMap((shipment) => shipment.lines)
-          .map((line) => [line.id, line]),
-      ),
+          .map((line) => [line.id, line])
+      )
   );
 
-  /** The lines a refund pays back, each with the amount the API refunded for it. */
+  /**
+  The lines a refund pays back, each with the amount the API refunded for it.
+  */
   protected refundedLines(refund: RefundDto): OrderLineDto[] {
     const lines = this.linesById();
     return refund.lineIds.flatMap((id) => lines.get(id) ?? []);

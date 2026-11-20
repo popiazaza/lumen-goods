@@ -45,10 +45,10 @@ describe('OrderConfirmationPage', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const all = (selector: string) =>
     [...host().querySelectorAll(selector)].map((element) =>
-      element.textContent?.replace(/\s+/g, ' ').trim(),
+      element.textContent?.replaceAll(/\s+/g, ' ').trim()
     );
 
   async function open(order: OrderDetailDto): Promise<void> {
@@ -127,7 +127,7 @@ describe('OrderConfirmationPage', () => {
           refunded: 22.51,
           netPaid: 44.95,
         },
-      }),
+      })
     );
 
     expect(all('.lines .status')[1]).toBe('Not supplied, refunded $17.52');
@@ -135,13 +135,15 @@ describe('OrderConfirmationPage', () => {
     expect(all('.totals dt').slice(4)).toEqual(['Refunded', 'You paid']);
     expect(all('.totals dd').slice(4)).toEqual(['−$22.51', '$44.95']);
     expect(all('.next li')[1]).toBe(
-      'Kestrel Outfitters couldn’t supply these items, so you don’t pay for them. The refund goes back to how you paid.',
+      'Kestrel Outfitters couldn’t supply these items, so you don’t pay for them. The refund goes back to how you paid.'
     );
   });
 
   it('keeps re-reading while a refund is on its way, until it is paid back', async () => {
     const paid = aPaidOrder();
-    /** Kestrel rejected the socks; the refund is recorded with this status. */
+    /**
+    Kestrel rejected the socks; the refund is recorded with this status.
+    */
     const refunding = (status: RefundStatus, statusText: string): OrderDetailDto =>
       aPaidOrder({
         status: 'partially_refunded',
@@ -174,6 +176,7 @@ describe('OrderConfirmationPage', () => {
     fixture.detectChanges();
     http.expectOne(ORDER_URL).flush(refunding('pending', 'Not supplied, refund pending'));
     fixture.detectChanges();
+
     expect(all('.lines .status')[1]).toBe('Not supplied, refund pending');
 
     await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS);
@@ -183,6 +186,7 @@ describe('OrderConfirmationPage', () => {
     fixture.detectChanges();
 
     expect(all('.lines .status')[1]).toBe('Not supplied, refunded $22.51');
+
     await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS * 3);
     http.expectNone(ORDER_URL);
   });
@@ -208,6 +212,7 @@ describe('OrderConfirmationPage', () => {
 
     expect(all('.lines .status')).toEqual(['Confirmed', 'Confirmed by Kestrel Outfitters']);
     expect(all('.next li')[1]).toBe('Kestrel Outfitters confirmed your items and will ship them.');
+
     await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS * 3);
     http.expectNone(ORDER_URL);
   });
@@ -217,7 +222,7 @@ describe('OrderConfirmationPage', () => {
 
     expect(text('h1')).toBe('Order LG-7K3M9QX2 is awaiting payment');
     expect(host().querySelector('a[href^="/checkout/payment"]')?.getAttribute('href')).toBe(
-      '/checkout/payment?order=LG-7K3M9QX2',
+      '/checkout/payment?order=LG-7K3M9QX2'
     );
   });
 
@@ -232,7 +237,7 @@ describe('OrderConfirmationPage', () => {
         canPay: false,
         isUpdating: true,
         payment: aCardPayment({ status: 'processing', completedUtc: null }),
-      }),
+      })
     );
     fixture.detectChanges();
 
@@ -262,6 +267,7 @@ describe('OrderConfirmationPage', () => {
 
     expect(text('h1')).toBe('Confirming payment for order LG-7K3M9QX2');
     expect(host().textContent).not.toMatch(/cancelled|not been charged/);
+
     await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS);
     http.expectOne(ORDER_URL).flush(unsettled);
   });
@@ -271,7 +277,7 @@ describe('OrderConfirmationPage', () => {
 
     expect(text('h1')).toBe('Order LG-7K3M9QX2 was not paid');
     expect(host().textContent).toContain(
-      'This order was not paid, so it was cancelled. You have not been charged.',
+      'This order was not paid, so it was cancelled. You have not been charged.'
     );
   });
 
@@ -279,6 +285,7 @@ describe('OrderConfirmationPage', () => {
     fixture = TestBed.createComponent(OrderConfirmationPage);
     fixture.componentRef.setInput('id', 'LG-7K3M9QX2');
     fixture.detectChanges();
+
     expect(text('h1')).toBe('Order LG-7K3M9QX2');
 
     http.expectOne(ORDER_URL).flush('down', { status: 503, statusText: 'Service Unavailable' });

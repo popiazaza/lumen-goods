@@ -63,7 +63,7 @@ export class CheckoutShippingPage {
   protected readonly ownSource = OWN_SOURCE;
   protected readonly method = new FormControl<ShippingMethod>(
     this.store.shippingMethod() ?? 'standard',
-    { nonNullable: true },
+    { nonNullable: true }
   );
   private readonly chosen = toSignal(this.method.valueChanges, {
     initialValue: this.method.value,
@@ -73,7 +73,9 @@ export class CheckoutShippingPage {
     params: () => this.chosen(),
     stream: ({ params }) => this.api.preview(params),
   });
-  /** The last preview, kept on screen while the next one loads so the page does not jump. */
+  /**
+  The last preview, kept on screen while the next one loads so the page does not jump.
+  */
   protected readonly shown = linkedSignal<
     CheckoutPreviewDto | undefined,
     CheckoutPreviewDto | undefined
@@ -84,7 +86,7 @@ export class CheckoutShippingPage {
   protected readonly updating = computed(() => this.preview.isLoading() && !!this.shown());
 
   protected readonly expressOffered = computed(
-    () => this.shown()?.shippingOptions.some((option) => option.method === 'express') ?? false,
+    () => this.shown()?.shippingOptions.some((option) => option.method === 'express') ?? false
   );
   protected readonly options = computed(() => this.shown()?.shippingOptions ?? []);
 
@@ -93,10 +95,10 @@ export class CheckoutShippingPage {
     // to price Express for it (422) rather than answering without the option, so fall back to
     // Standard, the only method such a cart has.
     effect(() => {
-      const refused =
+      const isRefused =
         problemTypeOf(this.preview.error()) === SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM ||
         (!!this.shown() && !this.expressOffered());
-      if (refused && this.chosen() === 'express') {
+      if (isRefused && this.chosen() === 'express') {
         untracked(() => this.method.setValue('standard'));
       }
     });

@@ -58,15 +58,15 @@ describe('App shell', () => {
     const badge = await TestbedHarnessEnvironment.loader(fixture).getHarness(MatBadgeHarness);
     const cartLink = query<HTMLAnchorElement>(fixture, 'header a.cart');
 
-    expect(await badge.isHidden()).toBe(true);
+    await expect(badge.isHidden()).resolves.toBeTruthy();
     expect(cartLink.getAttribute('aria-label')).toBe('Cart, empty');
 
     TestBed.inject(CartStateService).reload().subscribe();
     http.expectOne('/api/v1/cart').flush(aCart([aCartLine({ quantity: 3 })]));
     await fixture.whenStable();
 
-    expect(await badge.isHidden()).toBe(false);
-    expect(await badge.getText()).toBe('3');
+    await expect(badge.isHidden()).resolves.toBeFalsy();
+    await expect(badge.getText()).resolves.toBe('3');
     expect(cartLink.getAttribute('aria-label')).toBe('Cart, 3 items');
   });
 
@@ -84,10 +84,12 @@ describe('App shell', () => {
   it('opens the mobile menu and closes it with Escape, returning focus to the toggle', async () => {
     const toggle = query<HTMLButtonElement>(fixture, 'button.menu-toggle');
     const menu = query<HTMLElement>(fixture, '#primary-menu');
+
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
 
     toggle.click();
     await fixture.whenStable();
+
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(menu.classList).toContain('open');
 
@@ -95,6 +97,7 @@ describe('App shell', () => {
     const focus = vi.spyOn(toggle, 'focus');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await fixture.whenStable();
+
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(menu.classList).not.toContain('open');
     expect(focus).toHaveBeenCalled();

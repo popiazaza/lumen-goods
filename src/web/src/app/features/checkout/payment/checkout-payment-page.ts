@@ -87,14 +87,22 @@ import {
   parseExpiry,
 } from './card';
 
-/** How often the page asks for the payment's status while the gateway works (BR-PAY-04). */
+/**
+How often the page asks for the payment's status while the gateway works (BR-PAY-04).
+*/
 export const PAYMENT_POLL_INTERVAL_MS = 1500;
-/** After this long, the waiting message says the payment is taking longer than usual. */
+/**
+After this long, the waiting message says the payment is taking longer than usual.
+*/
 export const SLOW_PAYMENT_NOTICE_MS = 25_000;
-/** Announce the code's remaining time once at this point, then at expiry (never every second). */
+/**
+Announce the code's remaining time once at this point, then at expiry (never every second).
+*/
 export const CODE_WARNING_MS = 60_000;
 
-/** Statuses during which the charge is still running: keep polling. `error` is retried once by the server. */
+/**
+Statuses during which the charge is still running: keep polling. `error` is retried once by the server.
+*/
 const IN_PROGRESS: ReadonlySet<PaymentStatus> = new Set(['created', 'processing', 'error']);
 
 /**
@@ -106,7 +114,9 @@ function awaitsSettlement(payment: PaymentStatusDto): boolean {
   return payment.status === 'failed' && payment.retryMode === 'none';
 }
 
-/** The server will move this payment on by itself: keep polling. */
+/**
+The server will move this payment on by itself: keep polling.
+*/
 function stillChanging(payment: PaymentStatusDto): boolean {
   return IN_PROGRESS.has(payment.status) || awaitsSettlement(payment);
 }
@@ -121,7 +131,9 @@ const PAID_ORDER: ReadonlySet<OrderStatus> = new Set([
 type Phase =
   'loading' | 'load-error' | 'signed-out' | 'choose' | 'processing' | 'code' | 'paid' | 'closed';
 
-/** The last attempt's outcome, shown above the form (and kept until the next attempt). */
+/**
+The last attempt's outcome, shown above the form (and kept until the next attempt).
+*/
 interface Outcome {
   title: string;
   detail: string;
@@ -136,7 +148,9 @@ const FIELD_IDS: Readonly<Record<CardField, string>> = {
   cvc: 'card-cvc',
 };
 
-/** The API's validation keys (`card.number`, `number`, `holderName`, ...) to the form's fields. */
+/**
+The API's validation keys (`card.number`, `number`, `holderName`, ...) to the form's fields.
+*/
 function cardFieldOf(key: string): CardField | undefined {
   const name = key.toLowerCase().replace(/^card\./, '');
   if (name === 'number' || name === 'expiry' || name === 'cvc') {
@@ -184,7 +198,9 @@ function cardFieldOf(key: string): CardField | undefined {
   styleUrls: ['../checkout.scss', './checkout-payment-page.scss'],
 })
 export class CheckoutPaymentPage {
-  /** `?order=` (bound by the router); otherwise the order this checkout placed. */
+  /**
+  `?order=` (bound by the router); otherwise the order this checkout placed.
+  */
   readonly order = input<string>();
 
   private readonly orders = inject(OrdersApi);
@@ -208,7 +224,7 @@ export class CheckoutPaymentPage {
    * and how it ended, not reload with no order ("This order can’t be paid" after paying).
    */
   protected readonly orderNumber = computed(
-    () => this.order() || untracked(() => this.store.orderNumber()) || '',
+    () => this.order() || untracked(() => this.store.orderNumber()) || ''
   );
   protected readonly orderDetail = signal<OrderDetailDto | null>(null);
   protected readonly payment = signal<PaymentStatusDto | null>(null);
@@ -216,15 +232,17 @@ export class CheckoutPaymentPage {
   protected readonly loadError = signal('');
   protected readonly closedReason = signal('');
   protected readonly closedHeading = signal('');
-  /** Sign in again and come back to this order's payment (the `?order=` survives the store). */
+  /**
+  Sign in again and come back to this order's payment (the `?order=` survives the store).
+  */
   protected readonly signInParams = computed(() =>
     signInQueryParams(
       this.router.serializeUrl(
         this.router.createUrlTree(['/checkout/payment'], {
           queryParams: { order: this.orderNumber() },
-        }),
-      ),
-    ),
+        })
+      )
+    )
   );
   protected readonly outcome = signal<Outcome | null>(null);
   protected readonly submitting = signal(false);
@@ -232,51 +250,61 @@ export class CheckoutPaymentPage {
   protected readonly serverErrors = signal<Partial<Record<CardField, string>>>({});
 
   protected readonly total = computed(
-    () => this.orderDetail()?.totals.total ?? this.payment()?.amount ?? null,
+    () => this.orderDetail()?.totals.total ?? this.payment()?.amount ?? null
   );
   protected readonly holdExpires = computed(
-    () => this.payment()?.holdExpiresUtc ?? this.orderDetail()?.holdExpiresUtc ?? null,
+    () => this.payment()?.holdExpiresUtc ?? this.orderDetail()?.holdExpiresUtc ?? null
   );
 
   protected readonly wallet = rxResource({ stream: () => this.walletApi.get() });
   protected readonly walletBalance = computed(() =>
-    this.wallet.hasValue() ? this.wallet.value().balance : null,
+    this.wallet.hasValue() ? this.wallet.value().balance : null
   );
-  /** The wallet pays only if it covers the whole total (BR-PAY-06); no split with a card. */
+  /**
+  The wallet pays only if it covers the whole total (BR-PAY-06); no split with a card.
+  */
   protected readonly walletCovers = computed(() => {
     const balance = this.walletBalance();
     const total = this.total();
     return balance !== null && total !== null && balance >= total;
   });
 
-  /** Ticks every second for the code countdown and the waiting time. */
+  /**
+  Ticks every second for the code countdown and the waiting time.
+  */
   protected readonly now = toSignal(interval(1000).pipe(map(() => Date.now())), {
     initialValue: Date.now(),
   });
   private readonly waitingSince = signal(0);
   protected readonly waitedSeconds = computed(() =>
-    Math.max(0, Math.floor((this.now() - this.waitingSince()) / 1000)),
+    Math.max(0, Math.floor((this.now() - this.waitingSince()) / 1000))
   );
   protected readonly slow = computed(
-    () => this.now() - this.waitingSince() >= SLOW_PAYMENT_NOTICE_MS,
+    () => this.now() - this.waitingSince() >= SLOW_PAYMENT_NOTICE_MS
   );
-  /** Waiting for the card provider to say whether a Failed charge went through (BR-PAY-05). */
+  /**
+  Waiting for the card provider to say whether a Failed charge went through (BR-PAY-05).
+  */
   protected readonly unsettled = computed(() => this.payment()?.status === 'failed');
 
-  /** Server clock minus browser clock, from the last payment status: the code expires on the server's time. */
+  /**
+  Server clock minus browser clock, from the last payment status: the code expires on the server's time.
+  */
   private readonly clockOffset = signal(0);
   protected readonly codeRemainingMs = computed(() => {
     const expires = this.payment()?.oneTimeCodeExpiresUtc;
     return expires ? Math.max(0, Date.parse(expires) - (this.now() + this.clockOffset())) : 0;
   });
   protected readonly codeExpired = computed(
-    () => this.phase() === 'code' && this.codeRemainingMs() <= 0,
+    () => this.phase() === 'code' && this.codeRemainingMs() <= 0
   );
   protected readonly codeCountdown = computed(() => {
     const seconds = Math.ceil(this.codeRemainingMs() / 1000);
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   });
-  /** The mock gateway's code, which the API sends because no text message is; never guessed here. */
+  /**
+  The mock gateway's code, which the API sends because no text message is; never guessed here.
+  */
   protected readonly testCode = computed(() => this.payment()?.testOneTimeCode ?? null);
 
   /**
@@ -284,10 +312,12 @@ export class CheckoutPaymentPage {
    * again (BR-PAY-05): its idempotency key makes a second charge impossible. No wallet, no new card.
    */
   protected readonly samePaymentOnly = computed(
-    () => this.phase() === 'choose' && this.payment()?.retryMode === 'same_payment_only',
+    () => this.phase() === 'choose' && this.payment()?.retryMode === 'same_payment_only'
   );
   protected readonly walletUsable = computed(() => this.walletCovers() && !this.samePaymentOnly());
-  /** "A payment is already in progress": another tab or a double click started one first. */
+  /**
+  "A payment is already in progress": another tab or a double click started one first.
+  */
   protected readonly inProgressNotice = signal('');
 
   protected readonly method = new FormControl<PaymentMethod>('card', { nonNullable: true });
@@ -333,11 +363,13 @@ export class CheckoutPaymentPage {
     }),
   });
   protected readonly codeError = signal('');
-  /** The error first, so a screen reader reads why the code was refused when the field has focus. */
+  /**
+  The error first, so a screen reader reads why the code was refused when the field has focus.
+  */
   protected readonly codeDescribedBy = computed(() =>
     [this.codeError() ? 'code-error' : '', this.testCode() ? 'code-test' : '', 'code-timer']
       .filter(Boolean)
-      .join(' '),
+      .join(' ')
   );
   private announcedWarning = false;
   private announcedExpiry = false;
@@ -377,7 +409,9 @@ export class CheckoutPaymentPage {
     this.load(this.orderNumber());
   }
 
-  /** Reads the order and its current payment and shows them; `then` runs once they are shown. */
+  /**
+  Reads the order and its current payment and shows them; `then` runs once they are shown.
+  */
   private load(number: string, then?: () => void): void {
     this.stopPolling();
     if (!number) {
@@ -418,7 +452,7 @@ export class CheckoutPaymentPage {
   private loadFailed(error: unknown): void {
     this.stopPolling();
     this.loadError.set(
-      problemMessage(error, 'We couldn’t load your order. Check your connection and try again.'),
+      problemMessage(error, 'We couldn’t load your order. Check your connection and try again.')
     );
     this.phase.set('load-error');
   }
@@ -436,7 +470,9 @@ export class CheckoutPaymentPage {
     this.enter('signed-out');
   }
 
-  /** A status read the server refused: stop, since asking again gets the same answer. */
+  /**
+  A status read the server refused: stop, since asking again gets the same answer.
+  */
   private pollFailed(error: unknown): void {
     const status = httpStatusOf(error);
     if (status === 401) {
@@ -448,7 +484,9 @@ export class CheckoutPaymentPage {
     }
   }
 
-  /** Moves the page to whatever the server says the payment is doing now. */
+  /**
+  Moves the page to whatever the server says the payment is doing now.
+  */
   private show(payment: PaymentStatusDto | null, order = this.orderDetail()): void {
     this.payment.set(payment);
     const serverTime = Date.parse(payment?.serverTimeUtc ?? '');
@@ -464,7 +502,7 @@ export class CheckoutPaymentPage {
       this.close(
         payment && payment.attemptsLeft === 0
           ? 'This order ran out of payment attempts, so it was cancelled. You have not been charged.'
-          : 'The 15-minute hold on this order’s prices ended before it was paid, so it was cancelled. You have not been charged.',
+          : 'The 15-minute hold on this order’s prices ended before it was paid, so it was cancelled. You have not been charged.'
       );
       return;
     }
@@ -506,7 +544,7 @@ export class CheckoutPaymentPage {
       this.close(
         payment.attemptsLeft === 0
           ? 'This order ran out of payment attempts, so it was cancelled. You have not been charged.'
-          : 'This order can no longer be paid. You have not been charged.',
+          : 'This order can no longer be paid. You have not been charged.'
       );
       return;
     }
@@ -527,7 +565,7 @@ export class CheckoutPaymentPage {
     if (previous !== phase && previous !== 'loading' && phase !== 'choose') {
       afterNextRender(
         { write: () => this.phaseHeading()?.nativeElement.focus() },
-        { injector: this.injector },
+        { injector: this.injector }
       );
     }
   }
@@ -547,13 +585,13 @@ export class CheckoutPaymentPage {
             .current(number)
             .pipe(
               catchError((error: unknown) =>
-                isTransient(error) ? of(null) : throwError(() => error),
-              ),
-            ),
+                isTransient(error) ? of(null) : throwError(() => error)
+              )
+            )
         ),
         filter((payment): payment is PaymentStatusDto => payment !== null),
         takeWhile(stillChanging, true),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (payment) => {
@@ -577,7 +615,7 @@ export class CheckoutPaymentPage {
     this.phase.set('paid');
     const number = this.payment()?.orderNumber ?? this.orderDetail()?.number ?? this.orderNumber();
     this.endCheckoutOf(number);
-    this.cart.reload().subscribe({ error: () => undefined });
+    this.cart.reload().subscribe({ error: () => {} });
     void this.announcer.announce('Payment confirmed.', 'polite');
     // Replace this URL so Back cannot show a payable form for a paid order.
     void this.router.navigate(['/orders', number, 'confirmation'], { replaceUrl: true });
@@ -650,7 +688,7 @@ export class CheckoutPaymentPage {
       .pay(number, request)
       .pipe(
         finalize(() => this.submitting.set(false)),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (payment) => this.show(payment),
@@ -672,7 +710,9 @@ export class CheckoutPaymentPage {
     this.focusOutcome();
   }
 
-  /** Focuses the form again after a decline; everything typed is still there. */
+  /**
+  Focuses the form again after a decline; everything typed is still there.
+  */
   protected tryAgain(): void {
     this.outcome.set(null);
     this.enter('choose');
@@ -683,7 +723,7 @@ export class CheckoutPaymentPage {
           this.document.getElementById(id)?.focus();
         },
       },
-      { injector: this.injector },
+      { injector: this.injector }
     );
   }
 
@@ -712,10 +752,12 @@ export class CheckoutPaymentPage {
       const mapped: Partial<Record<CardField, string>> = {};
       for (const [key, messages] of Object.entries(errors)) {
         const field = cardFieldOf(key);
-        if (field && messages.length) {
-          mapped[field] = messages.join(' ');
-          this.cardForm.controls[field].setErrors({ server: true });
+        if (!(field && messages.length)) {
+          continue;
         }
+
+        mapped[field] = messages.join(' ');
+        this.cardForm.controls[field].setErrors({ server: true });
       }
       if (Object.keys(mapped).length > 0) {
         this.serverErrors.set(mapped);
@@ -750,11 +792,13 @@ export class CheckoutPaymentPage {
     this.focusOutcome();
   }
 
-  /** Focuses the outcome above the form, or the heading of the state that replaced the form. */
+  /**
+  Focuses the outcome above the form, or the heading of the state that replaced the form.
+  */
   private focusOutcome(): void {
     afterNextRender(
       { write: () => (this.outcomeBanner() ?? this.phaseHeading())?.nativeElement.focus() },
-      { injector: this.injector },
+      { injector: this.injector }
     );
   }
 
@@ -784,7 +828,7 @@ export class CheckoutPaymentPage {
     if (control.invalid) {
       control.markAsTouched();
       this.codeError.set(
-        control.hasError('required') ? 'Enter the 6-digit code' : 'The code must be 6 digits',
+        control.hasError('required') ? 'Enter the 6-digit code' : 'The code must be 6 digits'
       );
       return;
     }
@@ -794,7 +838,7 @@ export class CheckoutPaymentPage {
       .submitOneTimeCode(this.orderNumber(), digitsOf(control.value))
       .pipe(
         finalize(() => this.submitting.set(false)),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (payment) => this.show(payment),
@@ -811,13 +855,15 @@ export class CheckoutPaymentPage {
           }
           const codeErrors = validationErrorsOf(error)['code'] ?? [];
           this.codeError.set(
-            codeErrors.join(' ') || problemMessage(error, 'We couldn’t check the code. Try again.'),
+            codeErrors.join(' ') || problemMessage(error, 'We couldn’t check the code. Try again.')
           );
         },
       });
   }
 
-  /** After the code ran out: back to the form; the next attempt sends a new code. */
+  /**
+  After the code ran out: back to the form; the next attempt sends a new code.
+  */
   protected codeExpiredTryAgain(): void {
     this.outcome.set({
       title: 'The code has expired',
@@ -827,7 +873,7 @@ export class CheckoutPaymentPage {
       .current(this.orderNumber())
       .pipe(
         catchError(() => of(null)),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((payment) => {
         if (payment && payment.status !== 'requires_action') {
@@ -842,7 +888,9 @@ export class CheckoutPaymentPage {
 
   // ---- Card form ------------------------------------------------------------------------------
 
-  /** Spaces the number as it is typed (4-4-4-4, or 4-6-5 for Amex) and keeps the caret in place. */
+  /**
+  Spaces the number as it is typed (4-4-4-4, or 4-6-5 for Amex) and keeps the caret in place.
+  */
   protected formatNumber(event: Event): void {
     const input = event.target as HTMLInputElement;
     const raw = input.value;
@@ -871,25 +919,29 @@ export class CheckoutPaymentPage {
       return server;
     }
     switch (field) {
-      case 'number':
+      case 'number': {
         return control.hasError('required')
           ? 'Enter your card number'
           : 'Enter a valid card number: check it for typos';
-      case 'name':
+      }
+      case 'name': {
         return control.hasError('required')
           ? 'Enter the name on the card'
           : 'The name must be 100 characters or fewer';
-      case 'expiry':
+      }
+      case 'expiry': {
         if (control.hasError('required')) {
           return 'Enter the expiry date';
         }
         return control.hasError('expired')
           ? 'This card has expired'
           : 'Enter the expiry date as MM/YY, like 08/29';
-      case 'cvc':
+      }
+      case 'cvc': {
         return control.hasError('required')
           ? 'Enter the security code'
           : `Enter the ${this.cvcDigits()}-digit security code`;
+      }
     }
   }
 
@@ -907,28 +959,34 @@ export class CheckoutPaymentPage {
     this.problems.set(
       fields
         .filter((field) => this.cardForm.controls[field].invalid)
-        .map((field) => ({ fieldId: FIELD_IDS[field], message: this.errorFor(field) })),
+        .map((field) => ({ fieldId: FIELD_IDS[field], message: this.errorFor(field) }))
     );
     afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
   }
 }
 
-/** No answer (status 0) or a server error (5xx): the same request may well work in a moment. */
+/**
+No answer (status 0) or a server error (5xx): the same request may well work in a moment.
+*/
 function isTransient(error: unknown): boolean {
   const status = httpStatusOf(error);
   return status === 0 || (status !== undefined && status >= 500);
 }
 
-/** A read whose 404 is an answer (no such order, or no payment yet) rather than a failure. */
+/**
+A read whose 404 is an answer (no such order, or no payment yet) rather than a failure.
+*/
 function notFoundAsNull<T>(read: Observable<T>): Observable<T | null> {
   return read.pipe(
     catchError((error: unknown) =>
-      httpStatusOf(error) === 404 ? of(null) : throwError(() => error),
-    ),
+      httpStatusOf(error) === 404 ? of(null) : throwError(() => error)
+    )
   );
 }
 
-/** 4 to 8 digits once spaces and dashes are taken out (a pasted "123 456" is fine). */
+/**
+4 to 8 digits once spaces and dashes are taken out (a pasted "123 456" is fine).
+*/
 function validCode(control: AbstractControl<string>): ValidationErrors | null {
   const raw = control.value ?? '';
   if (!raw.trim()) {
@@ -937,13 +995,15 @@ function validCode(control: AbstractControl<string>): ValidationErrors | null {
   return /^[\d\s-]+$/.test(raw) && /^\d{4,8}$/.test(digitsOf(raw)) ? null : { code: true };
 }
 
-/** What to tell the shopper after an attempt that did not go through (BR-PAY-07 wording from the API). */
+/**
+What to tell the shopper after an attempt that did not go through (BR-PAY-07 wording from the API).
+*/
 function outcomeOf(payment: PaymentStatusDto): Outcome {
   const attempts =
     payment.attemptsLeft === 1 ? '1 attempt left' : `${payment.attemptsLeft} attempts left`;
   switch (payment.status) {
     // Never "not charged": only the card provider's later answer can say (BR-PAY-05).
-    case 'failed':
+    case 'failed': {
       return {
         title: 'We couldn’t confirm your payment',
         detail:
@@ -951,12 +1011,14 @@ function outcomeOf(payment: PaymentStatusDto): Outcome {
             ? `The card provider did not answer, so we can’t tell yet whether the card was charged. Enter the same card and try again: it continues the same payment, so you can’t be charged twice. ${attempts}.`
             : `The card provider did not answer, so we can’t tell yet whether the card was charged. Paying again checks that payment with them first, so you can’t be charged twice. ${attempts}.`,
       };
-    case 'expired':
+    }
+    case 'expired': {
       return {
         title: 'The code has expired',
         detail: `You have not been charged. Pay again and we will send a new code. ${attempts}.`,
       };
-    default:
+    }
+    default: {
       return {
         title: payment.declineMessage ?? 'Your card was declined',
         detail: `Payment declined. You have not been charged. ${
@@ -965,5 +1027,6 @@ function outcomeOf(payment: PaymentStatusDto): Outcome {
             : 'Try paying by card'
         }. ${attempts}.`,
       };
+    }
   }
 }

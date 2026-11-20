@@ -32,7 +32,9 @@ import { AdminAccessDenied } from './admin-access-denied';
 import { partnerOrderView, paymentEventView } from './admin-order-labels';
 import { ConfirmDialogData, openConfirmDialog } from './confirm-dialog';
 
-/** How often the page re-reads an order that can still change on its own. */
+/**
+How often the page re-reads an order that can still change on its own.
+*/
 export const ADMIN_ORDER_POLL_INTERVAL_MS = 5000;
 
 /**
@@ -59,7 +61,9 @@ export const ADMIN_ORDER_POLL_INTERVAL_MS = 5000;
   styleUrl: './admin-order-detail-page.scss',
 })
 export class AdminOrderDetailPage {
-  /** The order number, bound from the `:id` route parameter. */
+  /**
+  The order number, bound from the `:id` route parameter.
+  */
   readonly id = input.required<string>();
 
   private readonly api = inject(AdminOrdersApi);
@@ -73,30 +77,34 @@ export class AdminOrderDetailPage {
       pollWhileUpdating(
         () => this.api.get(number),
         ADMIN_ORDER_POLL_INTERVAL_MS,
-        (admin) => orderKeepsChanging(admin.order),
+        (admin) => orderKeepsChanging(admin.order)
       ),
   });
   protected readonly detail = computed(() =>
-    this.order.hasValue() ? this.order.value() : undefined,
+    this.order.hasValue() ? this.order.value() : undefined
   );
 
-  /** A decision can also come back 401/403 (session expired, role removed). */
+  /**
+  A decision can also come back 401/403 (session expired, role removed).
+  */
   private readonly deniedStatus = signal<number | undefined>(undefined);
   protected readonly accessStatus = computed(() => {
     const error = this.order.error();
     return isAccessDenied(error) ? httpStatusOf(error) : this.deniedStatus();
   });
   protected readonly errorStatus = computed(() =>
-    this.order.status() === 'error' ? (httpStatusOf(this.order.error()) ?? -1) : undefined,
+    this.order.status() === 'error' ? (httpStatusOf(this.order.error()) ?? -1) : undefined
   );
 
   protected readonly attentionCount = computed(
     () =>
       (this.detail()?.order.shipments ?? [])
         .flatMap((shipment) => shipment.lines)
-        .filter((line) => line.status === 'needs_attention').length,
+        .filter((line) => line.status === 'needs_attention').length
   );
-  /** The line whose decision is being saved. */
+  /**
+  The line whose decision is being saved.
+  */
   protected readonly savingLine = signal<string | null>(null);
   protected readonly actionError = signal('');
 
@@ -133,7 +141,7 @@ export class AdminOrderDetailPage {
           this.actionError.set('');
         }),
         switchMap((answer) => this.api.resolveLine(number, line.id, decision, answer.note)),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (updated) => {
@@ -143,7 +151,7 @@ export class AdminOrderDetailPage {
             decision === 'confirm'
               ? `${line.name} confirmed.`
               : `${line.name} rejected. The customer is refunded for it.`,
-            'polite',
+            'polite'
           );
         },
         error: (error: unknown) => {
@@ -154,13 +162,13 @@ export class AdminOrderDetailPage {
           }
           // A partner call in flight changed nothing: the line still waits, so keep the page and
           // say when to come back. Any other 409 means the line was decided meanwhile.
-          const busy = problemTypeOf(error) === PARTNER_CALL_IN_PROGRESS_PROBLEM;
-          const message = busy
+          const isBusy = problemTypeOf(error) === PARTNER_CALL_IN_PROGRESS_PROBLEM;
+          const message = isBusy
             ? `Couldn’t save the decision for ${line.name}: Lumen is talking to ${sellerName} about this item right now. Try again in a minute.`
             : `Couldn’t save the decision for ${line.name}: ${problemMessage(error, 'the request failed. Try again.')}`;
           this.actionError.set(message);
           void this.announcer.announce(message, 'assertive');
-          if (httpStatusOf(error) === 409 && !busy) {
+          if (httpStatusOf(error) === 409 && !isBusy) {
             this.order.reload();
           }
         },
@@ -183,7 +191,7 @@ function confirmation(
   line: OrderLineDto,
   sellerName: string,
   decision: LineDecision,
-  partnerOrder: PartnerOrder | undefined,
+  partnerOrder: PartnerOrder | undefined
 ): ConfirmDialogData {
   const note = {
     noteLabel: 'Note (optional)',

@@ -21,7 +21,9 @@ import { safeReturnUrl } from '../../core/routing/return-url';
 import { ErrorSummary, FormProblem } from '../../shared/forms/error-summary';
 import { AfterSignIn } from './after-sign-in';
 
-/** Sign in (`/sign-in?returnUrl=`): email and password; required to check out. */
+/**
+Sign in (`/sign-in?returnUrl=`): email and password; required to check out.
+*/
 @Component({
   selector: 'app-sign-in-page',
   imports: [
@@ -41,7 +43,9 @@ import { AfterSignIn } from './after-sign-in';
   styleUrl: './account-form.scss',
 })
 export class SignInPage {
-  /** Where to go after signing in (query param); only in-app paths are followed. */
+  /**
+  Where to go after signing in (query param); only in-app paths are followed.
+  */
   readonly returnUrl = input<string>();
 
   private readonly sessionApi = inject(SessionApi);
@@ -51,9 +55,11 @@ export class SignInPage {
 
   protected readonly session = this.sessionApi.session;
   protected readonly forCheckout = computed(() =>
-    safeReturnUrl(this.returnUrl()).startsWith('/checkout'),
+    safeReturnUrl(this.returnUrl()).startsWith('/checkout')
   );
-  /** Carries the return URL to "Create an account" and "Continue". */
+  /**
+  Carries the return URL to "Create an account" and "Continue".
+  */
   protected readonly returnParams = computed(() => {
     const returnUrl = safeReturnUrl(this.returnUrl(), '');
     return returnUrl ? { returnUrl } : {};
@@ -70,7 +76,9 @@ export class SignInPage {
   protected readonly showPassword = signal(false);
   protected readonly submitting = signal(false);
   protected readonly problems = signal<readonly FormProblem[]>([]);
-  /** Wrong credentials, lockout or a failed request: about the whole form, not one field. */
+  /**
+  Wrong credentials, lockout or a failed request: about the whole form, not one field.
+  */
   protected readonly failure = signal<{ title: string; detail: string } | null>(null);
 
   protected emailError(): string {
@@ -122,9 +130,10 @@ export class SignInPage {
       // ASP.NET Identity lockout: 5 failed attempts lock the account for a few minutes.
       this.failure.set({
         title: 'Too many failed attempts',
-        detail:
-          problemMessage(error, 'The account is locked for a few minutes.') +
-          ' Wait a few minutes, then try again.',
+        detail: `${problemMessage(
+          error,
+          'The account is locked for a few minutes.'
+        )} Wait a few minutes, then try again.`,
       });
     } else {
       this.failure.set({

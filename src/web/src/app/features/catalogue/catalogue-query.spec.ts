@@ -14,7 +14,9 @@ import {
   toProductSearch,
 } from './catalogue-query';
 
-/** Parses a raw query string the way the router would. */
+/**
+Parses a raw query string the way the router would.
+*/
 function parse(search: string): CatalogueQuery {
   const params: Record<string, string[]> = {};
   for (const [key, value] of new URLSearchParams(search)) {
@@ -43,7 +45,7 @@ describe('catalogue query (URL state)', () => {
   it('parses every supported param, including repeated category and seller', () => {
     const query = parse(
       'q=tote&category=apparel&category=bags&seller=harbor&seller=kestrel' +
-        '&minPrice=10&maxPrice=49.50&inStock=true&sort=price_asc&page=3',
+        '&minPrice=10&maxPrice=49.50&inStock=true&sort=price_asc&page=3'
     );
 
     expect(query).toEqual(FULL);
@@ -61,7 +63,7 @@ describe('catalogue query (URL state)', () => {
       page: '3',
     });
     expect(
-      catalogueQueryParams({ ...FULL, sort: 'newest', page: 1, inStock: false }),
+      catalogueQueryParams({ ...FULL, sort: 'newest', page: 1, inStock: false })
     ).not.toHaveProperty('sort');
   });
 
@@ -80,6 +82,7 @@ describe('catalogue query (URL state)', () => {
           search.append(key, String(item));
         }
       }
+
       expect(parse(search.toString())).toEqual(state);
     }
   });
@@ -87,7 +90,7 @@ describe('catalogue query (URL state)', () => {
   it('ignores unknown and malformed values instead of failing', () => {
     const query = parse(
       'category=apparel&category=toys&category=apparel&seller=Not%20A%20Seller&seller=harbor' +
-        '&seller=%3Cscript%3E&minPrice=abc&maxPrice=-5&inStock=yes&sort=cheapest&page=0',
+        '&seller=%3Cscript%3E&minPrice=abc&maxPrice=-5&inStock=yes&sort=cheapest&page=0'
     );
 
     expect(query).toEqual({
@@ -112,7 +115,9 @@ describe('catalogue query (URL state)', () => {
       ...query,
       sellers: ['harbor'],
     });
+
     const listed = new Set(['acme', 'harbor']);
+
     expect(restrictSellers(query, listed)).toBe(query);
   });
 
@@ -120,7 +125,7 @@ describe('catalogue query (URL state)', () => {
     'treats %s as page 1',
     (search) => {
       expect(parse(search).page).toBe(1);
-    },
+    }
   );
 
   it('drops an impossible price range (min above max)', () => {
@@ -169,9 +174,9 @@ describe('catalogue query (URL state)', () => {
   });
 
   it('tells a page change from a filter change', () => {
-    expect(differsOnlyInPage(FULL, { ...FULL, page: 4 })).toBe(true);
-    expect(differsOnlyInPage(FULL, { ...FULL, page: 1, inStock: false })).toBe(false);
-    expect(differsOnlyInPage(FULL, FULL)).toBe(false);
+    expect(differsOnlyInPage(FULL, { ...FULL, page: 4 })).toBeTruthy();
+    expect(differsOnlyInPage(FULL, { ...FULL, page: 1, inStock: false })).toBeFalsy();
+    expect(differsOnlyInPage(FULL, FULL)).toBeFalsy();
   });
 });
 

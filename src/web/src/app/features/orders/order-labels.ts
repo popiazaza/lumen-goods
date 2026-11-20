@@ -13,7 +13,9 @@ import {
 
 export type StatusTone = 'success' | 'info' | 'warning' | 'error' | 'neutral';
 
-/** What a status badge shows. */
+/**
+What a status badge shows.
+*/
 export interface StatusView {
   tone: StatusTone;
   icon: string;
@@ -40,7 +42,9 @@ const ORDER_LOOKS: Readonly<Record<OrderStatus, Omit<StatusView, 'text'>>> = {
 
 const FALLBACK_LOOK: Omit<StatusView, 'text'> = { tone: 'neutral', icon: 'info' };
 
-/** BR-ORD-02 badge for one line: "Awaiting Kestrel Outfitters", "Not supplied, refunded $40.03". */
+/**
+BR-ORD-02 badge for one line: "Awaiting Kestrel Outfitters", "Not supplied, refunded $40.03".
+*/
 export function lineStatusView(status: OrderLineStatus, statusText: string): StatusView {
   return { ...(LINE_LOOKS[status] ?? FALLBACK_LOOK), text: statusText || humanise(status) };
 }
@@ -49,7 +53,9 @@ export function orderStatusView(status: OrderStatus, statusText: string): Status
   return { ...(ORDER_LOOKS[status] ?? FALLBACK_LOOK), text: statusText || humanise(status) };
 }
 
-/** Admin wording for the orders filter (the customer wording calls `paid` "Processing"). */
+/**
+Admin wording for the orders filter (the customer wording calls `paid` "Processing").
+*/
 export const ADMIN_ORDER_STATUS_LABELS: Readonly<Record<OrderStatus, string>> = {
   awaiting_payment: 'Awaiting payment',
   payment_processing: 'Payment in progress',
@@ -69,7 +75,9 @@ export function shippingLabel(method: ShippingMethod): string {
   return SHIPPING_LABELS[method] ?? humanise(method);
 }
 
-/** "Visa ending 1111" or "Lumen wallet". */
+/**
+"Visa ending 1111" or "Lumen wallet".
+*/
 export function paymentMethodLabel(payment: PaymentSummaryDto): string {
   if (payment.method === 'wallet') {
     return 'Lumen wallet';
@@ -109,8 +117,10 @@ export function refundStatusView(status: RefundStatus, forAdmin = false): Status
   return REFUND_LOOKS[shown] ?? { ...FALLBACK_LOOK, text: humanise(status) };
 }
 
-/** `needs_attention` -> "Needs attention": a readable fallback for a value this client does not know. */
+/**
+`needs_attention` -> "Needs attention": a readable fallback for a value this client does not know.
+*/
 export function humanise(value: string): string {
-  const text = value.replace(/_/g, ' ').trim();
+  const text = value.replaceAll('_', ' ').trim();
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

@@ -22,7 +22,9 @@ import { AdminOrdersPage } from './admin-orders-page';
 @Component({ template: '<h1>Order</h1>' })
 class StubOrderPage {}
 
-/** The instant the page sends for local midnight of a day (`YYYY-MM-DD` plus `addDays`). */
+/**
+The instant the page sends for local midnight of a day (`YYYY-MM-DD` plus `addDays`).
+*/
 function localMidnight(day: string, addDays = 0): string {
   const [year, month, date] = day.split('-').map(Number);
   return new Date(year, month - 1, date + addDays).toISOString();
@@ -45,9 +47,9 @@ describe('AdminOrdersPage', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (root: ParentNode, selector: string) =>
-    root.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    root.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const dateInput = (name: 'from' | 'to') =>
-    host().querySelector(`input[name="${name}"]`) as HTMLInputElement;
+    host().querySelector(`input[name="${CSS.escape(name)}"]`) as HTMLInputElement;
 
   async function nextRequest(): Promise<TestRequest> {
     return vi.waitFor(() => {
@@ -95,18 +97,23 @@ describe('AdminOrdersPage', () => {
   it('asks the API for exactly what the URL says and shows it in the filters', async () => {
     const request = await open(
       '/admin/orders?status=needs_attention&status=refunded&status=paid&status=bogus' +
-        '&from=2026-11-01&to=2026-11-20&page=2',
+        '&from=2026-11-01&to=2026-11-20&page=2'
     );
 
     // Unknown statuses are dropped; the rest go in a canonical order. The days are the admin's
     // own: from local midnight, to the next local midnight after the last day (exclusive).
-    const params = request.request.params;
+    const { params } = request.request;
+
     expect(params.getAll('status')).toEqual(['paid', 'refunded', 'needs_attention']);
     expect(params.get('from')).toBe(localMidnight('2026-11-01'));
     expect(params.get('to')).toBe(localMidnight('2026-11-20', 1));
     expect([params.get('page'), params.get('pageSize')]).toEqual(['2', '24']);
+
     const status = await loader.getHarness(MatSelectHarness);
-    expect(await status.getValueText()).toBe('Paid, in progress, Refunded, Needs attention');
+
+    await expect(status.getValueText()).resolves.toBe(
+      'Paid, in progress, Refunded, Needs attention'
+    );
     expect(dateInput('from').value).toBe('2026-11-01');
     expect(dateInput('to').value).toBe('2026-11-20');
   });
@@ -129,7 +136,7 @@ describe('AdminOrdersPage', () => {
 
     expect(router.url).toBe('/admin/orders?status=partially_refunded');
     expect(request.request.urlWithParams).toBe(
-      '/api/v1/admin/orders?status=partially_refunded&page=1&pageSize=24',
+      '/api/v1/admin/orders?status=partially_refunded&page=1&pageSize=24'
     );
   });
 
@@ -139,11 +146,13 @@ describe('AdminOrdersPage', () => {
     dateInput('from').value = '2026-11-01';
     dateInput('from').dispatchEvent(new Event('change'));
     await respond(aPagedResult([PAID]));
+
     expect(router.url).toBe('/admin/orders?from=2026-11-01');
 
     dateInput('to').value = '2026-11-15';
     dateInput('to').dispatchEvent(new Event('change'));
     const request = await respond(aPagedResult([PAID]));
+
     expect(router.url).toBe('/admin/orders?from=2026-11-01&to=2026-11-15');
     expect(request.request.params.get('to')).toBe(localMidnight('2026-11-15', 1));
     // The browser's own picker keeps the range the right way round.
@@ -154,10 +163,11 @@ describe('AdminOrdersPage', () => {
   it('pages with the paginator, keeping the filters in the URL', async () => {
     await open(
       '/admin/orders?status=paid',
-      aPagedResult([PAID], { pageSize: 24, totalCount: 60, totalPages: 3 }),
+      aPagedResult([PAID], { pageSize: 24, totalCount: 60, totalPages: 3 })
     );
     const paginator = await loader.getHarness(MatPaginatorHarness);
-    expect(await paginator.getRangeLabel()).toBe('1 – 24 of 60');
+
+    await expect(paginator.getRangeLabel()).resolves.toBe('1 – 24 of 60');
 
     const paging = paginator.goToNextPage();
     const request = await nextRequest();
@@ -172,29 +182,35 @@ describe('AdminOrdersPage', () => {
     await open('/admin/orders');
 
     const rows = [...host().querySelectorAll<HTMLElement>('tr.mat-mdc-row')];
+
     expect(rows).toHaveLength(2);
+
     const link = rows[0].querySelector('a') as HTMLAnchorElement;
+
     expect(link.textContent?.trim()).toBe('LG-7K3M9QX2');
     expect(link.getAttribute('href')).toBe('/admin/orders/LG-7K3M9QX2');
     expect(rows[0].textContent).toContain('customer@lumengoods.test');
     expect(rows[0].textContent).toContain('Lumen Goods, Kestrel Outfitters');
     expect(rows[0].textContent).toContain('$75.46');
     expect(
-      [...rows[1].querySelectorAll('app-status-badge')].map((badge) => badge.textContent?.trim()),
+      [...rows[1].querySelectorAll('app-status-badge')].map((badge) => badge.textContent?.trim())
     ).toEqual(['Processing', 'Needs attention']);
     expect(text(host(), '.count')).toBe('2 orders');
   });
 
   it('tells "no orders yet" apart from "no orders match", and clears filters', async () => {
     await open('/admin/orders', aPagedResult([]));
+
     expect(text(host(), '.state strong')).toBe('No orders yet.');
 
     await harness.navigateByUrl('/admin/orders?status=expired', AdminOrdersPage);
     await respond(aPagedResult([]));
+
     expect(text(host(), '.state strong')).toBe('No orders match these filters.');
 
     (host().querySelector('.state button') as HTMLButtonElement).click();
     await respond(aPagedResult([PAID]));
+
     expect(router.url).toBe('/admin/orders');
   });
 
@@ -202,7 +218,7 @@ describe('AdminOrdersPage', () => {
     await harness.navigateByUrl('/admin/orders?from=2026-11-20&to=2026-11-01', AdminOrdersPage);
     (await nextRequest()).flush(
       { title: 'The order list query is not valid', detail: 'from must be on or before to.' },
-      { status: 400, statusText: 'Bad Request' },
+      { status: 400, statusText: 'Bad Request' }
     );
     await harness.fixture.whenStable();
 
@@ -215,7 +231,7 @@ describe('AdminOrdersPage', () => {
     await harness.fixture.whenStable();
 
     expect(text(host(), 'app-admin-access-denied strong')).toBe(
-      'Sign in as an admin to see this page.',
+      'Sign in as an admin to see this page.'
     );
     expect(host().querySelector('table')).toBeNull();
     expect(host().textContent?.includes('does not have the admin role')).toBe(status === 403);

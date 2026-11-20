@@ -37,10 +37,14 @@ import { categoryLabel, humaniseAttributeKey } from '../../shared/products/produ
 import { ProductPrice } from '../../shared/products/product-price';
 import { clampQuantity, maxSelectableQuantity } from './quantity';
 
-/** The tags the server's sanitiser keeps (A-21); anything else is treated as plain text. */
+/**
+The tags the server's sanitiser keeps (A-21); anything else is treated as plain text.
+*/
 const ALLOWED_HTML = /<\/?(p|br|b|strong|i|em|ul|ol|li)\b[^>]*>/i;
 
-/** Product detail (`/products/:id`): gallery, price, stock, description, attributes, Add to cart. */
+/**
+Product detail (`/products/:id`): gallery, price, stock, description, attributes, Add to cart.
+*/
 @Component({
   selector: 'app-product-detail-page',
   imports: [
@@ -64,7 +68,9 @@ const ALLOWED_HTML = /<\/?(p|br|b|strong|i|em|ul|ol|li)\b[^>]*>/i;
   styleUrl: './product-detail-page.scss',
 })
 export class ProductDetailPage {
-  /** The `:id` route param (`withComponentInputBinding`). */
+  /**
+  The `:id` route param (`withComponentInputBinding`).
+  */
   readonly id = input.required<string>();
 
   private readonly productsApi = inject(ProductsApi);
@@ -81,12 +87,14 @@ export class ProductDetailPage {
   });
 
   protected readonly loaded = computed<ProductDto | undefined>(() =>
-    this.product.hasValue() ? this.product.value() : undefined,
+    this.product.hasValue() ? this.product.value() : undefined
   );
   protected readonly isNotFound = computed(() => httpStatusOf(this.product.error()) === 404);
   protected readonly isError = computed(() => this.product.status() === 'error');
 
-  /** One `<h1>` for every state, so the focus the router puts on it survives the load. */
+  /**
+  One `<h1>` for every state, so the focus the router puts on it survives the load.
+  */
   protected readonly heading = computed(() => {
     const product = this.loaded();
     if (product) {
@@ -95,7 +103,9 @@ export class ProductDetailPage {
     return this.isNotFound() ? 'Product not found' : 'Product details';
   });
 
-  /** Primary image first, then the rest in the API's order. */
+  /**
+  Primary image first, then the rest in the API's order.
+  */
   protected readonly images = computed(() => {
     const images = this.loaded()?.images ?? [];
     return [...images.filter((image) => image.isPrimary), ...images.filter((i) => !i.isPrimary)];
@@ -108,7 +118,7 @@ export class ProductDetailPage {
   });
 
   protected readonly descriptionIsHtml = computed(() =>
-    ALLOWED_HTML.test(this.loaded()?.description ?? ''),
+    ALLOWED_HTML.test(this.loaded()?.description ?? '')
   );
 
   protected readonly attributes = computed(() =>
@@ -116,7 +126,7 @@ export class ProductDetailPage {
       key,
       label: humaniseAttributeKey(key),
       value,
-    })),
+    }))
   );
 
   protected readonly sellerName = computed(() => {
@@ -136,7 +146,9 @@ export class ProductDetailPage {
     return quantity != null && quantity <= max ? `${max} available` : `Up to ${max} at a time`;
   });
 
-  /** Why Add to cart is disabled, shown next to it and linked with `aria-describedby`. */
+  /**
+  Why Add to cart is disabled, shown next to it and linked with `aria-describedby`.
+  */
   protected readonly unavailableReason = computed(() => {
     const product = this.loaded();
     if (!product || this.canBuy()) {
@@ -178,11 +190,7 @@ export class ProductDetailPage {
       untracked(() => {
         const control = this.buyForm.controls.quantity;
         control.setValue(1);
-        if (canBuy) {
-          control.enable();
-        } else {
-          control.disable();
-        }
+        control[canBuy ? 'enable' : 'disable']();
         this.addedMessage.set('');
       });
     });
@@ -206,7 +214,9 @@ export class ProductDetailPage {
     control.setValue(clampQuantity(control.value + delta, this.maxQuantity()));
   }
 
-  /** Typed values outside 1..max snap back into range when the field loses focus. */
+  /**
+  Typed values outside 1..max snap back into range when the field loses focus.
+  */
   protected normaliseQuantity(): void {
     const control = this.buyForm.controls.quantity;
     const clamped = clampQuantity(control.value, this.maxQuantity());
@@ -234,7 +244,7 @@ export class ProductDetailPage {
           const items = cart.itemCount === 1 ? '1 item' : `${cart.itemCount} items`;
           void this.announcer.announce(
             `Added to cart: ${quantity} × ${product.name}. Cart has ${items}.`,
-            'polite',
+            'polite'
           );
         },
         error: (error: unknown) => {

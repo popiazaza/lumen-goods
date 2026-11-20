@@ -46,7 +46,9 @@ import {
 } from './catalogue-query';
 import { ProductCard } from './product-card';
 
-/** A removable chip for one applied refinement. */
+/**
+A removable chip for one applied refinement.
+*/
 interface FilterChip {
   key: string;
   label: string;
@@ -56,7 +58,9 @@ interface FilterChip {
 const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const count = new Intl.NumberFormat('en-US');
 
-/** Placeholder cards shown on the first load. */
+/**
+Placeholder cards shown on the first load.
+*/
 const SKELETON_CARDS = Array.from({ length: 8 }, (_, index) => index);
 
 /**
@@ -100,19 +104,20 @@ export class CataloguePage {
 
   private readonly queryParamMap = toSignal(this.route.queryParamMap, { requireSync: true });
 
-  /** The state in the URL, parsed and cleaned; sellers checked against `GET /sellers` once loaded. */
+  /**
+  The state in the URL, parsed and cleaned; sellers checked against `GET /sellers` once loaded.
+  */
   protected readonly query = computed(
     () =>
       restrictSellers(
         parseCatalogueQuery(this.queryParamMap()),
-        this.sellerDirectory.knownSources(),
+        this.sellerDirectory.knownSources()
       ),
-    { equal: sameQuery },
+    { equal: sameQuery }
   );
 
   /**
-   * Seller checkboxes: the API's list. Until it has loaded, the sellers already chosen in the URL,
-   * so they can still be unticked.
+   * Seller checkboxes: the API's list. Until it has loaded, the sellers already chosen in the URL, so they can still be unticked.
    */
   protected readonly sellerOptions = computed<readonly Seller[]>(() =>
     this.sellerDirectory.isLoaded()
@@ -120,7 +125,7 @@ export class CataloguePage {
       : this.query().sellers.map((source) => ({
           source,
           name: this.sellerDirectory.nameOf(source),
-        })),
+        }))
   );
 
   protected readonly results = rxResource({
@@ -128,7 +133,9 @@ export class CataloguePage {
     stream: ({ params }) => this.productsApi.search(params),
   });
 
-  /** The last page that loaded: kept on screen (dimmed) while the next one loads. */
+  /**
+  The last page that loaded: kept on screen (dimmed) while the next one loads.
+  */
   protected readonly page = linkedSignal<ProductPage | undefined, ProductPage | undefined>({
     source: () => (this.results.hasValue() ? this.results.value() : undefined),
     computation: (next, previous) => next ?? previous?.value,
@@ -143,7 +150,7 @@ export class CataloguePage {
   protected readonly isError = computed(() => this.results.status() === 'error');
   protected readonly isBadRequest = computed(() => httpStatusOf(this.results.error()) === 400);
   protected readonly errorMessage = computed(() =>
-    problemMessage(this.results.error(), 'Some filters in this link are not valid.'),
+    problemMessage(this.results.error(), 'Some filters in this link are not valid.')
   );
 
   protected readonly countText = computed(() => {
@@ -154,7 +161,9 @@ export class CataloguePage {
     return this.isError() ? 'Products' : 'Loading products';
   });
 
-  /** "Showing 25–48 of 312". */
+  /**
+  "Showing 25–48 of 312".
+  */
   protected readonly rangeText = computed(() => {
     const page = this.page();
     if (!page || page.items.length === 0) {
@@ -205,7 +214,9 @@ export class CataloguePage {
     this.focusResultsOnPageChange();
   }
 
-  /** Query params for a link to another page of the same results. */
+  /**
+  Query params for a link to another page of the same results.
+  */
   protected pageParams(page: number): Params {
     return catalogueQueryParams({ ...this.query(), page });
   }
@@ -226,13 +237,17 @@ export class CataloguePage {
     this.apply(chip.removal);
   }
 
-  /** Clears every refinement. The buttons that call this disappear, so focus goes to the results. */
+  /**
+  Clears every refinement. The buttons that call this disappear, so focus goes to the results.
+  */
   protected clearAll(): void {
     this.focusResultsHeadingAfterRender();
     this.navigate(clearFilters(this.query()));
   }
 
-  /** The sheet's "Clear all" stays (disabled) inside the sheet; focus restarts at its heading. */
+  /**
+  The sheet's "Clear all" stays (disabled) inside the sheet; focus restarts at its heading.
+  */
   protected clearAllInSheet(heading: HTMLElement): void {
     if (this.filterCount() === 0) {
       return;
@@ -246,7 +261,9 @@ export class CataloguePage {
     heading.focus();
   }
 
-  /** Retry also fetches the seller list again if that failed. */
+  /**
+  Retry also fetches the seller list again if that failed.
+  */
   protected retry(): void {
     if (this.sellerDirectory.failed()) {
       this.sellerDirectory.reload();
@@ -277,7 +294,9 @@ export class CataloguePage {
     });
   }
 
-  /** Screen readers hear the new count after each change, not on the first load (WCAG 4.1.3). */
+  /**
+  Screen readers hear the new count after each change, not on the first load (WCAG 4.1.3).
+  */
   private announceResultCounts(): void {
     let isFirstLoad = true;
     effect(() => {
@@ -297,7 +316,9 @@ export class CataloguePage {
     });
   }
 
-  /** Paging moves focus to the top of the new results instead of leaving it on a page link. */
+  /**
+  Paging moves focus to the top of the new results instead of leaving it on a page link.
+  */
   private focusResultsOnPageChange(): void {
     let previous: CatalogueQuery | undefined;
     effect(() => {
@@ -314,7 +335,7 @@ export class CataloguePage {
       { write: () => this.resultsHeading().nativeElement.focus() },
       {
         injector: this.injector,
-      },
+      }
     );
   }
 }
@@ -323,5 +344,5 @@ function priceRangeLabel(min: number | null, max: number | null): string {
   if (min !== null && max !== null) {
     return `${usd.format(min)} – ${usd.format(max)}`;
   }
-  return min !== null ? `From ${usd.format(min)}` : `Up to ${usd.format(max ?? 0)}`;
+  return min === null ? `Up to ${usd.format(max ?? 0)}` : `From ${usd.format(min)}`;
 }

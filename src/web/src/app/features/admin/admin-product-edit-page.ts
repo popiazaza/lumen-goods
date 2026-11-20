@@ -91,7 +91,9 @@ import {
   styleUrl: './admin-product-edit-page.scss',
 })
 export class AdminProductEditPage {
-  /** The product id, bound from the `:id` route parameter; absent when creating. */
+  /**
+  The product id, bound from the `:id` route parameter; absent when creating.
+  */
   readonly id = input<string>();
 
   private readonly api = inject(AdminProductsApi);
@@ -109,9 +111,13 @@ export class AdminProductEditPage {
   });
   protected readonly media = rxResource({ stream: () => this.api.media() });
 
-  /** The saved product this edit is based on: its version is what Save sends. */
+  /**
+  The saved product this edit is based on: its version is what Save sends.
+  */
   protected readonly base = signal<AdminProduct | undefined>(undefined);
-  /** Set after a 409: the version saved by someone else, loaded so the admin can compare. */
+  /**
+  Set after a 409: the version saved by someone else, loaded so the admin can compare.
+  */
   protected readonly conflict = signal<AdminProduct | undefined>(undefined);
   protected readonly saving = signal(false);
   protected readonly formError = signal('');
@@ -125,11 +131,13 @@ export class AdminProductEditPage {
     return isAccessDenied(error) ? httpStatusOf(error) : this.deniedStatus();
   });
   protected readonly loadError = computed(() =>
-    this.loaded.status() === 'error' ? (httpStatusOf(this.loaded.error()) ?? -1) : undefined,
+    this.loaded.status() === 'error' ? (httpStatusOf(this.loaded.error()) ?? -1) : undefined
   );
   protected readonly ready = computed(() => this.isNew() || this.base() !== undefined);
 
-  /** File name to URL, from the library and the product's own images. */
+  /**
+  File name to URL, from the library and the product's own images.
+  */
   protected readonly imageUrls = computed(() => {
     const urls = new Map<string, string>();
     for (const image of this.base()?.images ?? []) {
@@ -158,10 +166,12 @@ export class AdminProductEditPage {
       }
       const product = this.loaded.value();
       untracked(() => {
-        if (this.base()?.id !== product.id) {
-          this.base.set(product);
-          fillForm(this.form, productFormValue(product));
+        if (this.base()?.id === product.id) {
+          return;
         }
+
+        this.base.set(product);
+        fillForm(this.form, productFormValue(product));
       });
     });
   }
@@ -170,7 +180,9 @@ export class AdminProductEditPage {
     return fieldError(field, this.form.controls[field].errors);
   }
 
-  /** The value saved by someone else, when it differs from the form; '' otherwise. */
+  /**
+  The value saved by someone else, when it differs from the form; '' otherwise.
+  */
   protected savedNow(field: Exclude<ProductField, 'sku'>): string {
     const latest = this.conflict();
     if (!latest) {
@@ -179,7 +191,7 @@ export class AdminProductEditPage {
     const saved = productFormValue(latest);
     const current = this.form.getRawValue() as ProductFormValue;
     const text = (value: ProductFormValue) => describe(field, value);
-    return text(saved) !== text(current) ? text(saved) || '(empty)' : '';
+    return text(saved) === text(current) ? '' : text(saved) || '(empty)';
   }
 
   protected addAttribute(): void {
@@ -200,32 +212,38 @@ export class AdminProductEditPage {
     return this.form.controls.images.value.includes(file);
   }
 
-  /** Adds an image at the end, or removes it. The first image is the main one. */
+  /**
+  Adds an image at the end, or removes it. The first image is the main one.
+  */
   protected toggleImage(file: string): void {
-    const images = this.form.controls.images;
+    const { images } = this.form.controls;
     images.setValue(
       images.value.includes(file)
         ? images.value.filter((name) => name !== file)
-        : [...images.value, file],
+        : [...images.value, file]
     );
     images.markAsDirty();
     images.markAsTouched();
   }
 
   protected makeMain(file: string): void {
-    const images = this.form.controls.images;
+    const { images } = this.form.controls;
     images.setValue([file, ...images.value.filter((name) => name !== file)]);
     images.markAsDirty();
   }
 
-  /** Back to the saved version: the admin drops their edits after a conflict. */
+  /**
+  Back to the saved version: the admin drops their edits after a conflict.
+  */
   protected useSavedVersion(): void {
     const latest = this.conflict();
-    if (latest) {
-      fillForm(this.form, productFormValue(latest));
-      this.conflict.set(undefined);
-      void this.announcer.announce('The form now shows the saved version.', 'polite');
+    if (!latest) {
+      return;
     }
+
+    fillForm(this.form, productFormValue(latest));
+    this.conflict.set(undefined);
+    void this.announcer.announce('The form now shows the saved version.', 'polite');
   }
 
   protected save(): void {
@@ -294,13 +312,15 @@ export class AdminProductEditPage {
         ? 'This product no longer exists.'
         : problemMessage(
             error,
-            'We couldn’t save the product. Check your connection and try again.',
-          ),
+            'We couldn’t save the product. Check your connection and try again.'
+          )
     );
     this.focusAfterRender('#form-error');
   }
 
-  /** Loads what is saved now, keeps the admin's edits, and bases the next Save on it. */
+  /**
+  Loads what is saved now, keeps the admin's edits, and bases the next Save on it.
+  */
   private reloadAfterConflict(): void {
     const id = this.id();
     if (!id) {
@@ -320,14 +340,16 @@ export class AdminProductEditPage {
         error: (error: unknown) => {
           this.saving.set(false);
           this.formError.set(
-            `This product was changed by someone else, and we couldn’t load their version: ${problemMessage(error, 'try again.')}`,
+            `This product was changed by someone else, and we couldn’t load their version: ${problemMessage(error, 'try again.')}`
           );
           this.focusAfterRender('#form-error');
         },
       });
   }
 
-  /** The API's 400/409 messages, shown under their fields; others above the buttons. */
+  /**
+  The API's 400/409 messages, shown under their fields; others above the buttons.
+  */
   private showServerErrors(errors: Record<string, string[]>): void {
     const general: string[] = [];
     for (const [key, messages] of Object.entries(errors)) {
@@ -347,7 +369,7 @@ export class AdminProductEditPage {
 
   private focusFirstInvalid(): void {
     this.focusAfterRender(
-      'input.ng-invalid, textarea.ng-invalid, mat-select.ng-invalid, .group-error',
+      'input.ng-invalid, textarea.ng-invalid, mat-select.ng-invalid, .group-error'
     );
   }
 
@@ -356,25 +378,33 @@ export class AdminProductEditPage {
       {
         write: () => this.host.nativeElement.querySelector<HTMLElement>(selector)?.focus(),
       },
-      { injector: this.injector },
+      { injector: this.injector }
     );
   }
 }
 
-/** One field of a form value as text, for comparing it with the saved version. */
+/**
+One field of a form value as text, for comparing it with the saved version.
+*/
 function describe(field: Exclude<ProductField, 'sku'>, value: ProductFormValue): string {
   switch (field) {
-    case 'attributes':
+    case 'attributes': {
       return value.attributes.map((row) => `${row.key.trim()}: ${row.value.trim()}`).join(', ');
-    case 'images':
+    }
+    case 'images': {
       return value.images.join(', ');
-    case 'category':
+    }
+    case 'category': {
       return value.category ? categoryLabel(value.category) : '';
-    case 'price':
+    }
+    case 'price': {
       return value.price.trim() === '' ? '' : `$${Number(value.price).toFixed(2)}`;
-    case 'onHand':
+    }
+    case 'onHand': {
       return value.onHand === null ? '' : String(value.onHand);
-    default:
+    }
+    default: {
       return value[field].trim();
+    }
   }
 }

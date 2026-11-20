@@ -25,18 +25,18 @@
 
 .failure {
   display: flex;
-  gap: var(--lg-space-3);
-  margin: 0 0 var(--lg-space-4);
   padding: var(--lg-space-3) var(--lg-space-4);
   border-radius: var(--lg-radius-card);
+  margin: 0 0 var(--lg-space-4);
   background: var(--mat-sys-error-container);
   color: var(--mat-sys-on-error-container);
+  gap: var(--lg-space-3);
 
-  mat-icon {
+  & mat-icon {
     flex: none;
   }
 
-  p {
+  & p {
     margin: 0;
   }
 }

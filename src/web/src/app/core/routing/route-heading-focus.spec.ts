@@ -33,8 +33,8 @@ describe('provideRouteHeadingFocus', () => {
     harness = await RouterTestingHarness.create('/');
     // The app shell renders pages inside <main>; mirror that here.
     main = document.createElement('main');
-    document.body.appendChild(main);
-    main.appendChild(harness.fixture.nativeElement);
+    document.body.append(main);
+    main.append(harness.fixture.nativeElement);
   });
 
   afterEach(() => {
@@ -53,6 +53,7 @@ describe('provideRouteHeadingFocus', () => {
     await harness.fixture.whenStable();
 
     const heading = main.querySelector('h1');
+
     expect(heading?.textContent).toBe('Your cart');
     expect(document.activeElement).toBe(heading);
     expect(heading?.getAttribute('tabindex')).toBe('-1');

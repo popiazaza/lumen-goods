@@ -24,7 +24,9 @@ export function mergeNoticeFor(guest: CartDto | undefined, merged: CartDto): str
   return `We merged your cart with the items saved in your account. It now has ${items}.${limited}`;
 }
 
-/** What sign-in and registration do once the API has accepted the shopper. */
+/**
+What sign-in and registration do once the API has accepted the shopper.
+*/
 @Service()
 export class AfterSignIn {
   private readonly cart = inject(CartStateService);
@@ -38,22 +40,22 @@ export class AfterSignIn {
   complete(signIn: Observable<Session>, returnUrl: string | undefined): Observable<void> {
     const guestCart = this.cart.cart();
     return signIn.pipe(
-      switchMap((session) => {
-        return this.cart.reload().pipe(
+      switchMap((session) =>
+        this.cart.reload().pipe(
           map((cart) => mergeNoticeFor(guestCart, cart)),
           catchError(() => of(null)),
-          map((notice) => ({ session, notice })),
-        );
-      }),
+          map((notice) => ({ session, notice }))
+        )
+      ),
       switchMap(({ session, notice }) => {
         this.cart.setMergeNotice(notice);
         void this.announcer.announce(
           notice ? `Signed in as ${session.email}. ${notice}` : `Signed in as ${session.email}.`,
-          'polite',
+          'polite'
         );
         return this.router.navigateByUrl(safeReturnUrl(returnUrl));
       }),
-      map(() => undefined),
+      map(() => {})
     );
   }
 }

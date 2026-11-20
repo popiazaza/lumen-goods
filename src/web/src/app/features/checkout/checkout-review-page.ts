@@ -37,7 +37,9 @@ import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { CheckoutSteps } from './checkout-steps';
 import { stateName } from './us-address';
 
-/** Changes that only mean the review is out of date (the cart changed in another tab). */
+/**
+Changes that only mean the review is out of date (the cart changed in another tab).
+*/
 const REVIEW_AGAIN_KINDS: ReadonlySet<CheckoutChangeKind> = new Set([
   'cart_changed',
   'quantity_changed',
@@ -128,24 +130,30 @@ export class CheckoutReviewPage {
     stream: ({ params }) => this.api.preview(params),
   });
   protected readonly loaded = computed(() =>
-    this.preview.hasValue() ? this.preview.value() : undefined,
+    this.preview.hasValue() ? this.preview.value() : undefined
   );
   protected readonly blocked = computed(() => (this.loaded()?.blockers.length ?? 0) > 0);
-  /** Express was chosen, but the cart no longer holds Lumen's own items (422 from the preview). */
+  /**
+  Express was chosen, but the cart no longer holds Lumen's own items (422 from the preview).
+  */
   protected readonly methodRefused = computed(
-    () => problemTypeOf(this.preview.error()) === SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM,
+    () => problemTypeOf(this.preview.error()) === SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM
   );
   protected readonly previewError = computed(() =>
     httpStatusOf(this.preview.error()) === 0
       ? 'We couldn’t load your order summary. Check your connection and try again.'
-      : problemMessage(this.preview.error(), 'We couldn’t load your order summary. Try again.'),
+      : problemMessage(this.preview.error(), 'We couldn’t load your order summary. Try again.')
   );
 
   protected readonly placing = signal(false);
-  /** The 409 answer to Place order: what changed, and the new total if confirming is enough. */
+  /**
+  The 409 answer to Place order: what changed, and the new total if confirming is enough.
+  */
   protected readonly changed = signal<CheckoutChangedProblem | null>(null);
   protected readonly placeError = signal<string | null>(null);
-  /** The API's reasons for refusing the address (400 keyed `shippingAddress.<field>`). */
+  /**
+  The API's reasons for refusing the address (400 keyed `shippingAddress.<field>`).
+  */
   protected readonly addressErrors = signal<readonly string[]>([]);
   /**
    * The 409 only needs a fresh review (the cart changed in another tab): reload the preview. Any
@@ -159,7 +167,9 @@ export class CheckoutReviewPage {
       !this.changed()?.canConfirm
     );
   });
-  /** The lines the last Place order sent: a confirmation re-sends them at the new prices. */
+  /**
+  The lines the last Place order sent: a confirmation re-sends them at the new prices.
+  */
   private sentLines: PlaceOrderLine[] = [];
 
   /**
@@ -175,7 +185,9 @@ export class CheckoutReviewPage {
     this.send(reviewedLines(preview), preview.total);
   }
 
-  /** Accepts the new amounts from the 409 and places the order with them. */
+  /**
+  Accepts the new amounts from the 409 and places the order with them.
+  */
   protected confirmNewTotal(): void {
     const changed = this.changed();
     if (changed?.canConfirm && changed.newTotal !== null) {
@@ -183,7 +195,9 @@ export class CheckoutReviewPage {
     }
   }
 
-  /** Shows the cart as it is now and lets the shopper review it again. */
+  /**
+  Shows the cart as it is now and lets the shopper review it again.
+  */
   protected reviewAgain(): void {
     this.changed.set(null);
     this.preview.reload();
@@ -211,7 +225,7 @@ export class CheckoutReviewPage {
         next: (order) => {
           this.store.orderPlaced(order);
           // The order holds the items now; the badge follows whatever the server did to the cart.
-          this.cart.reload().subscribe({ error: () => undefined });
+          this.cart.reload().subscribe({ error: () => {} });
           void this.router.navigate(['/checkout/payment'], {
             queryParams: { order: order.number },
           });
@@ -228,7 +242,7 @@ export class CheckoutReviewPage {
       this.preview.reload();
       afterNextRender(
         { write: () => this.changesBanner()?.nativeElement.focus() },
-        { injector: this.injector },
+        { injector: this.injector }
       );
       return;
     }
@@ -250,7 +264,7 @@ export class CheckoutReviewPage {
       return;
     }
     this.placeError.set(
-      problemMessage(error, 'We couldn’t place your order. You have not been charged. Try again.'),
+      problemMessage(error, 'We couldn’t place your order. You have not been charged. Try again.')
     );
   }
 }

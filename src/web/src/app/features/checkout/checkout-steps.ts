@@ -23,7 +23,7 @@ const LABELS: Readonly<Record<CheckoutStep, string>> = {
     <nav aria-label="Checkout progress">
       <p class="compact">Step {{ index() + 1 }} of {{ steps.length }}</p>
       <ol>
-        @for (step of items(); track step.id; let n = $index) {
+        @for (step of items(); track step.id) {
           <li [class.current]="step.current" [class.done]="step.done">
             @if (step.link) {
               <a [routerLink]="['/checkout', step.id]">
@@ -31,7 +31,7 @@ const LABELS: Readonly<Record<CheckoutStep, string>> = {
                   @if (step.done) {
                     <mat-icon svgIcon="check_circle" />
                   } @else {
-                    {{ n + 1 }}
+                    {{ $index + 1 }}
                   }
                 </span>
                 <span>{{ step.label }}</span>
@@ -41,7 +41,7 @@ const LABELS: Readonly<Record<CheckoutStep, string>> = {
               </a>
             } @else {
               <span class="step" [attr.aria-current]="step.current ? 'step' : null">
-                <span class="marker" aria-hidden="true">{{ n + 1 }}</span>
+                <span class="marker" aria-hidden="true">{{ $index + 1 }}</span>
                 <span>{{ step.label }}</span>
               </span>
             }
@@ -126,13 +126,13 @@ export class CheckoutSteps {
     const reachable = this.store.reachable();
     const index = this.index();
     return CHECKOUT_STEPS.map((id, n) => {
-      const current = n === index;
+      const isCurrent = n === index;
       return {
         id,
         label: LABELS[id],
-        current,
+        current: isCurrent,
         done: n < index,
-        link: !current && reachable.has(id),
+        link: !isCurrent && reachable.has(id),
       };
     });
   });

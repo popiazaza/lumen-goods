@@ -13,7 +13,9 @@ import { CartStateService } from '../../core/cart/cart-state.service';
 import { ProductImage } from '../../shared/products/product-image';
 import { canAcknowledge, groupBySeller, noticesOf } from './cart-notices';
 
-/** The quantity selector's ceiling per line (BR-CART-03); the server's `maxQuantity` can be lower. */
+/**
+The quantity selector's ceiling per line (BR-CART-03); the server's `maxQuantity` can be lower.
+*/
 export const MAX_LINE_QUANTITY = 10;
 
 /**
@@ -36,7 +38,7 @@ export class CartPage {
 
   protected readonly cart = this.cartState.cart;
   protected readonly loadFailed = computed(
-    () => this.cartState.status() === 'error' && !this.cart(),
+    () => this.cartState.status() === 'error' && !this.cart()
   );
   protected readonly mergeNotice = this.cartState.mergeNotice;
 
@@ -52,17 +54,21 @@ export class CartPage {
             // Never offer more than 10, nor less than what the line holds (so it can be lowered).
             max: Math.min(MAX_LINE_QUANTITY, Math.max(line.maxQuantity, 1)),
           },
-        ]),
-      ),
+        ])
+      )
   );
-  /** Lines with something to say, for the summary banner above the list. */
+  /**
+  Lines with something to say, for the summary banner above the list.
+  */
   protected readonly changedLines = computed(() =>
-    (this.cart()?.lines ?? []).filter((line) => this.lineViews().get(line.id)?.notices.length),
+    (this.cart()?.lines ?? []).filter((line) => this.lineViews().get(line.id)?.notices.length)
   );
   protected readonly blockingCount = computed(
-    () => (this.cart()?.lines ?? []).filter((line) => line.blocksCheckout).length,
+    () => (this.cart()?.lines ?? []).filter((line) => line.blocksCheckout).length
   );
-  /** Why Check out is disabled, linked to the button with `aria-describedby`. */
+  /**
+  Why Check out is disabled, linked to the button with `aria-describedby`.
+  */
   protected readonly blockedReason = computed(() => {
     const count = this.blockingCount();
     return count === 1
@@ -70,7 +76,7 @@ export class CartPage {
       : `${count} items can’t be ordered as they are. Remove them or lower their quantities to check out.`;
   });
   protected readonly hasUnavailable = computed(() =>
-    (this.cart()?.lines ?? []).some((line) => line.notices.unavailable),
+    (this.cart()?.lines ?? []).some((line) => line.notices.unavailable)
   );
 
   private readonly busy = signal<ReadonlySet<string>>(new Set());
@@ -78,7 +84,7 @@ export class CartPage {
 
   constructor() {
     // Fresh notices and prices every time the cart opens.
-    this.cartState.reload().subscribe({ error: () => undefined });
+    this.cartState.reload().subscribe({ error: () => {} });
   }
 
   protected isBusy(lineId: string): boolean {
@@ -86,7 +92,7 @@ export class CartPage {
   }
 
   protected retry(): void {
-    this.cartState.reload().subscribe({ error: () => undefined });
+    this.cartState.reload().subscribe({ error: () => {} });
   }
 
   protected dismissMergeNotice(): void {
@@ -97,7 +103,9 @@ export class CartPage {
     this.setQuantity(line, line.quantity + delta);
   }
 
-  /** A typed quantity, committed on change (blur or Enter). */
+  /**
+  A typed quantity, committed on change (blur or Enter).
+  */
   protected typed(line: CartLineDto, event: Event): void {
     const input = event.target as HTMLInputElement;
     const value = Math.trunc(Number(input.value));
@@ -128,7 +136,7 @@ export class CartPage {
     this.run(
       line,
       this.cartState.acknowledge(line.id),
-      () => `Noted the changes to ${line.product.name}.`,
+      () => `Noted the changes to ${line.product.name}.`
     );
   }
 
@@ -142,7 +150,7 @@ export class CartPage {
           duration: 10_000,
         });
         ref.onAction().subscribe(() => this.undoRemove(line));
-      },
+      }
     );
   }
 
@@ -164,7 +172,7 @@ export class CartPage {
     line: CartLineDto,
     request: Observable<CartDto>,
     message: (cart: CartDto) => string,
-    afterSuccess?: () => void,
+    afterSuccess?: () => void
   ): void {
     this.busy.update((busy) => new Set(busy).add(line.id));
     this.setLineError(line.id, null);
@@ -175,8 +183,8 @@ export class CartPage {
             const next = new Set(busy);
             next.delete(line.id);
             return next;
-          }),
-        ),
+          })
+        )
       )
       .subscribe({
         next: (cart) => {
@@ -189,10 +197,10 @@ export class CartPage {
         error: (error: unknown) => {
           this.setLineError(
             line.id,
-            problemMessage(error, 'We couldn’t update this item. Try again.'),
+            problemMessage(error, 'We couldn’t update this item. Try again.')
           );
           // The cart may have changed under us (422: stock moved); show the server's version.
-          this.cartState.reload().subscribe({ error: () => undefined });
+          this.cartState.reload().subscribe({ error: () => {} });
         },
       });
   }

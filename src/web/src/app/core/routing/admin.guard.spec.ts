@@ -28,7 +28,9 @@ describe('adminGuard', () => {
     http = TestBed.inject(HttpTestingController);
   }
 
-  /** Starts the app's router with the session the API answered at start-up. */
+  /**
+  Starts the app's router with the session the API answered at start-up.
+  */
   async function start(session: Session): Promise<RouterTestingHarness> {
     configure();
     const ready = TestBed.inject(SessionApi).ready();
@@ -62,8 +64,9 @@ describe('adminGuard', () => {
 
     expect(url()).toBe('/admin/orders');
     expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(
-      'Page not found',
+      'Page not found'
     );
+
     http.expectNone((request) => request.url.includes('/admin/'));
   });
 

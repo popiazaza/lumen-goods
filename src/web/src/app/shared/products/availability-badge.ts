@@ -3,12 +3,14 @@ import { MatIcon } from '@angular/material/icon';
 import { ProductDto } from '../../core/api/products.api';
 import { availabilityOf } from './availability';
 
-/** "In stock", "Only 3 left", "Out of stock" or "Not available", with an icon. */
+/**
+"In stock", "Only 3 left", "Out of stock" or "Not available", with an icon.
+*/
 @Component({
   selector: 'app-availability-badge',
   imports: [MatIcon],
   template: `
-    <mat-icon [svgIcon]="label().icon" aria-hidden="true" />
+    <mat-icon aria-hidden="true" [svgIcon]="label().icon" />
     <span>{{ label().text }}</span>
   `,
   styles: `

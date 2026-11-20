@@ -27,7 +27,7 @@
         <div>
           <p id="changes-title">
             <strong>
-              {{ changedLines().length === 1 ? '1 item' : changedLines().length + ' items' }}
+              {{ changedLines().length === 1 ? '1 item' : `${changedLines().length} items` }}
               in your cart changed since you added
               {{ changedLines().length === 1 ? 'it' : 'them' }}.
             </strong>
@@ -45,9 +45,9 @@
     <div class="layout">
       <div class="lines">
         @for (group of groups(); track group.source) {
-          <section class="group" [attr.aria-labelledby]="'seller-' + group.source">
+          <section class="group" [attr.aria-labelledby]="`seller-${group.source}`">
             <div class="group-head">
-              <h2 [id]="'seller-' + group.source">Sold by {{ group.sellerName }}</h2>
+              <h2 [id]="`seller-${group.source}`">Sold by {{ group.sellerName }}</h2>
               <span class="ships">
                 <mat-icon svgIcon="local_shipping" aria-hidden="true" />
                 Ships separately
@@ -61,13 +61,13 @@
                   class="line"
                   [class.blocked]="line.blocksCheckout"
                   [attr.aria-busy]="isBusy(line.id)"
-                  [attr.aria-labelledby]="'name-' + line.id"
+                  [attr.aria-labelledby]="`name-${line.id}`"
                 >
                   <app-product-image class="thumb" [src]="line.product.imageUrl" />
                   <div class="info">
                     <a
                       class="name"
-                      [id]="'name-' + line.id"
+                      [id]="`name-${line.id}`"
                       [routerLink]="['/products', line.product.id]"
                       >{{ line.product.name }}</a
                     >
@@ -83,10 +83,10 @@
                     </p>
 
                     @if (view && view.notices.length > 0) {
-                      <ul class="notices" [id]="'notices-' + line.id">
+                      <ul class="notices" [id]="`notices-${line.id}`">
                         @for (notice of view.notices; track notice.kind) {
                           <li [class]="notice.tone">
-                            <mat-icon [svgIcon]="notice.icon" aria-hidden="true" />
+                            <mat-icon aria-hidden="true" [svgIcon]="notice.icon" />
                             <span>{{ notice.text }}</span>
                           </li>
                         }
@@ -103,7 +103,7 @@
                       <div
                         class="stepper"
                         role="group"
-                        [attr.aria-label]="'Quantity of ' + line.product.name"
+                        [attr.aria-label]="`Quantity of ${line.product.name}`"
                       >
                         <button
                           matIconButton
@@ -112,24 +112,24 @@
                           [disabled]="
                             line.quantity <= 1 || isBusy(line.id) || line.maxQuantity === 0
                           "
-                          [attr.aria-label]="'Decrease quantity of ' + line.product.name"
+                          [attr.aria-label]="`Decrease quantity of ${line.product.name}`"
                           (click)="step(line, -1)"
                         >
                           <mat-icon svgIcon="remove" />
                         </button>
-                        <label class="cdk-visually-hidden" [for]="'qty-' + line.id">
+                        <label class="cdk-visually-hidden" [for]="`qty-${line.id}`">
                           Quantity of {{ line.product.name }}
                         </label>
                         <input
-                          [id]="'qty-' + line.id"
                           type="number"
                           inputmode="numeric"
                           min="1"
+                          [id]="`qty-${line.id}`"
                           [max]="view?.max ?? 10"
                           [value]="line.quantity"
                           [disabled]="line.maxQuantity === 0"
                           [attr.aria-describedby]="
-                            view && view.notices.length > 0 ? 'notices-' + line.id : null
+                            view && view.notices.length > 0 ? `notices-${line.id}` : null
                           "
                           (change)="typed(line, $event)"
                         />
@@ -142,7 +142,7 @@
                             isBusy(line.id) ||
                             line.maxQuantity === 0
                           "
-                          [attr.aria-label]="'Increase quantity of ' + line.product.name"
+                          [attr.aria-label]="`Increase quantity of ${line.product.name}`"
                           (click)="step(line, 1)"
                         >
                           <mat-icon svgIcon="add" />
@@ -175,8 +175,8 @@
                           matButton="outlined"
                           type="button"
                           class="acknowledge"
-                          [disabled]="isBusy(line.id)"
                           disabledInteractive
+                          [disabled]="isBusy(line.id)"
                           (click)="acknowledge(line)"
                         >
                           Acknowledge<span class="cdk-visually-hidden">
@@ -188,8 +188,8 @@
                         matButton
                         type="button"
                         class="remove"
-                        [disabled]="isBusy(line.id)"
                         disabledInteractive
+                        [disabled]="isBusy(line.id)"
                         (click)="remove(line)"
                       >
                         <mat-icon svgIcon="delete" />
@@ -207,7 +207,7 @@
       <aside class="summary" aria-labelledby="summary-title">
         <h2 id="summary-title">Order summary</h2>
         <dl class="totals">
-          <dt>Subtotal ({{ cart.itemCount === 1 ? '1 item' : cart.itemCount + ' items' }})</dt>
+          <dt>Subtotal ({{ cart.itemCount === 1 ? '1 item' : `${cart.itemCount} items` }})</dt>
           <dd>{{ cart.totals.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
           <dt>{{ cart.totals.isEstimate ? 'Estimated shipping' : 'Shipping' }}</dt>
           <dd>{{ cart.totals.shipping | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
@@ -229,8 +229,8 @@
           matButton="filled"
           type="button"
           class="checkout"
-          [disabled]="!cart.canCheckout"
           disabledInteractive
+          [disabled]="!cart.canCheckout"
           [attr.aria-describedby]="cart.canCheckout ? null : 'checkout-blocked'"
           (click)="checkout()"
         >

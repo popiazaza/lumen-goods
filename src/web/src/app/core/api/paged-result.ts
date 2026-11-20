@@ -1,6 +1,8 @@
 import { HttpParams } from '@angular/common/http';
 
-/** One page of a list (`PagedResult<T>` on the API). `page` is 1-based; past the end has no items. */
+/**
+One page of a list (`PagedResult<T>` on the API). `page` is 1-based; past the end has no items.
+*/
 export interface PagedResult<T> {
   items: T[];
   page: number;

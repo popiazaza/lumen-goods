@@ -18,7 +18,9 @@ export function safeReturnUrl(value: string | null | undefined, fallback = '/'):
   return value;
 }
 
-/** The query params for a "Sign in" link from `currentUrl`, so the shopper comes back after. */
+/**
+The query params for a "Sign in" link from `currentUrl`, so the shopper comes back after.
+*/
 export function signInQueryParams(currentUrl: string): Record<string, string> {
   const returnUrl = safeReturnUrl(currentUrl, '');
   return returnUrl && returnUrl !== '/' ? { returnUrl } : {};

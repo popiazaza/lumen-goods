@@ -27,7 +27,9 @@ const NUMBER = 'LG-7K3M9QX2';
 const URL = `/api/v1/admin/orders/${NUMBER}`;
 const RESOLVE_URL = `${URL}/lines/${SOCKS_LINE.id}/resolve`;
 
-/** The Kestrel line was accepted a day ago and never decided (BR-ORD-04). */
+/**
+The Kestrel line was accepted a day ago and never decided (BR-ORD-04).
+*/
 function needingAttention(): AdminOrder {
   const order = anOrderDetail({ isUpdating: false });
   return anAdminOrder({
@@ -51,11 +53,11 @@ function needingAttention(): AdminOrder {
  */
 function rejected(refundStatus: RefundStatus = 'pending'): AdminOrder {
   const before = needingAttention();
-  const paidBack = refundStatus === 'succeeded';
+  const isPaidBack = refundStatus === 'succeeded';
   const order: OrderDetailDto = {
     ...before.order,
     status: 'partially_refunded',
-    statusText: paidBack ? 'Partially refunded' : 'Partial refund pending',
+    statusText: isPaidBack ? 'Partially refunded' : 'Partial refund pending',
     isUpdating: refundStatus === 'pending',
     shipments: [
       before.order.shipments[0],
@@ -66,7 +68,9 @@ function rejected(refundStatus: RefundStatus = 'pending'): AdminOrder {
           {
             ...SOCKS_LINE,
             status: 'rejected',
-            statusText: paidBack ? 'Not supplied, refunded $22.51' : 'Not supplied, refund pending',
+            statusText: isPaidBack
+              ? 'Not supplied, refunded $22.51'
+              : 'Not supplied, refund pending',
             refundedAmount: 17.52,
           },
         ],
@@ -82,7 +86,7 @@ function rejected(refundStatus: RefundStatus = 'pending'): AdminOrder {
         lineIds: [SOCKS_LINE.id],
         shippingAmount: 4.99,
         createdUtc: '2026-11-21T09:00:00Z',
-        completedUtc: paidBack ? '2026-11-21T09:00:05Z' : null,
+        completedUtc: isPaidBack ? '2026-11-21T09:00:05Z' : null,
       },
     ],
   };
@@ -107,17 +111,17 @@ describe('AdminOrderDetailPage', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (root: ParentNode | null | undefined, selector: string) =>
-    root?.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    root?.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const texts = (root: ParentNode, selector: string) =>
     [...root.querySelectorAll(selector)].map((element) =>
-      element.textContent?.replace(/\s+/g, ' ').trim(),
+      element.textContent?.replaceAll(/\s+/g, ' ').trim()
     );
   const section = (title: string) =>
     [...host().querySelectorAll<HTMLElement>('.section')].find(
-      (element) => element.querySelector('h2')?.textContent?.trim() === title,
+      (element) => element.querySelector('h2')?.textContent?.trim() === title
     ) as HTMLElement;
   const button = (label: string) =>
-    host().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+    host().querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(label)}"]`);
   const dialog = () => document.querySelector<HTMLElement>('app-confirm-dialog');
 
   async function load(answer: AdminOrder | { status: number }): Promise<void> {
@@ -130,15 +134,14 @@ describe('AdminOrderDetailPage', () => {
     } else {
       request.flush(
         { title: 'Problem', status: answer.status },
-        { status: answer.status, statusText: 'Error' },
+        { status: answer.status, statusText: 'Error' }
       );
     }
     await fixture.whenStable();
   }
 
   /**
-   * Clicks Confirm or Reject on the line, fills in the note and confirms in the dialog; returns
-   * the decision the page sends.
+   * Clicks Confirm or Reject on the line, fills in the note and confirms in the dialog; returns the decision the page sends.
    */
   async function decide(action: 'Confirm' | 'Reject', note: string): Promise<TestRequest> {
     button(`${action} line 2, Merino Trail Socks`)?.click();
@@ -197,6 +200,7 @@ describe('AdminOrderDetailPage', () => {
     ]);
 
     const events = [...section('Payment events').querySelectorAll('.timeline > li')];
+
     expect(events.map((event) => text(event, 'app-status-badge'))).toEqual([
       'Payment started',
       'Declined',
@@ -228,10 +232,11 @@ describe('AdminOrderDetailPage', () => {
             acceptedUtc: null,
           }),
         ],
-      }),
+      })
     );
 
     const [kestrel, harbor] = [...section('Partner orders').querySelectorAll('li')];
+
     expect(text(kestrel, 'h3')).toBe('Line 2: Kestrel Outfitters');
     expect(text(kestrel, 'app-status-badge')).toBe('Accepted, awaiting decision');
     expect(texts(kestrel, 'dd').slice(0, 3)).toEqual(['LG-7K3M9QX2-2', 'KT-5521', '3']);
@@ -246,6 +251,7 @@ describe('AdminOrderDetailPage', () => {
     await load(rejected('failed'));
 
     const refunds = host().querySelector('app-order-summary-panel .refunds') as HTMLElement;
+
     expect(text(refunds, '.amount')).toBe('$22.51');
     // The admin sees what the customer does not: this attempt failed and is being retried.
     expect(text(refunds, 'app-status-badge')).toBe('Failed, will retry');
@@ -256,18 +262,22 @@ describe('AdminOrderDetailPage', () => {
 
   it('rejects a line that needs attention after confirmation, then shows the refreshed order', async () => {
     await load(needingAttention());
+
     expect(text(host(), '.attention')).toContain('1 line needs your decision.');
     expect(text(section('Partner orders'), 'app-status-badge')).toBe('Needs attention');
 
     const post = await decide('Reject', '  Kestrel support says it is lost ');
+
     expect(dialog()).toBeNull();
     expect(post.request.method).toBe('POST');
     expect(post.request.body).toEqual({
       decision: 'reject',
       note: 'Kestrel support says it is lost',
     });
+
     post.flush(rejected());
     fixture.detectChanges();
+
     expect(texts(section('Lines'), 'tbody app-status-badge')).toEqual([
       'Confirmed',
       'Not supplied, refund pending',
@@ -276,6 +286,7 @@ describe('AdminOrderDetailPage', () => {
     // The refund is on its way: the page reads the order again until it is paid back.
     await vi.waitFor(() => http.expectOne(URL).flush(rejected('succeeded')));
     await fixture.whenStable();
+
     expect(texts(section('Lines'), 'tbody app-status-badge')).toEqual([
       'Confirmed',
       'Not supplied, refunded $22.51',
@@ -284,7 +295,7 @@ describe('AdminOrderDetailPage', () => {
     expect(host().querySelector('.attention')).toBeNull();
     expect(announcer.announce).toHaveBeenCalledWith(
       'Merino Trail Socks rejected. The customer is refunded for it.',
-      'polite',
+      'polite'
     );
   });
 
@@ -293,6 +304,7 @@ describe('AdminOrderDetailPage', () => {
 
     button('Confirm line 2, Merino Trail Socks')?.click();
     await fixture.whenStable();
+
     expect(text(dialog(), 'h2')).toBe('Confirm Merino Trail Socks?');
     expect(dialog()?.closest('[role="alertdialog"]')).not.toBeNull();
     // The safe choice has focus first.
@@ -301,10 +313,13 @@ describe('AdminOrderDetailPage', () => {
     (dialog()?.querySelector('button.cancel') as HTMLButtonElement).click();
     await fixture.whenStable();
     http.expectNone(RESOLVE_URL);
+
     expect(dialog()).toBeNull();
 
     const post = await decide('Confirm', '');
+
     expect(post.request.body).toEqual({ decision: 'confirm', note: null });
+
     // The API's answer: the line is confirmed and its partner order closed; nothing left to wait for.
     const before = needingAttention();
     post.flush({
@@ -324,9 +339,11 @@ describe('AdminOrderDetailPage', () => {
       partnerOrders: [aPartnerOrder({ status: 'closed_by_admin', nextAttemptUtc: null })],
     });
     await fixture.whenStable();
+
     expect(texts(section('Lines'), 'tbody app-status-badge')[1]).toBe(
-      'Confirmed by Kestrel Outfitters',
+      'Confirmed by Kestrel Outfitters'
     );
+
     // Nothing can change on its own any more, so the page does not read the order again.
     http.expectNone(URL);
   });
@@ -340,16 +357,16 @@ describe('AdminOrderDetailPage', () => {
         title: 'This line does not need a decision',
         detail: 'Line 2 is not delayed (any more); only a delayed line can be resolved.',
       },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     await vi.waitFor(() => http.expectOne(URL).flush(rejected('succeeded')));
     await fixture.whenStable();
 
     expect(text(host(), '.action-error')).toBe(
-      'Couldn’t save the decision for Merino Trail Socks: Line 2 is not delayed (any more); only a delayed line can be resolved.',
+      'Couldn’t save the decision for Merino Trail Socks: Line 2 is not delayed (any more); only a delayed line can be resolved.'
     );
     expect(texts(section('Lines'), 'tbody app-status-badge')[1]).toBe(
-      'Not supplied, refunded $22.51',
+      'Not supplied, refunded $22.51'
     );
   });
 
@@ -362,16 +379,19 @@ describe('AdminOrderDetailPage', () => {
         title: 'A call to the partner is in progress',
         detail: 'A send to Kestrel Outfitters for this line is in progress; try again in a minute.',
       },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     await fixture.whenStable();
 
     const message =
       'Couldn’t save the decision for Merino Trail Socks: Lumen is talking to Kestrel Outfitters about this item right now. Try again in a minute.';
+
     expect(text(host(), '.action-error')).toBe(message);
     expect(announcer.announce).toHaveBeenCalledWith(message, 'assertive');
+
     // Nothing changed on the server, so the line still waits and can be decided again.
     http.expectNone(URL);
+
     expect(button('Reject line 2, Merino Trail Socks')?.disabled).toBe(false);
   });
 
@@ -392,15 +412,18 @@ describe('AdminOrderDetailPage', () => {
     });
 
     const partner = section('Partner orders');
+
     expect(text(partner, 'app-status-badge')).toBe('Needs attention: outcome unknown');
     expect(text(partner, '.last-error')).toContain('Outcome unknown:');
     expect(text(partner, '.last-error')).toContain(
-      'Check with Kestrel Outfitters before rejecting',
+      'Check with Kestrel Outfitters before rejecting'
     );
 
     button('Reject line 2, Merino Trail Socks')?.click();
     await fixture.whenStable();
+
     expect(text(dialog(), '.message')).toContain('Check with Kestrel Outfitters first.');
+
     (dialog()?.querySelector('button.cancel') as HTMLButtonElement).click();
     await fixture.whenStable();
   });
@@ -416,7 +439,7 @@ describe('AdminOrderDetailPage', () => {
     await load({ status });
 
     expect(text(host(), 'app-admin-access-denied strong')).toBe(
-      'Sign in as an admin to see this page.',
+      'Sign in as an admin to see this page.'
     );
     expect(host().querySelector('.section')).toBeNull();
   });

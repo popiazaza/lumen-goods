@@ -37,10 +37,10 @@ describe('AdminProductEditPage', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (root: ParentNode | null | undefined, selector: string) =>
-    root?.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    root?.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const field = (label: string) =>
     [...host().querySelectorAll<HTMLElement>('mat-form-field')].find(
-      (element) => element.querySelector('mat-label')?.textContent?.trim() === label,
+      (element) => element.querySelector('mat-label')?.textContent?.trim() === label
     ) as HTMLElement;
   const input = (label: string) =>
     field(label).querySelector('input, textarea') as HTMLInputElement;
@@ -48,11 +48,11 @@ describe('AdminProductEditPage', () => {
   const hintOf = (label: string) => text(field(label), 'mat-hint');
   const button = (name: string) =>
     [...host().querySelectorAll<HTMLButtonElement>('button')].find(
-      (element) => element.textContent?.replace(/\s+/g, ' ').trim() === name,
+      (element) => element.textContent?.replaceAll(/\s+/g, ' ').trim() === name
     ) as HTMLButtonElement;
   const libraryImage = (file: string) =>
     [...host().querySelectorAll<HTMLButtonElement>('.library-image')].find((element) =>
-      element.textContent?.includes(file),
+      element.textContent?.includes(file)
     ) as HTMLButtonElement;
 
   async function type(label: string, value: string): Promise<void> {
@@ -86,8 +86,8 @@ describe('AdminProductEditPage', () => {
       http.expectOne(
         (r) =>
           r.method === method &&
-          r.url === (method === 'POST' ? '/api/v1/admin/products' : PRODUCT_URL),
-      ),
+          r.url === (method === 'POST' ? '/api/v1/admin/products' : PRODUCT_URL)
+      )
     );
   }
 
@@ -100,7 +100,7 @@ describe('AdminProductEditPage', () => {
             { path: 'admin/products/new', component: AdminProductEditPage },
             { path: 'admin/products/:id', component: AdminProductEditPage },
           ],
-          withComponentInputBinding(),
+          withComponentInputBinding()
         ),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -125,6 +125,7 @@ describe('AdminProductEditPage', () => {
 
     await submit();
     http.expectNone('/api/v1/admin/products');
+
     expect(errorOf('Name')).toBe('Name is required.');
     expect(errorOf('Category')).toBe('Category is required.');
     expect(errorOf('Price')).toBe('Price is required.');
@@ -132,14 +133,21 @@ describe('AdminProductEditPage', () => {
     expect(document.activeElement).toBe(input('Name'));
 
     await type('Price', '18.555');
+
     expect(errorOf('Price')).toBe('Enter dollars and cents, e.g. 18.50.');
+
     await type('Price', '0');
+
     expect(errorOf('Price')).toBe('Price must be more than $0.00.');
+
     await type('On hand', '2.5');
+
     expect(errorOf('On hand')).toBe('Enter a whole number.');
+
     await type('SKU (optional)', '-bad');
+
     expect(errorOf('SKU (optional)')).toBe(
-      'Use 2 to 32 letters, digits or dashes, starting with a letter or digit.',
+      'Use 2 to 32 letters, digits or dashes, starting with a letter or digit.'
     );
   });
 
@@ -159,8 +167,10 @@ describe('AdminProductEditPage', () => {
     libraryImage('tote.png').click();
     libraryImage('mug.png').click();
     await harness.fixture.whenStable();
+
     expect(libraryImage('mug.png').getAttribute('aria-pressed')).toBe('true');
     expect(text(libraryImage('mug.png'), '.picked')).toBe('Chosen');
+
     // Make the mug the main image.
     (
       host().querySelector('button[aria-label="Make mug.png the main image"]') as HTMLButtonElement
@@ -169,6 +179,7 @@ describe('AdminProductEditPage', () => {
 
     await submit();
     const post = await nextSave('POST');
+
     expect(post.request.body).toEqual({
       sku: null,
       name: 'Trail Mug',
@@ -179,6 +190,7 @@ describe('AdminProductEditPage', () => {
       images: ['mug.png', 'tote.png'],
       onHand: 12,
     });
+
     post.flush(anAdminProduct({ name: 'Trail Mug' }), { status: 201, statusText: 'Created' });
     await harness.fixture.whenStable();
 
@@ -206,6 +218,7 @@ describe('AdminProductEditPage', () => {
     await submit();
 
     const put = await nextSave('PUT');
+
     expect(put.request.body).toEqual({
       version: '41',
       name: 'Enamel Camp Mug, 12 oz',
@@ -216,8 +229,10 @@ describe('AdminProductEditPage', () => {
       images: ['mug.png'],
       onHand: 10,
     });
+
     put.flush({ ...MUG, name: 'Enamel Camp Mug, 12 oz', version: '42' });
     await harness.fixture.whenStable();
+
     expect(router.url).toBe('/admin/products');
   });
 
@@ -228,8 +243,9 @@ describe('AdminProductEditPage', () => {
     await submit();
 
     http.expectNone(PRODUCT_URL);
+
     expect(errorOf('On hand')).toBe(
-      '2 reserved by orders awaiting payment: on hand must be at least 2.',
+      '2 reserved by orders awaiting payment: on hand must be at least 2.'
     );
   });
 
@@ -247,12 +263,12 @@ describe('AdminProductEditPage', () => {
           version: ['version is required.'],
         },
       },
-      { status: 400, statusText: 'Bad Request' },
+      { status: 400, statusText: 'Bad Request' }
     );
     await harness.fixture.whenStable();
 
     expect(errorOf('Name')).toBe(
-      'Name cannot contain control characters such as tabs or line breaks.',
+      'Name cannot contain control characters such as tabs or line breaks.'
     );
     expect(text(host(), '.group-error')).toBe("Two attributes are both named 'color'.");
     expect(text(host(), '#form-error')).toBe('version is required.');
@@ -271,7 +287,7 @@ describe('AdminProductEditPage', () => {
         status: 409,
         detail: 'This product was changed by someone else since you loaded it.',
       },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     // Someone else changed the description and a customer reserved one more unit.
     const latest = anAdminProduct({
@@ -300,11 +316,14 @@ describe('AdminProductEditPage', () => {
 
     await submit();
     const retry = await nextSave('PUT');
+
     expect(retry.request.body.version).toBe('44');
     expect(retry.request.body.name).toBe('Camp Mug (my edit)');
     expect(retry.request.body.description).toBe('A sturdy enamel mug.');
+
     retry.flush({ ...latest, name: 'Camp Mug (my edit)', version: '45' });
     await harness.fixture.whenStable();
+
     expect(router.url).toBe('/admin/products');
   });
 
@@ -314,7 +333,7 @@ describe('AdminProductEditPage', () => {
     await submit();
     (await nextSave('PUT')).flush(
       { title: 'Changed by someone else', status: 409 },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     (
       await vi.waitFor(() => http.expectOne((r) => r.method === 'GET' && r.url === PRODUCT_URL))
@@ -340,18 +359,20 @@ describe('AdminProductEditPage', () => {
         detail: '4 unit(s) are reserved by orders awaiting payment, so on hand must be at least 4.',
         reserved: 4,
       },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     await harness.fixture.whenStable();
 
     expect(errorOf('On hand')).toBe(
-      '4 unit(s) are reserved by orders awaiting payment, so on hand must be at least 4.',
+      '4 unit(s) are reserved by orders awaiting payment, so on hand must be at least 4.'
     );
     expect(host().querySelector('#conflict')).toBeNull();
+
     // The form now knows about the 4 reserved units.
     await type('On hand', '3');
+
     expect(errorOf('On hand')).toBe(
-      '4 reserved by orders awaiting payment: on hand must be at least 4.',
+      '4 reserved by orders awaiting payment: on hand must be at least 4.'
     );
   });
 
@@ -365,14 +386,16 @@ describe('AdminProductEditPage', () => {
 
     await submit();
     const post = await nextSave('POST');
+
     expect(post.request.body.sku).toBe('lg-mug-01');
+
     post.flush(
       {
         title: 'SKU already in use',
         status: 409,
         detail: "Another own product already has SKU 'LG-MUG-01'.",
       },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     await harness.fixture.whenStable();
 
@@ -402,7 +425,7 @@ describe('AdminProductEditPage', () => {
     await harness.fixture.whenStable();
 
     expect(text(host(), 'app-admin-access-denied strong')).toBe(
-      'Sign in as an admin to see this page.',
+      'Sign in as an admin to see this page.'
     );
   });
 });

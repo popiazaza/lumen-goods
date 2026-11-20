@@ -17,9 +17,9 @@ export function checkoutStepGuard(step: CheckoutStep): CanActivateFn {
       return true;
     }
     const firstToDo =
-      CHECKOUT_STEPS.filter((candidate) => store.reachable().has(candidate))
-        .filter((candidate) => candidate !== 'payment')
-        .at(-1) ?? 'address';
+      CHECKOUT_STEPS.filter((candidate) => store.reachable().has(candidate)).findLast(
+        (candidate) => candidate !== 'payment'
+      ) ?? 'address';
     return inject(Router).createUrlTree(['/checkout', firstToDo]);
   };
 }

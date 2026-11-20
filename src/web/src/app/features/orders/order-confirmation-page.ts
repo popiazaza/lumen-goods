@@ -24,12 +24,14 @@ import {
 import { httpStatusOf } from '../../core/api/problem-details';
 import { orderKeepsChanging } from './poll-while-updating';
 
-/** How often the page re-reads the order while a partner decides or a refund is on its way. */
+/**
+How often the page re-reads the order while a partner decides or a refund is on its way.
+*/
 export const CONFIRMATION_POLL_MS = 5000;
-/** Stop polling after this long; the order page keeps the history. */
+/**
+Stop polling after this long; the order page keeps the history.
+*/
 export const CONFIRMATION_POLL_LIMIT_MS = 10 * 60_000;
-
-type Read = { order: OrderDetailDto } | { error: unknown };
 
 function paymentFailed(order: OrderDetailDto): boolean {
   return order.status === 'awaiting_payment' && order.payment?.status === 'failed';
@@ -70,7 +72,9 @@ const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
   styleUrl: './order-confirmation-page.scss',
 })
 export class OrderConfirmationPage {
-  /** The order number, bound from the `:id` route parameter. */
+  /**
+  The order number, bound from the `:id` route parameter.
+  */
   readonly id = input.required<string>();
 
   private readonly api = inject(OrdersApi);
@@ -132,14 +136,16 @@ export class OrderConfirmationPage {
       : `Paid by ${cardBrandName(payment.cardBrand)} ending ${payment.cardLast4}`;
   });
 
-  /** "What happens next", one entry per shipment, from the line statuses the API reports. */
+  /**
+  "What happens next", one entry per shipment, from the line statuses the API reports.
+  */
   protected readonly nextSteps = computed(() =>
     (this.order()?.shipments ?? []).map((shipment) => {
       const statuses = shipment.lines.map((line) => line.status);
       let text: string;
       if (statuses.some((status) => status === 'awaiting_partner' || status === 'pending')) {
         text = `Waiting for ${shipment.sellerName} to confirm. We’ll update this page and your order; if they can’t supply an item, we refund it automatically.`;
-      } else if (statuses.some((status) => status === 'needs_attention')) {
+      } else if (statuses.includes('needs_attention')) {
         text = `${shipment.sellerName} hasn’t answered yet. Our team is following up.`;
       } else if (statuses.every((status) => status === 'rejected')) {
         // The refund may still be on its way: each line's status says whether it is paid back.
@@ -150,7 +156,7 @@ export class OrderConfirmationPage {
         text = `${shipment.sellerName} confirmed your items and will ship them.`;
       }
       return { source: shipment.source, sellerName: shipment.sellerName, text };
-    }),
+    })
   );
 
   constructor() {
@@ -165,6 +171,7 @@ export class OrderConfirmationPage {
   }
 
   private load(number: string): void {
+    type Read = { order: OrderDetailDto } | { error: unknown };
     this.polling?.unsubscribe();
     this.order.set(null);
     this.state.set('loading');
@@ -182,9 +189,9 @@ export class OrderConfirmationPage {
         // failed re-read keeps the last answer on screen and tries again.
         takeWhile(
           (read) => ('order' in read ? keepsChanging(read.order) : this.order() !== null),
-          true,
+          true
         ),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((read) => {
         if ('order' in read) {

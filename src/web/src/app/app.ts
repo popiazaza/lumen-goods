@@ -3,7 +3,9 @@ import { RouterOutlet } from '@angular/router';
 import { Footer } from './core/layout/footer/footer';
 import { Header } from './core/layout/header/header';
 
-/** App shell: skip link, sticky header, routed page, footer. */
+/**
+App shell: skip link, sticky header, routed page, footer.
+*/
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, Header, Footer],

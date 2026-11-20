@@ -105,11 +105,13 @@ import { ProductPrice } from '../../shared/products/product-price';
 })
 export class ProductCard {
   readonly product = input.required<ProductDto>();
-  /** The shop's display name, from `GET /sellers`. */
+  /**
+  The shop's display name, from `GET /sellers`.
+  */
   readonly sellerName = input.required<string>();
 
   protected readonly imageUrl = computed(() => {
-    const images = this.product().images;
+    const { images } = this.product();
     return (images.find((image) => image.isPrimary) ?? images[0])?.url ?? null;
   });
 }

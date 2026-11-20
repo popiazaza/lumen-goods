@@ -22,7 +22,7 @@ describe('Sign in and register', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const url = () => TestBed.inject(Router).url;
 
   function type(id: string, value: string): void {
@@ -46,7 +46,7 @@ describe('Sign in and register', () => {
             { path: 'checkout/address', component: StubPage },
             { path: '', component: StubPage },
           ],
-          withComponentInputBinding(),
+          withComponentInputBinding()
         ),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -68,17 +68,20 @@ describe('Sign in and register', () => {
     TestBed.inject(CartStateService).reload().subscribe();
     http.expectOne('/api/v1/cart').flush(aCart([aCartLine()]));
     await harness.navigateByUrl('/sign-in?returnUrl=%2Fcheckout%2Faddress');
+
     expect(text('.intro')).toBe('Sign in to check out. Your cart is saved and comes with you.');
     expect(host().querySelector('.switch a')?.getAttribute('href')).toBe(
-      '/register?returnUrl=%2Fcheckout%2Faddress',
+      '/register?returnUrl=%2Fcheckout%2Faddress'
     );
 
     type('sign-in-email', ' customer@lumen.test ');
     type('sign-in-password', 'Passw0rd!');
     await submit();
     const request = http.expectOne('/api/v1/auth/sign-in');
+
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ email: 'customer@lumen.test', password: 'Passw0rd!' });
+
     request.flush(CUSTOMER_SESSION);
     http
       .expectOne('/api/v1/cart')
@@ -86,9 +89,9 @@ describe('Sign in and register', () => {
     await harness.fixture.whenStable();
 
     expect(url()).toBe('/checkout/address');
-    expect(TestBed.inject(SessionApi).isAuthenticated()).toBe(true);
+    expect(TestBed.inject(SessionApi).isAuthenticated()).toBeTruthy();
     expect(TestBed.inject(CartStateService).mergeNotice()).toBe(
-      'We merged your cart with the items saved in your account. It now has 3 items.',
+      'We merged your cart with the items saved in your account. It now has 3 items.'
     );
   });
 
@@ -112,12 +115,15 @@ describe('Sign in and register', () => {
     await harness.fixture.whenStable();
 
     const links = [...host().querySelectorAll('app-error-summary a')];
+
     expect(links.map((a) => [a.textContent?.trim(), a.getAttribute('href')])).toEqual([
       ['Enter your email address', '#sign-in-email'],
       ['Enter your password', '#sign-in-password'],
     ]);
     expect(document.activeElement).toBe(host().querySelector('app-error-summary [role="alert"]'));
+
     (links[1] as HTMLAnchorElement).click();
+
     expect(document.activeElement?.id).toBe('sign-in-password');
   });
 
@@ -131,7 +137,7 @@ describe('Sign in and register', () => {
       .expectOne('/api/v1/auth/sign-in')
       .flush(
         { title: 'Email or password is incorrect', status: 401 },
-        { status: 401, statusText: 'Unauthorized' },
+        { status: 401, statusText: 'Unauthorized' }
       );
     await harness.fixture.whenStable();
 
@@ -151,13 +157,13 @@ describe('Sign in and register', () => {
         detail: 'The account is locked for a few minutes.',
         status: 429,
       },
-      { status: 429, statusText: 'Too Many Requests' },
+      { status: 429, statusText: 'Too Many Requests' }
     );
     await harness.fixture.whenStable();
 
     expect(text('.failure .failure-title')).toBe('Too many failed attempts');
     expect(text('.failure .failure-title + p')).toBe(
-      'The account is locked for a few minutes. Wait a few minutes, then try again.',
+      'The account is locked for a few minutes. Wait a few minutes, then try again.'
     );
   });
 
@@ -173,7 +179,7 @@ describe('Sign in and register', () => {
         status: 400,
         errors: { Email: ["Username 'taken@lumen.test' is already taken."] },
       },
-      { status: 400, statusText: 'Bad Request' },
+      { status: 400, statusText: 'Bad Request' }
     );
     await harness.fixture.whenStable();
 
@@ -185,6 +191,7 @@ describe('Sign in and register', () => {
     http.expectOne('/api/v1/auth/register').flush(CUSTOMER_SESSION);
     http.expectOne('/api/v1/cart').flush(aCart([]));
     await harness.fixture.whenStable();
+
     expect(url()).toBe('/checkout/address');
   });
 
@@ -219,7 +226,7 @@ describe('mergeNoticeFor', () => {
     });
 
     expect(mergeNoticeFor(aCart([aCartLine()]), aCart([aCartLine(), limited]))).toBe(
-      'We merged your cart with the items saved in your account. It now has 11 items. Some quantities were limited to what is available.',
+      'We merged your cart with the items saved in your account. It now has 11 items. Some quantities were limited to what is available.'
     );
   });
 });

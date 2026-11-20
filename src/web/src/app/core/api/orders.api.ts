@@ -7,7 +7,9 @@ import { PagedResult, toQueryParams } from './paged-result';
 
 // Contract: Lumen.Api/Orders/OrderEndpoints.cs; the types are in `order.models.ts`.
 
-/** Orders per history page. */
+/**
+Orders per history page.
+*/
 export const ORDER_PAGE_SIZE = 10;
 
 /**
@@ -19,14 +21,18 @@ export class OrdersApi {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = inject(API_BASE_URL);
 
-  /** Newest first. 401 when signed out. */
+  /**
+  Newest first. 401 when signed out.
+  */
   list(page: number, pageSize = ORDER_PAGE_SIZE): Observable<PagedResult<OrderSummaryDto>> {
     return this.http.get<PagedResult<OrderSummaryDto>>(`${this.baseUrl}/orders`, {
       params: toQueryParams({ page, pageSize }),
     });
   }
 
-  /** 404 for an unknown number and for another customer's order; 401 when signed out. */
+  /**
+  404 for an unknown number and for another customer's order; 401 when signed out.
+  */
   get(number: string): Observable<OrderDetailDto> {
     return this.http.get<OrderDetailDto>(`${this.baseUrl}/orders/${encodeURIComponent(number)}`);
   }

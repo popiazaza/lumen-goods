@@ -19,7 +19,9 @@ export const MAX_ATTRIBUTES = 20;
 export const MAX_IMAGES = 8;
 export const MAX_ON_HAND = 1_000_000;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{1,31}$/;
-/** Dollars with at most two decimals, e.g. "18", "18.5", "18.50". */
+/**
+Dollars with at most two decimals, e.g. "18", "18.5", "18.50".
+*/
 const PRICE_PATTERN = /^\d{1,10}(\.\d{1,2})?$/;
 
 export type AttributeRow = FormGroup<{
@@ -38,7 +40,9 @@ export type ProductForm = FormGroup<{
   images: FormControl<string[]>;
 }>;
 
-/** The form's fields; also the keys of the API's validation errors. */
+/**
+The form's fields; also the keys of the API's validation errors.
+*/
 export type ProductField = keyof ProductForm['controls'];
 export const PRODUCT_FIELDS: readonly ProductField[] = [
   'sku',
@@ -62,7 +66,9 @@ export const FIELD_LABELS: Readonly<Record<ProductField, string>> = {
   images: 'Images',
 };
 
-/** The form's plain value, as `fillForm` takes it and `formValueOf` gives it. */
+/**
+The form's plain value, as `fillForm` takes it and `formValueOf` gives it.
+*/
 export interface ProductFormValue {
   sku: string;
   name: string;
@@ -125,7 +131,9 @@ export function attributeRow(key = '', value = ''): AttributeRow {
   });
 }
 
-/** The form values for a saved product. */
+/**
+The form values for a saved product.
+*/
 export function productFormValue(product: AdminProduct): ProductFormValue {
   return {
     sku: product.sku,
@@ -140,7 +148,9 @@ export function productFormValue(product: AdminProduct): ProductFormValue {
   };
 }
 
-/** Replaces every value, rebuilding the attribute rows, and marks the form pristine. */
+/**
+Replaces every value, rebuilding the attribute rows, and marks the form pristine.
+*/
 export function fillForm(form: ProductForm, value: ProductFormValue): void {
   const rows = form.controls.attributes;
   rows.clear({ emitEvent: false });
@@ -150,7 +160,9 @@ export function fillForm(form: ProductForm, value: ProductFormValue): void {
   form.reset(value);
 }
 
-/** What create and update send: trimmed text, the price as a number, attributes as an object. */
+/**
+What create and update send: trimmed text, the price as a number, attributes as an object.
+*/
 export function toProductInput(form: ProductForm): OwnProductInput {
   const value = form.getRawValue();
   return {
@@ -159,14 +171,16 @@ export function toProductInput(form: ProductForm): OwnProductInput {
     category: value.category as ProductCategory,
     price: Number(value.price),
     attributes: Object.fromEntries(
-      value.attributes.map((row) => [row.key.trim(), row.value.trim()]),
+      value.attributes.map((row) => [row.key.trim(), row.value.trim()])
     ),
     images: value.images,
     onHand: value.onHand ?? 0,
   };
 }
 
-/** Text for a field's first error, or '' when it has none. */
+/**
+Text for a field's first error, or '' when it has none.
+*/
 export function fieldError(field: ProductField, errors: ValidationErrors | null): string {
   if (!errors) {
     return '';
@@ -202,16 +216,17 @@ export function fieldError(field: ProductField, errors: ValidationErrors | null)
     return `${label} can be at most ${MAX_ON_HAND.toLocaleString('en-US')}.`;
   }
   if (errors['belowReserved']) {
-    const reserved = (errors['belowReserved'] as { reserved: number }).reserved;
+    const { reserved } = errors['belowReserved'] as { reserved: number };
     return `${reserved} reserved by orders awaiting payment: on hand must be at least ${reserved}.`;
   }
-  if (errors['duplicateNames']) {
-    return `Two attributes are both named "${String(errors['duplicateNames'])}".`;
-  }
-  return `${label} is not valid.`;
+  return errors['duplicateNames']
+    ? `Two attributes are both named "${String(errors['duplicateNames'])}".`
+    : `${label} is not valid.`;
 }
 
-/** The API's error keys (`onHand`, `attributes.color`, `images[0]`) mapped to form fields. */
+/**
+The API's error keys (`onHand`, `attributes.color`, `images[0]`) mapped to form fields.
+*/
 export function fieldOfErrorKey(key: string): ProductField | undefined {
   const head = key.split(/[.[]/, 1)[0];
   return PRODUCT_FIELDS.find((field) => field.toLowerCase() === head.toLowerCase());
@@ -222,13 +237,13 @@ function notBlank(control: AbstractControl<string>): ValidationErrors | null {
 }
 
 function positive(control: AbstractControl<string>): ValidationErrors | null {
-  const value = control.value;
+  const { value } = control;
   return value && PRICE_PATTERN.test(value) && Number(value) <= 0 ? { positive: true } : null;
 }
 
 function wholeNumber(control: AbstractControl<number | null>): ValidationErrors | null {
-  const value = control.value;
-  return value !== null && !Number.isInteger(value) ? { wholeNumber: true } : null;
+  const { value } = control;
+  return value === null || Number.isInteger(value) ? null : { wholeNumber: true };
 }
 
 function atLeastReserved(reserved: () => number): ValidatorFn {

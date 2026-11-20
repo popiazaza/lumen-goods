@@ -52,7 +52,9 @@ import { openConfirmDialog } from './confirm-dialog';
 const ACTIVE: StatusView = { tone: 'success', icon: 'visibility', text: 'Active' };
 const INACTIVE: StatusView = { tone: 'neutral', icon: 'visibility_off', text: 'Inactive' };
 
-/** Admin: Lumen Goods' own products (`/admin/products`), searchable and filterable via the URL. */
+/**
+Admin: Lumen Goods' own products (`/admin/products`), searchable and filterable via the URL.
+*/
 @Component({
   selector: 'app-admin-products-page',
   imports: [
@@ -100,7 +102,9 @@ export class AdminProductsPage {
     params: () => this.query(),
     stream: ({ params }) => this.api.list(params),
   });
-  /** The last page that loaded: stays on screen (dimmed) while the next one loads. */
+  /**
+  The last page that loaded: stays on screen (dimmed) while the next one loads.
+  */
   protected readonly result = linkedSignal<
     PagedResult<AdminProduct> | undefined,
     PagedResult<AdminProduct> | undefined
@@ -109,7 +113,9 @@ export class AdminProductsPage {
     computation: (next, previous) => next ?? previous?.value,
   });
 
-  /** An action can also come back 401/403 (session expired, role removed). */
+  /**
+  An action can also come back 401/403 (session expired, role removed).
+  */
   private readonly deniedStatus = signal<number | undefined>(undefined);
   protected readonly accessStatus = computed(() => {
     const error = this.products.error();
@@ -119,13 +125,17 @@ export class AdminProductsPage {
   protected readonly errorMessage = computed(() =>
     httpStatusOf(this.products.error()) === 400
       ? problemMessage(this.products.error(), 'These filters are not valid.')
-      : 'We couldn’t load the products. Check your connection and try again.',
+      : 'We couldn’t load the products. Check your connection and try again.'
   );
   protected readonly hasFilters = computed(() => hasProductFilters(this.query()));
 
-  /** The search box: what is typed until it is submitted, then the URL's value again. */
+  /**
+  The search box: what is typed until it is submitted, then the URL's value again.
+  */
   protected readonly search = new FormControl('', { nonNullable: true });
-  /** The product whose activation is being changed. */
+  /**
+  The product whose activation is being changed.
+  */
   protected readonly busyId = signal<string | null>(null);
   protected readonly actionMessage = signal<{ text: string; failed: boolean } | null>(null);
 
@@ -172,7 +182,7 @@ export class AdminProductsPage {
   }
 
   protected changePage(event: PageEvent): void {
-    const pageSize = event.pageSize;
+    const { pageSize } = event;
     const page = pageSize === this.query().pageSize ? event.pageIndex + 1 : 1;
     this.navigate({ ...this.query(), page, pageSize }, 'auto');
   }
@@ -199,10 +209,8 @@ export class AdminProductsPage {
           this.busyId.set(product.id);
           this.actionMessage.set(null);
         }),
-        switchMap(() =>
-          deactivate ? this.api.deactivate(product.id) : this.api.reactivate(product.id),
-        ),
-        takeUntilDestroyed(this.destroyRef),
+        switchMap(() => this.api[deactivate ? 'deactivate' : 'reactivate'](product.id)),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: (updated) => {
@@ -225,12 +233,14 @@ export class AdminProductsPage {
       });
   }
 
-  /** Filters keep the scroll position (focus stays on the control); paging goes to the top. */
+  /**
+  Filters keep the scroll position (focus stays on the control); paging goes to the top.
+  */
   private navigate(query: AdminProductsQuery, scroll: 'manual' | 'auto'): void {
     void this.router.navigate([], {
       relativeTo: this.route,
       queryParams: adminProductsQueryParams(query),
-      ...(scroll === 'manual' ? { scroll: 'manual' as const } : {}),
+      ...(scroll === 'manual' && { scroll: 'manual' as const }),
     });
   }
 }

@@ -27,12 +27,14 @@ describe('Order and admin API services', () => {
   it('OrdersApi lists a page of the history and reads one order by its escaped number', async () => {
     const api = TestBed.inject(OrdersApi);
     api.list(3).subscribe();
+
     expect(http.expectOne(() => true).request.urlWithParams).toBe(
-      '/api/v1/orders?page=3&pageSize=10',
+      '/api/v1/orders?page=3&pageSize=10'
     );
 
     const order = firstValueFrom(api.get('LG 7/K'));
     http.expectOne('/api/v1/orders/LG%207%2FK').flush(anOrderDetail());
+
     expect((await order).number).toBe('LG-7K3M9QX2');
   });
 
@@ -49,7 +51,8 @@ describe('Order and admin API services', () => {
       .subscribe();
     // The API reads a bare date as a UTC day; the admin means their own, so local midnight goes.
     const fromInstant = new Date(2026, 10, 1).toISOString();
-    const params = http.expectOne((r) => r.url === '/api/v1/admin/orders').request.params;
+    const { params } = http.expectOne((r) => r.url === '/api/v1/admin/orders').request;
+
     expect(params.keys()).toEqual(['status', 'from', 'page', 'pageSize']);
     expect(params.getAll('status')).toEqual([
       'awaiting_payment',
@@ -61,11 +64,13 @@ describe('Order and admin API services', () => {
 
     api.list({ from: '2026-11-01', to: '2026-11-01' }).subscribe();
     const day = http.expectOne(() => true).request.params;
+
     expect(day.get('from')).toBe(fromInstant);
     // `to` is exclusive on the API, so the whole last day is the next local midnight.
     expect(day.get('to')).toBe(new Date(2026, 10, 2).toISOString());
 
     api.list({}).subscribe();
+
     expect(http.expectOne('/api/v1/admin/orders').request.params.keys()).toEqual([]);
   });
 
@@ -74,12 +79,16 @@ describe('Order and admin API services', () => {
     const updated = firstValueFrom(api.resolveLine('LG-1', 'line-2', 'reject', '  lost  '));
 
     const request = http.expectOne('/api/v1/admin/orders/LG-1/lines/line-2/resolve');
+
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ decision: 'reject', note: 'lost' });
+
     request.flush(anAdminOrder());
+
     expect((await updated).customerEmail).toBe('customer@lumengoods.test');
 
-    api.resolveLine('LG-1', 'line-2', 'confirm', '   ').subscribe();
+    api.resolveLine('LG-1', 'line-2', 'confirm', ' '.repeat(3)).subscribe();
+
     expect(http.expectOne('/api/v1/admin/orders/LG-1/lines/line-2/resolve').request.body).toEqual({
       decision: 'confirm',
       note: null,
@@ -89,8 +98,9 @@ describe('Order and admin API services', () => {
   it('AdminProductsApi lists with search and filters, leaving out "all"', () => {
     const api = TestBed.inject(AdminProductsApi);
     api.list({ q: ' mug ', status: 'inactive', category: 'home', page: 2 }).subscribe();
+
     expect(http.expectOne(() => true).request.urlWithParams).toBe(
-      '/api/v1/admin/products?q=mug&status=inactive&category=home&page=2',
+      '/api/v1/admin/products?q=mug&status=inactive&category=home&page=2'
     );
 
     api.list({ q: '', status: 'all' }).subscribe();
@@ -111,19 +121,26 @@ describe('Order and admin API services', () => {
 
     api.create({ ...input, sku: null }).subscribe();
     const create = http.expectOne('/api/v1/admin/products');
+
     expect(create.request.method).toBe('POST');
     expect(create.request.body).toEqual({ ...input, sku: null });
 
     api.update('p 1', { ...input, version: '41' }).subscribe();
     const update = http.expectOne('/api/v1/admin/products/p%201');
+
     expect(update.request.method).toBe('PUT');
     expect(update.request.body.version).toBe('41');
 
     api.deactivate('p1').subscribe();
+
     expect(http.expectOne('/api/v1/admin/products/p1/deactivate').request.method).toBe('POST');
+
     api.reactivate('p1').subscribe();
+
     expect(http.expectOne('/api/v1/admin/products/p1/reactivate').request.method).toBe('POST');
+
     api.media().subscribe();
+
     expect(http.expectOne('/api/v1/admin/own-media').request.method).toBe('GET');
   });
 });

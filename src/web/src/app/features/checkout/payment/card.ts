@@ -8,10 +8,12 @@ export const MIN_CARD_DIGITS = 12;
 export const MAX_CARD_DIGITS = 19;
 
 export function digitsOf(value: string | null | undefined): string {
-  return (value ?? '').replace(/\D/g, '');
+  return (value ?? '').replaceAll(/\D/g, '');
 }
 
-/** Issuer prefixes, as the server detects them: Visa 4; Mastercard 51-55, 2221-2720; Amex 34, 37. */
+/**
+Issuer prefixes, as the server detects them: Visa 4; Mastercard 51-55, 2221-2720; Amex 34, 37.
+*/
 export function detectBrand(digits: string): CardBrand | null {
   if (digits.length < 2) {
     return digits.startsWith('4') ? 'visa' : null;
@@ -30,28 +32,32 @@ export function detectBrand(digits: string): CardBrand | null {
   return digits.length >= 4 ? 'other' : null;
 }
 
-/** The Luhn (mod 10) check: from the right, double every second digit; the sum ends in 0. */
+/**
+The Luhn (mod 10) check: from the right, double every second digit; the sum ends in 0.
+*/
 export function passesLuhn(digits: string): boolean {
   if (!/^\d+$/.test(digits)) {
     return false;
   }
   let sum = 0;
-  let double = false;
+  let isDouble = false;
   for (let i = digits.length - 1; i >= 0; i--) {
     let digit = digits.charCodeAt(i) - 48;
-    if (double) {
+    if (isDouble) {
       digit *= 2;
       if (digit > 9) {
         digit -= 9;
       }
     }
     sum += digit;
-    double = !double;
+    isDouble = !isDouble;
   }
   return sum % 10 === 0;
 }
 
-/** Groups digits as printed on the card: 4-6-5 for Amex, otherwise blocks of 4. */
+/**
+Groups digits as printed on the card: 4-6-5 for Amex, otherwise blocks of 4.
+*/
 export function formatCardNumber(value: string): string {
   const digits = digitsOf(value).slice(0, MAX_CARD_DIGITS);
   const groups =
@@ -62,8 +68,7 @@ export function formatCardNumber(value: string): string {
 }
 
 /**
- * Where the caret belongs after reformatting: after the same number of digits as before, so typing
- * or deleting in the middle does not throw it to the end.
+ * Where the caret belongs after reformatting: after the same number of digits as before, so typing or deleting in the middle does not throw it to the end.
  */
 export function caretAfterFormat(raw: string, caret: number, formatted: string): number {
   const digitsBefore = digitsOf(raw.slice(0, caret)).length;
@@ -83,22 +88,25 @@ export function cvcLength(brand: CardBrand | null): number {
   return brand === 'amex' ? 4 : 3;
 }
 
-/** "MM/YY" as the shopper types it: digits only, slash added after the month. */
+/**
+"MM/YY" as the shopper types it: digits only, slash added after the month.
+*/
 export function formatExpiry(value: string, deleting = false): string {
   let digits = digitsOf(value).slice(0, 4);
   // "4" can only be April: write it as "04".
   if (digits.length === 1 && Number(digits) > 1) {
     digits = `0${digits}`;
   }
-  if (digits.length < 2 || (digits.length === 2 && deleting)) {
-    return digits;
-  }
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return digits.length < 2 || (digits.length === 2 && deleting)
+    ? digits
+    : `${digits.slice(0, 2)}/${digits.slice(2)}`;
 }
 
 export interface Expiry {
   month: number;
-  /** Four digits. */
+  /**
+  Four digits.
+  */
   year: number;
 }
 
@@ -111,7 +119,9 @@ export function parseExpiry(value: string): Expiry | null {
   return month >= 1 && month <= 12 ? { month, year: 2000 + Number(match[2]) } : null;
 }
 
-/** A card works through the last day of its expiry month. */
+/**
+A card works through the last day of its expiry month.
+*/
 export function isExpired(expiry: Expiry, now: Date): boolean {
   const year = now.getUTCFullYear();
   return expiry.year < year || (expiry.year === year && expiry.month < now.getUTCMonth() + 1);
@@ -128,7 +138,9 @@ export function cardNumberValidator(control: AbstractControl<string>): Validatio
   return passesLuhn(digits) ? null : { luhn: true };
 }
 
-/** Validates MM/YY and that the month has not passed; `now` is injectable for tests. */
+/**
+Validates MM/YY and that the month has not passed; `now` is injectable for tests.
+*/
 export function expiryValidator(now: () => Date = () => new Date()) {
   return (control: AbstractControl<string>): ValidationErrors | null => {
     if (!control.value) {

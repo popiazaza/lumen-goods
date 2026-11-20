@@ -12,10 +12,12 @@ import { CUSTOMER_SESSION, US_ADDRESS } from '../../testing/fixtures';
 describe('checkout routes', () => {
   let http: HttpTestingController;
 
-  /** Starts the app's router with a session and (optionally) checkout state saved in this tab. */
+  /**
+  Starts the app's router with a session and (optionally) checkout state saved in this tab.
+  */
   async function start(
     session: Session,
-    saved?: Partial<CheckoutState>,
+    saved?: Partial<CheckoutState>
   ): Promise<RouterTestingHarness> {
     if (saved) {
       sessionStorage.setItem(
@@ -26,7 +28,7 @@ describe('checkout routes', () => {
           shippingMethod: null,
           orderNumber: null,
           ...saved,
-        }),
+        })
       );
     }
     TestBed.configureTestingModule({
@@ -83,7 +85,7 @@ describe('checkout routes', () => {
       await harness.navigateByUrl(target);
 
       expect(url()).toBe(expected);
-    },
+    }
   );
 
   it('keeps the shopper on their step after a refresh (state from sessionStorage)', async () => {
@@ -95,6 +97,7 @@ describe('checkout routes', () => {
     await harness.navigateByUrl('/checkout/review');
 
     expect(url()).toBe('/checkout/review');
+
     // The review reads the preview for the saved method.
     http.expectOne('/api/v1/checkout/preview?shippingMethod=express');
   });
@@ -106,7 +109,7 @@ describe('checkout routes', () => {
 
     expect(url()).toBe('/checkout/payment?order=LG-42');
     expect(http.match((request) => request.url.includes('/orders/LG-42')).length).toBeGreaterThan(
-      0,
+      0
     );
   });
 });

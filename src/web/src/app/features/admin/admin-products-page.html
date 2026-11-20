@@ -9,7 +9,7 @@
 </div>
 
 @if (accessStatus(); as status) {
-  <app-admin-access-denied [status]="status" returnUrl="/admin/products" />
+  <app-admin-access-denied returnUrl="/admin/products" [status]="status" />
 } @else {
   @let q = query();
   <div class="filters">
@@ -73,7 +73,7 @@
       [class.loading]="products.isLoading()"
     >
       <p class="count">
-        {{ page.totalCount === 1 ? '1 product' : page.totalCount + ' products' }}
+        {{ page.totalCount === 1 ? '1 product' : `${page.totalCount} products` }}
       </p>
       @if (products.isLoading()) {
         <mat-progress-bar mode="indeterminate" aria-label="Loading products" />
@@ -92,19 +92,19 @@
         <div class="table-scroll" role="region" aria-label="Products" tabindex="0">
           <table mat-table [dataSource]="page.items">
             <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef scope="col">Product</th>
-              <td mat-cell *matCellDef="let product" class="wrap">
+              <th *matHeaderCellDef mat-header-cell scope="col">Product</th>
+              <td *matCellDef="let product" mat-cell class="wrap">
                 <a [routerLink]="['/admin/products', product.id]">{{ product.name }}</a>
                 <span class="sub">SKU {{ product.sku }}</span>
               </td>
             </ng-container>
             <ng-container matColumnDef="category">
-              <th mat-header-cell *matHeaderCellDef scope="col">Category</th>
-              <td mat-cell *matCellDef="let product">{{ categoryLabel(product.category) }}</td>
+              <th *matHeaderCellDef mat-header-cell scope="col">Category</th>
+              <td *matCellDef="let product" mat-cell>{{ categoryLabel(product.category) }}</td>
             </ng-container>
             <ng-container matColumnDef="price">
-              <th mat-header-cell *matHeaderCellDef scope="col" class="number">Price</th>
-              <td mat-cell *matCellDef="let product" class="number">
+              <th *matHeaderCellDef mat-header-cell scope="col" class="number">Price</th>
+              <td *matCellDef="let product" mat-cell class="number">
                 @if (product.price !== null) {
                   {{ product.price | currency }}
                 } @else {
@@ -113,28 +113,28 @@
               </td>
             </ng-container>
             <ng-container matColumnDef="stock">
-              <th mat-header-cell *matHeaderCellDef scope="col" class="number">On hand</th>
-              <td mat-cell *matCellDef="let product" class="number">
+              <th *matHeaderCellDef mat-header-cell scope="col" class="number">On hand</th>
+              <td *matCellDef="let product" mat-cell class="number">
                 {{ product.onHand }}
                 <span class="sub">{{ product.reserved }} reserved</span>
               </td>
             </ng-container>
             <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef scope="col">Status</th>
-              <td mat-cell *matCellDef="let product">
+              <th *matHeaderCellDef mat-header-cell scope="col">Status</th>
+              <td *matCellDef="let product" mat-cell>
                 <app-status-badge [status]="statusOf(product)" />
               </td>
             </ng-container>
             <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef scope="col">
+              <th *matHeaderCellDef mat-header-cell scope="col">
                 <span class="cdk-visually-hidden">Actions</span>
               </th>
-              <td mat-cell *matCellDef="let product">
+              <td *matCellDef="let product" mat-cell>
                 <div class="row-actions">
                   <a
                     matButton
                     [routerLink]="['/admin/products', product.id]"
-                    [attr.aria-label]="'Edit ' + product.name"
+                    [attr.aria-label]="`Edit ${product.name}`"
                   >
                     <mat-icon svgIcon="edit" />
                     Edit
@@ -143,8 +143,8 @@
                     matButton
                     type="button"
                     class="toggle-active"
-                    [disabled]="busyId() !== null"
                     disabledInteractive
+                    [disabled]="busyId() !== null"
                     [attr.aria-label]="
                       (product.isActive ? 'Deactivate ' : 'Reactivate ') + product.name
                     "
@@ -156,8 +156,8 @@
                 </div>
               </td>
             </ng-container>
-            <tr mat-header-row *matHeaderRowDef="columns"></tr>
-            <tr mat-row *matRowDef="let row; columns: columns"></tr>
+            <tr *matHeaderRowDef="columns" mat-header-row></tr>
+            <tr *matRowDef="let row; columns: columns" mat-row></tr>
           </table>
         </div>
         <mat-paginator

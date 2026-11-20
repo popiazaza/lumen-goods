@@ -6,19 +6,23 @@ import {
 import { ProductStatusFilter } from '../../core/api/admin-products.api';
 import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
 
-// The admin lists keep their filters and page in the URL, like the catalogue: the page parses the
-// query string into one of these, controls navigate with a changed copy, and Back/Forward and
-// shared links reproduce the view. Defaults are left out of the URL so each view has one link.
+// The admin lists keep their filters and page in the URL, like the catalogue: the page parses the query string into one of these, controls navigate with a changed copy, and Back/Forward and shared links reproduce the view. Defaults are left out of the URL so each view has one link.
 
 export const ADMIN_PAGE_SIZES = [24, 48, 96] as const;
 export const ADMIN_DEFAULT_PAGE_SIZE = 24;
 
 export interface AdminOrdersQuery {
-  /** Any of these (`status` repeated in the URL); empty means every status. */
+  /**
+  Any of these (`status` repeated in the URL); empty means every status.
+  */
   statuses: AdminOrderStatusFilter[];
-  /** `YYYY-MM-DD` in the admin's time zone: placed on or after this day. */
+  /**
+  `YYYY-MM-DD` in the admin's time zone: placed on or after this day.
+  */
   from: string | null;
-  /** `YYYY-MM-DD` in the admin's time zone: placed on or before this day. */
+  /**
+  `YYYY-MM-DD` in the admin's time zone: placed on or before this day.
+  */
   to: string | null;
   page: number;
   pageSize: number;
@@ -78,12 +82,16 @@ export function hasProductFilters(query: AdminProductsQuery): boolean {
   return query.q !== '' || query.status !== 'all' || query.category !== null;
 }
 
-/** A filter change starts again at page 1; a page change keeps the filters. */
+/**
+A filter change starts again at page 1; a page change keeps the filters.
+*/
 export function withFilters<T extends { page: number }>(query: T, change: Partial<T>): T {
   return { ...query, ...change, page: 1 };
 }
 
-/** Known values only, de-duplicated, in the order of `allowed`, so one selection has one URL. */
+/**
+Known values only, de-duplicated, in the order of `allowed`, so one selection has one URL.
+*/
 function pickMany<T extends string>(values: readonly string[], allowed: readonly T[]): T[] {
   return allowed.filter((candidate) => values.includes(candidate));
 }
@@ -92,7 +100,9 @@ function pickOne<T extends string>(value: string | null, allowed: readonly T[]):
   return allowed.find((candidate) => candidate === value) ?? null;
 }
 
-/** A real calendar day as `YYYY-MM-DD`, else `null`. */
+/**
+A real calendar day as `YYYY-MM-DD`, else `null`.
+*/
 function parseDay(value: string | null): string | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -115,6 +125,6 @@ function parsePaging(params: ParamMap): { page: number; pageSize: number } {
 function pagingParams(query: { page: number; pageSize: number }): Params {
   return {
     page: query.page > 1 ? query.page : null,
-    pageSize: query.pageSize !== ADMIN_DEFAULT_PAGE_SIZE ? query.pageSize : null,
+    pageSize: query.pageSize === ADMIN_DEFAULT_PAGE_SIZE ? null : query.pageSize,
   };
 }

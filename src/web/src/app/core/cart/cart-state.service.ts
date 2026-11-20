@@ -8,8 +8,7 @@ export type CartLoadStatus = 'idle' | 'loading' | 'loaded' | 'error';
 /**
  * The shopper's cart as the server last described it, for the header badge and the cart page.
  *
- * The server owns the cart and prices every line: each change goes to the API and the whole cart
- * it answers with replaces this copy. Nothing here calculates money or stock.
+ * The server owns the cart and prices every line: each change goes to the API and the whole cart it answers with replaces this copy. Nothing here calculates money or stock.
  */
 @Service()
 export class CartStateService {
@@ -17,25 +16,35 @@ export class CartStateService {
   private readonly current = signal<CartDto | undefined>(undefined);
   private readonly loadStatus = signal<CartLoadStatus>('idle');
   private readonly merged = signal<string | null>(null);
-  /** Each request takes a ticket; an answer older than the one shown is dropped. */
+  /**
+  Each request takes a ticket; an answer older than the one shown is dropped.
+  */
   private issued = 0;
   private shown = 0;
 
-  /** The last cart the server sent; `undefined` until the first answer. */
+  /**
+  The last cart the server sent; `undefined` until the first answer.
+  */
   readonly cart = this.current.asReadonly();
   readonly status = this.loadStatus.asReadonly();
 
-  /** Total quantity (the API's `itemCount`), for the mini-cart badge. */
+  /**
+  Total quantity (the API's `itemCount`), for the mini-cart badge.
+  */
   readonly itemCount = computed(() => this.current()?.itemCount ?? 0);
   readonly isEmpty = computed(() => this.itemCount() === 0);
 
-  /** "We merged your carts" after sign-in, shown on the cart page until dismissed. */
+  /**
+  "We merged your carts" after sign-in, shown on the cart page until dismissed.
+  */
   readonly mergeNotice = this.merged.asReadonly();
 
-  /** Loads the cart once (the header calls this on start-up); later calls do nothing. */
+  /**
+  Loads the cart once (the header calls this on start-up); later calls do nothing.
+  */
   ensureLoaded(): void {
     if (this.loadStatus() === 'idle') {
-      this.reload().subscribe({ error: () => undefined });
+      this.reload().subscribe({ error: () => {} });
     }
   }
 
@@ -50,7 +59,7 @@ export class CartStateService {
         next: () => this.loadStatus.set('loaded'),
         // A failed refresh keeps showing the last known cart.
         error: () => this.loadStatus.set(this.current() ? 'loaded' : 'error'),
-      }),
+      })
     );
   }
 
@@ -71,8 +80,8 @@ export class CartStateService {
       catchError((error: unknown) =>
         problemTypeOf(error) === CART_CHANGED_PROBLEM
           ? this.reload().pipe(switchMap(() => send()))
-          : throwError(() => error),
-      ),
+          : throwError(() => error)
+      )
     );
   }
 
@@ -92,17 +101,21 @@ export class CartStateService {
     this.merged.set(message);
   }
 
-  /** Shows the answer unless a newer request has already been answered. */
+  /**
+  Shows the answer unless a newer request has already been answered.
+  */
   private track(request: Observable<CartDto>): Observable<CartDto> {
     return defer(() => {
       const ticket = ++this.issued;
       return request.pipe(
         tap((cart) => {
-          if (ticket > this.shown) {
-            this.shown = ticket;
-            this.current.set(cart);
+          if (!(ticket > this.shown)) {
+            return;
           }
-        }),
+
+          this.shown = ticket;
+          this.current.set(cart);
+        })
       );
     });
   }

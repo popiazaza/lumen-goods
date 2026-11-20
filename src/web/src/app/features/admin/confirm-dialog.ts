@@ -16,18 +16,28 @@ import { Observable, filter } from 'rxjs';
 
 export interface ConfirmDialogData {
   title: string;
-  /** Says exactly what will happen. */
+  /**
+  Says exactly what will happen.
+  */
   message: string;
-  /** A verb: "Deactivate product", "Reject and refund". */
+  /**
+  A verb: "Deactivate product", "Reject and refund".
+  */
   confirmText: string;
-  /** The way out: "Keep active", "Keep waiting". */
+  /**
+  The way out: "Keep active", "Keep waiting".
+  */
   cancelText: string;
-  /** Shows an optional note field with this label, returned with the answer. */
+  /**
+  Shows an optional note field with this label, returned with the answer.
+  */
   noteLabel?: string;
   noteHint?: string;
 }
 
-/** What the admin confirmed with (the note is '' without a note field). */
+/**
+What the admin confirmed with (the note is '' without a note field).
+*/
 export interface ConfirmDialogResult {
   note: string;
 }
@@ -118,7 +128,7 @@ export class ConfirmDialog {
  */
 export function openConfirmDialog(
   dialog: MatDialog,
-  data: ConfirmDialogData,
+  data: ConfirmDialogData
 ): Observable<ConfirmDialogResult> {
   const config: MatDialogConfig<ConfirmDialogData> = {
     data,

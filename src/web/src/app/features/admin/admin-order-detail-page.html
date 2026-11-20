@@ -1,10 +1,10 @@
 <h1>Order {{ id() }}</h1>
 
 @if (accessStatus(); as status) {
-  <app-admin-access-denied [status]="status" [returnUrl]="'/admin/orders/' + id()" />
+  <app-admin-access-denied [status]="status" [returnUrl]="`/admin/orders/${id()}`" />
 } @else if (errorStatus(); as status) {
   <div class="state" [attr.role]="status === 404 ? null : 'alert'">
-    <mat-icon [svgIcon]="status === 404 ? 'info' : 'error'" class="state-icon" />
+    <mat-icon class="state-icon" [svgIcon]="status === 404 ? 'info' : 'error'" />
     @if (status === 404) {
       <p>
         <strong>There is no order {{ id() }}.</strong>
@@ -25,7 +25,7 @@
     <p>
       Placed <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'medium' }}</time>
     </p>
-    <button matButton type="button" (click)="order.reload()" [disabled]="order.isLoading()">
+    <button matButton type="button" [disabled]="order.isLoading()" (click)="order.reload()">
       <mat-icon svgIcon="refresh" />
       Reload
     </button>
@@ -46,7 +46,7 @@
       <mat-icon svgIcon="warning" />
       <p>
         <strong
-          >{{ attentionCount() === 1 ? '1 line needs' : attentionCount() + ' lines need' }} your
+          >{{ attentionCount() === 1 ? '1 line needs' : `${attentionCount()} lines need` }} your
           decision.</strong
         >
         The partner has not confirmed or rejected it for a long time, or Lumen never learned whether
@@ -89,7 +89,7 @@
               class="table-scroll"
               role="region"
               tabindex="0"
-              [attr.aria-label]="'Lines from ' + shipment.sellerName"
+              [attr.aria-label]="`Lines from ${shipment.sellerName}`"
             >
               <table>
                 <thead>
@@ -121,11 +121,9 @@
                             <button
                               matButton="filled"
                               type="button"
-                              [disabled]="savingLine() !== null"
                               disabledInteractive
-                              [attr.aria-label]="
-                                'Confirm line ' + line.lineNumber + ', ' + line.name
-                              "
+                              [disabled]="savingLine() !== null"
+                              [attr.aria-label]="`Confirm line ${line.lineNumber}, ${line.name}`"
                               (click)="resolve(line, shipment.sellerName, 'confirm')"
                             >
                               Confirm
@@ -133,11 +131,9 @@
                             <button
                               matButton="outlined"
                               type="button"
-                              [disabled]="savingLine() !== null"
                               disabledInteractive
-                              [attr.aria-label]="
-                                'Reject line ' + line.lineNumber + ', ' + line.name
-                              "
+                              [disabled]="savingLine() !== null"
+                              [attr.aria-label]="`Reject line ${line.lineNumber}, ${line.name}`"
                               (click)="resolve(line, shipment.sellerName, 'reject')"
                             >
                               Reject

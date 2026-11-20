@@ -23,7 +23,9 @@ import { OrderSummaryPanel } from './order-summary-panel';
 import { hasRefundOnItsWay, orderKeepsChanging, pollWhileUpdating } from './poll-while-updating';
 import { StatusBadge } from './status-badge';
 
-/** How often the page re-reads an order that is still updating. */
+/**
+How often the page re-reads an order that is still updating.
+*/
 export const ORDER_POLL_INTERVAL_MS = 5000;
 
 /**
@@ -50,7 +52,9 @@ export const ORDER_POLL_INTERVAL_MS = 5000;
   styleUrl: './order-detail-page.scss',
 })
 export class OrderDetailPage {
-  /** The order number, bound from the `:id` route parameter. */
+  /**
+  The order number, bound from the `:id` route parameter.
+  */
   readonly id = input.required<string>();
 
   private readonly api = inject(OrdersApi);
@@ -62,20 +66,22 @@ export class OrderDetailPage {
       pollWhileUpdating(() => this.api.get(number), ORDER_POLL_INTERVAL_MS, orderKeepsChanging),
   });
   protected readonly detail = computed(() =>
-    this.order.hasValue() ? this.order.value() : undefined,
+    this.order.hasValue() ? this.order.value() : undefined
   );
   protected readonly errorStatus = computed(() =>
-    this.order.status() === 'error' ? (httpStatusOf(this.order.error()) ?? -1) : undefined,
+    this.order.status() === 'error' ? (httpStatusOf(this.order.error()) ?? -1) : undefined
   );
 
   protected readonly lines = computed(() =>
-    (this.detail()?.shipments ?? []).flatMap((shipment) => shipment.lines),
+    (this.detail()?.shipments ?? []).flatMap((shipment) => shipment.lines)
   );
   protected readonly rejectedCount = computed(
-    () => this.lines().filter((line) => line.status === 'rejected').length,
+    () => this.lines().filter((line) => line.status === 'rejected').length
   );
 
-  /** What the page is waiting for while it refreshes itself. */
+  /**
+  What the page is waiting for while it refreshes itself.
+  */
   protected readonly waitingText = computed(() => {
     const order = this.detail();
     if (!order || !orderKeepsChanging(order)) {
@@ -95,7 +101,7 @@ export class OrderDetailPage {
       reasons.push(
         order.payment
           ? `Your refund is on its way back to your ${paymentMethodLabel(order.payment)}.`
-          : 'Your refund is on its way back.',
+          : 'Your refund is on its way back.'
       );
     }
     if (reasons.length === 0) {
@@ -119,7 +125,9 @@ export class OrderDetailPage {
     return lineStatusView(line.status, line.statusText);
   }
 
-  /** A refresh that changes a line's status is read out, e.g. "Merino Trail Socks: Confirmed". */
+  /**
+  A refresh that changes a line's status is read out, e.g. "Merino Trail Socks: Confirmed".
+  */
   private announceLineChanges(): void {
     let previous: ReadonlyMap<string, string> | undefined;
     effect(() => {
@@ -135,17 +143,18 @@ export class OrderDetailPage {
       if (changed.length > 0) {
         void this.announcer.announce(
           changed.map((line) => `${line.name}: ${line.statusText}`).join('. '),
-          'polite',
+          'polite'
         );
       }
     });
   }
 }
 
-/** "A", "A and B", "A, B and C". */
+/**
+"A", "A and B", "A, B and C".
+*/
 export function joinNames(names: readonly string[]): string {
-  if (names.length <= 1) {
-    return names[0] ?? '';
-  }
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return names.length <= 1
+    ? (names[0] ?? '')
+    : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 }

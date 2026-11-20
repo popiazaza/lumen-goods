@@ -23,7 +23,7 @@ describe('Checkout address and shipping steps', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const field = (id: string) =>
     host().querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`) as HTMLInputElement;
   const url = () => TestBed.inject(Router).url;
@@ -64,8 +64,8 @@ describe('Checkout address and shipping steps', () => {
 
       expect(
         ['name', 'line1', 'line2', 'city', 'region', 'postalCode'].map((name) =>
-          field(`address-${name}`).getAttribute('autocomplete'),
-        ),
+          field(`address-${name}`).getAttribute('autocomplete')
+        )
       ).toEqual([
         'shipping name',
         'shipping address-line1',
@@ -85,7 +85,7 @@ describe('Checkout address and shipping steps', () => {
       await harness.fixture.whenStable();
 
       expect(
-        [...host().querySelectorAll('app-error-summary li')].map((li) => li.textContent?.trim()),
+        [...host().querySelectorAll('app-error-summary li')].map((li) => li.textContent?.trim())
       ).toEqual([
         'Enter address line 1',
         'Enter city',
@@ -107,7 +107,7 @@ describe('Checkout address and shipping steps', () => {
       host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
       // The shipping step loads its preview.
       await vi.waitFor(() =>
-        http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview()),
+        http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview())
       );
       await harness.fixture.whenStable();
 
@@ -115,6 +115,7 @@ describe('Checkout address and shipping steps', () => {
       expect(store.address()).toEqual({ ...US_ADDRESS, postalCode: '97209-1234' });
 
       await harness.navigateByUrl('/checkout/address');
+
       expect(field('address-name').value).toBe('Ada Lovelace');
       expect(field('address-region').value).toBe('OR');
     });
@@ -129,14 +130,15 @@ describe('Checkout address and shipping steps', () => {
       await harness.fixture.whenStable();
 
       const [own, partner] = [...host().querySelectorAll<HTMLElement>('section.group')];
+
       expect(own.querySelectorAll('mat-radio-button')).toHaveLength(2);
       expect(text('section.group:first-of-type .methods')).toContain('Express');
       expect(partner.querySelector('mat-radio-button')).toBeNull();
-      expect(partner.querySelector('.fixed-method')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-        'Standard shipping, $4.99 · Partner shops ship Standard only.',
-      );
+      expect(
+        partner.querySelector('.fixed-method')?.textContent?.replaceAll(/\s+/g, ' ').trim()
+      ).toBe('Standard shipping, $4.99 · Partner shops ship Standard only.');
       expect(text('.muted')).toBe(
-        'Your order arrives in 2 packages: each shop ships its own items.',
+        'Your order arrives in 2 packages: each shop ships its own items.'
       );
     });
 
@@ -146,15 +148,16 @@ describe('Checkout address and shipping steps', () => {
       await harness.fixture.whenStable();
 
       const express = await TestbedHarnessEnvironment.loader(harness.fixture).getHarness(
-        MatRadioButtonHarness.with({ label: /Express/ }),
+        MatRadioButtonHarness.with({ label: /Express/ })
       );
       void express.check();
       await vi.waitFor(() =>
         http
           .expectOne('/api/v1/checkout/preview?shippingMethod=express')
-          .flush(aPreview({ shippingMethod: 'express', shipping: 17.98, total: 75.46 })),
+          .flush(aPreview({ shippingMethod: 'express', shipping: 17.98, total: 75.46 }))
       );
       await harness.fixture.whenStable();
+
       expect(text('.totals .grand.price')).toBe('$75.46');
 
       [...host().querySelectorAll<HTMLButtonElement>('.actions button')][0].click();
@@ -171,7 +174,7 @@ describe('Checkout address and shipping steps', () => {
         aPreview({
           shipments: partnerOnly.shipments.slice(1),
           shippingOptions: [{ method: 'standard', fee: 4.99, shippingTotal: 4.99 }],
-        }),
+        })
       );
       await harness.fixture.whenStable();
 
@@ -188,21 +191,23 @@ describe('Checkout address and shipping steps', () => {
           title: 'This shipping method is not available',
           status: 422,
         },
-        { status: 422, statusText: 'Unprocessable Entity' },
+        { status: 422, statusText: 'Unprocessable Entity' }
       );
       await vi.waitFor(() =>
         http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(
           aPreview({
             shipments: partnerOnly.shipments.slice(1),
             shippingOptions: [{ method: 'standard', fee: 4.99, shippingTotal: 4.99 }],
-          }),
-        ),
+          })
+        )
       );
       await harness.fixture.whenStable();
+
       expect(host().querySelector('[role="alert"]')).toBeNull();
 
       [...host().querySelectorAll<HTMLButtonElement>('.actions button')][0].click();
       await harness.fixture.whenStable();
+
       expect(store.shippingMethod()).toBe('standard');
     });
   });

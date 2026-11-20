@@ -23,16 +23,18 @@ describe('OrderDetailPage', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (root: ParentNode, selector: string) =>
-    root.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
-  /** `<dl>` rows as "label value". */
+    root.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
+  /**
+  `<dl>` rows as "label value".
+  */
   const rows = (root: ParentNode, selector: string) =>
     [...root.querySelectorAll(selector)].map((element) =>
-      [...element.children].map((child) => child.textContent?.trim()).join(' '),
+      [...element.children].map((child) => child.textContent?.trim()).join(' ')
     );
   const row = (root: ParentNode, selector: string) => rows(root, selector)[0];
   const shipment = (seller: string) =>
     [...host().querySelectorAll<HTMLElement>('.shipment')].find(
-      (element) => element.querySelector('h3')?.textContent?.trim() === seller,
+      (element) => element.querySelector('h3')?.textContent?.trim() === seller
     ) as HTMLElement;
   const lineBadges = () =>
     [...host().querySelectorAll<HTMLElement>('.line app-status-badge')].map((badge) => ({
@@ -41,7 +43,9 @@ describe('OrderDetailPage', () => {
       tone: [...badge.classList].find((name) => name.startsWith('tone-')),
     }));
 
-  /** Lets the resource take the flushed answer (a microtask), then renders. */
+  /**
+  Lets the resource take the flushed answer (a microtask), then renders.
+  */
   async function settle(): Promise<void> {
     await vi.advanceTimersByTimeAsync(0);
     fixture.detectChanges();
@@ -61,7 +65,7 @@ describe('OrderDetailPage', () => {
     } else {
       request.flush(
         { title: 'Problem', status: order.status },
-        { status: order.status, statusText: 'Error' },
+        { status: order.status, statusText: 'Error' }
       );
     }
     await fixture.whenStable();
@@ -176,12 +180,14 @@ describe('OrderDetailPage', () => {
     });
 
     const kestrel = shipment('Kestrel Outfitters');
+
     expect(text(kestrel, '.shipping')).toBe('Standard shipping, $4.99 (refunded)');
     expect(kestrel.querySelector('.shipping s')?.textContent).toBe('$4.99');
     expect(text(kestrel, '.line-total s')).toBe('You don’t pay: $16.22');
     expect(text(host(), '.notice')).toContain('1 item couldn’t be supplied.');
 
     const summary = host().querySelector('app-order-summary-panel') as HTMLElement;
+
     expect(row(summary, '.refunded')).toBe('Refunded −$22.51');
     expect(row(summary, '.refunded + .total')).toBe('Net paid $52.95');
     // The line and the shipping fee it paid back, as separate amounts.
@@ -197,6 +203,7 @@ describe('OrderDetailPage', () => {
   it('summarises the payment: card brand and last 4, or the wallet', async () => {
     await show(aSettledOrderDetail());
     const summary = () => host().querySelector('app-order-summary-panel') as HTMLElement;
+
     expect(text(summary(), '.method')).toBe('Visa ending 1111');
     expect(row(summary(), '.total')).toBe('Total charged $75.46');
     // Nothing was refunded, so no refund or net paid rows.
@@ -208,6 +215,7 @@ describe('OrderDetailPage', () => {
       ...order,
       payment: { ...order.payment!, method: 'wallet', cardBrand: null, cardLast4: null },
     });
+
     expect(text(summary(), '.method')).toBe('Lumen wallet');
   });
 
@@ -216,8 +224,9 @@ describe('OrderDetailPage', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
     http.expectOne(URL).flush(anOrderDetail());
     await settle();
+
     expect(text(host(), '.updating')).toBe(
-      'Waiting for Kestrel Outfitters to confirm. This page updates by itself.',
+      'Waiting for Kestrel Outfitters to confirm. This page updates by itself.'
     );
 
     // Not yet: the next read is one interval away.
@@ -227,6 +236,7 @@ describe('OrderDetailPage', () => {
     await vi.advanceTimersByTimeAsync(1);
     http.expectOne(URL).flush(anOrderDetail());
     fixture.detectChanges();
+
     expect(announcer.announce).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
@@ -240,7 +250,7 @@ describe('OrderDetailPage', () => {
     expect(text(host(), '.updating')).toBe('');
     expect(announcer.announce).toHaveBeenCalledWith(
       'Merino Trail Socks: Confirmed by Kestrel Outfitters',
-      'polite',
+      'polite'
     );
 
     // isUpdating is false: no more requests, however long the page stays open.
@@ -250,7 +260,9 @@ describe('OrderDetailPage', () => {
 
   it('refreshes while a refund is on its way back, failed retries included, until it is paid', async () => {
     const order = aSettledOrderDetail();
-    /** Kestrel could not supply the socks; the refund for them has this status. */
+    /**
+    Kestrel could not supply the socks; the refund for them has this status.
+    */
     const refunding = (status: RefundStatus, statusText: string): OrderDetailDto => ({
       ...order,
       status: 'partially_refunded',
@@ -285,9 +297,10 @@ describe('OrderDetailPage', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
     http.expectOne(URL).flush(refunding('pending', 'Not supplied, refund pending'));
     await settle();
+
     expect(lineBadges()[1].text).toBe('Not supplied, refund pending');
     expect(text(host(), '.updating')).toBe(
-      'Your refund is on its way back to your Visa ending 1111. This page updates by itself.',
+      'Your refund is on its way back to your Visa ending 1111. This page updates by itself.'
     );
     expect(refundBadge()).toBe('Pending');
 
@@ -295,18 +308,20 @@ describe('OrderDetailPage', () => {
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
     http.expectOne(URL).flush(refunding('failed', 'Not supplied, refund pending'));
     fixture.detectChanges();
+
     expect(refundBadge()).toBe('Pending');
     expect(text(host(), '.updating')).toContain('Your refund is on its way back');
 
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
     http.expectOne(URL).flush(refunding('succeeded', 'Not supplied, refunded $22.51'));
     fixture.detectChanges();
+
     expect(lineBadges()[1].text).toBe('Not supplied, refunded $22.51');
     expect(refundBadge()).toBe('Refunded');
     expect(text(host(), '.updating')).toBe('');
     expect(announcer.announce).toHaveBeenCalledWith(
       'Merino Trail Socks: Not supplied, refunded $22.51',
-      'polite',
+      'polite'
     );
 
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS * 10);
@@ -322,6 +337,7 @@ describe('OrderDetailPage', () => {
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
     http.expectOne(URL).flush('down', { status: 503, statusText: 'Unavailable' });
     fixture.detectChanges();
+
     expect(text(host(), '.line .name')).toBe('Enamel Camp Mug');
     expect(host().querySelector('[role="alert"]')).toBeNull();
 
@@ -356,7 +372,7 @@ describe('OrderDetailPage', () => {
 
     expect(text(host(), '.state strong')).toBe('Sign in to see this order.');
     expect(host().querySelector('.state a')?.getAttribute('href')).toBe(
-      `/sign-in?returnUrl=%2Forders%2F${NUMBER}`,
+      `/sign-in?returnUrl=%2Forders%2F${NUMBER}`
     );
   });
 

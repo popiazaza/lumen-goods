@@ -1,8 +1,7 @@
 import { ProductDto } from '../../core/api/products.api';
 
 /**
- * Most units one "Add to cart" can add. A UX cap, not stock control: the server checks stock
- * again when the line is added and at checkout.
+ * Most units one "Add to cart" can add. A UX cap, not stock control: the server checks stock again when the line is added and at checkout.
  */
 export const MAX_QUANTITY_PER_ADD = 10;
 
@@ -21,10 +20,11 @@ export function maxSelectableQuantity(product: ProductDto): number {
   return Math.max(0, Math.min(Math.trunc(quantity), MAX_QUANTITY_PER_ADD));
 }
 
-/** Brings a typed quantity into 1..max (whole numbers); empty or junk input becomes 1. */
+/**
+Brings a typed quantity into 1..max (whole numbers); empty or junk input becomes 1.
+*/
 export function clampQuantity(value: number | null | undefined, max: number): number {
-  if (value == null || !Number.isFinite(value)) {
-    return 1;
-  }
-  return Math.min(Math.max(Math.trunc(value), 1), Math.max(max, 1));
+  return value == null || !Number.isFinite(value)
+    ? 1
+    : Math.min(Math.max(Math.trunc(value), 1), Math.max(max, 1));
 }

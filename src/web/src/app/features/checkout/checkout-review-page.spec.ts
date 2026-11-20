@@ -46,7 +46,7 @@ function aChange(overrides: Partial<CheckoutLineChangeDto> = {}): CheckoutLineCh
 function conflict(
   changes: CheckoutLineChangeDto[],
   newTotal: number | null,
-  canConfirm: boolean,
+  canConfirm: boolean
 ): CheckoutChangedProblem {
   return {
     type: CHECKOUT_CHANGED_PROBLEM,
@@ -66,7 +66,7 @@ describe('CheckoutReviewPage', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const placeButton = () =>
     host().querySelector<HTMLButtonElement>('button.place') as HTMLButtonElement;
 
@@ -113,10 +113,10 @@ describe('CheckoutReviewPage', () => {
     await open();
 
     expect(text('.summary-list div:first-child dd')).toBe(
-      'Ada Lovelace, 1200 NW Naito Pkwy, Portland, Oregon 97209, United States',
+      'Ada Lovelace, 1200 NW Naito Pkwy, Portland, Oregon 97209, United States'
     );
     expect(
-      [...host().querySelectorAll('section.group h3')].map((h) => h.textContent?.trim()),
+      [...host().querySelectorAll('section.group h3')].map((h) => h.textContent?.trim())
     ).toEqual(['Sold by Lumen Goods', 'Sold by Kestrel Outfitters']);
     expect(text('.review-total')).toBe('$67.46');
   });
@@ -126,6 +126,7 @@ describe('CheckoutReviewPage', () => {
 
     placeButton().click();
     const request = http.expectOne('/api/v1/checkout/orders');
+
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({
       checkoutKey: store.checkoutKey(),
@@ -137,6 +138,7 @@ describe('CheckoutReviewPage', () => {
       shippingAddress: US_ADDRESS,
       shippingMethod: 'express',
     });
+
     const sentKey = request.request.body.checkoutKey;
     request.flush(anOrder({ number: 'LG-NEW1' }), { status: 201, statusText: 'Created' });
     http.expectOne('/api/v1/cart').flush(aCart([]));
@@ -165,9 +167,11 @@ describe('CheckoutReviewPage', () => {
     const again = http.expectOne('/api/v1/checkout/orders');
 
     expect(again.request.body.checkoutKey).toBe(first.request.body.checkoutKey);
+
     again.flush(anOrder({ number: 'LG-NEW1' }), { status: 200, statusText: 'OK' });
     http.expectOne('/api/v1/cart').flush(aCart([]));
     await fixture.whenStable();
+
     expect(TestBed.inject(Router).url).toBe('/checkout/payment?order=LG-NEW1');
   });
 
@@ -177,9 +181,10 @@ describe('CheckoutReviewPage', () => {
     const first = await placeAndConflict(conflict([aChange()], 68.63, true));
 
     const banner = host().querySelector<HTMLElement>('.banner.changed') as HTMLElement;
+
     expect(document.activeElement).toBe(banner);
     expect(text('.changes li')).toBe(
-      'Merino Trail Socks (Kestrel Outfitters): price changed from was $16.22 to $17.31',
+      'Merino Trail Socks (Kestrel Outfitters): price changed from was $16.22 to $17.31'
     );
     expect(banner.querySelector('del')?.textContent).toContain('$16.22');
     expect(text('.new-total')).toBe('$68.63');
@@ -187,6 +192,7 @@ describe('CheckoutReviewPage', () => {
 
     host().querySelector<HTMLButtonElement>('button.confirm')?.click();
     const retry = http.expectOne('/api/v1/checkout/orders');
+
     // New prices and total are a different review, so a different key (the 409 made no order).
     expect(retry.request.body.checkoutKey).not.toBe(first.request.body.checkoutKey);
     expect(retry.request.body).toMatchObject({
@@ -196,9 +202,11 @@ describe('CheckoutReviewPage', () => {
         { productId: 'kestrel-K-7731', quantity: 1, unitPrice: 17.31 },
       ],
     });
+
     retry.flush(anOrder({ number: 'LG-NEW2' }), { status: 201, statusText: 'Created' });
     http.expectOne('/api/v1/cart').flush(aCart([]));
     await fixture.whenStable();
+
     expect(TestBed.inject(Router).url).toBe('/checkout/payment?order=LG-NEW2');
   });
 
@@ -217,8 +225,8 @@ describe('CheckoutReviewPage', () => {
           }),
         ],
         null,
-        false,
-      ),
+        false
+      )
     );
 
     expect(text('.changes li')).toBe('Merino Trail Socks (Kestrel Outfitters): Only 1 available');
@@ -230,6 +238,7 @@ describe('CheckoutReviewPage', () => {
     const limited = aChange({ kind: 'quantity_limited', available: 1, message: 'Only 1 left' });
     await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(aPreview({ blockers: [limited] })));
     await fixture.whenStable();
+
     expect(host().querySelector('.banner.changed')).toBeNull();
     expect(placeButton().getAttribute('aria-disabled')).toBe('true');
   });
@@ -251,11 +260,12 @@ describe('CheckoutReviewPage', () => {
           }),
         ],
         null,
-        false,
-      ),
+        false
+      )
     );
+
     expect(text('.changes li')).toBe(
-      'Merino Trail Socks (Kestrel Outfitters): Added to your cart since you reviewed it',
+      'Merino Trail Socks (Kestrel Outfitters): Added to your cart since you reviewed it'
     );
 
     host().querySelector<HTMLButtonElement>('button.review-again')?.click();
@@ -268,11 +278,12 @@ describe('CheckoutReviewPage', () => {
 
   it('cannot place the order while the preview has blockers', async () => {
     await open(
-      aPreview({ blockers: [aChange({ kind: 'unavailable', message: 'No longer available' })] }),
+      aPreview({ blockers: [aChange({ kind: 'unavailable', message: 'No longer available' })] })
     );
 
     expect(placeButton().getAttribute('aria-disabled')).toBe('true');
     expect(text('#place-blocked')).toBe('Update your cart before placing the order.');
+
     placeButton().click();
     http.expectNone('/api/v1/checkout/orders');
   });
@@ -287,7 +298,7 @@ describe('CheckoutReviewPage', () => {
         status: 400,
         errors: { 'shippingAddress.postalCode': ['Enter a 5-digit ZIP code, e.g. 97209.'] },
       },
-      { status: 400, statusText: 'Bad Request' },
+      { status: 400, statusText: 'Bad Request' }
     );
     await fixture.whenStable();
 
@@ -308,14 +319,17 @@ describe('CheckoutReviewPage', () => {
         status: 409,
         detail: 'Reload the checkout page and place the order again.',
       },
-      { status: 409, statusText: 'Conflict' },
+      { status: 409, statusText: 'Conflict' }
     );
     await fixture.whenStable();
+
     expect(store.checkoutKey()).not.toBe(key);
 
     placeButton().click();
     const retry = http.expectOne('/api/v1/checkout/orders');
+
     expect(retry.request.body).toMatchObject({ checkoutKey: store.checkoutKey() });
+
     retry.flush(anOrder(), { status: 201, statusText: 'Created' });
     http.expectOne('/api/v1/cart').flush(aCart([]));
     await fixture.whenStable();
@@ -333,16 +347,16 @@ describe('CheckoutReviewPage', () => {
           detail:
             "Express shipping is only offered for Lumen Goods' own items, and this cart has none.",
         },
-        { status: 422, statusText: 'Unprocessable Entity' },
-      ),
+        { status: 422, statusText: 'Unprocessable Entity' }
+      )
     );
     await fixture.whenStable();
 
     expect(text('.banner.error p')).toBe(
-      "Express shipping is only offered for Lumen Goods' own items, and this cart has none.",
+      "Express shipping is only offered for Lumen Goods' own items, and this cart has none."
     );
     expect(host().querySelector('.banner.error a')?.getAttribute('href')).toBe(
-      '/checkout/shipping',
+      '/checkout/shipping'
     );
   });
 
@@ -356,7 +370,7 @@ describe('CheckoutReviewPage', () => {
     await fixture.whenStable();
 
     expect(text('.banner.error[role="alert"] p')).toBe(
-      'We couldn’t place your order. You have not been charged. Try again.',
+      'We couldn’t place your order. You have not been charged. Try again.'
     );
   });
 });

@@ -7,7 +7,7 @@
   border: 1px solid var(--mat-sys-outline-variant);
   border-radius: var(--lg-radius-card);
 
-  h2 {
+  & h2 {
     margin-top: 0;
 
     &:focus {
@@ -15,7 +15,7 @@
     }
   }
 
-  mat-progress-bar {
+  & mat-progress-bar {
     margin: 0 0 var(--lg-space-3);
   }
 }
@@ -45,12 +45,12 @@
 .card-fields {
   display: flex;
   flex-direction: column;
-  gap: var(--lg-space-2);
-  margin: var(--lg-space-4) 0 0;
   padding: 0;
   border: 0;
+  margin: var(--lg-space-4) 0 0;
+  gap: var(--lg-space-2);
 
-  legend {
+  & legend {
     margin-bottom: var(--lg-space-3);
     font: var(--mat-sys-title-medium);
   }
@@ -58,8 +58,8 @@
 
 .brand {
   padding-right: var(--lg-space-3);
-  font: var(--mat-sys-label-large);
   color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-label-large);
 }
 
 .code-form {

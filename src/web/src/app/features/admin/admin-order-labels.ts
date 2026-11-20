@@ -28,7 +28,9 @@ const PARTNER_ORDERS: Readonly<Record<PartnerOrder['status'], StatusView>> = {
   closed_by_admin: { tone: 'neutral', icon: 'lock', text: 'Closed by an admin' },
 };
 
-/** A partner order that needs an admin says so first, whatever its stored status. */
+/**
+A partner order that needs an admin says so first, whatever its stored status.
+*/
 export function partnerOrderView(order: PartnerOrder): StatusView {
   if (order.needsAttention) {
     return {

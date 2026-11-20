@@ -21,10 +21,14 @@ import { safeReturnUrl } from '../../core/routing/return-url';
 import { ErrorSummary, FormProblem } from '../../shared/forms/error-summary';
 import { AfterSignIn } from './after-sign-in';
 
-/** The API's password rule (`RegisterRequest`): at least 8 characters. */
+/**
+The API's password rule (`RegisterRequest`): at least 8 characters.
+*/
 export const MIN_PASSWORD_LENGTH = 8;
 
-/** Create an account (`/register?returnUrl=`): email and password, then signed in. */
+/**
+Create an account (`/register?returnUrl=`): email and password, then signed in.
+*/
 @Component({
   selector: 'app-register-page',
   imports: [
@@ -74,7 +78,9 @@ export class RegisterPage {
   protected readonly submitting = signal(false);
   protected readonly problems = signal<readonly FormProblem[]>([]);
   protected readonly failure = signal<string | null>(null);
-  /** Messages from the API's validation problem, shown under their fields. */
+  /**
+  Messages from the API's validation problem, shown under their fields.
+  */
   protected readonly serverErrors = signal<{ email?: string; password?: string }>({});
 
   protected emailError(): string {
@@ -128,7 +134,9 @@ export class RegisterPage {
     afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
   }
 
-  /** A 400 validation problem lands on its fields (keys `Email`, `Password`); anything else on top. */
+  /**
+  A 400 validation problem lands on its fields (keys `Email`, `Password`); anything else on top.
+  */
   private failed(error: unknown): void {
     const errors = problemOf(error)?.errors;
     const pick = (key: string) =>

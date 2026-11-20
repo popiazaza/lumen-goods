@@ -13,10 +13,10 @@
 
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
   column-gap: var(--lg-space-4);
+  grid-template-columns: minmax(0, 1fr);
 
-  @media (min-width: 600px) {
+  @media (width >= 600px) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
@@ -33,11 +33,11 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--lg-space-3);
   margin-top: var(--lg-space-4);
+  gap: var(--lg-space-3);
 
-  button,
-  a {
+  & button,
+  & a {
     min-height: 48px;
   }
 }
@@ -48,20 +48,20 @@ h2 {
 }
 
 .group {
-  margin: 0 0 var(--lg-space-4);
   padding: var(--lg-space-4);
   border: 1px solid var(--mat-sys-outline-variant);
   border-radius: var(--lg-radius-card);
+  margin: 0 0 var(--lg-space-4);
 }
 
 .group-head {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: var(--lg-space-1) var(--lg-space-3);
   margin: 0 0 var(--lg-space-3);
+  gap: var(--lg-space-1) var(--lg-space-3);
 
-  h3 {
+  & h3 {
     margin: 0;
     font: var(--mat-sys-title-medium);
   }
@@ -70,11 +70,11 @@ h2 {
 .ships {
   display: inline-flex;
   align-items: center;
-  gap: var(--lg-space-1);
   color: var(--mat-sys-on-surface-variant);
   font: var(--mat-sys-body-medium);
+  gap: var(--lg-space-1);
 
-  mat-icon {
+  & mat-icon {
     width: 18px;
     height: 18px;
   }
@@ -82,22 +82,22 @@ h2 {
 
 .totals {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--lg-space-2) var(--lg-space-4);
   max-width: 24rem;
   margin: 0 0 0 auto;
+  gap: var(--lg-space-2) var(--lg-space-4);
+  grid-template-columns: 1fr auto;
 
-  dt {
+  & dt {
     color: var(--mat-sys-on-surface-variant);
   }
 
-  dd {
+  & dd {
     margin: 0;
-    text-align: right;
     font-variant-numeric: tabular-nums;
+    text-align: right;
   }
 
-  .grand {
+  & .grand {
     padding-top: var(--lg-space-2);
     border-top: 1px solid var(--mat-sys-outline-variant);
     color: var(--mat-sys-on-surface);
@@ -107,27 +107,27 @@ h2 {
 
 .banner {
   display: flex;
-  gap: var(--lg-space-3);
-  margin: 0 0 var(--lg-space-4);
   padding: var(--lg-space-3) var(--lg-space-4);
   border-radius: var(--lg-radius-card);
+  margin: 0 0 var(--lg-space-4);
   background: var(--mat-sys-secondary-container);
   color: var(--mat-sys-on-secondary-container);
+  gap: var(--lg-space-3);
 
   &.error {
     background: var(--mat-sys-error-container);
     color: var(--mat-sys-on-error-container);
   }
 
-  > mat-icon {
+  & > mat-icon {
     flex: none;
   }
 
-  p {
+  & p {
     margin: 0 0 var(--lg-space-2);
   }
 
-  > div > :last-child {
+  & > div > :last-child {
     margin-bottom: 0;
   }
 }

@@ -7,14 +7,20 @@ import { API_BASE_URL } from './api-base-url';
 
 export interface PartnerSyncError {
   occurredUtc: string;
-  /** What Lumen was doing: "catalogue", "stock" or "data". */
+  /**
+  What Lumen was doing: "catalogue", "stock" or "data".
+  */
   operation: string;
-  /** The partner's HTTP status, or `null` for timeouts and network failures. */
+  /**
+  The partner's HTTP status, or `null` for timeouts and network failures.
+  */
   statusCode: number | null;
   message: string;
 }
 
-/** Catalogue sync health for one partner shop. */
+/**
+Catalogue sync health for one partner shop.
+*/
 export interface PartnerStatus {
   partner: string;
   name: string;
@@ -22,23 +28,28 @@ export interface PartnerStatus {
   lastAttemptUtc: string | null;
   lastError: string | null;
   liveProductCount: number;
-  /** Set while an admin's "Refresh now" is waiting or running. */
+  /**
+  Set while an admin's "Refresh now" is waiting or running.
+  */
   refreshRequestedUtc: string | null;
   /**
-   * Products missing from the partner's last full catalogue that the mass-removal guard keeps
-   * listed until an admin confirms them; 0 when nothing is held.
+   * Products missing from the partner's last full catalogue that the mass-removal guard keeps listed until an admin confirms them; 0 when nothing is held.
    */
   heldRemovals: number;
   recentErrors: PartnerSyncError[];
 }
 
-/** `GET /api/v1/admin/partners` and `POST /api/v1/admin/partners/{partner}/refresh` (admin only). */
+/**
+`GET /api/v1/admin/partners` and `POST /api/v1/admin/partners/{partner}/refresh` (admin only).
+*/
 @Service()
 export class AdminPartnersApi {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = inject(API_BASE_URL);
 
-  /** 401 when signed out, 403 when signed in without the admin role. */
+  /**
+  401 when signed out, 403 when signed in without the admin role.
+  */
   list(): Observable<PartnerStatus[]> {
     return this.http.get<PartnerStatus[]>(`${this.baseUrl}/admin/partners`);
   }
@@ -60,14 +71,16 @@ export class AdminPartnersApi {
         map((response) => {
           const accepted = Date.parse(response.headers.get('Date') ?? '');
           return Number.isNaN(accepted) ? null : accepted;
-        }),
+        })
       );
   }
 }
 
-/** Epoch ms of a status timestamp; `NaN` (never greater or equal) for `null` or junk. */
+/**
+Epoch ms of a status timestamp; `NaN` (never greater or equal) for `null` or junk.
+*/
 export function instantOf(isoUtc: string | null): number {
-  return isoUtc ? Date.parse(isoUtc) : Number.NaN;
+  return isoUtc ? Date.parse(isoUtc) : NaN;
 }
 
 /**

@@ -43,10 +43,12 @@ describe('AdminProductsPage', () => {
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const text = (root: ParentNode | null | undefined, selector: string) =>
-    root?.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    root?.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const rows = () => [...host().querySelectorAll<HTMLElement>('tr.mat-mdc-row')];
   const button = (label: string) =>
-    host().querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`) as HTMLButtonElement;
+    host().querySelector<HTMLButtonElement>(
+      `button[aria-label="${CSS.escape(label)}"]`
+    ) as HTMLButtonElement;
   const dialog = () => document.querySelector<HTMLElement>('app-confirm-dialog');
   const isList = (request: { url: string }) => request.url === '/api/v1/admin/products';
 
@@ -102,12 +104,14 @@ describe('AdminProductsPage', () => {
     const request = await open('/admin/products?q=mug&status=inactive&category=home&page=2');
 
     expect(request.request.urlWithParams).toBe(
-      '/api/v1/admin/products?q=mug&status=inactive&category=home&page=2&pageSize=24',
+      '/api/v1/admin/products?q=mug&status=inactive&category=home&page=2&pageSize=24'
     );
     expect((host().querySelector('input[name="q"]') as HTMLInputElement).value).toBe('mug');
+
     const [status, category] = await loader.getAllHarnesses(MatSelectHarness);
-    expect(await status.getValueText()).toBe('Inactive');
-    expect(await category.getValueText()).toBe('Home');
+
+    await expect(status.getValueText()).resolves.toBe('Inactive');
+    await expect(category.getValueText()).resolves.toBe('Home');
   });
 
   it('searches on submit and filters by status, each starting at page 1', async () => {
@@ -118,6 +122,7 @@ describe('AdminProductsPage', () => {
     search.dispatchEvent(new Event('input'));
     (host().querySelector('form[role="search"] button') as HTMLButtonElement).click();
     const searched = await respond(aPagedResult([LAMP]));
+
     expect(router.url).toBe('/admin/products?q=lamp');
     expect(searched.request.params.get('q')).toBe('lamp');
 
@@ -126,6 +131,7 @@ describe('AdminProductsPage', () => {
     const choosing = status.clickOptions({ text: 'Active' });
     await respond(aPagedResult([]));
     await choosing;
+
     expect(router.url).toBe('/admin/products?q=lamp&status=active');
     expect(text(host(), '.state strong')).toBe('No products match these filters.');
   });
@@ -135,6 +141,7 @@ describe('AdminProductsPage', () => {
 
     const [mug, lamp] = rows();
     const link = mug.querySelector('a') as HTMLAnchorElement;
+
     expect(link.textContent?.trim()).toBe('Enamel Camp Mug');
     expect(link.getAttribute('href')).toBe(`/admin/products/${MUG.id}`);
     expect(mug.textContent).toContain('SKU LG-MUG-01');
@@ -150,14 +157,17 @@ describe('AdminProductsPage', () => {
 
     button('Deactivate Enamel Camp Mug').click();
     await harness.fixture.whenStable();
+
     expect(text(dialog(), 'h2')).toBe('Deactivate Enamel Camp Mug?');
     expect(text(dialog(), '.message')).toContain('Past orders keep it');
 
     (dialog()?.querySelector('button.confirm') as HTMLButtonElement).click();
     const post = await vi.waitFor(() =>
-      http.expectOne(`/api/v1/admin/products/${MUG.id}/deactivate`),
+      http.expectOne(`/api/v1/admin/products/${MUG.id}/deactivate`)
     );
+
     expect(post.request.method).toBe('POST');
+
     post.flush({ ...MUG, isActive: false });
     await respond(aPagedResult([{ ...MUG, isActive: false }, LAMP]));
 
@@ -175,6 +185,7 @@ describe('AdminProductsPage', () => {
     await harness.fixture.whenStable();
 
     expect(dialog()).toBeNull();
+
     http.expectNone(`/api/v1/admin/products/${MUG.id}/deactivate`);
   });
 
@@ -183,7 +194,9 @@ describe('AdminProductsPage', () => {
 
     button('Reactivate Brass Desk Lamp').click();
     await harness.fixture.whenStable();
+
     expect(text(dialog(), 'h2')).toBe('Reactivate Brass Desk Lamp?');
+
     (dialog()?.querySelector('button.confirm') as HTMLButtonElement).click();
     (await vi.waitFor(() => http.expectOne(`/api/v1/admin/products/${LAMP.id}/reactivate`))).flush({
       ...LAMP,
@@ -207,7 +220,7 @@ describe('AdminProductsPage', () => {
     await harness.fixture.whenStable();
 
     expect(text(host(), 'app-admin-access-denied strong')).toBe(
-      'Sign in as an admin to see this page.',
+      'Sign in as an admin to see this page.'
     );
     expect(host().querySelector('a[href="/admin/products/new"]')).toBeNull();
   });

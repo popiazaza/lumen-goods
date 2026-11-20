@@ -24,7 +24,7 @@
       </div>
     }
 
-    <form class="account-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <form class="account-form" novalidate [formGroup]="form" (ngSubmit)="submit()">
       <mat-form-field appearance="outline">
         <mat-label>Email address</mat-label>
         <input
@@ -47,10 +47,10 @@
         <input
           id="sign-in-password"
           matInput
-          [type]="showPassword() ? 'text' : 'password'"
           formControlName="password"
           autocomplete="current-password"
           required
+          [type]="showPassword() ? 'text' : 'password'"
         />
         <button
           matIconButton

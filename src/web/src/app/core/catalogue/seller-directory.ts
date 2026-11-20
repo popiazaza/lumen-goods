@@ -21,25 +21,33 @@ export class SellerDirectory {
   private readonly api = inject(SellersApi);
   private readonly loaded = rxResource({ stream: () => this.api.list() });
 
-  /** True once the API has answered; until then every seller id in a URL is kept as it is. */
+  /**
+  True once the API has answered; until then every seller id in a URL is kept as it is.
+  */
   readonly isLoaded = computed(() => this.loaded.hasValue());
   readonly failed = computed(() => this.loaded.status() === 'error');
 
-  /** Sellers in the API's order; empty until it has answered. */
+  /**
+  Sellers in the API's order; empty until it has answered.
+  */
   readonly sellers = computed<readonly Seller[]>(() =>
-    this.loaded.hasValue() ? this.loaded.value() : [],
+    this.loaded.hasValue() ? this.loaded.value() : []
   );
 
-  /** The seller ids the API accepts, or `null` while unknown (accept any well-formed id). */
+  /**
+  The seller ids the API accepts, or `null` while unknown (accept any well-formed id).
+  */
   readonly knownSources = computed<ReadonlySet<string> | null>(() =>
-    this.isLoaded() ? new Set(this.sellers().map((seller) => seller.source)) : null,
+    this.isLoaded() ? new Set(this.sellers().map((seller) => seller.source)) : null
   );
 
   private readonly names = computed(
-    () => new Map(this.sellers().map((seller) => [seller.source, seller.name])),
+    () => new Map(this.sellers().map((seller) => [seller.source, seller.name]))
   );
 
-  /** Display name for a product source: the API's, else a built-in name, else the raw id. */
+  /**
+  Display name for a product source: the API's, else a built-in name, else the raw id.
+  */
   nameOf(source: string): string {
     return this.names().get(source) ?? FALLBACK_NAMES[source] ?? source;
   }

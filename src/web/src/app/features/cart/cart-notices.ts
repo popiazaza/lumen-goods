@@ -4,7 +4,9 @@ import { AvailabilityStatus } from '../../core/api/products.api';
 
 export type NoticeTone = 'info' | 'warning' | 'blocking';
 
-/** One line of a cart line's notice: always an icon and text, never colour alone. */
+/**
+One line of a cart line's notice: always an icon and text, never colour alone.
+*/
 export interface CartLineNotice {
   kind: 'price' | 'availability' | 'unavailable' | 'quantity';
   tone: NoticeTone;
@@ -82,7 +84,7 @@ export function noticesOf(line: CartLineDto): CartLineNotice[] {
             tone: 'info',
             icon: 'info',
             text: `We changed the quantity from ${requested} to ${allowed}, the most you can buy.`,
-          },
+          }
     );
   }
 
@@ -90,8 +92,7 @@ export function noticesOf(line: CartLineDto): CartLineNotice[] {
 }
 
 /**
- * Whether the line has notices the shopper can accept: a price or availability change, or a
- * quantity the server already capped. "Unavailable" and a quantity above stock stay until fixed.
+ * Whether the line has notices the shopper can accept: a price or availability change, or a quantity the server already capped. "Unavailable" and a quantity above stock stay until fixed.
  */
 export function canAcknowledge(line: CartLineDto): boolean {
   const { priceChanged, availabilityChanged, quantityLimited } = line.notices;
@@ -102,13 +103,15 @@ export function canAcknowledge(line: CartLineDto): boolean {
   );
 }
 
-/** Lines in the API's order, grouped by seller (first appearance first). */
+/**
+Lines in the API's order, grouped by seller (first appearance first).
+*/
 export function groupBySeller(
-  lines: readonly CartLineDto[],
+  lines: readonly CartLineDto[]
 ): { source: string; sellerName: string; lines: CartLineDto[] }[] {
   const groups = new Map<string, { source: string; sellerName: string; lines: CartLineDto[] }>();
   for (const line of lines) {
-    const source = line.product.source;
+    const { source } = line.product;
     const group = groups.get(source) ?? { source, sellerName: line.product.sellerName, lines: [] };
     group.lines.push(line);
     groups.set(source, group);

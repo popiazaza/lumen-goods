@@ -10,7 +10,7 @@ describe('ProductCard', () => {
 
   async function render(
     product: ProductDto,
-    sellerName = 'Harbor Supply Co.',
+    sellerName = 'Harbor Supply Co.'
   ): Promise<HTMLElement> {
     fixture.componentRef.setInput('product', product);
     fixture.componentRef.setInput('sellerName', sellerName);
@@ -19,7 +19,7 @@ describe('ProductCard', () => {
   }
 
   const text = (host: HTMLElement, selector: string) =>
-    host.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    host.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
 
   beforeEach(() => {
     TestBed.configureTestingModule({ providers: [provideRouter([]), provideAppIcons()] });
@@ -30,6 +30,7 @@ describe('ProductCard', () => {
     const host = await render(aProduct({ id: 'harbor-HSC-10021', name: 'Waxed Canvas Tote' }));
 
     const link = host.querySelector<HTMLAnchorElement>('h3 a');
+
     expect(link?.textContent?.trim()).toBe('Waxed Canvas Tote');
     expect(link?.getAttribute('href')).toBe('/products/harbor-HSC-10021');
   });
@@ -42,9 +43,11 @@ describe('ProductCard', () => {
 
   it('formats the price as en-US dollars with two decimals', async () => {
     let host = await render(aProduct({ price: { amount: 49.9, currency: 'USD' } }));
+
     expect(text(host, 'app-product-price')).toBe('$49.90');
 
     host = await render(aProduct({ price: { amount: 1234.5, currency: 'USD' } }));
+
     expect(text(host, 'app-product-price')).toBe('$1,234.50');
   });
 
@@ -79,18 +82,21 @@ describe('ProductCard', () => {
           { url: 'http://localhost/media/a.jpg', isPrimary: false },
           { url: 'http://localhost/media/b.jpg', isPrimary: true },
         ],
-      }),
+      })
     );
     const img = host.querySelector('img');
+
     expect(img?.getAttribute('src')).toBe('http://localhost/media/b.jpg');
     expect(img?.getAttribute('alt')).toBe('');
 
     img?.dispatchEvent(new Event('error'));
     await fixture.whenStable();
+
     expect(host.querySelector('img')).toBeNull();
     expect(host.querySelector('.placeholder')).not.toBeNull();
 
     host = await render(aProduct({ images: [] }));
+
     expect(host.querySelector('.placeholder')).not.toBeNull();
   });
 });

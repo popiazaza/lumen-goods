@@ -14,7 +14,7 @@
     <div class="state">
       <mat-icon svgIcon="lock" class="state-icon" />
       <p><strong>Sign in to see this order.</strong></p>
-      <a matButton="filled" routerLink="/sign-in" [queryParams]="{ returnUrl: '/orders/' + id() }"
+      <a matButton="filled" routerLink="/sign-in" [queryParams]="{ returnUrl: `/orders/${id()}` }"
         >Sign in</a
       >
     </div>

@@ -6,9 +6,13 @@ import { OrderDetailDto, ShippingAddress, ShippingMethod } from '../api/order.mo
 export const CHECKOUT_STEPS = ['address', 'shipping', 'review', 'payment'] as const;
 export type CheckoutStep = (typeof CHECKOUT_STEPS)[number];
 
-/** What the shopper has entered so far in this checkout. */
+/**
+What the shopper has entered so far in this checkout.
+*/
 export interface CheckoutState {
-  /** Sent with Place order, so a repeat of the same review returns the same order (BR-PAY-01). */
+  /**
+  Sent with Place order, so a repeat of the same review returns the same order (BR-PAY-01).
+  */
   checkoutKey: string;
   /**
    * The review the key was first sent with (`reviewFingerprint`), or null while it is unused. Saved
@@ -17,19 +21,21 @@ export interface CheckoutState {
   keyReview: string | null;
   address: ShippingAddress | null;
   shippingMethod: ShippingMethod | null;
-  /** Set once Place order succeeded: the order the payment step pays. */
+  /**
+  Set once Place order succeeded: the order the payment step pays.
+  */
   orderNumber: string | null;
 }
 
-/** sessionStorage key: per tab, gone when the tab closes, never shared with other tabs. */
+/**
+sessionStorage key: per tab, gone when the tab closes, never shared with other tabs.
+*/
 export const CHECKOUT_STORAGE_KEY = 'lumen.checkout.v1';
 
 /**
  * The checkout's state across its four routes. A root signal store mirrored to sessionStorage,
  * so Back, the stepper and a page refresh all keep what the shopper entered (WCAG 3.3.7).
- * Stores no prices: the review and payment steps read them from the API. The one exception is
- * Place order's own answer, kept in memory only, so the payment step can open on it without
- * reading the order again; a refresh drops it and the page asks the API.
+ * Stores no prices: the review and payment steps read them from the API. The one exception is Place order's own answer, kept in memory only, so the payment step can open on it without reading the order again; a refresh drops it and the page asks the API.
  */
 @Service()
 export class CheckoutStore {
@@ -41,13 +47,17 @@ export class CheckoutStore {
   readonly address = computed(() => this.state().address);
   readonly shippingMethod = computed(() => this.state().shippingMethod);
   readonly orderNumber = computed(() => this.state().orderNumber);
-  /** Place order's answer, while it is still this checkout's order (memory only). */
+  /**
+  Place order's answer, while it is still this checkout's order (memory only).
+  */
   readonly placedOrder = computed(() => {
     const order = this.placed();
     return order && order.number === this.orderNumber() ? order : null;
   });
 
-  /** Steps the shopper may open now: done ones, plus the next one to do. */
+  /**
+  Steps the shopper may open now: done ones, plus the next one to do.
+  */
   readonly reachable = computed<ReadonlySet<CheckoutStep>>(() => {
     const { address, shippingMethod, orderNumber } = this.state();
     const steps = new Set<CheckoutStep>(['address']);
@@ -70,13 +80,13 @@ export class CheckoutStore {
    */
   setAddress(address: ShippingAddress): void {
     this.update((state) =>
-      sameAddress(state.address, address) ? state : { ...afterChange(state), address },
+      sameAddress(state.address, address) ? state : { ...afterChange(state), address }
     );
   }
 
   setShippingMethod(shippingMethod: ShippingMethod): void {
     this.update((state) =>
-      state.shippingMethod === shippingMethod ? state : { ...afterChange(state), shippingMethod },
+      state.shippingMethod === shippingMethod ? state : { ...afterChange(state), shippingMethod }
     );
   }
 
@@ -126,7 +136,9 @@ export class CheckoutStore {
     this.update((state) => ({ ...state, ...freshKey(), orderNumber: null }));
   }
 
-  /** Forgets this checkout (after payment, or on sign-out) and starts the next with a new key. */
+  /**
+  Forgets this checkout (after payment, or on sign-out) and starts the next with a new key.
+  */
   reset(): void {
     this.placed.set(null);
     this.update(() => emptyState());
@@ -160,12 +172,13 @@ export class CheckoutStore {
   }
 }
 
-/** Everything Place order sends except the key: the review the key stands for. */
+/**
+Everything Place order sends except the key: the review the key stands for.
+*/
 export type ReviewedOrder = Omit<PlaceOrderRequest, 'checkoutKey'>;
 
 /**
- * One string per review, the same however the lines are ordered: two reviews match only if
- * Place order would send the same lines, quantities, prices, total, address and method.
+ * One string per review, the same however the lines are ordered: two reviews match only if Place order would send the same lines, quantities, prices, total, address and method.
  */
 export function reviewFingerprint(review: ReviewedOrder): string {
   const address = review.shippingAddress;
@@ -216,7 +229,9 @@ function storageOf(document: Document): Storage | null {
   }
 }
 
-/** A random v4 UUID; `randomUUID` needs a secure context, `getRandomValues` does not. */
+/**
+A random v4 UUID; `randomUUID` needs a secure context, `getRandomValues` does not.
+*/
 export function newCheckoutKey(): string {
   if (typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -254,7 +269,7 @@ function isAddress(value: unknown): value is ShippingAddress {
   const address = value as Record<string, unknown>;
   return (
     ['name', 'line1', 'city', 'region', 'postalCode', 'country'].every(
-      (key) => typeof address[key] === 'string',
+      (key) => typeof address[key] === 'string'
     ) &&
     (address['line2'] === null || typeof address['line2'] === 'string')
   );

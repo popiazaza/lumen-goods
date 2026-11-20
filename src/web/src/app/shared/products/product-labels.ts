@@ -19,9 +19,9 @@ export function categoryLabel(category: ProductCategory): string {
  */
 export function humaniseAttributeKey(key: string): string {
   const words = key
-    .replace(/[_-]+/g, ' ')
-    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replaceAll(/[_-]+/g, ' ')
+    .replaceAll(/([a-z\d])([A-Z])/g, '$1 $2')
+    .replaceAll(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
     .trim()
     .split(/\s+/)
     .filter(Boolean)

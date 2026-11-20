@@ -3,14 +3,18 @@ import { Service, computed, inject, signal } from '@angular/core';
 import { Observable, firstValueFrom, tap } from 'rxjs';
 import { API_BASE_URL } from './api-base-url';
 
-/** `GET /api/v1/auth/session`: who is signed in (or anonymous). */
+/**
+`GET /api/v1/auth/session`: who is signed in (or anonymous).
+*/
 export interface Session {
   isAuthenticated: boolean;
   email: string | null;
   roles: string[];
 }
 
-/** Body of `POST /auth/sign-in` and `POST /auth/register`. */
+/**
+Body of `POST /auth/sign-in` and `POST /auth/register`.
+*/
 export interface Credentials {
   email: string;
   password: string;
@@ -18,10 +22,14 @@ export interface Credentials {
 
 export const ANONYMOUS_SESSION: Session = { isAuthenticated: false, email: null, roles: [] };
 
-/** The role the API gives administrators (`Lumen.Api.Identity.Roles.Admin`). */
+/**
+The role the API gives administrators (`Lumen.Api.Identity.Roles.Admin`).
+*/
 export const ADMIN_ROLE = 'admin';
 
-/** How long the first render waits for the session before showing the shop signed out. */
+/**
+How long the first render waits for the session before showing the shop signed out.
+*/
 export const SESSION_STARTUP_WAIT_MS = 3000;
 
 @Service()
@@ -31,7 +39,9 @@ export class SessionApi {
   private readonly current = signal<Session>(ANONYMOUS_SESSION);
   private known: Promise<Session> | undefined;
 
-  /** The current session; anonymous until the API has answered. */
+  /**
+  The current session; anonymous until the API has answered.
+  */
   readonly session = this.current.asReadonly();
   readonly isAuthenticated = computed(() => this.current().isAuthenticated);
   readonly isAdmin = computed(() => this.current().roles.includes(ADMIN_ROLE));
@@ -69,7 +79,9 @@ export class SessionApi {
       .pipe(tap((session) => this.remember(session)));
   }
 
-  /** 200 with the new customer's session; 400 validation problem keyed `Email` or `Password`. */
+  /**
+  200 with the new customer's session; 400 validation problem keyed `Email` or `Password`.
+  */
   register(credentials: Credentials): Observable<Session> {
     return this.http
       .post<Session>(`${this.baseUrl}/auth/register`, credentials)
@@ -96,7 +108,7 @@ export class SessionApi {
 export function loadSessionOnStartup(): Promise<void> {
   const loaded = inject(SessionApi)
     .ready()
-    .then(() => undefined);
+    .then(() => {});
   let timer: ReturnType<typeof setTimeout> | undefined;
   const gaveUp = new Promise<void>((resolve) => {
     timer = setTimeout(() => {

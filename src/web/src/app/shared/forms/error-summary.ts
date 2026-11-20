@@ -1,9 +1,13 @@
 import { Component, ElementRef, inject, input } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 
-/** One problem in a form, pointing at the field that has it. */
+/**
+One problem in a form, pointing at the field that has it.
+*/
 export interface FormProblem {
-  /** The `id` of the control to focus. */
+  /**
+  The `id` of the control to focus.
+  */
   fieldId: string;
   message: string;
 }
@@ -72,7 +76,9 @@ export class ErrorSummary {
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
-  /** Moves focus to the summary (call after a failed submit, once it has rendered). */
+  /**
+  Moves focus to the summary (call after a failed submit, once it has rendered).
+  */
   focus(): void {
     this.host.nativeElement.querySelector<HTMLElement>('.summary')?.focus();
   }

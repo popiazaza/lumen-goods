@@ -43,7 +43,7 @@ describe('availabilityOf', () => {
 
   it('says "Not available" for a product that cannot be bought, whatever its stock', () => {
     expect(
-      availabilityOf({ sellable: false, availability: { status: 'in_stock', quantity: null } }),
+      availabilityOf({ sellable: false, availability: { status: 'in_stock', quantity: null } })
     ).toEqual({ tone: 'unavailable', icon: 'block', text: 'Not available' });
   });
 });

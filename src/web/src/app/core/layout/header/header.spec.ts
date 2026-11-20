@@ -83,17 +83,18 @@ describe('Header account area', () => {
 
   it('gives a customer an account menu with email, orders, wallet balance and sign out, but no admin link', async () => {
     await render(CUSTOMER_SESSION);
+
     expect(link('Sign in')).toBeUndefined();
     expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
-    expect(panel()?.hidden).toBe(true);
+    expect(panel()?.hidden).toBeTruthy();
 
     await openAccount();
 
     expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
     expect(panel()?.hidden).toBe(false);
     expect(panel()?.querySelector('.email')?.textContent?.trim()).toBe('customer@lumen.test');
-    expect(panel()?.querySelector('.balance')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-      'Wallet balance: $1,924.54',
+    expect(panel()?.querySelector('.balance')?.textContent?.replaceAll(/\s+/g, ' ').trim()).toBe(
+      'Wallet balance: $1,924.54'
     );
     expect(link('Your orders')?.getAttribute('href')).toBe('/orders');
     expect(link('Admin')).toBeUndefined();
@@ -123,7 +124,7 @@ describe('Header account area', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await fixture.whenStable();
 
-    expect(panel()?.hidden).toBe(true);
+    expect(panel()?.hidden).toBeTruthy();
     expect(focus).toHaveBeenCalled();
   });
 
@@ -135,7 +136,7 @@ describe('Header account area', () => {
         address: US_ADDRESS,
         shippingMethod: null,
         orderNumber: null,
-      }),
+      })
     );
     await render(CUSTOMER_SESSION);
     await TestBed.inject(Router).navigateByUrl('/orders');
@@ -143,7 +144,9 @@ describe('Header account area', () => {
 
     (panel()?.querySelector('button.sign-out') as HTMLButtonElement).click();
     const signOut = http.expectOne('/api/v1/auth/sign-out');
+
     expect(signOut.request.method).toBe('POST');
+
     signOut.flush(ANONYMOUS);
     http.expectOne('/api/v1/cart').flush(EMPTY_CART);
     await fixture.whenStable();

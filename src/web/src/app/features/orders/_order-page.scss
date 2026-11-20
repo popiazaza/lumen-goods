@@ -4,10 +4,10 @@
 @mixin state {
   .state {
     display: grid;
-    justify-items: start;
     gap: var(--lg-space-3);
+    justify-items: start;
 
-    p {
+    & p {
       margin: 0;
     }
   }
@@ -23,21 +23,21 @@
 @mixin pairs {
   .pairs {
     display: grid;
-    gap: var(--lg-space-2);
     margin: 0;
+    gap: var(--lg-space-2);
 
-    > div {
+    & > div {
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
       gap: 0 var(--lg-space-4);
     }
 
-    dt {
+    & dt {
       color: var(--mat-sys-on-surface-variant);
     }
 
-    dd {
+    & dd {
       margin: 0;
       font-variant-numeric: tabular-nums;
       text-align: right;
@@ -49,21 +49,21 @@
 @mixin section {
   .section {
     display: grid;
-    gap: var(--lg-space-3);
-    padding: var(--lg-space-4);
     min-width: 0;
+    padding: var(--lg-space-4);
+    gap: var(--lg-space-3);
 
-    h2,
-    h3,
-    p {
+    & h2,
+    & h3,
+    & p {
       margin: 0;
     }
 
-    h2 {
+    & h2 {
       font: var(--mat-sys-title-large);
     }
 
-    h3 {
+    & h3 {
       font: var(--mat-sys-title-medium);
     }
   }

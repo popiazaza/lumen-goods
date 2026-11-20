@@ -30,18 +30,18 @@ function rangeValidator(group: AbstractControl): ValidationErrors | null {
   return min !== null && max !== null && min > max ? { range: true } : null;
 }
 
-/** Shows the max field in error for the group's min > max error too, once the form is submitted. */
+/**
+Shows the max field in error for the group's min > max error too, once the form is submitted.
+*/
 class RangeErrorStateMatcher implements ErrorStateMatcher {
   isErrorState(control: AbstractControl | null, form: FormGroupDirective | NgForm | null): boolean {
-    const invalid = !!control?.invalid || !!control?.parent?.hasError('range');
-    return invalid && (!!control?.touched || !!form?.submitted);
+    const isInvalid = !!control?.invalid || !!control?.parent?.hasError('range');
+    return isInvalid && (!!control?.touched || !!form?.submitted);
   }
 }
 
 /**
- * The catalogue's refinements: category, seller, price range and "In stock only". Shows the state
- * it is given and emits what the shopper changed; the page turns that into a navigation. Used in
- * the desktop sidebar and in the mobile bottom sheet.
+ * The catalogue's refinements: category, seller, price range and "In stock only". Shows the state it is given and emits what the shopper changed; the page turns that into a navigation. Used in the desktop sidebar and in the mobile bottom sheet.
  */
 @Component({
   selector: 'app-catalogue-filters',
@@ -61,9 +61,13 @@ class RangeErrorStateMatcher implements ErrorStateMatcher {
 })
 export class CatalogueFilters {
   readonly query = input.required<CatalogueQuery>();
-  /** The seller checkboxes, from `GET /sellers` (the page decides what to show while it loads). */
+  /**
+  The seller checkboxes, from `GET /sellers` (the page decides what to show while it loads).
+  */
   readonly sellers = input.required<readonly Seller[]>();
-  /** Shown in the seller group when the list could not be loaded. */
+  /**
+  Shown in the seller group when the list could not be loaded.
+  */
   readonly sellersFailed = input(false);
   readonly filtersChange = output<CatalogueChange>();
 
@@ -76,12 +80,12 @@ export class CatalogueFilters {
       min: new FormControl('', { nonNullable: true, validators: priceValidator }),
       max: new FormControl('', { nonNullable: true, validators: priceValidator }),
     },
-    { validators: rangeValidator },
+    { validators: rangeValidator }
   );
 
   private readonly priceRange = computed(
     () => ({ min: this.query().minPrice, max: this.query().maxPrice }),
-    { equal: (a, b) => a.min === b.min && a.max === b.max },
+    { equal: (a, b) => a.min === b.min && a.max === b.max }
   );
 
   constructor() {

@@ -17,11 +17,15 @@ import {
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
 import { relativeTime } from './relative-time';
 
-/** How often the page re-reads the status after "Refresh now", and for how long at most. */
+/**
+How often the page re-reads the status after "Refresh now", and for how long at most.
+*/
 export const REFRESH_POLL_INTERVAL_MS = 3000;
 export const REFRESH_POLL_TIMEOUT_MS = 60_000;
 
-/** Recent errors shown before "Show all". */
+/**
+Recent errors shown before "Show all".
+*/
 export const RECENT_ERRORS_SHOWN = 5;
 
 type RefreshState =
@@ -33,7 +37,9 @@ interface Health {
   text: string;
 }
 
-/** Admin: catalogue sync health per partner, with "Refresh now" (`/admin/partners`). */
+/**
+Admin: catalogue sync health per partner, with "Refresh now" (`/admin/partners`).
+*/
 @Component({
   selector: 'app-admin-partners-page',
   imports: [DatePipe, DecimalPipe, RouterLink, MatButton, MatCard, MatIcon, MatProgressBar],
@@ -47,10 +53,12 @@ export class AdminPartnersPage {
 
   protected readonly partners = rxResource({ stream: () => this.api.list() });
   protected readonly list = computed(() =>
-    this.partners.hasValue() ? this.partners.value() : undefined,
+    this.partners.hasValue() ? this.partners.value() : undefined
   );
 
-  /** A refresh call can also come back 401/403 (session expired, role removed). */
+  /**
+  A refresh call can also come back 401/403 (session expired, role removed).
+  */
   private readonly deniedStatus = signal<number | undefined>(undefined);
   protected readonly accessStatus = computed(() => {
     const error = this.partners.error();
@@ -82,7 +90,9 @@ export class AdminPartnersPage {
     return { tone: 'ok', icon: 'check_circle', text: 'Last refresh succeeded' };
   }
 
-  /** An admin asked for a refresh that has not started yet. */
+  /**
+  An admin asked for a refresh that has not started yet.
+  */
   protected isQueued(partner: PartnerStatus): boolean {
     const requested = partner.refreshRequestedUtc;
     return (
@@ -145,10 +155,10 @@ export class AdminPartnersPage {
             }),
             map((list) => list.find((p) => p.partner === partner.partner)),
             first((p) => !!p && refreshHasRun(p, requestedAt), undefined),
-            map((after) => ({ after, requestedAt })),
+            map((after) => ({ after, requestedAt }))
           );
         }),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
         next: ({ after, requestedAt }) => this.finish(partner, after, requestedAt),
@@ -159,7 +169,7 @@ export class AdminPartnersPage {
   private finish(
     before: PartnerStatus,
     after: PartnerStatus | undefined,
-    requestedAt: number,
+    requestedAt: number
   ): void {
     let state: Exclude<RefreshState, { kind: 'running' }>;
     if (!after) {

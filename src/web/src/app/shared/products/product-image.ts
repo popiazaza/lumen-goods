@@ -11,13 +11,13 @@ import { MatIcon } from '@angular/material/icon';
   template: `
     @if (src() && !failed()) {
       <img
+        decoding="async"
+        width="600"
+        height="600"
         [src]="src()"
         [alt]="alt()"
         [attr.loading]="eager() ? 'eager' : 'lazy'"
         [attr.fetchpriority]="eager() ? 'high' : null"
-        decoding="async"
-        width="600"
-        height="600"
         (error)="failed.set(true)"
       />
     } @else {
@@ -63,11 +63,17 @@ import { MatIcon } from '@angular/material/icon';
 })
 export class ProductImage {
   readonly src = input<string | null | undefined>(null);
-  /** Empty when the image sits inside a link that already names the product. */
+  /**
+  Empty when the image sits inside a link that already names the product.
+  */
   readonly alt = input('');
-  /** Load at once (the product page's main image); otherwise lazy. */
+  /**
+  Load at once (the product page's main image); otherwise lazy.
+  */
   readonly eager = input(false);
 
-  /** Reset for every new `src`, so a gallery can move on from a broken image. */
+  /**
+  Reset for every new `src`, so a gallery can move on from a broken image.
+  */
   protected readonly failed = linkedSignal({ source: this.src, computation: () => false });
 }

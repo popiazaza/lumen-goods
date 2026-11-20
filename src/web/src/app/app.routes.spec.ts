@@ -41,7 +41,9 @@ import { ADMIN_SESSION, CUSTOMER_SESSION, US_ADDRESS } from './testing/fixtures'
 // test measures the routing, not how long the machine takes to fetch and run a chunk: the first
 // lazy load of a heavy page used to blow the test timeout when the suite ran under load.
 
-/** Flattens the route tree into absolute path patterns, e.g. "/orders/:id/confirmation". */
+/**
+Flattens the route tree into absolute path patterns, e.g. "/orders/:id/confirmation".
+*/
 function pathPatterns(table: Route[], parent = ''): string[] {
   return table.flatMap((route) => {
     const path = [parent, route.path ?? ''].filter(Boolean).join('/');
@@ -76,7 +78,7 @@ describe('app routes', () => {
         '/admin/orders/:id',
         '/admin/partners',
         '/**',
-      ].sort(),
+      ].sort()
     );
   });
 
@@ -125,7 +127,7 @@ describe('app routes', () => {
         address: US_ADDRESS,
         shippingMethod: 'standard',
         orderNumber: 'LG-1',
-      }),
+      })
     );
     const session = TestBed.inject(SessionApi).ready();
     TestBed.inject(HttpTestingController)

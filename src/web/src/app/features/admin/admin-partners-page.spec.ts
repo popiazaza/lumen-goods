@@ -35,10 +35,10 @@ describe('AdminPartnersPage', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (root: ParentNode, selector: string) =>
-    root.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    root.querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const card = (name: string) =>
     [...host().querySelectorAll<HTMLElement>('mat-card')].find((element) =>
-      element.querySelector('h2')?.textContent?.includes(name),
+      element.querySelector('h2')?.textContent?.includes(name)
     ) as HTMLElement;
   const refreshButton = (name: string) =>
     card(name).querySelector<HTMLButtonElement>('.actions button') as HTMLButtonElement;
@@ -75,15 +75,17 @@ describe('AdminPartnersPage', () => {
     await load();
 
     const harbor = card('Harbor Supply Co.');
+
     expect(text(harbor, '.health')).toBe('Last refresh succeeded');
     expect(text(harbor, '.facts div:first-child dd')).toMatch(
-      /^12 minutes ago \(Nov 20, 2026, .+\)$/,
+      /^12 minutes ago \(Nov 20, 2026, .+\)$/
     );
     expect(harbor.querySelector('time')?.getAttribute('datetime')).toBe('2026-11-20T06:00:00Z');
     expect(text(harbor, '.number')).toBe('214');
     expect(text(harbor, '.muted')).toBe('No recent errors.');
 
     const kestrel = card('Kestrel Outfitters');
+
     expect(text(kestrel, '.health')).toBe('Last refresh failed');
     expect(text(kestrel, '.last-error strong')).toBe('Last error');
     expect(text(kestrel, '.last-error p')).toBe('Stock CSV timed out after 10 s');
@@ -91,10 +93,11 @@ describe('AdminPartnersPage', () => {
     expect(text(kestrel, '.errors li')).toContain('stock');
 
     const showAll = [...kestrel.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('Show all'),
+      b.textContent?.includes('Show all')
     );
     showAll?.click();
     await fixture.whenStable();
+
     expect(kestrel.querySelectorAll('.errors li')).toHaveLength(7);
     expect(showAll?.getAttribute('aria-expanded')).toBe('true');
   });
@@ -103,12 +106,14 @@ describe('AdminPartnersPage', () => {
     await load([HARBOR, { ...KESTREL, heldRemovals: 12 }]);
 
     expect(text(card('Kestrel Outfitters'), '.facts')).toContain(
-      'Held back from removal 12 products missing from the last catalogue, still listed until confirmed',
+      'Held back from removal 12 products missing from the last catalogue, still listed until confirmed'
     );
     expect(text(card('Harbor Supply Co.'), '.facts')).not.toContain('Held back');
   });
 
-  /** The 202 carries the server's clock: the refresh was accepted at 06:10:00Z. */
+  /**
+  The 202 carries the server's clock: the refresh was accepted at 06:10:00Z.
+  */
   const ACCEPTED = {
     status: 202,
     statusText: 'Accepted',
@@ -122,7 +127,9 @@ describe('AdminPartnersPage', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
     refreshButton(name).click();
     const post = http.expectOne(`/api/v1/admin/partners/${partner}/refresh`);
+
     expect(post.request.method).toBe('POST');
+
     post.flush(null, ACCEPTED);
     fixture.detectChanges();
   }
@@ -135,18 +142,22 @@ describe('AdminPartnersPage', () => {
 
   it('refreshes: POST, then polls every 3 s until the requested refresh has run', async () => {
     await startRefresh('Harbor Supply Co.', 'harbor');
-    expect(isBusy('Harbor Supply Co.')).toBe(true);
+
+    expect(isBusy('Harbor Supply Co.')).toBeTruthy();
     // Stays focusable while busy (disabledInteractive), and a second click does nothing.
-    expect(refreshButton('Harbor Supply Co.').disabled).toBe(false);
+    expect(refreshButton('Harbor Supply Co.').disabled).toBeFalsy();
+
     refreshButton('Harbor Supply Co.').click();
     http.expectNone('/api/v1/admin/partners/harbor/refresh');
+
     expect(refreshButton('Harbor Supply Co.').textContent).toContain('Refreshing…');
     expect(card('Harbor Supply Co.').querySelector('mat-progress-bar')).not.toBeNull();
 
     // Not run yet: the request is still pending.
     http.expectNone('/api/v1/admin/partners');
     await poll([{ ...HARBOR, ...QUEUED }, KESTREL]);
-    expect(isBusy('Harbor Supply Co.')).toBe(true);
+
+    expect(isBusy('Harbor Supply Co.')).toBeTruthy();
 
     // A scheduled sync that started before the request moved lastAttemptUtc: not ours, keep going.
     await poll([
@@ -158,7 +169,8 @@ describe('AdminPartnersPage', () => {
       },
       KESTREL,
     ]);
-    expect(isBusy('Harbor Supply Co.')).toBe(true);
+
+    expect(isBusy('Harbor Supply Co.')).toBeTruthy();
 
     // Ours has run.
     await poll([
@@ -176,14 +188,14 @@ describe('AdminPartnersPage', () => {
     await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS * 3);
     http.expectNone('/api/v1/admin/partners');
 
-    expect(isBusy('Harbor Supply Co.')).toBe(false);
+    expect(isBusy('Harbor Supply Co.')).toBeFalsy();
     expect(text(card('Harbor Supply Co.'), '.number')).toBe('220');
     expect(text(card('Harbor Supply Co.'), '.outcome')).toBe(
-      'Harbor Supply Co. refreshed: 220 live products.',
+      'Harbor Supply Co. refreshed: 220 live products.'
     );
     expect(announcer.announce).toHaveBeenLastCalledWith(
       'Harbor Supply Co. refreshed: 220 live products.',
-      'polite',
+      'polite'
     );
   });
 
@@ -195,9 +207,9 @@ describe('AdminPartnersPage', () => {
       { ...KESTREL, lastAttemptUtc: '2026-11-20T06:10:03Z', lastError: 'HTTP 503 from stock CSV' },
     ]);
 
-    expect(isBusy('Kestrel Outfitters')).toBe(false);
+    expect(isBusy('Kestrel Outfitters')).toBeFalsy();
     expect(text(card('Kestrel Outfitters'), '.outcome')).toBe(
-      'Kestrel Outfitters refresh failed: HTTP 503 from stock CSV',
+      'Kestrel Outfitters refresh failed: HTTP 503 from stock CSV'
     );
   });
 
@@ -221,8 +233,9 @@ describe('AdminPartnersPage', () => {
       },
       KESTREL,
     ]);
+
     expect(text(card('Harbor Supply Co.'), '.facts')).toContain('Refresh requested');
-    expect(isBusy('Harbor Supply Co.')).toBe(true);
+    expect(isBusy('Harbor Supply Co.')).toBeTruthy();
 
     await poll([
       {
@@ -233,8 +246,9 @@ describe('AdminPartnersPage', () => {
       },
       KESTREL,
     ]);
+
     expect(text(card('Harbor Supply Co.'), '.outcome')).toBe(
-      'Harbor Supply Co. refreshed: 214 live products.',
+      'Harbor Supply Co. refreshed: 214 live products.'
     );
   });
 
@@ -246,19 +260,20 @@ describe('AdminPartnersPage', () => {
       .expectOne('/api/v1/admin/partners')
       .flush(
         { title: 'Internal Server Error', detail: 'The partner status store is unavailable.' },
-        { status: 500, statusText: 'Internal Server Error' },
+        { status: 500, statusText: 'Internal Server Error' }
       );
     fixture.detectChanges();
 
     await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS * 3);
     http.expectNone('/api/v1/admin/partners');
-    expect(isBusy('Harbor Supply Co.')).toBe(false);
+
+    expect(isBusy('Harbor Supply Co.')).toBeFalsy();
     expect(text(card('Harbor Supply Co.'), '.outcome')).toBe(
-      'Couldn’t refresh Harbor Supply Co.: The partner status store is unavailable.',
+      'Couldn’t refresh Harbor Supply Co.: The partner status store is unavailable.'
     );
     expect(announcer.announce).toHaveBeenLastCalledWith(
       'Couldn’t refresh Harbor Supply Co.: The partner status store is unavailable.',
-      'assertive',
+      'assertive'
     );
   });
 
@@ -283,9 +298,9 @@ describe('AdminPartnersPage', () => {
     http.expectNone('/api/v1/admin/partners');
     fixture.detectChanges();
 
-    expect(isBusy('Harbor Supply Co.')).toBe(false);
+    expect(isBusy('Harbor Supply Co.')).toBeFalsy();
     expect(text(card('Harbor Supply Co.'), '.outcome')).toContain(
-      'has not finished refreshing after 60 seconds',
+      'has not finished refreshing after 60 seconds'
     );
   });
 

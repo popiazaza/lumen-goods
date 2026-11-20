@@ -117,7 +117,7 @@
           </div>
         </div>
       } @else {
-        <form class="code-form" [formGroup]="codeForm" (ngSubmit)="submitCode()" novalidate>
+        <form class="code-form" novalidate [formGroup]="codeForm" (ngSubmit)="submitCode()">
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Verification code</mat-label>
             <input
@@ -127,9 +127,9 @@
               inputmode="numeric"
               autocomplete="one-time-code"
               formControlName="code"
+              required
               [attr.aria-describedby]="codeDescribedBy()"
               [attr.aria-invalid]="codeError() ? true : null"
-              required
             />
             @if (testCode(); as code) {
               <mat-hint id="code-test">Test code: {{ code }} (no text message is sent)</mat-hint>
@@ -174,7 +174,7 @@
       <app-error-summary [problems]="problems()" />
     }
 
-    <form class="checkout-form" [formGroup]="cardForm" (ngSubmit)="pay()" novalidate>
+    <form class="checkout-form" novalidate [formGroup]="cardForm" (ngSubmit)="pay()">
       <h2 id="method-heading">How would you like to pay?</h2>
       <mat-radio-group class="methods" aria-labelledby="method-heading" [formControl]="method">
         <mat-radio-button value="card">
@@ -185,8 +185,8 @@
         </mat-radio-button>
         <mat-radio-button
           value="wallet"
-          [disabled]="!walletUsable()"
           aria-describedby="wallet-note"
+          [disabled]="!walletUsable()"
         >
           <span class="method-label">
             <mat-icon svgIcon="wallet" aria-hidden="true" />
@@ -229,8 +229,8 @@
               autocomplete="cc-number"
               formControlName="number"
               spellcheck="false"
-              (input)="formatNumber($event)"
               required
+              (input)="formatNumber($event)"
             />
             @if (brandName()) {
               <span matTextSuffix class="brand" aria-live="polite">{{ brandName() }}</span>
@@ -262,8 +262,8 @@
                 autocomplete="cc-exp"
                 placeholder="MM/YY"
                 formControlName="expiry"
-                (input)="formatExpiryInput($event)"
                 required
+                (input)="formatExpiryInput($event)"
               />
               @if (cardForm.controls.expiry.invalid) {
                 <mat-error>{{ errorFor('expiry') }}</mat-error>

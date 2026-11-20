@@ -6,30 +6,30 @@
 
 fieldset {
   display: flex;
-  flex-direction: column;
   min-width: 0;
-  margin: 0;
+  flex-direction: column;
   padding: 0 0 var(--lg-space-4);
   border: 0;
   border-bottom: 1px solid var(--mat-sys-outline-variant);
+  margin: 0;
 }
 
 legend {
   padding: 0 0 var(--lg-space-2);
-  font: var(--mat-sys-title-small);
   color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-title-small);
 }
 
 .price {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: var(--lg-space-2);
+  grid-template-columns: 1fr 1fr;
 
-  mat-form-field {
+  & mat-form-field {
     min-width: 0;
   }
 
-  button {
+  & button {
     grid-column: 1 / -1;
   }
 }

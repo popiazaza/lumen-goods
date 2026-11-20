@@ -31,12 +31,14 @@ describe('CheckoutPaymentPage', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (selector: string) =>
-    host().querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
+    host().querySelector(selector)?.textContent?.replaceAll(/\s+/g, ' ').trim();
   const input = (id: string) =>
     host().querySelector<HTMLInputElement>(`#${id}`) as HTMLInputElement;
   const url = () => TestBed.inject(Router).url;
 
-  /** Change detection plus pending timers and promises (the page polls on timers). */
+  /**
+  Change detection plus pending timers and promises (the page polls on timers).
+  */
   async function settle(ms = 0): Promise<void> {
     fixture.detectChanges();
     await vi.advanceTimersByTimeAsync(ms);
@@ -49,7 +51,7 @@ describe('CheckoutPaymentPage', () => {
    */
   async function open(
     payment: PaymentStatusDto | null,
-    { order = anOrder(), balance = 2000 }: { order?: OrderDetailDto | null; balance?: number } = {},
+    { order = anOrder(), balance = 2000 }: { order?: OrderDetailDto | null; balance?: number } = {}
   ): Promise<void> {
     fixture = TestBed.createComponent(CheckoutPaymentPage);
     fixture.componentRef.setInput('order', ORDER);
@@ -86,7 +88,9 @@ describe('CheckoutPaymentPage', () => {
     await settle();
   }
 
-  /** Answers the next status poll. */
+  /**
+  Answers the next status poll.
+  */
   async function poll(payment: PaymentStatusDto): Promise<void> {
     await settle(PAYMENT_POLL_INTERVAL_MS);
     http.expectOne(CURRENT_URL).flush(payment);
@@ -125,9 +129,11 @@ describe('CheckoutPaymentPage', () => {
 
       expect(text('.order-line')).toContain(`Order ${ORDER} · Total $67.46`);
       expect(text('#wallet-note')).toBe('Wallet balance: $2,000.00');
+
       const wallet = host().querySelector<HTMLInputElement>(
-        'mat-radio-button[value="wallet"] input',
+        'mat-radio-button[value="wallet"] input'
       );
+
       expect(wallet?.disabled).toBe(false);
       expect(text('#pay-button')).toBe('Pay $67.46');
     });
@@ -136,12 +142,13 @@ describe('CheckoutPaymentPage', () => {
       await open(null, { balance: 42.1 });
 
       const wallet = host().querySelector<HTMLInputElement>(
-        'mat-radio-button[value="wallet"] input',
+        'mat-radio-button[value="wallet"] input'
       );
-      expect(wallet?.disabled).toBe(true);
+
+      expect(wallet?.disabled).toBeTruthy();
       expect(wallet?.getAttribute('aria-describedby')).toContain('wallet-note');
       expect(text('#wallet-note')).toBe(
-        'Wallet balance: $42.10 · Not enough to pay $67.46, so pay by card.',
+        'Wallet balance: $42.10 · Not enough to pay $67.46, so pay by card.'
       );
     });
 
@@ -170,14 +177,18 @@ describe('CheckoutPaymentPage', () => {
       await open(null);
       host().querySelector<HTMLInputElement>('mat-radio-button[value="wallet"] input')?.click();
       await settle();
+
       expect(host().querySelector('#card-number')).toBeNull();
 
       await pay();
 
       const request = http.expectOne(`${ORDER_URL}/payments`);
+
       expect(request.request.body).toEqual({ method: 'wallet', card: null });
+
       request.flush(aPaymentStatus({ method: 'wallet', status: 'processing' }));
       await settle();
+
       expect(text('#processing-heading')).toBe('Confirming your payment…');
     });
   });
@@ -187,7 +198,7 @@ describe('CheckoutPaymentPage', () => {
     host().querySelector<HTMLInputElement>('mat-radio-button[value="wallet"] input')?.click();
     await settle();
     // The balance is read again (as after a wallet decline) and is now too low.
-    (fixture.componentInstance as unknown as { wallet: { reload(): void } }).wallet.reload();
+    (fixture.componentInstance as unknown as { wallet: { reload: () => void } }).wallet.reload();
     await settle();
     http.expectOne('/api/v1/wallet').flush(aWallet(10));
     await settle();
@@ -195,9 +206,10 @@ describe('CheckoutPaymentPage', () => {
     await pay();
 
     http.expectNone(`${ORDER_URL}/payments`);
+
     expect(text('.outcome-title')).toBe('The wallet can’t pay this order');
     expect(text('.outcome .outcome-title + p')).toBe(
-      'Your wallet balance doesn’t cover the order total, so pay by card.',
+      'Your wallet balance doesn’t cover the order total, so pay by card.'
     );
     expect(document.activeElement).toBe(host().querySelector('.outcome'));
     expect(host().querySelector('#card-number')).toBeTruthy();
@@ -209,6 +221,7 @@ describe('CheckoutPaymentPage', () => {
 
       type('card-number', '4111111111111112');
       await settle();
+
       expect(input('card-number').value).toBe('4111 1111 1111 1112');
       expect(text('.brand')).toBe('Visa');
 
@@ -218,8 +231,9 @@ describe('CheckoutPaymentPage', () => {
       await pay();
 
       http.expectNone(`${ORDER_URL}/payments`);
+
       expect(
-        [...host().querySelectorAll('app-error-summary li')].map((li) => li.textContent?.trim()),
+        [...host().querySelectorAll('app-error-summary li')].map((li) => li.textContent?.trim())
       ).toEqual([
         'Enter a valid card number: check it for typos',
         'Enter the expiry date as MM/YY, like 08/29',
@@ -231,11 +245,13 @@ describe('CheckoutPaymentPage', () => {
       await open(null);
       fillCard('4111 1111 1111 1111');
       await settle();
+
       expect(input('card-expiry').value).toBe('08/29');
 
       await pay();
 
       const request = http.expectOne(`${ORDER_URL}/payments`);
+
       expect(request.request.method).toBe('POST');
       expect(request.request.body).toEqual({
         method: 'card',
@@ -247,9 +263,11 @@ describe('CheckoutPaymentPage', () => {
           cvc: '123',
         },
       });
+
       request.flush(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
       http.expectOne('/api/v1/cart').flush(aCart([]));
       await settle();
+
       expect(url()).toBe(`/orders/${ORDER}/confirmation`);
     });
 
@@ -274,8 +292,9 @@ describe('CheckoutPaymentPage', () => {
         expect(text('#processing-heading')).toBe('Confirming your payment…');
         expect(host().textContent).not.toContain('not been charged');
         expect(document.activeElement).toBe(host().querySelector('#processing-heading'));
+
         await poll(aPaymentStatus({ status: 'processing' }));
-      },
+      }
     );
 
     it('after a lost answer, offers to pay again when the server shows no payment', async () => {
@@ -306,13 +325,13 @@ describe('CheckoutPaymentPage', () => {
         .expectOne(`${ORDER_URL}/payments`)
         .flush(
           { title: 'Too many requests', status: 429, detail: 'Wait a minute, then try again.' },
-          { status: 429, statusText: 'Too Many Requests' },
+          { status: 429, statusText: 'Too Many Requests' }
         );
       await settle();
 
       expect(text('.outcome-title')).toBe('We couldn’t start the payment');
       expect(text('.outcome .outcome-title + p')).toBe(
-        'Wait a minute, then try again. You have not been charged.',
+        'Wait a minute, then try again. You have not been charged.'
       );
     });
 
@@ -327,7 +346,7 @@ describe('CheckoutPaymentPage', () => {
           status: 400,
           errors: { 'card.expiry': ['This card has expired.'] },
         },
-        { status: 400, statusText: 'Bad Request' },
+        { status: 400, statusText: 'Bad Request' }
       );
       await settle();
 
@@ -345,7 +364,7 @@ describe('CheckoutPaymentPage', () => {
 
       expect(text('#processing-heading')).toBe('Confirming your payment…');
       expect(text('.processing [role="status"] p')).toBe(
-        'This can take up to 20 seconds. Keep this page open; refreshing it won’t charge you twice.',
+        'This can take up to 20 seconds. Keep this page open; refreshing it won’t charge you twice.'
       );
       expect(host().querySelector('#pay-button')).toBeNull();
 
@@ -356,6 +375,7 @@ describe('CheckoutPaymentPage', () => {
       await settle();
 
       expect(url()).toBe(`/orders/${ORDER}/confirmation`);
+
       await settle(PAYMENT_POLL_INTERVAL_MS * 3);
       http.expectNone(CURRENT_URL);
     });
@@ -386,6 +406,7 @@ describe('CheckoutPaymentPage', () => {
       await poll(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
       http.expectOne('/api/v1/cart').flush(aCart([]));
       await settle();
+
       expect(url()).toBe(`/orders/${ORDER}/confirmation`);
     });
 
@@ -395,14 +416,17 @@ describe('CheckoutPaymentPage', () => {
       await settle(PAYMENT_POLL_INTERVAL_MS);
       http.expectOne(CURRENT_URL).flush('down', { status: 502, statusText: 'Bad Gateway' });
       await settle();
+
       expect(text('#processing-heading')).toBe('Confirming your payment…');
 
       await settle(PAYMENT_POLL_INTERVAL_MS);
       http.expectOne(CURRENT_URL).error(new ProgressEvent('error'));
       await settle();
+
       expect(text('#processing-heading')).toBe('Confirming your payment…');
 
       await poll(aPaymentStatus({ status: 'processing' }));
+
       expect(text('#processing-heading')).toBe('Confirming your payment…');
     });
 
@@ -418,8 +442,9 @@ describe('CheckoutPaymentPage', () => {
       expect(text('#signed-out-heading')).toBe('Sign in to see your payment');
       expect(document.activeElement).toBe(host().querySelector('#signed-out-heading'));
       expect(host().querySelector('.state a')?.getAttribute('href')).toBe(
-        `/sign-in?returnUrl=${encodeURIComponent(`/checkout/payment?order=${ORDER}`)}`,
+        `/sign-in?returnUrl=${encodeURIComponent(`/checkout/payment?order=${ORDER}`)}`
       );
+
       await settle(PAYMENT_POLL_INTERVAL_MS * 3);
       http.expectNone(CURRENT_URL);
     });
@@ -433,6 +458,7 @@ describe('CheckoutPaymentPage', () => {
 
       expect(text('#closed-heading')).toBe('Order not found');
       expect(text('.state p')).toBe(`We couldn’t find order ${ORDER} in your account.`);
+
       await settle(PAYMENT_POLL_INTERVAL_MS * 3);
       http.expectNone(CURRENT_URL);
     });
@@ -447,6 +473,7 @@ describe('CheckoutPaymentPage', () => {
       await settle();
 
       expect(text('.banner.error p')).toBe('Forbidden');
+
       await settle(PAYMENT_POLL_INTERVAL_MS * 3);
       http.expectNone(CURRENT_URL);
     });
@@ -464,14 +491,15 @@ describe('CheckoutPaymentPage', () => {
           detail: 'Your card payment is still being confirmed.',
           payment: aPaymentStatus({ status: 'processing' }),
         },
-        { status: 409, statusText: 'Conflict' },
+        { status: 409, statusText: 'Conflict' }
       );
       await settle();
 
       expect(text('.banner.in-progress p')).toBe(
-        'A payment is already in progress. We’re showing it here; you won’t be charged twice.',
+        'A payment is already in progress. We’re showing it here; you won’t be charged twice.'
       );
       expect(text('#processing-heading')).toBe('Confirming your payment…');
+
       await poll(aPaymentStatus({ status: 'processing' }));
     });
   });
@@ -487,7 +515,7 @@ describe('CheckoutPaymentPage', () => {
           retryMode: 'any_method',
           canRetry: true,
           ...payment,
-        }),
+        })
       );
       await settle();
     }
@@ -497,7 +525,7 @@ describe('CheckoutPaymentPage', () => {
 
       expect(text('.outcome-title')).toBe('Insufficient funds');
       expect(text('.outcome .outcome-title + p')).toBe(
-        'Payment declined. You have not been charged. Try another card or pay from your wallet. 4 attempts left.',
+        'Payment declined. You have not been charged. Try another card or pay from your wallet. 4 attempts left.'
       );
       expect(document.activeElement).toBe(host().querySelector('.outcome'));
       expect(input('card-number').value).toBe('4242 0000 0000 0018');
@@ -505,6 +533,7 @@ describe('CheckoutPaymentPage', () => {
 
       host().querySelector<HTMLButtonElement>('.try-again')?.click();
       await settle();
+
       expect(document.activeElement).toBe(input('card-number'));
       expect(host().querySelector('.outcome')).toBeNull();
     });
@@ -521,12 +550,14 @@ describe('CheckoutPaymentPage', () => {
       await declineWith({ status: 'failed', retryMode: 'same_payment_only', declineMessage: null });
 
       expect(text('.outcome-title')).toBe('We couldn’t confirm your payment');
+
       const wallet = host().querySelector<HTMLInputElement>(
-        'mat-radio-button[value="wallet"] input',
+        'mat-radio-button[value="wallet"] input'
       );
-      expect(wallet?.disabled).toBe(true);
+
+      expect(wallet?.disabled).toBeTruthy();
       expect(text('#wallet-note')).toBe(
-        'Only the same card payment can be tried again, so the wallet can’t be used for this attempt.',
+        'Only the same card payment can be tried again, so the wallet can’t be used for this attempt.'
       );
     });
 
@@ -538,7 +569,7 @@ describe('CheckoutPaymentPage', () => {
           canRetry: true,
           attemptsLeft: 4,
           orderStatus: 'awaiting_payment',
-        }),
+        })
       );
       fillCard('5555555555554444');
 
@@ -551,13 +582,13 @@ describe('CheckoutPaymentPage', () => {
           detail:
             'We could not confirm your payment with Visa ending 1111. Try again with that card; you will not be charged twice.',
         },
-        { status: 409, statusText: 'Conflict' },
+        { status: 409, statusText: 'Conflict' }
       );
       await settle();
 
       expect(text('.outcome-title')).toBe('Try the same card again');
       expect(text('.outcome .outcome-title + p')).toBe(
-        'We could not confirm your payment with Visa ending 1111. Try again with that card; you will not be charged twice.',
+        'We could not confirm your payment with Visa ending 1111. Try again with that card; you will not be charged twice.'
       );
       expect(text('.outcome')).not.toContain('You have not been charged');
     });
@@ -579,7 +610,7 @@ describe('CheckoutPaymentPage', () => {
           canRetry: true,
           attemptsLeft: 4,
           orderStatus: 'awaiting_payment',
-        }),
+        })
       );
       await settle();
       http.expectOne('/api/v1/wallet').flush(aWallet(10));
@@ -587,7 +618,7 @@ describe('CheckoutPaymentPage', () => {
 
       expect(text('.outcome-title')).toBe('Insufficient funds');
       expect(text('#wallet-note')).toBe(
-        'Wallet balance: $10.00 · Not enough to pay $67.46, so pay by card.',
+        'Wallet balance: $10.00 · Not enough to pay $67.46, so pay by card.'
       );
       expect(host().querySelector('#card-number')).toBeTruthy();
     });
@@ -607,7 +638,7 @@ describe('CheckoutPaymentPage', () => {
 
       expect(text('#processing-heading')).toBe('Confirming your payment…');
       expect(text('.processing [role="status"]')).toContain(
-        'we’re confirming with them whether your card was charged',
+        'we’re confirming with them whether your card was charged'
       );
       expect(text('.processing')).not.toMatch(/not been charged|cancelled|can’t be paid/i);
       expect(host().querySelector('.processing a[href="/orders"]')).toBeTruthy();
@@ -615,10 +646,13 @@ describe('CheckoutPaymentPage', () => {
       expect(TestBed.inject(CheckoutStore).orderNumber()).toBe(ORDER);
 
       await poll(unsettled);
+
       expect(text('#processing-heading')).toBe('Confirming your payment…');
+
       await poll(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
       http.expectOne('/api/v1/cart').flush(aCart([]));
       await settle();
+
       expect(url()).toBe(`/orders/${ORDER}/confirmation`);
     });
 
@@ -629,8 +663,9 @@ describe('CheckoutPaymentPage', () => {
           retryMode: 'none',
           attemptsLeft: 0,
           orderStatus: 'awaiting_payment',
-        }),
+        })
       );
+
       expect(text('#processing-heading')).toBe('Confirming your payment…');
 
       await poll(
@@ -640,11 +675,11 @@ describe('CheckoutPaymentPage', () => {
           attemptsLeft: 0,
           orderStatus: 'expired',
           declineMessage: 'Your card was declined',
-        }),
+        })
       );
 
       expect(text('.state p')).toBe(
-        'This order ran out of payment attempts, so it was cancelled. You have not been charged.',
+        'This order ran out of payment attempts, so it was cancelled. You have not been charged.'
       );
     });
 
@@ -658,7 +693,7 @@ describe('CheckoutPaymentPage', () => {
 
       expect(text('#closed-heading')).toBe('This order can’t be paid');
       expect(text('.state p')).toBe(
-        'This order ran out of payment attempts, so it was cancelled. You have not been charged.',
+        'This order ran out of payment attempts, so it was cancelled. You have not been charged.'
       );
     });
   });
@@ -679,6 +714,7 @@ describe('CheckoutPaymentPage', () => {
       await open(needsCode());
 
       const field = input('one-time-code');
+
       expect(field.getAttribute('inputmode')).toBe('numeric');
       expect(field.getAttribute('autocomplete')).toBe('one-time-code');
       expect(field.type).toBe('text');
@@ -695,19 +731,21 @@ describe('CheckoutPaymentPage', () => {
       expect(host().querySelector('#code-timer')?.getAttribute('role')).toBe('timer');
 
       await settle(4 * 60_000 + 1000);
+
       expect(text('#code-timer')).toBe('Code expires in 0:59');
       expect(announcer.announce).toHaveBeenCalledWith('The code expires in 1 minute.', 'polite');
 
       await settle(60_000);
+
       expect(host().querySelector('#one-time-code')).toBeNull();
       expect(text('.state .banner.error p')).toBe(
-        'The code has expired. You have not been charged.',
+        'The code has expired. You have not been charged.'
       );
       expect(announcer.announce).toHaveBeenCalledWith('The code has expired.', 'assertive');
       expect(
         vi
           .mocked(announcer.announce)
-          .mock.calls.filter(([m]) => m === 'The code expires in 1 minute.'),
+          .mock.calls.filter(([m]) => m === 'The code expires in 1 minute.')
       ).toHaveLength(1);
 
       host().querySelector<HTMLButtonElement>('.state .banner.error button')?.click();
@@ -718,9 +756,10 @@ describe('CheckoutPaymentPage', () => {
           retryMode: 'any_method',
           canRetry: true,
           attemptsLeft: 4,
-        }),
+        })
       );
       await settle();
+
       expect(text('.outcome-title')).toBe('The code has expired');
       expect(host().querySelector('#card-number')).toBeTruthy();
     });
@@ -732,7 +771,9 @@ describe('CheckoutPaymentPage', () => {
       host().querySelector<HTMLButtonElement>('.code-form button[type="submit"]')?.click();
       await settle();
       const request = http.expectOne(`${CURRENT_URL}/one-time-code`);
+
       expect(request.request.body).toEqual({ code: '123456' });
+
       request.flush(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
       http.expectOne('/api/v1/cart').flush(aCart([]));
       await settle();
@@ -753,13 +794,13 @@ describe('CheckoutPaymentPage', () => {
           status: 400,
           errors: { code: ['Enter the code.'] },
         },
-        { status: 400, statusText: 'Bad Request' },
+        { status: 400, statusText: 'Bad Request' }
       );
       await settle();
 
       expect(text('.field-error')).toBe('Enter the code.');
-      expect(input('one-time-code').getAttribute('aria-describedby')?.split(' ')[0]).toBe(
-        'code-error',
+      expect(input('one-time-code').getAttribute('aria-describedby')?.split(' ', 1)[0]).toBe(
+        'code-error'
       );
     });
 
@@ -791,7 +832,7 @@ describe('CheckoutPaymentPage', () => {
           retryMode: 'any_method',
           canRetry: true,
           attemptsLeft: 4,
-        }),
+        })
       );
       await settle();
 
@@ -803,7 +844,9 @@ describe('CheckoutPaymentPage', () => {
   describe('opened without ?order= (the stepper’s Payment link)', () => {
     let store: CheckoutStore;
 
-    /** Opens the page on the order this checkout placed, as the stepper does. */
+    /**
+    Opens the page on the order this checkout placed, as the stepper does.
+    */
     async function openFromCheckout(): Promise<void> {
       store = TestBed.inject(CheckoutStore);
       store.setAddress(US_ADDRESS);
@@ -818,7 +861,9 @@ describe('CheckoutPaymentPage', () => {
 
     it('pays the checkout’s order, ends the checkout and never flashes "can’t be paid"', async () => {
       await openFromCheckout();
+
       expect(text('.order-line')).toContain(`Order ${ORDER} · Total $67.46`);
+
       fillCard();
 
       await pay();
@@ -831,8 +876,10 @@ describe('CheckoutPaymentPage', () => {
       expect(host().querySelector('#closed-heading')).toBeNull();
       expect(text('p[role="status"]')).toBe('Payment confirmed. Opening your order confirmation…');
       expect(store.orderNumber()).toBeNull();
+
       http.expectOne('/api/v1/cart').flush(aCart([]));
       await settle();
+
       expect(url()).toBe(`/orders/${ORDER}/confirmation`);
     });
 
@@ -848,13 +895,13 @@ describe('CheckoutPaymentPage', () => {
           retryMode: 'none',
           attemptsLeft: 0,
           orderStatus: 'expired',
-        }),
+        })
       );
       await settle();
 
       expect(store.orderNumber()).toBeNull();
       expect(text('.state p')).toBe(
-        'This order ran out of payment attempts, so it was cancelled. You have not been charged.',
+        'This order ran out of payment attempts, so it was cancelled. You have not been charged.'
       );
     });
   });

@@ -44,7 +44,7 @@
           @for (chip of chips(); track chip.key) {
             <mat-chip role="listitem" (removed)="removeChip(chip)">
               {{ chip.label }}
-              <button matChipRemove [attr.aria-label]="'Remove filter: ' + chip.label">
+              <button matChipRemove [attr.aria-label]="`Remove filter: ${chip.label}`">
                 <mat-icon svgIcon="cancel" />
               </button>
             </mat-chip>
@@ -110,9 +110,9 @@
                       <a
                         class="number current"
                         routerLink="."
-                        [queryParams]="pageParams(link)"
                         aria-current="page"
-                        [attr.aria-label]="'Page ' + link"
+                        [queryParams]="pageParams(link)"
+                        [attr.aria-label]="`Page ${link}`"
                         >{{ link }}</a
                       >
                     } @else {
@@ -120,7 +120,7 @@
                         class="number"
                         routerLink="."
                         [queryParams]="pageParams(link)"
-                        [attr.aria-label]="'Page ' + link"
+                        [attr.aria-label]="`Page ${link}`"
                         >{{ link }}</a
                       >
                     }
@@ -191,14 +191,14 @@
       <button
         matButton
         type="button"
-        [disabled]="filterCount() === 0"
         disabledInteractive
+        [disabled]="filterCount() === 0"
         (click)="clearAllInSheet(sheetHeading)"
       >
         Clear all
       </button>
       <button matButton="filled" type="button" (click)="closeFilters()">
-        {{ page() ? 'Show ' + countText() : 'Show results' }}
+        {{ page() ? `Show ${countText()}` : 'Show results' }}
       </button>
     </div>
   </div>
