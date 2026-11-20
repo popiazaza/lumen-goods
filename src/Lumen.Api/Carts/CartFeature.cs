@@ -29,7 +29,8 @@ public interface ICartMergeService
     /// Merges the guest cart named by the request's <see cref="GuestCartToken.CookieName"/> cookie into the customer's
     /// saved cart (creating it if needed): same product → quantities summed, capped at the known available quantity and
     /// 10, with a quantity-limited notice. Then deletes the guest cart and expires the cookie. Idempotent: no cookie or
-    /// no guest cart changes nothing, so a replayed sign-in cannot merge twice.
+    /// no guest cart changes nothing, so a replayed sign-in cannot merge twice. Only for accounts with the customer role:
+    /// staff accounts have no cart, so for them nothing changes. A failure leaves the guest cart and cookie as they were.
     /// </summary>
     Task MergeGuestCartAsync(HttpContext httpContext, Guid customerId, CancellationToken cancellationToken);
 }
@@ -56,7 +57,10 @@ internal static class CartFeature
     }
 
     /// <summary>
-    /// Cart endpoints under /api/v1, for guests and customers alike (every one answers 200 with the whole <see cref="CartDto"/>):
+    /// Cart endpoints under /api/v1, for guests and customers alike; 403 for a signed-in account without the customer
+    /// role (the admin). Every one answers 200 with the whole <see cref="CartDto"/>, or 409
+    /// <see cref="CartProblems.CartChangedType"/> when the guest cart the cookie names is gone (merged by a sign-in racing
+    /// the request: re-read the cart):
     /// <list type="bullet">
     /// <item><c>GET /cart</c> (an empty cart when there is none; never creates one)</item>
     /// <item><c>POST /cart/lines</c> <see cref="AddCartLineRequest"/> (creates the cart, and for a guest the cookie, on

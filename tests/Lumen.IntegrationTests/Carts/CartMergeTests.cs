@@ -4,7 +4,6 @@ using Lumen.Domain.Catalog;
 using Lumen.IntegrationTests.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
 using Lumen.IntegrationTests.Orders;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -141,7 +140,7 @@ public sealed class CartMergeTests(LumenApiFactory factory)
     {
         var a = await factory.OwnProductAsync();
         var b = await factory.OwnProductAsync();
-        var customerId = await factory.NewCustomerAsync();
+        var customerId = await factory.NewShopperAsync();
         await factory.SaveAsync(SavedCart(customerId, (a, 1)));
         var (guest, token) = GuestCart((a, 2), (b, 1));
         await factory.SaveAsync(guest);
@@ -160,7 +159,7 @@ public sealed class CartMergeTests(LumenApiFactory factory)
     {
         var a = await factory.OwnProductAsync();
         var b = await factory.OwnProductAsync();
-        var customerId = await factory.NewCustomerAsync();
+        var customerId = await factory.NewShopperAsync();
         var (first, firstToken) = GuestCart((a, 1));
         var (second, secondToken) = GuestCart((b, 2));
         await factory.SaveAsync(first, second);
@@ -173,24 +172,138 @@ public sealed class CartMergeTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-CART-01")]
-    public async Task BR_CART_01_a_merge_that_did_not_finish_leaves_the_guest_cart_for_the_next_sign_in()
+    public async Task BR_CART_01_a_merge_failing_at_commit_keeps_the_guest_cart_and_cookie_and_a_later_sign_in_merges_once()
     {
         var a = await factory.OwnProductAsync();
-        var customerId = await factory.NewCustomerAsync();
+        var b = await factory.OwnProductAsync();
+        var customerId = await factory.NewShopperAsync();
+        await factory.SaveAsync(SavedCart(customerId, (a, 1)));
+        var (guest, token) = GuestCart((a, 2), (b, 1));
+        await factory.SaveAsync(guest);
+
+        // Every statement of the merge runs (lines summed and moved, guest cart deleted), then the commit fails.
+        var failingCommit = new FailingCommit();
+        await using (var database = factory.DatabaseWith(failingCommit))
+        {
+            var http = CartFaults.GuestRequest(token, factory.Services);
+            await FluentActions.Awaiting(() => factory.MergeServiceOn(database).MergeGuestCartAsync(http, customerId, Ct))
+                .Should().ThrowAsync<InvalidOperationException>().WithMessage(FailingCommit.Message);
+
+            failingCommit.Commits.Should().Be(1);
+            http.GuestCookieHeaders().Should().BeEmpty("the cookie is only expired after the merge committed");
+        }
+
+        (await factory.GuestCartExistsAsync(token)).Should().BeTrue("the failed merge was rolled back");
+        (await LoadCustomerCartAsync(customerId)).Lines.Select(l => (l.ProductId, l.Quantity)).Should().BeEquivalentTo([(a.Id, 1)]);
+
+        // The next sign-in merges it, once.
+        await MergeAsync(token, customerId);
+        await MergeAsync(token, customerId);
+
+        (await LoadCustomerCartAsync(customerId)).Lines.Select(l => (l.ProductId, l.Quantity)).Should().BeEquivalentTo([(a.Id, 3), (b.Id, 1)]);
+        (await factory.GuestCartExistsAsync(token)).Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-01")]
+    public async Task BR_CART_01_a_merge_that_conflicts_5_times_gives_up_and_keeps_the_guest_cart_for_the_next_sign_in()
+    {
+        var a = await factory.OwnProductAsync();
+        var customerId = await factory.NewShopperAsync();
         await factory.SaveAsync(SavedCart(customerId, (a, 1)));
         var (guest, token) = GuestCart((a, 2));
         await factory.SaveAsync(guest);
+        var hash = GuestCartToken.Hash(token);
 
-        // Sign-in logs a failed merge and goes on; here the request is aborted before the merge commits.
-        await FluentActions.Awaiting(() => MergeAsync(token, customerId, new CancellationToken(canceled: true)))
-            .Should().ThrowAsync<OperationCanceledException>();
+        // Another tab changes the guest cart before every save, so every attempt's delete misses its xmin.
+        var interference = new BeforeSave(_ => factory.WithDbAsync(db => db.Carts.Where(c => c.AnonymousTokenHash == hash)
+            .ExecuteUpdateAsync(set => set.SetProperty(c => c.UpdatedUtc, DateTimeOffset.UtcNow), CancellationToken.None)));
+        await using (var database = factory.DatabaseWith(interference))
+        {
+            var http = CartFaults.GuestRequest(token, factory.Services);
+            await factory.MergeServiceOn(database).MergeGuestCartAsync(http, customerId, Ct);
+
+            interference.Saves.Should().Be(CartQueries.MaxAttempts);
+            http.GuestCookieHeaders().Should().BeEmpty();
+        }
+
         (await factory.GuestCartExistsAsync(token)).Should().BeTrue();
         (await LoadCustomerCartAsync(customerId)).Lines.Should().ContainSingle().Which.Quantity.Should().Be(1);
 
         await MergeAsync(token, customerId);
 
         (await LoadCustomerCartAsync(customerId)).Lines.Should().ContainSingle().Which.Quantity.Should().Be(3);
-        (await factory.GuestCartExistsAsync(token)).Should().BeFalse();
+    }
+
+    [Theory]
+    [Trait("BR", "BR-CART-01")]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BR_CART_01_a_guest_change_racing_the_sign_in_that_merges_its_cart_is_a_409_not_a_hidden_new_cart(bool newProduct)
+    {
+        var a = await factory.OwnProductAsync();
+        var b = await factory.OwnProductAsync();
+        var customerId = await factory.NewShopperAsync();
+        var (guest, token) = GuestCart((a, 1));
+        await factory.SaveAsync(guest);
+
+        // The add reads the guest cart, then sign-in in another tab merges it away before the add saves.
+        var signIn = new BeforeSave(save => save == 1 ? MergeAsync(token, customerId) : Task.CompletedTask);
+        await using var database = factory.DatabaseWith(signIn);
+        await using var scope = database.CreateAsyncScope();
+        var http = CartFaults.GuestRequest(token, factory.Services);
+
+        var edit = await factory.CartServiceOn(scope.ServiceProvider.GetRequiredService<Lumen.Api.Infrastructure.Data.LumenDbContext>())
+            .AddAsync(http, (newProduct ? b : a).Id, 1, Ct);
+
+        edit.Problem.Should().NotBeNull();
+        edit.Problem!.Status.Should().Be(409);
+        edit.Problem.Type.Should().Be(CartProblems.CartChangedType);
+        signIn.Saves.Should().Be(1, "the retry finds the guest cart gone and saves nothing");
+        http.GuestCookieHeaders().Should().ContainSingle().Which.Should().Contain("expires=Thu, 01 Jan 1970");
+        (await LoadCustomerCartAsync(customerId)).Lines.Select(l => (l.ProductId, l.Quantity)).Should().BeEquivalentTo([(a.Id, 1)]);
+        (await factory.WithDbResultAsync(db => db.Carts.CountAsync(
+            c => c.CustomerId == null && c.Lines.Any(l => l.ProductId == a.Id || l.ProductId == b.Id), Ct))).Should().Be(0, "no hidden guest cart");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-01")]
+    public async Task BR_CART_01_a_request_still_carrying_a_merged_guest_cookie_is_told_to_reload()
+    {
+        var a = await factory.OwnProductAsync();
+        var b = await factory.OwnProductAsync();
+        var (browser, jar) = factory.NewBrowser();
+        await browser.AddOkAsync(a.Id, 1);
+        var token = jar.GuestToken()!;
+        var customerId = await factory.NewShopperAsync();
+        await MergeAsync(token, customerId);
+
+        var response = await browser.AddAsync(b.Id, 1);
+
+        await response.ShouldBeProblemAsync(System.Net.HttpStatusCode.Conflict, CartProblems.CartChangedType);
+        jar.GuestToken().Should().BeNull("the dead cookie is dropped, so a guest's retry starts a new cart");
+        (await LoadCustomerCartAsync(customerId)).Lines.Should().ContainSingle(l => l.ProductId == a.Id);
+        (await browser.AddOkAsync(b.Id, 1)).Lines.Should().ContainSingle(l => l.Product.Id == b.Id);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-01")]
+    public async Task BR_CART_01_signing_in_as_staff_merges_nothing_and_leaves_the_guest_cart_with_the_browser()
+    {
+        var a = await factory.OwnProductAsync();
+        var (browser, jar) = factory.NewBrowser();
+        await browser.AddOkAsync(a.Id, 1);
+        var token = jar.GuestToken()!;
+
+        await browser.SignInAsync(CartTestSupport.AdminEmail, CartTestSupport.AdminPassword);
+
+        await (await browser.GetAsync(CartTestSupport.CartUrl)).ShouldBeProblemAsync(System.Net.HttpStatusCode.Forbidden, CartProblems.CustomersOnlyType);
+        (await factory.GuestCartExistsAsync(token)).Should().BeTrue();
+        var adminId = await factory.CustomerIdAsync(CartTestSupport.AdminEmail);
+        (await factory.WithDbResultAsync(db => db.Carts.AnyAsync(c => c.CustomerId == adminId, Ct))).Should().BeFalse();
+
+        await browser.SignOutAsync();
+        (await browser.GetCartAsync()).LineFor(a).Quantity.Should().Be(1, "the guest cart is the browser's again");
     }
 
     [Fact]
@@ -207,12 +320,12 @@ public sealed class CartMergeTests(LumenApiFactory factory)
         (await browser.GetCartAsync()).LineFor(a).Quantity.Should().Be(2);
     }
 
-    private async Task MergeAsync(string guestToken, Guid customerId, CancellationToken? cancellationToken = null)
+    /// <summary>What sign-in does with the guest cookie it receives.</summary>
+    private async Task MergeAsync(string guestToken, Guid customerId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
-        var http = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
-        http.Request.Headers.Cookie = $"{GuestCartToken.CookieName}={guestToken}";
-        await scope.ServiceProvider.GetRequiredService<ICartMergeService>().MergeGuestCartAsync(http, customerId, cancellationToken ?? Ct);
+        var http = CartFaults.GuestRequest(guestToken, scope.ServiceProvider);
+        await scope.ServiceProvider.GetRequiredService<ICartMergeService>().MergeGuestCartAsync(http, customerId, Ct);
     }
 
     private Task<Cart> LoadCustomerCartAsync(Guid customerId) =>

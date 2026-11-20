@@ -1,3 +1,4 @@
+using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Domain.Catalog;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +35,12 @@ internal sealed class CartMergeService(
         // Its own DbContext: sign-in's context holds Identity's entities, which re-reading the carts must not disturb.
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LumenDbContext>();
+        if (!await IsCustomerAsync(db, customerId, cancellationToken))
+        {
+            // Staff accounts have no cart; the guest cart stays with the browser for when it signs out.
+            return;
+        }
+
         var tokenHash = GuestCartToken.Hash(token);
         for (var attempt = 1; ; attempt++)
         {
@@ -90,6 +97,12 @@ internal sealed class CartMergeService(
 
         cookie.Expire(httpContext);
     }
+
+    /// <summary>Read from the database rather than the caller's principal, so the rule holds whoever calls the merge.</summary>
+    private static Task<bool> IsCustomerAsync(LumenDbContext db, Guid userId, CancellationToken cancellationToken) =>
+        db.UserRoles.AnyAsync(
+            ur => ur.UserId == userId && db.Roles.Any(r => r.Id == ur.RoleId && r.Name == Roles.Customer),
+            cancellationToken);
 
     private void MergeLine(LumenDbContext db, Cart saved, CartLine guestLine)
     {

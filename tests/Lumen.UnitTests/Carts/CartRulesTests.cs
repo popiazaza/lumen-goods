@@ -129,6 +129,24 @@ public sealed class CartRulesTests
     }
 
     [Theory]
+    [Trait("BR", "BR-CART-03")]
+    [InlineData(3, 2, 11, "Only 3 available", 3)]
+    [InlineData(3, 2, 4, "Only 3 available", 3)]
+    [InlineData(15, 8, 11, "Maximum 10 per item", 10)]
+    [InlineData(null, 8, 11, "Maximum 10 per item", 10)]
+    [InlineData(10, 8, 11, "Maximum 10 per item", 10)]
+    public void BR_CART_03_a_refusal_names_the_limit_that_applies(int? stock, int inCart, int newQuantity, string title, int maxQuantity)
+    {
+        var problem = CartRules.CheckRaise(Partner(quantity: stock), Policy, inCart, newQuantity);
+
+        problem.Should().NotBeNull();
+        problem!.Type.Should().Be(CartProblems.QuantityLimitType);
+        problem.Title.Should().Be(title);
+        problem.Extensions["maxQuantity"].Should().Be(maxQuantity);
+        problem.Extensions["inCart"].Should().Be(inCart);
+    }
+
+    [Theory]
     [Trait("BR", "BR-CART-01")]
     [InlineData(1, 2, null, 3, null)]
     [InlineData(5, 9, null, 10, 14)]

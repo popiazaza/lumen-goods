@@ -69,6 +69,22 @@ public sealed class CartLimitTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-CART-03")]
+    public async Task BR_CART_03_the_refusal_names_the_limit_that_applies_the_stock_when_it_is_below_10()
+    {
+        var product = await factory.OwnProductAsync(onHand: 3);
+        var (guest, _) = factory.NewBrowser();
+        await guest.AddOkAsync(product.Id, 2);
+
+        // 2 + 9 is above 10 too, but the limit that applies is the stock of 3.
+        var problem = await (await guest.AddAsync(product.Id, 9)).ShouldBeProblemAsync(HttpStatusCode.UnprocessableEntity, CartProblems.QuantityLimitType);
+
+        problem.GetProperty("title").GetString().Should().Be("Only 3 available");
+        problem.GetProperty("maxQuantity").GetInt32().Should().Be(3);
+        problem.GetProperty("inCart").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-03")]
     public async Task BR_CART_03_a_product_that_is_not_sellable_cannot_be_added_and_the_cart_is_unchanged()
     {
         var deactivated = await factory.OwnProductAsync();

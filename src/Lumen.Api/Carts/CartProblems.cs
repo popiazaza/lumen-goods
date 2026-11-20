@@ -34,6 +34,15 @@ public static class CartProblems
 
     public const string LineNotFoundType = "urn:lumen:problem:cart-line-not-found";
 
+    /// <summary>
+    /// 409: the guest cart this request's cookie names is gone, most likely merged into an account by a sign-in that
+    /// raced the request. The client re-reads <c>GET /cart</c> (now the customer's cart) and tries again.
+    /// </summary>
+    public const string CartChangedType = "urn:lumen:problem:cart-changed";
+
+    /// <summary>403: the signed-in account is not a customer (the admin); only guests and customers have a cart.</summary>
+    public const string CustomersOnlyType = "urn:lumen:problem:cart-customers-only";
+
     /// <summary>The 400 validation message for a quantity outside 1 to 10 (BR-CART-03).</summary>
     public const string QuantityRangeMessage = "Choose a quantity from 1 to 10 (maximum 10 per item).";
 
@@ -66,6 +75,16 @@ public static class CartProblems
             ? string.Create(CultureInfo.InvariantCulture, $"Only {available} of this item are available, and your cart already has {inCart}.")
             : string.Create(CultureInfo.InvariantCulture, $"Only {available} of this item are available."),
         new Dictionary<string, object?> { ["maxQuantity"] = Math.Min(available, CartLine.MaxQuantity), ["inCart"] = inCart });
+
+    public static CartProblem CartChanged() => new(
+        StatusCodes.Status409Conflict, CartChangedType, "Your cart was updated; reload it",
+        "Your cart changed, for example because you signed in from another tab. Reload it and try again.",
+        new Dictionary<string, object?>());
+
+    public static CartProblem CustomersOnly() => new(
+        StatusCodes.Status403Forbidden, CustomersOnlyType, "Only customers have a cart",
+        "This account cannot shop. Sign in with a customer account, or sign out to shop as a guest.",
+        new Dictionary<string, object?>());
 
     public static CartProblem LineNotFound(Guid lineId) => new(
         StatusCodes.Status404NotFound, LineNotFoundType, "Cart line not found",

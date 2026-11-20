@@ -116,6 +116,22 @@ public sealed class GuestCartTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-CART-01")]
+    public async Task BR_CART_01_staff_accounts_have_no_cart_and_get_403()
+    {
+        var product = await factory.OwnProductAsync();
+        var (admin, _) = factory.NewBrowser();
+        await admin.SignInAsync(CartTestSupport.AdminEmail, CartTestSupport.AdminPassword);
+
+        await (await admin.GetAsync(CartTestSupport.CartUrl)).ShouldBeProblemAsync(HttpStatusCode.Forbidden, CartProblems.CustomersOnlyType);
+        await (await admin.AddAsync(product.Id, 1)).ShouldBeProblemAsync(HttpStatusCode.Forbidden, CartProblems.CustomersOnlyType);
+        await (await admin.AcknowledgeAsync()).ShouldBeProblemAsync(HttpStatusCode.Forbidden, CartProblems.CustomersOnlyType);
+
+        var adminId = await factory.CustomerIdAsync(CartTestSupport.AdminEmail);
+        (await factory.WithDbResultAsync(db => db.Carts.AnyAsync(c => c.CustomerId == adminId, Ct))).Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-01")]
     public async Task BR_CART_01_a_guest_cart_unused_for_30_days_is_gone_and_a_used_one_slides()
     {
         var product = await factory.OwnProductAsync();

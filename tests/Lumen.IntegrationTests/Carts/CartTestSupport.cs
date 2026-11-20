@@ -24,6 +24,11 @@ internal static class CartTestSupport
 
     public const string Password = "Shopper!2026";
 
+    /// <summary>The seeded admin (a staff account: no cart, no wallet).</summary>
+    public const string AdminEmail = "admin@lumengoods.test";
+
+    public const string AdminPassword = "Admin!2026";
+
     private static readonly Uri Origin = new("http://localhost");
 
     public static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -54,14 +59,14 @@ internal static class CartTestSupport
         return email;
     }
 
-    public static async Task SignInAsync(this ApiSession session, string email)
+    public static async Task SignInAsync(this ApiSession session, string email, string password = Password)
     {
         if (session.XsrfToken is null)
         {
             await session.StartAsync();
         }
 
-        (await session.PostAsJsonAsync("/api/v1/auth/sign-in", new SignInRequest(email, Password))).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await session.PostAsJsonAsync("/api/v1/auth/sign-in", new SignInRequest(email, password))).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     public static async Task SignOutAsync(this ApiSession session) =>

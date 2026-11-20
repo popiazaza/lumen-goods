@@ -102,14 +102,16 @@ public static class CartRules
                 return CartProblems.OutOfStock(product);
         }
 
-        if (newQuantity > CartLine.MaxQuantity)
+        // The limit that actually applies, so the answer names it: the known stock when it is below 10, otherwise 10.
+        var maxQuantity = MaxQuantity(product, availability);
+        if (newQuantity <= maxQuantity)
         {
-            return CartProblems.MaximumPerItem(currentQuantity);
+            return null;
         }
 
-        return availability.Quantity is { } available && newQuantity > available
-            ? CartProblems.OnlyAvailable(available, currentQuantity)
-            : null;
+        return maxQuantity < CartLine.MaxQuantity
+            ? CartProblems.OnlyAvailable(maxQuantity, currentQuantity)
+            : CartProblems.MaximumPerItem(currentQuantity);
     }
 
     /// <summary>

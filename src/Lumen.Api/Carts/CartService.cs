@@ -35,14 +35,16 @@ internal static class CartQueries
 
     /// <summary>
     /// Another request changed the same cart first: the cart's xmin moved (two tabs), both created the same customer's
-    /// cart or the same product's line (unique indexes), or two merges locked the same rows in opposite order (deadlock).
-    /// Re-reading and re-applying the change is safe.
+    /// cart or the same product's line (unique indexes), the cart was deleted under a new line (a guest cart merged away
+    /// by a sign-in: foreign key), or two merges locked the same rows in opposite order (deadlock). Re-reading and
+    /// re-applying the change is safe.
     /// </summary>
     public static bool IsConflict(DbUpdateException exception) =>
         exception is DbUpdateConcurrencyException
         || exception.InnerException is PostgresException
         {
-            SqlState: PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure,
+            SqlState: PostgresErrorCodes.UniqueViolation or PostgresErrorCodes.ForeignKeyViolation
+                or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure,
         };
 
     /// <summary>How many times a cart change is re-applied after a conflict before giving up.</summary>
@@ -208,6 +210,15 @@ internal sealed class CartService(
             db.ChangeTracker.Clear();
             var now = time.GetUtcNow();
             var cart = await CartOf(owner, now).WithLines().SingleOrDefaultAsync(cancellationToken);
+            if (cart is null && owner is { IsGuest: true, GuestToken: not null })
+            {
+                // The cookie names a guest cart that is gone: merged into an account by a sign-in racing this request (in
+                // an earlier attempt or before it), or expired. A new guest cart here would be invisible to a browser that
+                // is now signed in, so the client re-reads its cart instead; dropping the dead cookie lets a guest retry.
+                cookie.Expire(http);
+                return new CartEdit(null, CartProblems.CartChanged());
+            }
+
             var isNew = cart is null;
             string? newGuestToken = null;
             if (cart is null)

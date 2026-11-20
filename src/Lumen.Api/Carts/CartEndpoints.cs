@@ -1,3 +1,4 @@
+using Lumen.Api.Identity;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Lumen.Api.Carts;
@@ -13,16 +14,23 @@ internal static class CartEndpoints
     public static RouteGroupBuilder MapCartRoutes(this RouteGroupBuilder api)
     {
         var cart = api.MapGroup("/cart").WithTags("Cart")
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .AddEndpointFilter(async (context, next) =>
             {
                 // A cart is personal and changes often: never cached by the browser or a proxy.
                 context.HttpContext.Response.Headers.CacheControl = "no-store";
-                return await next(context);
+
+                // Guests and customers shop; staff accounts (the admin) do not, just as they have no wallet. The role is
+                // in the session's claims, the same check the wallet makes.
+                var user = context.HttpContext.User;
+                return user.Identity?.IsAuthenticated == true && !user.IsInRole(Roles.Customer)
+                    ? CartProblems.CustomersOnly().ToResult()
+                    : await next(context);
             });
 
         cart.MapGet("", GetCart).WithName("GetCart");
         cart.MapPost("/lines", AddLine).WithName("AddCartLine")
-            .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+            .ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity);
         cart.MapPut("/lines/{lineId:guid}", UpdateLine).WithName("UpdateCartLine")
             .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity);
         cart.MapDelete("/lines/{lineId:guid}", RemoveLine).WithName("RemoveCartLine")
