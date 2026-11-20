@@ -149,7 +149,11 @@ public sealed class OrderLine
     /// <summary>Why the line was not supplied or is delayed, e.g. <c>OUT_OF_STOCK:K-7731</c> or "Not accepted within 30 minutes".</summary>
     public string? StatusReason { get; set; }
 
-    /// <summary>What was refunded for this line (subtotal + tax when rejected); never above subtotal + tax (a check constraint).</summary>
+    /// <summary>
+    /// Derived, for display: the line's <see cref="RefundLine.Amount"/> (0 when not refunded), written in the same
+    /// transaction as that row. The unique <see cref="RefundLine.OrderLineId"/> is what stops a second refund. Never
+    /// above subtotal + tax (a check constraint).
+    /// </summary>
     public decimal RefundedAmount { get; set; }
 
     public PartnerOrder? PartnerOrder { get; set; }
@@ -171,6 +175,9 @@ public sealed class OrderShipment
 
     public decimal Fee { get; set; }
 
-    /// <summary>Set when every line of this seller was rejected and the fee was refunded (<see cref="RefundCalculator"/>).</summary>
+    /// <summary>
+    /// Derived, for display and <see cref="PaidShipment.FeeRefunded"/>: true once a <see cref="Refund"/> names this
+    /// shipment, set in the same transaction. The unique <see cref="Refund.ShipmentId"/> is what stops a second fee refund.
+    /// </summary>
     public bool FeeRefunded { get; set; }
 }

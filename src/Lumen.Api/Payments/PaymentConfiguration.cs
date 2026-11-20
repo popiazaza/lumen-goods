@@ -33,6 +33,12 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.HasIndex(p => p.OrderId).IsUnique().HasFilter(NotFinalFilter).HasDatabaseName("IX_Payments_OrderId_NotFinal");
         builder.HasIndex(p => new { p.OrderId, p.CreatedUtc });
 
+        // The housekeeping job finds payments stuck in a status (e.g. Created or Processing past a threshold).
+        builder.HasIndex(p => new { p.Status, p.StatusChangedUtc });
+
+        // Target of the composite foreign keys that keep payment events and refunds on the payment's own order.
+        builder.HasAlternateKey(p => new { p.Id, p.OrderId });
+
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_Payments_AmountNotNegative", "\"Amount\" >= 0");
@@ -53,7 +59,11 @@ internal sealed class PaymentEventConfiguration : IEntityTypeConfiguration<Payme
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).ValueGeneratedNever();
 
-        builder.HasOne<Payment>().WithMany().HasForeignKey(e => e.PaymentId).OnDelete(DeleteBehavior.Cascade);
+        // An event belongs to a payment of the same order (composite foreign key onto Payments (Id, OrderId)).
+        builder.HasOne<Payment>().WithMany()
+            .HasForeignKey(e => new { e.PaymentId, e.OrderId })
+            .HasPrincipalKey(p => new { p.Id, p.OrderId })
+            .OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<Orders.Order>().WithMany().HasForeignKey(e => e.OrderId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(e => e.Type).HasConversion<string>().HasMaxLength(32);

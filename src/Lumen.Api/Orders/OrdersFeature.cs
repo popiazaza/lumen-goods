@@ -67,7 +67,10 @@ internal static class OrdersFeature
     /// <summary>
     /// Admin orders under /api/v1/admin (admin role):
     /// <list type="bullet">
-    /// <item><c>GET /admin/orders?status=&amp;from=&amp;to=&amp;page=&amp;pageSize=</c> → <c>PagedResult&lt;</c><see cref="AdminOrderSummaryDto"/><c>&gt;</c></item>
+    /// <item><c>GET /admin/orders?status=&amp;from=&amp;to=&amp;page=&amp;pageSize=</c> → <c>PagedResult&lt;</c><see cref="AdminOrderSummaryDto"/><c>&gt;</c>;
+    /// <c>status</c> in its snake_case wire form (e.g. <c>partially_refunded</c>, repeatable), parsed with the same
+    /// naming policy as the JSON (enum binding from the query string would not accept the underscores); <c>from</c>/<c>to</c>
+    /// as dates (the <c>CreatedUtc</c> index serves a date-only filter)</item>
     /// <item><c>GET /admin/orders/{number}</c> → <see cref="AdminOrderDto"/></item>
     /// <item><c>POST /admin/orders/{number}/lines/{lineId}/resolve</c> <see cref="ResolveOrderLineRequest"/> → <see cref="AdminOrderDto"/></item>
     /// </list>

@@ -32,14 +32,16 @@ internal static class WalletFeature
             .Bind(configuration.GetSection(WalletOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
-        services.AddScoped<WalletAccounts>();
+        services.AddScoped<WalletService>();
         return services;
     }
 
     /// <summary>
     /// Wallet endpoints under /api/v1 (signed-in customer):
     /// <list type="bullet">
-    /// <item><c>GET /wallet</c> → <see cref="WalletDto"/>; 401 when not signed in; 404 for an account without a wallet (the admin)</item>
+    /// <item><c>GET /wallet</c> → <see cref="WalletDto"/>; 401 when not signed in. A customer's wallet is opened on the
+    /// spot with <see cref="WalletService.EnsureOpenAsync"/> if registration did not open it (paying by wallet does the
+    /// same); an account without the customer role (the admin) has none and gets 404.</item>
     /// </list>
     /// </summary>
     public static RouteGroupBuilder MapWalletEndpoints(this RouteGroupBuilder api) => api.MapWalletRoutes();

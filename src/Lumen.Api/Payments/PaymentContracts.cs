@@ -12,8 +12,16 @@ namespace Lumen.Api.Payments;
 /// BR-PAY-06). The amount is always the order total; the request carries none (BR-CHK-01). The card is validated
 /// on the server first (BR-PAY-02): an invalid card is a 400 validation problem keyed <c>card.number</c>,
 /// <c>card.expiry</c>, <c>card.cvc</c>, <c>card.name</c>, and never reaches the gateway.
-/// Answers 202 with <see cref="PaymentStatusDto"/> (the charge runs independently of the request, BR-PAY-04), or 409
-/// <c>urn:lumen:problem:payment-in-progress</c> when a payment is already running (BR-PAY-01).
+/// Answers 202 with <see cref="PaymentStatusDto"/> (the charge runs independently of the request, BR-PAY-04), 409
+/// <see cref="PaymentInProgressProblem"/> when a payment is already running (BR-PAY-01), or 409
+/// <c>urn:lumen:problem:order-not-payable</c>.
+/// <para>
+/// When the order's latest payment is Failed (the gateway errored twice, BR-PAY-05), the API first asks the gateway
+/// for that payment's status: charged → it becomes Succeeded and the order Paid (nothing new is charged); never
+/// charged → it becomes Declined (<c>gateway_error_unresolved_not_charged</c>, final) and this request starts a new
+/// payment with whatever method it names. If the gateway cannot tell, only the same payment may be tried again
+/// (<see cref="PaymentRetryMode.SamePaymentOnly"/>: a card request retries that payment id; a wallet request is refused).
+/// </para>
 /// </summary>
 /// <param name="Card">Required for card, absent for wallet.</param>
 /// <example>
@@ -59,14 +67,17 @@ public sealed record OneTimeCodeRequest([Required, MaxLength(16)] string Code);
 /// <param name="TestOneTimeCode">The mock's code ("test code: 123456"), shown because no SMS is sent; null unless a code is needed.</param>
 /// <param name="DeclineMessage">Customer wording (BR-PAY-07): "Insufficient funds", or the generic "Your card was declined" for a stolen card.</param>
 /// <param name="AttemptsLeft">Payment attempts the order has left (5 per order, BR-PAY-03).</param>
-/// <param name="CanRetry">Another attempt can start now (the order awaits payment, its hold lasts and attempts are left).</param>
+/// <param name="CanRetry">Shorthand for <see cref="RetryMode"/> is not none.</param>
+/// <param name="RetryMode">What the payment page may offer next: any_method | same_payment_only | none.</param>
 /// <param name="OrderStatus">When paid, go to the confirmation page; when expired, the order can no longer be paid.</param>
+/// <param name="ServerTimeUtc">The server clock when this was produced: count down to <see cref="OneTimeCodeExpiresUtc"/> and <see cref="HoldExpiresUtc"/> from it, not from the browser's clock.</param>
 /// <example>
 /// <code>
 /// { "paymentId": "0193a2c4-...", "orderNumber": "LG-7K3M9QX2", "method": "card", "status": "requires_action",
 ///   "amount": 75.46, "cardBrand": "visa", "cardLast4": "0034", "needsOneTimeCode": true,
 ///   "oneTimeCodeExpiresUtc": "2026-11-20T08:05:00Z", "testOneTimeCode": "123456", "declineMessage": null,
-///   "attemptsLeft": 5, "canRetry": false, "orderStatus": "payment_processing", "holdExpiresUtc": "2026-11-20T08:15:00Z" }
+///   "attemptsLeft": 5, "canRetry": false, "retryMode": "none", "orderStatus": "payment_processing",
+///   "holdExpiresUtc": "2026-11-20T08:15:00Z", "serverTimeUtc": "2026-11-20T08:00:12Z" }
 /// </code>
 /// </example>
 public sealed record PaymentStatusDto(
@@ -83,13 +94,57 @@ public sealed record PaymentStatusDto(
     string? DeclineMessage,
     int AttemptsLeft,
     bool CanRetry,
+    PaymentRetryMode RetryMode,
     OrderStatus OrderStatus,
-    DateTime HoldExpiresUtc);
+    DateTime HoldExpiresUtc,
+    DateTime ServerTimeUtc);
+
+/// <summary>What the customer may do after this payment (wire: any_method | same_payment_only | none).</summary>
+public enum PaymentRetryMode
+{
+    /// <summary>
+    /// A new attempt may use the card or the wallet: the order awaits payment, its hold lasts, attempts are left, and the
+    /// latest payment is final, or Failed and about to be settled by the gateway's status when Pay is sent.
+    /// </summary>
+    AnyMethod,
+
+    /// <summary>
+    /// The latest payment is Failed and the gateway could not say whether it charged (BR-PAY-05): only a Try again of
+    /// that same payment id (card, re-entered) is safe; its idempotency returns the first result.
+    /// </summary>
+    SamePaymentOnly,
+
+    /// <summary>Nothing can start: a payment is running, or the order is paid, expired, past its hold or out of attempts.</summary>
+    None,
+}
+
+/// <summary>
+/// 409 from Pay or the one-time code step when a payment of the order is still running (BR-PAY-01): a second payment
+/// cannot start, from this tab or another. An RFC 9457 problem with the running payment, so the page can show it
+/// ("Confirming your payment…" or the code field) instead of an error.
+/// </summary>
+/// <example>
+/// <code>
+/// { "type": "urn:lumen:problem:payment-in-progress", "title": "A payment is already in progress", "status": 409,
+///   "detail": "Your card payment is still being confirmed.", "payment": { "paymentId": "0193a2c4-...", "status": "processing", "...": "as PaymentStatusDto" } }
+/// </code>
+/// </example>
+public sealed record PaymentInProgressProblem(string Detail, PaymentStatusDto Payment)
+{
+    [JsonPropertyOrder(-3)]
+    public string Type => PaymentProblemTypes.PaymentInProgress;
+
+    [JsonPropertyOrder(-2)]
+    public string Title => "A payment is already in progress";
+
+    [JsonPropertyOrder(-1)]
+    public int Status => StatusCodes.Status409Conflict;
+}
 
 /// <summary>Problem types the payment endpoints return, so the UI can tell its 409s apart.</summary>
 public static class PaymentProblemTypes
 {
-    /// <summary>409: a payment for this order is already running (BR-PAY-01); show its status instead.</summary>
+    /// <summary>409 <see cref="PaymentInProgressProblem"/>: a payment for this order is already running (BR-PAY-01); show it instead.</summary>
     public const string PaymentInProgress = "urn:lumen:problem:payment-in-progress";
 
     /// <summary>409: the order cannot be paid any more: already paid, expired, or out of attempts.</summary>

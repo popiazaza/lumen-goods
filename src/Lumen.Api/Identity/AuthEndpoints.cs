@@ -6,7 +6,6 @@ using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
 
 namespace Lumen.Api.Identity;
 
@@ -21,9 +20,24 @@ public sealed record SignInRequest([Required, EmailAddress] string Email, [Requi
 
 /// <summary>
 /// What sign-in and registration hand over to other features, bound with [AsParameters] so the handlers stay short:
-/// the guest cart merge (BR-CART-01) and, at registration, the new customer's wallet (BR-PAY-06).
+/// the guest cart merge (BR-CART-01) and, at registration, the new customer's wallet (BR-PAY-06). Both are best effort:
+/// the account and the session already exist, so a failure is logged and retried later (the guest cart merges at the
+/// next sign-in, the wallet opens on first use) instead of failing a sign-in that has already happened.
 /// </summary>
-internal sealed record AfterSignIn(ICartMergeService CartMerge, WalletAccounts Wallets, IOptions<WalletOptions> WalletOptions);
+internal sealed record AfterSignIn(ICartMergeService CartMerge, WalletService Wallets, ILogger<AfterSignIn> Logger)
+{
+    public async Task MergeGuestCartAsync(HttpContext http, Guid customerId)
+    {
+        try
+        {
+            await CartMerge.MergeGuestCartAsync(http, customerId, http.RequestAborted);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Could not merge the guest cart of customer {CustomerId}; it merges at the next sign-in", customerId);
+        }
+    }
+}
 
 internal static class AuthEndpoints
 {
@@ -68,11 +82,11 @@ internal static class AuthEndpoints
             throw new InvalidOperationException($"Could not assign the customer role: {string.Join("; ", roleAdded.Errors.Select(e => e.Description))}");
         }
 
-        // BR-PAY-06: every new customer starts with a wallet (idempotent, so a retried registration cannot open two).
-        await afterSignIn.Wallets.OpenAsync(user.Id, afterSignIn.WalletOptions.Value.NewCustomerBalance, http.RequestAborted);
+        // BR-PAY-06: every new customer starts with a wallet. Idempotent and best effort: if it fails here, it opens on first use.
+        await afterSignIn.Wallets.TryEnsureOpenAsync(user.Id);
 
         var session = await CompleteSignInAsync(http, user, signIn, users, antiforgery);
-        await afterSignIn.CartMerge.MergeGuestCartAsync(http, user.Id, http.RequestAborted);
+        await afterSignIn.MergeGuestCartAsync(http, user.Id);
         return TypedResults.Ok(session);
     }
 
@@ -106,7 +120,7 @@ internal static class AuthEndpoints
         }
 
         var session = await CompleteSignInAsync(http, user, signIn, users, antiforgery);
-        await afterSignIn.CartMerge.MergeGuestCartAsync(http, user.Id, http.RequestAborted);
+        await afterSignIn.MergeGuestCartAsync(http, user.Id);
         return TypedResults.Ok(session);
     }
 

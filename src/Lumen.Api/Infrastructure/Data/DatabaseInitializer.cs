@@ -71,7 +71,7 @@ internal static class DatabaseInitializer
         // BR-PAY-06 / A-38: the demo customer's wallet holds enough for the catalogue's most expensive items. Checked on
         // every start (not only when the account is created), so a database seeded before wallets existed gets one too.
         var walletOptions = services.GetRequiredService<IOptions<WalletOptions>>().Value;
-        if (await services.GetRequiredService<WalletAccounts>().OpenAsync(customer.Id, walletOptions.SeededCustomerBalance, cancellationToken))
+        if (await services.GetRequiredService<WalletService>().OpenAsync(customer.Id, walletOptions.SeededCustomerBalance, cancellationToken))
         {
             logger.LogInformation("Seeded wallet of {Email} with {Balance:0.00} USD", seed.CustomerEmail, walletOptions.SeededCustomerBalance);
         }

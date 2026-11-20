@@ -95,7 +95,7 @@ public sealed class OrderingContractTests
             "A price changed since you reviewed your order.",
             [
                 new CheckoutLineChangeDto(Guid.NewGuid(), Guid.NewGuid(), "Merino Trail Socks", "Kestrel Outfitters",
-                    CheckoutChangeKind.PriceChanged, 16.22m, 17.31m, null, "Price changed from $16.22 to $17.31"),
+                    CheckoutChangeKind.PriceChanged, 16.22m, 17.31m, null, null, null, "Price changed from $16.22 to $17.31"),
             ],
             NewTotal: 82.56m);
 
@@ -120,7 +120,7 @@ public sealed class OrderingContractTests
             "Some items cannot be supplied.",
             [
                 new CheckoutLineChangeDto(Guid.NewGuid(), Guid.NewGuid(), "Canvas Tote", "Harbor Supply Co.",
-                    CheckoutChangeKind.TemporarilyUnavailable, null, null, null, "Temporarily unavailable"),
+                    CheckoutChangeKind.TemporarilyUnavailable, null, null, null, null, null, "Temporarily unavailable"),
             ],
             NewTotal: null);
 
@@ -132,10 +132,51 @@ public sealed class OrderingContractTests
     }
 
     [Fact]
+    [Trait("BR", "BR-CHK-01")]
+    public void BR_CHK_01_a_cart_that_changed_since_the_review_must_be_reviewed_again()
+    {
+        var problem = new PriceChangedProblem(
+            "Your cart changed since you reviewed your order.",
+            [
+                new CheckoutLineChangeDto(Guid.NewGuid(), Guid.NewGuid(), "Enamel Camp Mug", "Lumen Goods",
+                    CheckoutChangeKind.QuantityChanged, null, null, 2, 3, null, "Quantity changed from 2 to 3"),
+                new CheckoutLineChangeDto(null, Guid.NewGuid(), "Canvas Tote", "Harbor Supply Co.",
+                    CheckoutChangeKind.CartChanged, null, null, 1, 0, null, "Removed from your cart since you reviewed it"),
+            ],
+            NewTotal: 61.03m);
+
+        var json = Serialize(problem);
+
+        json.GetProperty("canConfirm").GetBoolean().Should().BeFalse();
+        var changes = json.GetProperty("changes");
+        changes[0].GetProperty("kind").GetString().Should().Be("quantity_changed");
+        changes[0].GetProperty("quantityFrom").GetInt32().Should().Be(2);
+        changes[0].GetProperty("quantityTo").GetInt32().Should().Be(3);
+        changes[1].GetProperty("kind").GetString().Should().Be("cart_changed");
+        changes[1].GetProperty("cartLineId").ValueKind.Should().Be(JsonValueKind.Null);
+        changes[1].GetProperty("quantityTo").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public void Checkout_preview_lines_carry_what_place_order_sends_back()
+    {
+        var line = new CheckoutLineDto(Guid.NewGuid(), Guid.NewGuid(), "Enamel Camp Mug", null, 18.5m, 2, 37m, 2.96m);
+
+        var json = Serialize(line);
+
+        json.EnumerateObject().Select(p => p.Name).Should().Equal(
+            "cartLineId", "productId", "name", "imageUrl", "unitPrice", "quantity", "lineTotal", "tax");
+        json.GetProperty("unitPrice").GetRawText().Should().Be("18.50");
+        json.GetProperty("lineTotal").GetRawText().Should().Be("37.00");
+    }
+
+    [Fact]
     public void Place_order_reads_enums_and_money_from_their_wire_form()
     {
         const string body = """
-            { "checkoutKey": "8d7c9e1a-4f7b-4b8e-9a51-3c2d1e0f9a7b", "expectedTotal": 75.46, "shippingMethod": "express",
+            { "checkoutKey": "8d7c9e1a-4f7b-4b8e-9a51-3c2d1e0f9a7b",
+              "lines": [ { "productId": "0193a0f1-0000-7000-8000-000000000001", "quantity": 2, "unitPrice": 18.50 } ],
+              "expectedTotal": 75.46, "shippingMethod": "express",
               "shippingAddress": { "name": "Ada Lovelace", "line1": "1200 NW Naito Pkwy", "line2": null, "city": "Portland",
                                    "region": "or", "postalCode": "97209", "country": "us" } }
             """;
@@ -144,6 +185,7 @@ public sealed class OrderingContractTests
 
         request.ShippingMethod.Should().Be(ShippingMethod.Express);
         request.ExpectedTotal.Should().Be(75.46m);
+        request.Lines.Should().Equal(new PlaceOrderLineDto(Guid.Parse("0193a0f1-0000-7000-8000-000000000001"), 2, 18.50m));
         request.ShippingAddress!.ToEntity().Should().Be(new ShippingAddress("Ada Lovelace", "1200 NW Naito Pkwy", null, "Portland", "OR", "97209", "US"));
     }
 
@@ -173,7 +215,8 @@ public sealed class OrderingContractTests
         var status = new PaymentStatusDto(
             Guid.NewGuid(), "LG-7K3M9QX2", PaymentMethod.Card, PaymentStatus.RequiresAction, 75.4m, CardBrand.Visa, "0034",
             NeedsOneTimeCode: true, OneTimeCodeExpiresUtc: At.AddMinutes(5), TestOneTimeCode: "123456", DeclineMessage: null,
-            AttemptsLeft: 5, CanRetry: false, OrderStatus.PaymentProcessing, HoldExpiresUtc: At.AddMinutes(15));
+            AttemptsLeft: 5, CanRetry: false, PaymentRetryMode.None, OrderStatus.PaymentProcessing, HoldExpiresUtc: At.AddMinutes(15),
+            ServerTimeUtc: At.AddSeconds(12));
 
         var json = Serialize(status);
 
@@ -184,6 +227,43 @@ public sealed class OrderingContractTests
         json.GetProperty("amount").GetRawText().Should().Be("75.40");
         json.GetProperty("oneTimeCodeExpiresUtc").GetString().Should().Be("2026-11-20T08:05:00Z");
         json.GetProperty("declineMessage").ValueKind.Should().Be(JsonValueKind.Null);
+        json.GetProperty("retryMode").GetString().Should().Be("none");
+        json.GetProperty("serverTimeUtc").GetString().Should().Be("2026-11-20T08:00:12Z");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-PAY-05")]
+    public void BR_PAY_05_retry_modes_and_the_unresolved_gateway_error_use_snake_case()
+    {
+        Serialize(PaymentRetryMode.SamePaymentOnly).GetString().Should().Be("same_payment_only");
+        Serialize(PaymentRetryMode.AnyMethod).GetString().Should().Be("any_method");
+        Serialize(DeclineReason.GatewayErrorUnresolvedNotCharged).GetString().Should().Be("gateway_error_unresolved_not_charged");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-PAY-01")]
+    public void BR_PAY_01_payment_in_progress_is_an_rfc_9457_problem_carrying_the_running_payment()
+    {
+        var running = new PaymentStatusDto(
+            Guid.NewGuid(), "LG-7K3M9QX2", PaymentMethod.Card, PaymentStatus.Processing, 75.46m, CardBrand.Visa, "0042",
+            false, null, null, null, 5, false, PaymentRetryMode.None, OrderStatus.PaymentProcessing, At.AddMinutes(15), At);
+
+        var json = Serialize(new PaymentInProgressProblem("Your card payment is still being confirmed.", running));
+
+        json.EnumerateObject().Select(p => p.Name).Take(3).Should().Equal("type", "title", "status");
+        json.GetProperty("type").GetString().Should().Be(PaymentProblemTypes.PaymentInProgress);
+        json.GetProperty("status").GetInt32().Should().Be(409);
+        json.GetProperty("payment").GetProperty("status").GetString().Should().Be("processing");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-04")]
+    public void BR_ORD_04_an_admin_resolves_a_line_with_confirm_or_reject()
+    {
+        JsonSerializer.Deserialize<ResolveOrderLineRequest>("{ \"decision\": \"reject\", \"note\": null }", WebJson)!
+            .Decision.Should().Be(LineResolution.Reject);
+        JsonSerializer.Deserialize<ResolveOrderLineRequest>("{ \"decision\": \"confirm\", \"note\": null }", WebJson)!
+            .Decision.Should().Be(LineResolution.Confirm);
     }
 
     [Fact]
@@ -198,7 +278,7 @@ public sealed class OrderingContractTests
             new ShippingAddressDto("Ada Lovelace", "1200 NW Naito Pkwy", null, "Portland", "OR", "97209", "US"),
             ShippingMethod.Express,
             new PaymentSummaryDto(Guid.NewGuid(), PaymentMethod.Wallet, PaymentStatus.Succeeded, 92.98m, null, null, At.AddMinutes(1)),
-            [new RefundDto(Guid.NewGuid(), 40.03m, RefundStatus.Succeeded, "Not supplied by Kestrel Outfitters", [line.Id], At, At)],
+            [new RefundDto(Guid.NewGuid(), 40.03m, RefundStatus.Succeeded, "Not supplied by Kestrel Outfitters", [line.Id], 4.99m, At, At)],
             CanPay: false,
             IsUpdating: false);
 
@@ -213,6 +293,7 @@ public sealed class OrderingContractTests
         json.GetProperty("totals").GetProperty("refunded").GetRawText().Should().Be("40.03");
         json.GetProperty("payment").GetProperty("cardLast4").ValueKind.Should().Be(JsonValueKind.Null);
         json.GetProperty("refunds")[0].GetProperty("status").GetString().Should().Be("succeeded");
+        json.GetProperty("refunds")[0].GetProperty("shippingAmount").GetRawText().Should().Be("4.99");
         json.GetProperty("shippingAddress").GetProperty("line2").ValueKind.Should().Be(JsonValueKind.Null);
     }
 

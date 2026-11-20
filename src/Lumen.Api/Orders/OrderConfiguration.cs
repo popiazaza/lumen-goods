@@ -1,9 +1,7 @@
-using System.Text.Json;
 using Lumen.Api.Identity;
 using Lumen.Api.Payments;
 using Lumen.Domain.Orders;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lumen.Api.Orders;
@@ -59,6 +57,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         // Admin orders list (filter by status, newest first) and the customer's order history.
         builder.HasIndex(o => new { o.Status, o.CreatedUtc });
         builder.HasIndex(o => new { o.CustomerId, o.CreatedUtc });
+        builder.HasIndex(o => o.CreatedUtc);
 
         // The expiry job (BR-STOCK-01) only ever looks at unpaid orders whose hold has run out.
         builder.HasIndex(o => o.HoldExpiresUtc)
@@ -79,6 +78,9 @@ internal sealed class OrderLineConfiguration : IEntityTypeConfiguration<OrderLin
         builder.HasKey(l => l.Id);
         builder.Property(l => l.Id).ValueGeneratedNever();
         builder.HasIndex(l => new { l.OrderId, l.LineNumber }).IsUnique();
+
+        // Target of the composite foreign key that keeps a refund line on its refund's order.
+        builder.HasAlternateKey(l => new { l.Id, l.OrderId });
 
         builder.HasOne(l => l.Product).WithMany().HasForeignKey(l => l.ProductId).OnDelete(DeleteBehavior.Restrict);
 
@@ -124,6 +126,9 @@ internal sealed class OrderShipmentConfiguration : IEntityTypeConfiguration<Orde
         builder.HasKey(s => s.Id);
         builder.Property(s => s.Id).ValueGeneratedNever();
 
+        // Target of the composite foreign key that keeps a shipping refund on its refund's order.
+        builder.HasAlternateKey(s => new { s.Id, s.OrderId });
+
         // BR-SHIP-01: one shipment per seller in an order.
         builder.HasIndex(s => new { s.OrderId, s.Source }).IsUnique();
 
@@ -160,38 +165,74 @@ internal sealed class PartnerOrderConfiguration : IEntityTypeConfiguration<Partn
 
 internal sealed class RefundConfiguration : IEntityTypeConfiguration<Refund>
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    /// <summary>
+    /// Raised by the deferred constraint trigger the OrderingSchema migration creates: PostgreSQL CHECK constraints cannot
+    /// see other tables, so <c>Amount = sum(RefundLines.Amount) + ShippingAmount</c> is checked at commit instead.
+    /// </summary>
+    public const string AmountIsSumOfParts = "CK_Refunds_AmountIsSumOfParts";
 
     public void Configure(EntityTypeBuilder<Refund> builder)
     {
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Id).ValueGeneratedNever();
 
-        builder.HasOne<Payment>().WithMany().HasForeignKey(r => r.PaymentId).OnDelete(DeleteBehavior.Restrict);
+        // The payment refunded belongs to the same order (composite foreign key onto Payments (Id, OrderId)).
+        builder.HasOne<Payment>().WithMany()
+            .HasForeignKey(r => new { r.PaymentId, r.OrderId })
+            .HasPrincipalKey(p => new { p.Id, p.OrderId })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // BR-ORD-03: a shipment fee is refunded at most once, and only a shipment of the same order.
+        builder.HasOne<OrderShipment>().WithMany()
+            .HasForeignKey(r => new { r.ShipmentId, r.OrderId })
+            .HasPrincipalKey(s => new { s.Id, s.OrderId })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(r => r.ShipmentId).IsUnique().HasFilter("\"ShipmentId\" IS NOT NULL")
+            .HasDatabaseName("IX_Refunds_ShipmentId_Unique");
+
+        // Target of the composite foreign key that keeps a refund line on its refund's order.
+        builder.HasAlternateKey(r => new { r.Id, r.OrderId });
 
         builder.Property(r => r.Amount).HasPrecision(12, 2);
+        builder.Property(r => r.ShippingAmount).HasPrecision(12, 2);
         builder.Property(r => r.Status).HasConversion<string>().HasMaxLength(16);
         builder.Property(r => r.Reason).HasMaxLength(500);
         builder.Property(r => r.LastError).HasMaxLength(2000);
         builder.Property(r => r.Version).IsRowVersion();
 
-        builder.Property(r => r.LineIds)
-            .HasColumnType("jsonb")
-            .HasConversion(
-                v => JsonSerializer.Serialize(v, Json),
-                v => JsonSerializer.Deserialize<List<Guid>>(v, Json) ?? new List<Guid>(),
-                new ValueComparer<List<Guid>>(
-                    (a, b) => a!.SequenceEqual(b!),
-                    v => v.Aggregate(0, (h, id) => HashCode.Combine(h, id)),
-                    v => v.ToList()));
-
         builder.ToTable(t =>
         {
             t.HasCheckConstraint("CK_Refunds_AmountPositive", "\"Amount\" > 0");
             t.HasCheckConstraint("CK_Refunds_Attempts", "\"Attempts\" >= 0");
+            t.HasCheckConstraint("CK_Refunds_ShippingAmountWithShipment",
+                "(\"ShipmentId\" IS NULL AND \"ShippingAmount\" = 0) OR (\"ShipmentId\" IS NOT NULL AND \"ShippingAmount\" > 0)");
         });
+
+        builder.HasMany(r => r.Lines).WithOne()
+            .HasForeignKey(l => new { l.RefundId, l.OrderId })
+            .HasPrincipalKey(r => new { r.Id, r.OrderId })
+            .OnDelete(DeleteBehavior.Cascade);
 
         // The refund job sends Pending refunds and retries Failed ones when due.
         builder.HasIndex(r => new { r.Status, r.NextAttemptUtc });
+    }
+}
+
+internal sealed class RefundLineConfiguration : IEntityTypeConfiguration<RefundLine>
+{
+    public void Configure(EntityTypeBuilder<RefundLine> builder)
+    {
+        builder.HasKey(l => l.Id);
+        builder.Property(l => l.Id).ValueGeneratedNever();
+
+        // BR-ORD-03: a line is refunded at most once, and only a line of the refund's own order.
+        builder.HasOne<OrderLine>().WithMany()
+            .HasForeignKey(l => new { l.OrderLineId, l.OrderId })
+            .HasPrincipalKey(ol => new { ol.Id, ol.OrderId })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(l => l.OrderLineId).IsUnique();
+
+        builder.Property(l => l.Amount).HasPrecision(12, 2);
+        builder.ToTable(t => t.HasCheckConstraint("CK_RefundLines_AmountNotNegative", "\"Amount\" >= 0"));
     }
 }

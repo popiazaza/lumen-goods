@@ -119,9 +119,11 @@ the result carries `IgnoredBecause` for the log, and nothing throws, so one late
 
 The payment id is the gateway idempotency key, so retrying it can never charge twice (BR-PAY-01). A gateway error
 (not a decline) is retried once automatically with the same payment id; if that errors too, or never runs, the payment
-is Failed. Lumen cannot tell whether a Failed charge went through, so the customer's Try again reuses the same payment
-id (BR-PAY-05). Card 0034 waits for a one-time code that approves, declines or expires the payment (`OneTimeCodePolicy`,
-BR-PAY-03). At most 5 attempts per order.
+is Failed. Lumen cannot tell whether a Failed charge went through, so before the order is paid again (or expired) the
+gateway is asked for that payment's status: charged → Succeeded; never charged → Declined
+(`GatewayErrorUnresolvedNotCharged`), after which any method may pay the order; no answer → only a Try again with the
+same payment id (BR-PAY-05). Card 0034 waits for a one-time code that approves, declines or expires the payment
+(`OneTimeCodePolicy`, BR-PAY-03). At most 5 attempts per order.
 
 ```mermaid
 stateDiagram-v2
@@ -137,6 +139,8 @@ stateDiagram-v2
     Error --> Processing: automatic retry, same payment id
     Error --> Failed: retry errored too, or never ran
     Failed --> Processing: Try again by the customer, same payment id
+    Failed --> Succeeded: gateway status: it was charged
+    Failed --> Declined: gateway status: never charged
     Succeeded --> [*]
     Declined --> [*]
     Expired --> [*]

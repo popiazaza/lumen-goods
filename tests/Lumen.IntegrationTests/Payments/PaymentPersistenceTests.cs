@@ -105,6 +105,55 @@ public sealed class PaymentPersistenceTests(LumenApiFactory factory)
     }
 
     [Fact]
+    public async Task A_payment_event_belongs_to_a_payment_of_the_same_order()
+    {
+        var order = await factory.NewSavedOrderAsync();
+        var other = await factory.NewSavedOrderAsync();
+        var payment = OrderingTestData.NewPayment(order.Id, PaymentStatus.Declined);
+        await factory.SaveAsync(payment);
+
+        var misfiled = new PaymentEvent
+        {
+            PaymentId = payment.Id, OrderId = other.Id, Type = PaymentEventType.Declined, OccurredUtc = OrderingTestData.Now,
+        };
+
+        (await factory.SaveRejectedAsync(misfiled)).ShouldBeForeignKeyViolation("FK_PaymentEvents_Payments_PaymentId_OrderId");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-PAY-05")]
+    public async Task BR_PAY_05_the_housekeeping_job_can_find_payments_stuck_in_a_status()
+    {
+        await using var db = factory.NewContext();
+        var indexes = await db.Database
+            .SqlQuery<string>($"SELECT indexname AS \"Value\" FROM pg_indexes WHERE tablename = 'Payments'")
+            .ToListAsync(Ct);
+
+        indexes.Should().Contain(["IX_Payments_Status_StatusChangedUtc", "IX_Payments_OrderId_NotFinal"]);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-PAY-05")]
+    public async Task BR_PAY_05_a_failed_payment_settled_as_not_charged_lets_a_new_payment_start()
+    {
+        var order = await factory.NewSavedOrderAsync();
+        var failed = OrderingTestData.NewPayment(order.Id, PaymentStatus.Failed);
+        await factory.SaveAsync(failed);
+        (await factory.SaveRejectedAsync(OrderingTestData.NewPayment(order.Id, PaymentStatus.Created, PaymentMethod.Wallet)))
+            .ShouldBeUniqueViolation("IX_Payments_OrderId_NotFinal");
+
+        await using (var db = factory.NewContext())
+        {
+            var settled = await db.Payments.SingleAsync(p => p.Id == failed.Id, Ct);
+            settled.Status = PaymentTransitions.Payment.Move(settled.Status, PaymentStatus.Declined);
+            settled.DeclineReason = DeclineReason.GatewayErrorUnresolvedNotCharged;
+            await db.SaveChangesAsync(Ct);
+        }
+
+        await factory.SaveAsync(OrderingTestData.NewPayment(order.Id, PaymentStatus.Created, PaymentMethod.Wallet));
+    }
+
+    [Fact]
     [Trait("BR", "BR-ORD-03")]
     public async Task BR_ORD_03_the_mock_gateway_never_refunds_more_than_it_charged_nor_the_same_refund_twice()
     {

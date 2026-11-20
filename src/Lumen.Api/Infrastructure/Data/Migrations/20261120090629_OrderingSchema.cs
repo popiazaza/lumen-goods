@@ -207,6 +207,7 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_OrderLines", x => x.Id);
+                    table.UniqueConstraint("AK_OrderLines_Id_OrderId", x => new { x.Id, x.OrderId });
                     table.CheckConstraint("CK_OrderLines_AmountsNotNegative", "\"UnitPriceUsd\" >= 0 AND \"Tax\" >= 0 AND \"RefundedAmount\" >= 0");
                     table.CheckConstraint("CK_OrderLines_FxRatePositive", "\"FxRateToUsd\" IS NULL OR \"FxRateToUsd\" > 0");
                     table.CheckConstraint("CK_OrderLines_LineNumber", "\"LineNumber\" >= 1");
@@ -241,6 +242,7 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_OrderShipments", x => x.Id);
+                    table.UniqueConstraint("AK_OrderShipments_Id_OrderId", x => new { x.Id, x.OrderId });
                     table.CheckConstraint("CK_OrderShipments_Fee", "\"Fee\" >= 0");
                     table.ForeignKey(
                         name: "FK_OrderShipments_Orders_OrderId",
@@ -274,6 +276,7 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Payments", x => x.Id);
+                    table.UniqueConstraint("AK_Payments_Id_OrderId", x => new { x.Id, x.OrderId });
                     table.CheckConstraint("CK_Payments_AmountNotNegative", "\"Amount\" >= 0");
                     table.CheckConstraint("CK_Payments_AttemptNumber", "\"AttemptNumber\" >= 1");
                     table.CheckConstraint("CK_Payments_CardDataOnlyForCards", "(\"Method\" = 'Card') = (\"CardLast4\" IS NOT NULL AND \"CardBrand\" IS NOT NULL)");
@@ -340,10 +343,10 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_PaymentEvents_Payments_PaymentId",
-                        column: x => x.PaymentId,
+                        name: "FK_PaymentEvents_Payments_PaymentId_OrderId",
+                        columns: x => new { x.PaymentId, x.OrderId },
                         principalTable: "Payments",
-                        principalColumn: "Id",
+                        principalColumns: new[] { "Id", "OrderId" },
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -355,9 +358,10 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                     OrderId = table.Column<Guid>(type: "uuid", nullable: false),
                     PaymentId = table.Column<Guid>(type: "uuid", nullable: false),
                     Amount = table.Column<decimal>(type: "numeric(12,2)", precision: 12, scale: 2, nullable: false),
+                    ShipmentId = table.Column<Guid>(type: "uuid", nullable: true),
+                    ShippingAmount = table.Column<decimal>(type: "numeric(12,2)", precision: 12, scale: 2, nullable: false),
                     Status = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
                     Reason = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
-                    LineIds = table.Column<string>(type: "jsonb", nullable: false),
                     Attempts = table.Column<int>(type: "integer", nullable: false),
                     NextAttemptUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     LastError = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
@@ -368,8 +372,16 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Refunds", x => x.Id);
+                    table.UniqueConstraint("AK_Refunds_Id_OrderId", x => new { x.Id, x.OrderId });
                     table.CheckConstraint("CK_Refunds_AmountPositive", "\"Amount\" > 0");
                     table.CheckConstraint("CK_Refunds_Attempts", "\"Attempts\" >= 0");
+                    table.CheckConstraint("CK_Refunds_ShippingAmountWithShipment", "(\"ShipmentId\" IS NULL AND \"ShippingAmount\" = 0) OR (\"ShipmentId\" IS NOT NULL AND \"ShippingAmount\" > 0)");
+                    table.ForeignKey(
+                        name: "FK_Refunds_OrderShipments_ShipmentId_OrderId",
+                        columns: x => new { x.ShipmentId, x.OrderId },
+                        principalTable: "OrderShipments",
+                        principalColumns: new[] { "Id", "OrderId" },
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Refunds_Orders_OrderId",
                         column: x => x.OrderId,
@@ -377,11 +389,39 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Refunds_Payments_PaymentId",
-                        column: x => x.PaymentId,
+                        name: "FK_Refunds_Payments_PaymentId_OrderId",
+                        columns: x => new { x.PaymentId, x.OrderId },
                         principalTable: "Payments",
-                        principalColumn: "Id",
+                        principalColumns: new[] { "Id", "OrderId" },
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RefundLines",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    RefundId = table.Column<Guid>(type: "uuid", nullable: false),
+                    OrderId = table.Column<Guid>(type: "uuid", nullable: false),
+                    OrderLineId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Amount = table.Column<decimal>(type: "numeric(12,2)", precision: 12, scale: 2, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RefundLines", x => x.Id);
+                    table.CheckConstraint("CK_RefundLines_AmountNotNegative", "\"Amount\" >= 0");
+                    table.ForeignKey(
+                        name: "FK_RefundLines_OrderLines_OrderLineId_OrderId",
+                        columns: x => new { x.OrderLineId, x.OrderId },
+                        principalTable: "OrderLines",
+                        principalColumns: new[] { "Id", "OrderId" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_RefundLines_Refunds_RefundId_OrderId",
+                        columns: x => new { x.RefundId, x.OrderId },
+                        principalTable: "Refunds",
+                        principalColumns: new[] { "Id", "OrderId" },
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -487,6 +527,11 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Orders_CreatedUtc",
+                table: "Orders",
+                column: "CreatedUtc");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Orders_CustomerId_CreatedUtc",
                 table: "Orders",
                 columns: new[] { "CustomerId", "CreatedUtc" });
@@ -531,9 +576,9 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 columns: new[] { "OrderId", "OccurredUtc" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_PaymentEvents_PaymentId",
+                name: "IX_PaymentEvents_PaymentId_OrderId",
                 table: "PaymentEvents",
-                column: "PaymentId");
+                columns: new[] { "PaymentId", "OrderId" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Payments_OrderId_CreatedUtc",
@@ -548,14 +593,47 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 filter: "\"Status\" IN ('Created', 'Processing', 'RequiresAction', 'Error', 'Failed')");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Payments_Status_StatusChangedUtc",
+                table: "Payments",
+                columns: new[] { "Status", "StatusChangedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefundLines_OrderLineId",
+                table: "RefundLines",
+                column: "OrderLineId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefundLines_OrderLineId_OrderId",
+                table: "RefundLines",
+                columns: new[] { "OrderLineId", "OrderId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefundLines_RefundId_OrderId",
+                table: "RefundLines",
+                columns: new[] { "RefundId", "OrderId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Refunds_OrderId",
                 table: "Refunds",
                 column: "OrderId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Refunds_PaymentId",
+                name: "IX_Refunds_PaymentId_OrderId",
                 table: "Refunds",
-                column: "PaymentId");
+                columns: new[] { "PaymentId", "OrderId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Refunds_ShipmentId_OrderId",
+                table: "Refunds",
+                columns: new[] { "ShipmentId", "OrderId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Refunds_ShipmentId_Unique",
+                table: "Refunds",
+                column: "ShipmentId",
+                unique: true,
+                filter: "\"ShipmentId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Refunds_Status_NextAttemptUtc",
@@ -592,11 +670,64 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 column: "RefundId",
                 unique: true,
                 filter: "\"Kind\" = 'Refund'");
+
+            // BR-ORD-03: a refund's amount is exactly its lines plus its shipping part. A CHECK constraint cannot read
+            // RefundLines, so a deferred constraint trigger checks it when the transaction commits (a refund and its
+            // lines are written together, in any order). Hand-written: EF Core does not model triggers.
+            migrationBuilder.Sql("""
+                CREATE FUNCTION refund_amount_is_sum_of_parts() RETURNS trigger
+                LANGUAGE plpgsql AS $$
+                DECLARE
+                    refund_id uuid;
+                    refund_amount numeric;
+                    shipping_amount numeric;
+                    lines_amount numeric;
+                BEGIN
+                    IF TG_TABLE_NAME = 'Refunds' THEN
+                        refund_id := NEW."Id";
+                    ELSIF TG_OP = 'DELETE' THEN
+                        refund_id := OLD."RefundId";
+                    ELSE
+                        refund_id := NEW."RefundId";
+                    END IF;
+
+                    SELECT r."Amount", r."ShippingAmount" INTO refund_amount, shipping_amount
+                    FROM "Refunds" r WHERE r."Id" = refund_id;
+                    IF NOT FOUND THEN
+                        RETURN NULL;
+                    END IF;
+
+                    SELECT COALESCE(SUM(l."Amount"), 0) INTO lines_amount FROM "RefundLines" l WHERE l."RefundId" = refund_id;
+                    IF refund_amount <> lines_amount + shipping_amount THEN
+                        RAISE EXCEPTION 'Refund % amount % is not its lines % plus shipping %',
+                            refund_id, refund_amount, lines_amount, shipping_amount
+                            USING ERRCODE = 'check_violation', CONSTRAINT = 'CK_Refunds_AmountIsSumOfParts';
+                    END IF;
+                    RETURN NULL;
+                END
+                $$;
+
+                CREATE CONSTRAINT TRIGGER "TR_Refunds_AmountIsSumOfParts"
+                    AFTER INSERT OR UPDATE ON "Refunds"
+                    DEFERRABLE INITIALLY DEFERRED
+                    FOR EACH ROW EXECUTE FUNCTION refund_amount_is_sum_of_parts();
+
+                CREATE CONSTRAINT TRIGGER "TR_RefundLines_AmountIsSumOfParts"
+                    AFTER INSERT OR UPDATE OR DELETE ON "RefundLines"
+                    DEFERRABLE INITIALLY DEFERRED
+                    FOR EACH ROW EXECUTE FUNCTION refund_amount_is_sum_of_parts();
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""
+                DROP TRIGGER IF EXISTS "TR_RefundLines_AmountIsSumOfParts" ON "RefundLines";
+                DROP TRIGGER IF EXISTS "TR_Refunds_AmountIsSumOfParts" ON "Refunds";
+                DROP FUNCTION IF EXISTS refund_amount_is_sum_of_parts();
+                """);
+
             migrationBuilder.DropTable(
                 name: "CartLines");
 
@@ -604,13 +735,13 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 name: "MockGatewayRefunds");
 
             migrationBuilder.DropTable(
-                name: "OrderShipments");
-
-            migrationBuilder.DropTable(
                 name: "PartnerOrders");
 
             migrationBuilder.DropTable(
                 name: "PaymentEvents");
+
+            migrationBuilder.DropTable(
+                name: "RefundLines");
 
             migrationBuilder.DropTable(
                 name: "WalletTransactions");
@@ -629,6 +760,9 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "Wallets");
+
+            migrationBuilder.DropTable(
+                name: "OrderShipments");
 
             migrationBuilder.DropTable(
                 name: "Payments");

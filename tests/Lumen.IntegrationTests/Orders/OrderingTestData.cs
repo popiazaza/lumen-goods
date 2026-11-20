@@ -115,13 +115,24 @@ internal static class OrderingTestData
         await db.SaveChangesAsync(Ct);
     }
 
-    /// <summary>Saves the entities and returns the PostgreSQL error the database refused them with.</summary>
+    /// <summary>
+    /// Saves the entities and returns the PostgreSQL error the database refused them with: from a statement (EF Core
+    /// wraps it in a DbUpdateException) or from a deferred constraint trigger at commit (not wrapped).
+    /// </summary>
     public static async Task<PostgresException> SaveRejectedAsync(this LumenApiFactory factory, params object[] entities)
     {
         await using var db = factory.NewContext();
         db.AddRange(entities);
-        var thrown = await FluentActions.Awaiting(() => db.SaveChangesAsync(Ct)).Should().ThrowAsync<DbUpdateException>();
-        return thrown.Which.InnerException.Should().BeOfType<PostgresException>().Subject;
+        var thrown = await FluentActions.Awaiting(() => db.SaveChangesAsync(Ct)).Should().ThrowAsync<Exception>();
+        for (Exception? e = thrown.Which; e is not null; e = e.InnerException)
+        {
+            if (e is PostgresException postgres)
+            {
+                return postgres;
+            }
+        }
+
+        throw new InvalidOperationException($"Expected a PostgreSQL error, got: {thrown.Which}");
     }
 }
 
@@ -140,5 +151,12 @@ internal static class PostgresErrorExtensions
     {
         error.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
         error.ConstraintName.Should().Be(index);
+    }
+
+    /// <summary>A foreign key refused the row (e.g. a composite key across orders); <paramref name="foreignKey"/> names which.</summary>
+    public static void ShouldBeForeignKeyViolation(this PostgresException error, string foreignKey)
+    {
+        error.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation);
+        error.ConstraintName.Should().Be(foreignKey);
     }
 }

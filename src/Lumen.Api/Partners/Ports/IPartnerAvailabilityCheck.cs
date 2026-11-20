@@ -7,6 +7,15 @@ namespace Lumen.Api.Partners.Ports;
 /// from <c>/stock</c> (it has no price lookup, so its price stays the latest feed's and is not reported as changed).
 /// The caller bounds the whole check with <c>Checkout:PartnerCheckTimeout</c>; an adapter never throws for a partner
 /// that is slow or down, it answers <see cref="PartnerLineCheckOutcome.Unreachable"/> for the lines it could not check.
+/// <para>
+/// Write-through: what a check learns is saved before Place order answers. Place order writes each live price
+/// (<see cref="PartnerLineCheckResult.CurrentUnitPriceUsd"/>) and availability (<see cref="PartnerLineCheckResult.AvailableQuantity"/>,
+/// or out of stock / not sellable for <see cref="PartnerLineCheckOutcome.Unavailable"/>) to the product's row, then
+/// prices the order, or the 409's <c>newTotal</c>, from those same rows. A customer who re-confirms the new total is
+/// therefore checked against the values they were shown, and the cart and catalogue show them too, instead of the
+/// next Place order finding the same difference again (until the partner's own sync would have caught up).
+/// An adapter itself writes nothing: it only reports.
+/// </para>
 /// </summary>
 public interface IPartnerAvailabilityCheck
 {

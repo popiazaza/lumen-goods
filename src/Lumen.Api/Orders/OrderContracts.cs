@@ -133,13 +133,16 @@ public sealed record PaymentSummaryDto(
     DateTime? CompletedUtc);
 
 /// <summary>A refund to the original payment method (BR-ORD-03).</summary>
+/// <param name="Amount">The lines' amounts (each line's <see cref="OrderLineDto.RefundedAmount"/>) plus <see cref="ShippingAmount"/>.</param>
 /// <param name="Status">pending | succeeded | failed (a failed refund is retried; it is still owed).</param>
 /// <param name="LineIds">The order lines it covers (<see cref="OrderLineDto.Id"/>).</param>
+/// <param name="ShippingAmount">The seller's shipping fee it pays back (every line of that seller was rejected); 0.00 when none.</param>
 public sealed record RefundDto(
     Guid Id,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Amount,
     RefundStatus Status,
     string Reason,
     IReadOnlyList<Guid> LineIds,
+    [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal ShippingAmount,
     DateTime CreatedUtc,
     DateTime? CompletedUtc);
