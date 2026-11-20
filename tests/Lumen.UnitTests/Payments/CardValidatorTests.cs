@@ -104,4 +104,19 @@ public sealed class CardValidatorTests
     public void BR_PAY_02_every_invalid_field_is_reported_at_once() =>
         CardValidator.Validate(new CardDetails("1234", 10, 2026, "1", " "), Now)
             .Errors.Keys.Should().BeEquivalentTo(["number", "expiry", "cvc", "holderName"]);
+
+    [Theory]
+    [Trait("BR", "BR-PAY-02")]
+    [InlineData("4242 0000 0000 0034", "****0034")]
+    [InlineData("42", "****")]
+    [InlineData(null, "****")]
+    public void BR_PAY_02_a_logged_card_shows_at_most_the_last_four_digits_and_never_the_cvc(string? number, string shown)
+    {
+        var card = new CardDetails(number, 12, 2028, "987", "Ada Lovelace");
+
+        var logged = $"{card}";
+
+        logged.Should().Be($"CardDetails {{ Number = {shown}, ExpiryMonth = 12, ExpiryYear = 2028 }}");
+        logged.Should().NotContain("4242").And.NotContain("987").And.NotContain("Ada");
+    }
 }
