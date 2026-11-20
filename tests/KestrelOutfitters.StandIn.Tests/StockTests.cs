@@ -63,19 +63,37 @@ public sealed class StockTests(KestrelStandInFactory factory) : IClassFixture<Ke
     }
 
     [Fact]
-    public async Task Exactly_20_refs_are_allowed_and_duplicates_and_spaces_do_not_count()
+    public async Task Exactly_20_entries_are_allowed_and_spaces_and_repeats_among_them_are_answered_once()
     {
         using var client = factory.CreateAuthenticatedClient();
-        var twenty = Enumerable.Range(7700, 19).Select(n => $"K-{n}").Append("K-7731").ToList();
-        var withDuplicates = string.Join(',', twenty.Concat([" K-7731 ", "K-7700", "K-7731"]));
+        var twentyEntries = Enumerable.Range(7700, 17).Select(n => $"K-{n}").Concat([" K-7731 ", "K-7731", "K-7700"]);
 
-        using var exactly20 = await client.GetAsync($"/stock?refs={string.Join(',', twenty)}", TestContext.Current.CancellationToken);
-        using var duplicated = await client.GetAsync($"/stock?refs={Uri.EscapeDataString(withDuplicates)}", TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync(
+            $"/stock?refs={Uri.EscapeDataString(string.Join(',', twentyEntries))}", TestContext.Current.CancellationToken);
 
-        exactly20.StatusCode.Should().Be(HttpStatusCode.OK);
-        duplicated.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await duplicated.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
-            .Split("\r\n").Count(line => line.StartsWith("K-7731;", StringComparison.Ordinal)).Should().Be(1);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
+            .Should().Be("ref;units;restock_date\r\nK-7731;3;\r\n");
+    }
+
+    public static TheoryData<string, string> TwentyOneEntries => new()
+    {
+        { "one ref repeated 21 times", string.Join(',', Enumerable.Repeat("K-7731", 21)) },
+        { "20 distinct refs and a repeat", string.Join(',', Enumerable.Range(7700, 20).Select(n => $"K-{n}").Append("K-7700")) },
+        { "20 distinct refs and a trailing comma", string.Join(',', Enumerable.Range(7700, 20).Select(n => $"K-{n}")) + "," },
+    };
+
+    [Theory]
+    [MemberData(nameof(TwentyOneEntries))]
+    public async Task More_than_20_entries_get_400_even_when_they_name_fewer_distinct_refs(string because, string refs)
+    {
+        using var client = factory.CreateAuthenticatedClient();
+
+        using var response = await client.GetAsync($"/stock?refs={refs}", TestContext.Current.CancellationToken);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest, because);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/plain");
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Contain("21");
     }
 
     [Theory]

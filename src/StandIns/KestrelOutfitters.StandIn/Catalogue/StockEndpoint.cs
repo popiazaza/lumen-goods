@@ -24,21 +24,20 @@ internal static class StockEndpoint
         CancellationToken cancellationToken)
     {
         // Read by hand: framework model binding would answer bad input with its own 400 body.
-        var refs = context.Request.Query["refs"]
-            .SelectMany(value => (value ?? "").Split(','))
-            .Select(r => r.Trim())
-            .Where(r => r.Length > 0)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        var entries = context.Request.Query["refs"].SelectMany(value => (value ?? "").Split(',')).ToList();
 
+        // The limit counts what the client sent, as a strict partner would: repeats and empty entries
+        // count too, so a client that pads or repeats past 20 finds out here and not in production.
+        if (entries.Count > MaxRefs)
+        {
+            return PlainText400($"At most {MaxRefs} refs per request; this request has {entries.Count}.");
+        }
+
+        // Within the limit, spaces and repeats are tolerated for the lookup itself.
+        var refs = entries.Select(r => r.Trim()).Where(r => r.Length > 0).Distinct(StringComparer.Ordinal).ToList();
         if (refs.Count == 0)
         {
             return PlainText400("The refs query parameter is required, for example /stock?refs=K-7731,K-7732.");
-        }
-
-        if (refs.Count > MaxRefs)
-        {
-            return PlainText400($"At most {MaxRefs} refs per request; this request has {refs.Count}.");
         }
 
         // Orders whose decision time has passed are settled first, so stock never lags behind a decision.
