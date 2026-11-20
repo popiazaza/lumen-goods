@@ -97,18 +97,6 @@
         </dd>
       }
     </dl>
-    @for (refund of order.refunds; track refund.id) {
-      <p class="muted refund-line">
-        Refund of {{ refund.amount | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}:
-        {{ refund.reason }} ({{
-          refund.status === 'succeeded'
-            ? 'done'
-            : refund.status === 'failed'
-              ? 'retrying'
-              : 'in progress'
-        }})
-      </p>
-    }
   </section>
 
   <div class="actions">

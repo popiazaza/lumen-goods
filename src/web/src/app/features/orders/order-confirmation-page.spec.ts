@@ -13,19 +13,9 @@ function aPaidOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
   const order = anOrder();
   return anOrder({
     status: 'paid',
-    statusText: 'Processing',
-    paidUtc: '2026-11-20T08:01:10Z',
     canPay: false,
     isUpdating: true,
-    payment: {
-      paymentId: 'payment-1',
-      method: 'card',
-      status: 'succeeded',
-      amount: 67.46,
-      cardBrand: 'visa',
-      cardLast4: '1111',
-      completedUtc: '2026-11-20T08:01:10Z',
-    },
+    payment: { method: 'card', status: 'succeeded', cardBrand: 'visa', cardLast4: '1111' },
     shipments: [
       {
         ...order.shipments[0],
@@ -109,11 +99,26 @@ describe('OrderConfirmationPage', () => {
     ]);
   });
 
-  it('shows refunds against what was charged', async () => {
+  it('shows a refunded line and the refund against what was charged', async () => {
+    const order = aPaidOrder();
     await open(
       aPaidOrder({
         status: 'partially_refunded',
         isUpdating: false,
+        shipments: [
+          order.shipments[0],
+          {
+            ...order.shipments[1],
+            feeRefunded: true,
+            lines: [
+              {
+                ...order.shipments[1].lines[0],
+                status: 'rejected',
+                statusText: 'Not supplied, refunded $17.52',
+              },
+            ],
+          },
+        ],
         totals: {
           subtotal: 53.22,
           shipping: 9.98,
@@ -122,25 +127,15 @@ describe('OrderConfirmationPage', () => {
           refunded: 22.51,
           netPaid: 44.95,
         },
-        refunds: [
-          {
-            id: 'refund-1',
-            amount: 22.51,
-            status: 'succeeded',
-            reason: 'Kestrel Outfitters could not supply Merino Trail Socks',
-            lineIds: ['order-line-2'],
-            shippingAmount: 4.99,
-            createdUtc: '2026-11-20T08:05:00Z',
-            completedUtc: '2026-11-20T08:05:02Z',
-          },
-        ],
       }),
     );
 
+    expect(all('.lines .status')[1]).toBe('Not supplied, refunded $17.52');
+    expect(all('.group-head .muted')[1]).toBe('Standard shipping · $4.99 (refunded)');
     expect(all('.totals dt').slice(4)).toEqual(['Refunded', 'You paid']);
     expect(all('.totals dd').slice(4)).toEqual(['−$22.51', '$44.95']);
-    expect(text('.refund-line')).toBe(
-      'Refund of $22.51: Kestrel Outfitters could not supply Merino Trail Socks (done)',
+    expect(all('.next li')[1]).toBe(
+      'Kestrel Outfitters couldn’t supply these items, so we refunded them.',
     );
   });
 

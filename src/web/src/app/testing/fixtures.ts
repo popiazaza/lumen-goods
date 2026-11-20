@@ -181,17 +181,11 @@ export function aPreview(overrides: Partial<CheckoutPreviewDto> = {}): CheckoutP
 export function anOrderLine(overrides: Partial<OrderLineDto> = {}): OrderLineDto {
   return {
     id: 'order-line-1',
-    lineNumber: 1,
-    productId: 'lumen-mug',
     name: 'Enamel Camp Mug',
-    imageUrl: null,
-    unitPrice: 18.5,
     quantity: 2,
     subtotal: 37,
-    tax: 2.96,
     status: 'confirmed',
     statusText: 'Confirmed',
-    refundedAmount: 0,
     ...overrides,
   };
 }
@@ -200,9 +194,6 @@ export function anOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto
   return {
     number: 'LG-7K3M9QX2',
     status: 'awaiting_payment',
-    statusText: 'Awaiting payment',
-    createdUtc: '2026-11-20T08:00:00Z',
-    paidUtc: null,
     holdExpiresUtc: '2026-11-20T08:15:00Z',
     shipments: [
       {
@@ -222,13 +213,9 @@ export function anOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto
         lines: [
           anOrderLine({
             id: 'order-line-2',
-            lineNumber: 2,
-            productId: 'kestrel-K-7731',
             name: 'Merino Trail Socks',
-            unitPrice: 16.22,
             quantity: 1,
             subtotal: 16.22,
-            tax: 1.3,
             status: 'pending',
             statusText: 'Pending',
           }),
@@ -243,10 +230,7 @@ export function anOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto
       refunded: 0,
       netPaid: 67.46,
     },
-    shippingAddress: US_ADDRESS,
-    shippingMethod: 'standard',
     payment: null,
-    refunds: [],
     canPay: true,
     isUpdating: false,
     ...overrides,

@@ -1,5 +1,7 @@
-// Wire types shared by checkout, payment and the order pages (Lumen.Api `Orders/OrderContracts.cs`).
+// Wire types shared by checkout, payment and the order confirmation (Lumen.Api
+// `Orders/OrderContracts.cs`, `Checkout/CheckoutContracts.cs`, `Payments/PaymentContracts.cs`).
 // Enums travel as snake_case strings; money as numbers with two decimals, priced by the server.
+// Only the order fields these pages read are typed here.
 
 export type ShippingMethod = 'standard' | 'express';
 
@@ -40,8 +42,6 @@ export type PaymentStatus =
 
 export type CardBrand = 'visa' | 'mastercard' | 'amex' | 'other';
 
-export type RefundStatus = 'pending' | 'succeeded' | 'failed';
-
 /** A US ship-to address in the fields both partners' order formats need. */
 export interface ShippingAddress {
   name: string;
@@ -56,20 +56,15 @@ export interface ShippingAddress {
   country: string;
 }
 
+/** One order line, as the confirmation page shows it. */
 export interface OrderLineDto {
   id: string;
-  lineNumber: number;
-  productId: string;
   name: string;
-  imageUrl: string | null;
-  unitPrice: number;
   quantity: number;
   subtotal: number;
-  tax: number;
   status: OrderLineStatus;
   /** BR-ORD-02 wording with the seller's name, e.g. "Awaiting Kestrel Outfitters". */
   statusText: string;
-  refundedAmount: number;
 }
 
 /** One seller's part of the order: its shipment and its lines. */
@@ -91,44 +86,27 @@ export interface OrderTotalsDto {
   netPaid: number;
 }
 
+/** The order's latest payment: "Paid by Visa ending 1111" or "Paid from your wallet". */
 export interface PaymentSummaryDto {
-  paymentId: string;
   method: PaymentMethod;
   status: PaymentStatus;
-  amount: number;
   cardBrand: CardBrand | null;
   cardLast4: string | null;
-  completedUtc: string | null;
 }
 
-export interface RefundDto {
-  id: string;
-  amount: number;
-  status: RefundStatus;
-  reason: string;
-  lineIds: string[];
-  /** The seller's shipping fee paid back (all its lines rejected); 0 when none. */
-  shippingAmount: number;
-  createdUtc: string;
-  completedUtc: string | null;
-}
-
-/** `GET /api/v1/orders/{number}` and the answer to Place order. */
+/**
+ * `GET /api/v1/orders/{number}` and the answer to Place order (`OrderDetailDto`), cut down to what
+ * the payment step and the confirmation page read. The API sends more (dates, address, refunds,
+ * per-line prices and tax); the order history and order pages model the whole order.
+ */
 export interface OrderDetailDto {
   number: string;
   status: OrderStatus;
-  /** Customer wording ("Processing" for paid). */
-  statusText: string;
-  createdUtc: string;
-  paidUtc: string | null;
   /** Until when the order can be paid (price and stock hold). */
   holdExpiresUtc: string;
   shipments: OrderShipmentDto[];
   totals: OrderTotalsDto;
-  shippingAddress: ShippingAddress;
-  shippingMethod: ShippingMethod;
   payment: PaymentSummaryDto | null;
-  refunds: RefundDto[];
   /** Awaiting payment, hold not over, attempts left: show the payment step. */
   canPay: boolean;
   /** Something can still change on its own (payment confirming, partner deciding): poll. */
