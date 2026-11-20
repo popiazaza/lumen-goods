@@ -12,46 +12,77 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Testcontainers.PostgreSql;
 
 namespace Lumen.IntegrationTests.Partners;
 
 /// <summary>
-/// Partner tests share the partner rows of one database, so they run one at a time, after the parallel tests, and
-/// clean up after themselves.
+/// Partner tests delete and rewrite every Harbor and Kestrel product, so they get a PostgreSQL of their own
+/// (<see cref="PartnerDatabase"/>) instead of the assembly-wide one: other features' carts and orders reference partner
+/// products there, and a reset would collide with them. Within this collection the tests run one at a time, because
+/// they share this database; the collection itself runs alongside the rest of the suite.
 /// </summary>
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class PartnerSyncCollection
+[CollectionDefinition(Name)]
+public sealed class PartnerSyncCollection : ICollectionFixture<PartnerDatabase>
 {
-    public const string Name = "Partner sync (shared partner tables)";
+    public const string Name = "Partner sync (own database)";
+}
+
+/// <summary>A PostgreSQL 18 container used only by the partner sync tests, started once for their collection.</summary>
+public sealed class PartnerDatabase : IAsyncLifetime
+{
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18.7-alpine3.24").Build();
+
+    public string ConnectionString => _container.GetConnectionString();
+
+    public async ValueTask InitializeAsync() => await _container.StartAsync();
+
+    public ValueTask DisposeAsync() => _container.DisposeAsync();
 }
 
 /// <summary>
-/// The real API on the real database with the partners' HTTP replaced by fakes (via the named clients' primary
-/// handler, so credentials, rate limiting and resilience still run). Jobs are off; tests call RunOnceAsync.
+/// The real API on the partner tests' own database with the partners' HTTP replaced by fakes (via the named clients'
+/// primary handler, so credentials, rate limiting and resilience still run). Migrations and seeding run as in docker
+/// compose. Jobs are off; tests call RunOnceAsync.
 /// </summary>
+internal sealed class PartnerApiFactory(PartnerDatabase database, FakeHarbor harbor, FakeKestrel kestrel, Action<IWebHostBuilder>? configure)
+    : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+        builder.UseSetting("ConnectionStrings:Lumen", database.ConnectionString);
+        builder.UseSetting("Auth:CookieSecurePolicy", "SameAsRequest");
+        builder.UseSetting("Seed:Enabled", "true");
+        PartnerTestHost.ConfigurePartners(builder, harbor, kestrel);
+        configure?.Invoke(builder);
+    }
+}
+
 internal static class PartnerTestHost
 {
-    public static WebApplicationFactory<Program> Create(LumenApiFactory factory, FakeHarbor harbor, FakeKestrel kestrel, Action<IWebHostBuilder>? configure = null) =>
-        factory.WithWebHostBuilder(builder =>
+    public static WebApplicationFactory<Program> Create(PartnerDatabase database, FakeHarbor harbor, FakeKestrel kestrel, Action<IWebHostBuilder>? configure = null) =>
+        new PartnerApiFactory(database, harbor, kestrel, configure);
+
+    public static void ConfigurePartners(IWebHostBuilder builder, FakeHarbor harbor, FakeKestrel kestrel)
+    {
+        builder.UseSetting("Jobs:Enabled", "false");
+        builder.UseSetting("Partners:Harbor:BaseUrl", "http://harbor.test");
+        builder.UseSetting("Partners:Harbor:ApiKey", FakeHarbor.Key);
+        builder.UseSetting("Partners:Harbor:Resilience:MaxRetries", "1");
+        builder.UseSetting("Partners:Harbor:Resilience:RetryBaseDelay", "00:00:00.010");
+        builder.UseSetting("Partners:Kestrel:BaseUrl", "http://kestrel.test");
+        builder.UseSetting("Partners:Kestrel:Username", FakeKestrel.User);
+        builder.UseSetting("Partners:Kestrel:Password", FakeKestrel.Password);
+        builder.UseSetting("Partners:Kestrel:Resilience:MaxRetries", "1");
+        builder.UseSetting("Partners:Kestrel:Resilience:RetryBaseDelay", "00:00:00.010");
+        builder.ConfigureTestServices(services =>
         {
-            builder.UseSetting("Jobs:Enabled", "false");
-            builder.UseSetting("Partners:Harbor:BaseUrl", "http://harbor.test");
-            builder.UseSetting("Partners:Harbor:ApiKey", FakeHarbor.Key);
-            builder.UseSetting("Partners:Harbor:Resilience:MaxRetries", "1");
-            builder.UseSetting("Partners:Harbor:Resilience:RetryBaseDelay", "00:00:00.010");
-            builder.UseSetting("Partners:Kestrel:BaseUrl", "http://kestrel.test");
-            builder.UseSetting("Partners:Kestrel:Username", FakeKestrel.User);
-            builder.UseSetting("Partners:Kestrel:Password", FakeKestrel.Password);
-            builder.UseSetting("Partners:Kestrel:Resilience:MaxRetries", "1");
-            builder.UseSetting("Partners:Kestrel:Resilience:RetryBaseDelay", "00:00:00.010");
-            builder.ConfigureTestServices(services =>
-            {
-                services.AddHttpClient(HarborCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
-                services.AddHttpClient(HarborCatalogSource.ImageHttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
-                services.AddHttpClient(KestrelCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => kestrel);
-            });
-            configure?.Invoke(builder);
+            services.AddHttpClient(HarborCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
+            services.AddHttpClient(HarborCatalogSource.ImageHttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
+            services.AddHttpClient(KestrelCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => kestrel);
         });
+    }
 
     public static PartnerSyncJob Job(this WebApplicationFactory<Program> app, string partner) =>
         app.Services.GetRequiredKeyedService<PartnerSyncJob>(partner);
