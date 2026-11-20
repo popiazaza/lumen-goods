@@ -8,6 +8,7 @@ using Lumen.Domain.Orders;
 using Lumen.Domain.Payments;
 using Lumen.Domain.Pricing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace Lumen.Api.Checkout;
@@ -30,13 +31,17 @@ internal abstract record PlaceOrderOutcome
 
     /// <summary>The key belongs to another customer's order (never happens with random keys): 409.</summary>
     public sealed record CheckoutKeyTaken : PlaceOrderOutcome;
+
+    /// <summary>BR-CHK-03: the customer already holds the maximum number of unpaid orders: 409, nothing created.</summary>
+    public sealed record TooManyUnpaidOrders(int Max) : PlaceOrderOutcome;
 }
 
 /// <summary>
 /// Place order: the step where what the customer reviewed becomes an order they can pay.
 /// - BR-PAY-01 (a): idempotent by checkout key for this customer. A repeat (double click, retry after a timeout)
 ///   returns the first order; of two concurrent repeats the unique key lets one create it, and the other (refused by
-///   the index, or out of stock because the first reserved it) answers with that same order (ADR 0004: no locks).
+///   the index, out of stock because the first reserved it, or finding it after the BR-CHK-03 lock) answers with that
+///   same order (ADR 0004: the unique key is the guarantee).
 /// - BR-CART-03 / BR-CHK-02: lines that cannot be supplied as they are stop the order: from Lumen's data first, then
 ///   a live check of every partner line (one 5 s budget), before any database transaction. What the live check
 ///   learns (price, stock, not sold any more) is written to the product rows first, so the 409's new total, the cart,
@@ -46,6 +51,9 @@ internal abstract record PlaceOrderOutcome
 ///   or with another quantity, a price up or down, or a different total returns 409 with every difference, and nothing
 ///   is created or reserved. The order total is from then on the only amount a payment can charge.
 /// - BR-STOCK-01: own stock is reserved in the order's transaction by conditional updates, all or nothing.
+/// - BR-CHK-03: at most <see cref="CheckoutOptions.MaxUnpaidOrdersPerCustomer"/> unpaid orders per customer, checked
+///   before the partner calls and again in the order's transaction under a lock on the customer's row, so concurrent
+///   Place orders cannot pass it together. A repeated checkout key still gets its order first (BR-PAY-01 (a)).
 /// </summary>
 internal sealed class PlaceOrderService(
     LumenDbContext db,
@@ -54,6 +62,7 @@ internal sealed class PlaceOrderService(
     PricingService pricing,
     PaymentWindowPolicy window,
     OrderNumberGenerator numbers,
+    IOptions<CheckoutOptions> options,
     TimeProvider time,
     ILogger<PlaceOrderService> logger)
 {
@@ -68,12 +77,20 @@ internal sealed class PlaceOrderService(
 
     private const int MaxNumberAttempts = 5;
 
+    private readonly int _maxUnpaid = options.Value.MaxUnpaidOrdersPerCustomer;
+
     public async Task<PlaceOrderOutcome> PlaceAsync(Guid customerId, PlaceOrderRequest request, CancellationToken cancellationToken)
     {
         var checkoutKey = request.CheckoutKey!.Value;
         if (await FindOrderAsync(customerId, checkoutKey, cancellationToken) is { } placed)
         {
             return new PlaceOrderOutcome.AlreadyPlaced(placed);
+        }
+
+        // BR-CHK-03: refused before any partner call; CreateAsync checks again under the customer's lock.
+        if (await CountUnpaidAsync(customerId, cancellationToken) >= _maxUnpaid)
+        {
+            return new PlaceOrderOutcome.TooManyUnpaidOrders(_maxUnpaid);
         }
 
         var lines = await cart.LoadAsync(customerId, cancellationToken);
@@ -278,6 +295,23 @@ internal sealed class PlaceOrderService(
         {
             var now = time.GetUtcNow();
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+            // BR-CHK-03: one Place order per customer at a time from here to commit, so two cannot both see room for one more.
+            await LockCustomerAsync(customerId, cancellationToken);
+
+            // BR-PAY-01 (a) first: a repeat with the same key that waited for the lock finds the order the first one made.
+            if (await FindOrderAsync(customerId, checkoutKey, cancellationToken) is { } placedMeanwhile)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return new PlaceOrderOutcome.AlreadyPlaced(placedMeanwhile);
+            }
+
+            if (await CountUnpaidAsync(customerId, cancellationToken) >= _maxUnpaid)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return new PlaceOrderOutcome.TooManyUnpaidOrders(_maxUnpaid);
+            }
+
             var notReserved = await ReserveOwnStockAsync(lines, cancellationToken);
             if (notReserved.Count > 0)
             {
@@ -427,6 +461,21 @@ internal sealed class PlaceOrderService(
 
         return order;
     }
+
+    /// <summary>BR-CHK-03: the customer's orders that hold stock and wait for (or are taking) a payment.</summary>
+    private Task<int> CountUnpaidAsync(Guid customerId, CancellationToken cancellationToken) =>
+        db.Orders.CountAsync(
+            o => o.CustomerId == customerId && (o.Status == OrderStatus.AwaitingPayment || o.Status == OrderStatus.PaymentProcessing),
+            cancellationToken);
+
+    /// <summary>
+    /// Locks the customer's account row until the transaction ends. NO KEY UPDATE, so inserts that only reference the
+    /// customer (a cart, a wallet entry) are not blocked; only Place order takes it, always before any product row.
+    /// </summary>
+    private Task LockCustomerAsync(Guid customerId, CancellationToken cancellationToken) =>
+        db.Database
+            .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM "AspNetUsers" WHERE "Id" = {customerId} FOR NO KEY UPDATE""")
+            .ToListAsync(cancellationToken);
 
     private Task<Guid?> FindOrderAsync(Guid customerId, Guid checkoutKey, CancellationToken cancellationToken) =>
         db.Orders.AsNoTracking()

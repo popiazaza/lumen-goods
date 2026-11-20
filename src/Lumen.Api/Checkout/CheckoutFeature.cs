@@ -20,11 +20,18 @@ public sealed class CheckoutOptions
     /// </summary>
     [Range(typeof(TimeSpan), "00:00:01", "00:00:30")]
     public TimeSpan PartnerCheckTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// BR-CHK-03: how many unpaid orders (awaiting payment, or with a payment in progress) one customer may hold. Each
+    /// reserves own stock for its hold, so without a cap one account could empty the shelf by placing orders it never pays.
+    /// </summary>
+    [Range(1, 100)]
+    public int MaxUnpaidOrdersPerCustomer { get; init; } = 3;
 }
 
 /// <summary>
 /// Checkout: pricing (tax and shipping, BR-MONEY-02, BR-SHIP-01), the preview, and Place order (BR-CHK-01, BR-CHK-02,
-/// BR-STOCK-01, BR-PAY-01 (a)), with the partners' live availability checks. Wired once in Program.cs.
+/// BR-CHK-03, BR-STOCK-01, BR-PAY-01 (a)), with the partners' live availability checks. Wired once in Program.cs.
 /// </summary>
 internal static class CheckoutFeature
 {
@@ -56,7 +63,7 @@ internal static class CheckoutFeature
     /// <item><c>GET /checkout/preview?shippingMethod=standard|express</c> → <see cref="CheckoutPreviewDto"/></item>
     /// <item><c>POST /checkout/orders</c> <see cref="PlaceOrderRequest"/> → 201 <c>OrderDetailDto</c> (Location
     /// <c>/api/v1/orders/{number}</c>); 200 with the same order for a repeated checkout key; 409
-    /// <see cref="PriceChangedProblem"/>; 400 validation problem</item>
+    /// <see cref="PriceChangedProblem"/>, or 409 <see cref="CheckoutProblemTypes.TooManyUnpaidOrders"/>; 400 validation problem</item>
     /// </list>
     /// </summary>
     public static RouteGroupBuilder MapCheckoutEndpoints(this RouteGroupBuilder api) => api.MapCheckout();

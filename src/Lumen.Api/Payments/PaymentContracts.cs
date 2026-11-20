@@ -43,8 +43,7 @@ public sealed record CardDetailsDto(string? Number, string? Name, int ExpiryMont
 
     private bool PrintMembers(StringBuilder builder)
     {
-        var digits = Number is null ? "" : new string(Number.Where(char.IsAsciiDigit).ToArray());
-        builder.Append("Number = ").Append(digits.Length >= 4 ? "****" + digits[^4..] : "****")
+        builder.Append("Number = ").Append(CardDetails.MaskNumber(Number))
             .Append(", ExpiryMonth = ").Append(ExpiryMonth)
             .Append(", ExpiryYear = ").Append(ExpiryYear);
         return true;

@@ -29,6 +29,7 @@ Why: each guarantee is one database rule (a unique index, a conditional update, 
 
 ## Consequences
 
+- Note (2026-11-21): BR-CHK-03 (at most 3 unpaid orders per customer) locks the customer's row inside the existing Place order transaction, after the partner checks and with no I/O in it. That is a row lock for one count, not the lock around checkout this ADR rejected.
 - Good: correctness depends neither on timing nor on locks held across I/O, and integration tests on real PostgreSQL can prove it (the last-unit race and double-submit scenarios of BR-STOCK-01 and BR-PAY-01).
 - Good: no quote table to expire and clean up; what was priced is exactly what is charged and shown on the confirmation.
 - Bad: every placed but unpaid checkout leaves an Expired order row.

@@ -1,5 +1,6 @@
 using Lumen.Api.Checkout;
 using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Payments;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -14,13 +15,12 @@ internal static class PaymentEndpoints
         var payments = api.MapGroup("/orders/{number}/payments").WithTags("Payments").RequireAuthorization()
             .ProducesProblem(StatusCodes.Status401Unauthorized).ProducesProblem(StatusCodes.Status404NotFound);
         payments.MapPost("", Pay).WithName("PayOrder")
-            .Produces<PaymentStatusDto>(StatusCodes.Status202Accepted)
+            .RequireRateLimiting(RateLimitPolicies.Payment)
             .Produces<PaymentInProgressProblem>(StatusCodes.Status409Conflict, "application/problem+json")
-            .ProducesValidationProblem();
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
         payments.MapGet("/current", Current).WithName("GetCurrentPayment");
         payments.MapPost("/current/one-time-code", SubmitOneTimeCode).WithName("SubmitOneTimeCode")
-            .Produces<PaymentInProgressProblem>(StatusCodes.Status409Conflict, "application/problem+json")
-            .ProducesValidationProblem();
+            .Produces<PaymentInProgressProblem>(StatusCodes.Status409Conflict, "application/problem+json");
         return api;
     }
 
@@ -28,7 +28,7 @@ internal static class PaymentEndpoints
     /// 202 with the payment: a card charge runs on in the background (poll <c>GET .../payments/current</c> while it is
     /// created or processing); a wallet payment has already succeeded or been declined.
     /// </summary>
-    private static async Task<IResult> Pay(
+    private static async Task<Results<Accepted<PaymentStatusDto>, JsonHttpResult<PaymentInProgressProblem>, ValidationProblem, ProblemHttpResult, UnauthorizedHttpResult>> Pay(
         string number, PayRequest request, HttpContext http, PaymentService payments, PaymentStatusReader statuses, CancellationToken cancellationToken)
     {
         if (http.User.CustomerId() is not { } customerId)
@@ -50,7 +50,9 @@ internal static class PaymentEndpoints
             case PayOutcome.Invalid invalid:
                 return TypedResults.ValidationProblem(invalid.Errors, title: "The payment details are not valid");
             case PayOutcome.InProgress inProgress:
-                return await InProgressAsync(inProgress.OrderId, statuses, cancellationToken);
+                return await statuses.CurrentAsync(inProgress.OrderId, settle: false, cancellationToken) is { } running
+                    ? InProgress(running)
+                    : PaymentStarting();
             case PayOutcome.NotPayable notPayable:
                 return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, type: PaymentProblemTypes.OrderNotPayable,
                     title: "This order cannot be paid", detail: notPayable.Detail);
@@ -85,7 +87,7 @@ internal static class PaymentEndpoints
     /// other code, or any code after expiry, ends the attempt). Not cancellable once sent, so a closed tab cannot leave
     /// an approved code unrecorded.
     /// </summary>
-    private static async Task<IResult> SubmitOneTimeCode(
+    private static async Task<Results<Ok<PaymentStatusDto>, JsonHttpResult<PaymentInProgressProblem>, ValidationProblem, ProblemHttpResult, UnauthorizedHttpResult>> SubmitOneTimeCode(
         string number,
         OneTimeCodeRequest request,
         HttpContext http,
@@ -124,28 +126,29 @@ internal static class PaymentEndpoints
                 await recorder.RecordAsync(payment.Id, answer, CancellationToken.None);
                 break;
             case PaymentStatus.Created or PaymentStatus.Processing or PaymentStatus.Error:
-                return await InProgressAsync(orderId.Value, statuses, cancellationToken);
+                return await statuses.CurrentAsync(orderId.Value, settle: false, cancellationToken) is { } running
+                    ? InProgress(running)
+                    : PaymentStarting();
         }
 
         // An outcome already reached (a double submit, or the code expired meanwhile): show it.
-        return TypedResults.Ok(await statuses.CurrentAsync(orderId.Value, settle: false, cancellationToken));
+        return TypedResults.Ok((await statuses.CurrentAsync(orderId.Value, settle: false, cancellationToken))!);
     }
 
-    private static async Task<IResult> InProgressAsync(Guid orderId, PaymentStatusReader statuses, CancellationToken cancellationToken)
+    /// <summary>409 with the payment that is running, so the page can follow it.</summary>
+    private static JsonHttpResult<PaymentInProgressProblem> InProgress(PaymentStatusDto current)
     {
-        var current = await statuses.CurrentAsync(orderId, settle: false, cancellationToken);
-        if (current is null)
-        {
-            return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, type: PaymentProblemTypes.PaymentInProgress,
-                title: "A payment is already in progress", detail: "Another payment of this order is being started.");
-        }
-
         var detail = current.Status == PaymentStatus.RequiresAction
             ? "Your card payment is waiting for its one-time code."
             : "Your payment is still being confirmed.";
         return TypedResults.Json(new PaymentInProgressProblem(detail, current), statusCode: StatusCodes.Status409Conflict,
             contentType: "application/problem+json");
     }
+
+    /// <summary>409 while another request is creating the order's payment, so there is none to show yet.</summary>
+    private static ProblemHttpResult PaymentStarting() =>
+        TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, type: PaymentProblemTypes.PaymentInProgress,
+            title: "A payment is already in progress", detail: "Another payment of this order is being started.");
 
     private static async Task<Guid?> FindOrderAsync(LumenDbContext db, Guid customerId, string number, CancellationToken cancellationToken) =>
         OrderNumberGenerator.IsWellFormed(number)

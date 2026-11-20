@@ -67,6 +67,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-43 | **Partner never answers**: if a partner order was never accepted after retries for 30 min and the partner cannot have it (every send was rejected or never reached it) → refund that line; if a send's outcome is unknown (timeout after sending, 5xx) → flag "Needs attention" for an admin instead, no automatic refund. If Kestrel accepted it but stays undecided for 24 h → flag "Needs attention" for an admin, **no automatic refund** (the goods might still ship) |
 | A-44 | Customers **can't cancel** an order after paying (partners have no cancel; support/returns are a planned feature) |
 | A-45 | Lumen's own items go straight to "Confirmed" when paid; shipping/tracking is out of scope |
+| A-58 | **At most 3 unpaid orders per customer** (BR-CHK-03, configurable). The spec sets no limit, but every placed order reserves own stock for 15 minutes, so one account could otherwise hold back a whole product by placing orders it never pays. An order counts while it awaits payment or a payment is in progress; it stops counting once paid or expired (the hold-expiry job runs every few seconds) |
 
 ## E. Cart, accounts, admin, running it
 

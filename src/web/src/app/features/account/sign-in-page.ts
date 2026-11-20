@@ -15,7 +15,12 @@ import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
-import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
+import {
+  RATE_LIMITED_PROBLEM,
+  httpStatusOf,
+  problemMessage,
+  problemTypeOf,
+} from '../../core/api/problem-details';
 import { SessionApi } from '../../core/api/session.api';
 import { safeReturnUrl } from '../../core/routing/return-url';
 import { ErrorSummary, FormProblem } from '../../shared/forms/error-summary';
@@ -117,6 +122,12 @@ export class SignInPage {
       this.failure.set({
         title: 'Email or password is incorrect',
         detail: 'Check them and try again. Passwords are case-sensitive.',
+      });
+    } else if (status === 429 && problemTypeOf(error) === RATE_LIMITED_PROBLEM) {
+      // The API's rate limit (too many sign-ins from this network), not a lockout of the account.
+      this.failure.set({
+        title: 'Too many attempts',
+        detail: problemMessage(error, 'Wait a minute, then try again.'),
       });
     } else if (status === 429) {
       // ASP.NET Identity lockout: 5 failed attempts lock the account for a few minutes.

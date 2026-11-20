@@ -34,8 +34,12 @@ services:
       dockerfile: src/Lumen.Api/Dockerfile
     environment:
       ConnectionStrings__Lumen: Host=db;Database=lumen;Username=lumen;Password=${POSTGRES_PASSWORD:-lumen-dev-password}
+      # nginx forwards the browser's Host, and only serves these two (DNS rebinding); the healthcheck below sends localhost.
+      AllowedHosts: "localhost;127.0.0.1"
       # Plain HTTP on localhost; production behind TLS keeps the default (Always).
       Auth__CookieSecurePolicy: SameAsRequest
+      # Keys for the session cookie and XSRF tokens, on a volume: sign-ins survive a restart or a rebuilt container.
+      DataProtection__KeysPath: /app/keys
       Docs__Enabled: "true"
       # Demo accounts listed in the README; off in the base (production) configuration.
       Seed__Enabled: "true"
@@ -51,6 +55,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # Metrics every 10 s instead of the SDK's 60 s, so the dashboard's charts move during a demo.
       OTEL_METRIC_EXPORT_INTERVAL: "10000"
+    volumes:
+      - api-keys:/app/keys
     healthcheck:
       # Healthy only once migrations and seeding are done and the database answers (/health).
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q Healthy <&3"]
@@ -114,5 +120,6 @@ services:
 
 volumes:
   db-data:
+  api-keys:
   harbor-data:
   kestrel-data:
