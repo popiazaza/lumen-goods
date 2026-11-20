@@ -1,0 +1,19 @@
+# Development override: docker compose -f docker-compose.yml -f compose.dev.yaml up --build
+# Publishes the API and PostgreSQL on loopback, so you can stop the api container and run the API
+# with `dotnet watch` against the same database and stand-ins. `npm start` in src/web proxies /api
+# and /media to 127.0.0.1:5080, which is either this container or your local API. README "Changing it live".
+services:
+  api:
+    ports:
+      # The port `dotnet run` uses (launchSettings.json), so the web proxy needs no change when you swap.
+      - "127.0.0.1:5080:8080"
+    environment:
+      # ng serve forwards Host: localhost:4200, and a direct call to the published port sends 127.0.0.1.
+      # Set here so a stricter AllowedHosts in the base file cannot lock the dev loop out.
+      AllowedHosts: "localhost;127.0.0.1"
+
+  db:
+    ports:
+      # The default connection string in src/Lumen.Api/appsettings.json points here. If you set
+      # POSTGRES_PASSWORD in .env, give the local API ConnectionStrings__Lumen with that password too.
+      - "127.0.0.1:5432:5432"

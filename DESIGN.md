@@ -328,16 +328,19 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 | Price hold, attempts | Config `Payments:OrderHold`, `MaxAttemptsPerOrder` | `Unit/Payments/PaymentWindowPolicyTests.cs` |
 | Add a span, counter or gauge | `Api/Infrastructure/Telemetry/TelemetryExtensions.cs` (`LumenTelemetry`, `LumenMetrics`) | `Int/Infrastructure/TelemetryTests.cs` |
 
-## 10. Trade-offs and known limits
+## 10. Decisions I'd revisit
 
-- **One API replica**: limiters, the sync lock, the image cache and Data Protection keys live in the process ([0002][adr2]).
-- **Charge then refund**: a card is charged for lines a partner may reject. A real PSP would authorize and capture ([0005][adr5]).
-- **One partner order per line**: a Kestrel rejection hits exactly one line, at the cost of more partner calls ([0005][adr5]).
-- **Partner stock is checked, not held**: if it runs out before the partner order, the line is refunded ([0004][adr4]).
-- **Strict re-confirmation**: a price drop also sends the customer back to confirm.
-- **PostgreSQL search**: `ILIKE` with `OFFSET` paging lasts to about 100,000 products.
-- **In-memory image cache**: lost on restart; refilling it spends Harbor's image budget.
-- **Partners that never answer**: after 30 min a line is refunded only if no send can have reached the partner; an unknown outcome, or an accepted line undecided after 24 h, goes to an admin, because a refunded line that still ships loses the goods.
+| Decision | Why it's right now | What would make me change it, and to what |
+|---|---|---|
+| One partner order per line ([0005][adr5]) | A partner rejection hits exactly one line, so each refund is exact | Harbor's limit: at the two-year normal peak this is about 100 POSTs a minute against 60 per key (§7). One order per shipment, with a result per line |
+| Charge, then refund ([0005][adr5]) | The mock gateway has no separate capture; partner stock is checked at Place order, so refunds are rare | A real provider: authorise at payment, capture only what partners confirmed |
+| Re-confirm every price change, drops too ([A-09][assumptions]) | One rule, easy to test: nothing is charged that the customer did not see | Customers abandoning at the drop notice: accept a drop silently and charge the lower price |
+| Kestrel prices as fresh as its feed ([0004][adr4]) | Kestrel has no per-item price endpoint; the feed is read every 3 min | Kestrel adds a price lookup, or its prices change within minutes: check them live at Place order, as for Harbor |
+| One API replica ([0002][adr2]) | Limiters, the sync lock, the image cache and Data Protection keys live in the process: nothing to coordinate | A second replica (about 1,000 requests/s at the two-year normal peak, §7): web replicas plus a jobs deployment, shared limiter, sync lease and key ring |
+| Two large units kept whole: the payment page (969 lines of TypeScript, 319 of template) and `PartnerOrderProcessor` (571 lines) | Both move money and are well covered (885 lines of page spec, `PartnerOrderJobTests`); splitting them in the last days risked regressions for no change in behaviour | The next change to either: the page into card form, one-time-code panel and status poller; the processor into claim, send and give-up steps |
+| Typed Reactive Forms, not Angular 22 Signal Forms | Mature and documented, and every form's tests are written against them | A form being reworked anyway: move it to Signal Forms, one form at a time |
+| `ILogger` message templates, no `LoggerMessage` source generators | Logs are already structured; at today's volume the saved allocations don't matter | Busy hot paths (sync, partner order job): generated `[LoggerMessage]` methods, with CA1848 as a warning |
+| Migrations run at API start-up | `docker compose up` needs no extra step | A second replica or a real pipeline: a `dotnet ef migrations bundle` step before deploy (§8) |
 
 [adr2]: docs/adr/0002-modular-monolith-in-one-api-host.md
 [adr3]: docs/adr/0003-partner-integration-adapters-sync-image-proxy.md
