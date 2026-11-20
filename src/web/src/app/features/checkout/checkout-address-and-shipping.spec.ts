@@ -6,6 +6,7 @@ import { TestBed } from '@angular/core/testing';
 import { MatRadioButtonHarness } from '@angular/material/radio/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM } from '../../core/api/checkout.api';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { US_ADDRESS, aPreview } from '../../testing/fixtures';
@@ -175,6 +176,34 @@ describe('Checkout address and shipping steps', () => {
       await harness.fixture.whenStable();
 
       expect(host().querySelector('mat-radio-button')).toBeNull();
+    });
+
+    it('falls back to Standard when the API refuses Express for a cart without Lumen items (422)', async () => {
+      store.setShippingMethod('express');
+      const partnerOnly = aPreview();
+      await harness.navigateByUrl('/checkout/shipping');
+      http.expectOne('/api/v1/checkout/preview?shippingMethod=express').flush(
+        {
+          type: SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM,
+          title: 'This shipping method is not available',
+          status: 422,
+        },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+      await vi.waitFor(() =>
+        http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(
+          aPreview({
+            shipments: partnerOnly.shipments.slice(1),
+            shippingOptions: [{ method: 'standard', fee: 4.99, shippingTotal: 4.99 }],
+          }),
+        ),
+      );
+      await harness.fixture.whenStable();
+      expect(host().querySelector('[role="alert"]')).toBeNull();
+
+      [...host().querySelectorAll<HTMLButtonElement>('.actions button')][0].click();
+      await harness.fixture.whenStable();
+      expect(store.shippingMethod()).toBe('standard');
     });
   });
 });

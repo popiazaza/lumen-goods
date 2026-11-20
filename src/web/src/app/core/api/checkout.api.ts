@@ -118,6 +118,14 @@ export interface CheckoutChangedProblem extends ProblemDetails {
 }
 
 export const CHECKOUT_CHANGED_PROBLEM = 'urn:lumen:problem:checkout-changed';
+/**
+ * 422 from the preview and Place order: Express was asked for a cart without Lumen's own items
+ * (BR-SHIP-01), e.g. they were removed in another tab after Express was chosen.
+ */
+export const SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM =
+  'urn:lumen:problem:shipping-method-not-available';
+/** 409 from Place order: the checkout key is another customer's; only a new key can place it. */
+export const CHECKOUT_KEY_TAKEN_PROBLEM = 'urn:lumen:problem:checkout-key-taken';
 
 /** The lines of a preview as Place order sends them back. */
 export function reviewedLines(preview: CheckoutPreviewDto): PlaceOrderLine[] {
@@ -181,14 +189,18 @@ export class CheckoutApi {
 
   /**
    * 201 with the new order, or 200 with the same order for a repeated checkout key. 409
-   * `CheckoutChangedProblem` when lines, prices, stock or the total changed (nothing was created);
-   * 400 for an invalid address.
+   * `CheckoutChangedProblem` when lines, prices, stock or the total changed (nothing was created),
+   * or `checkout-key-taken`; 400 validation problem keyed `shippingAddress.<field>` for an invalid
+   * address; 422 `cart-empty` or `shipping-method-not-available`.
    */
   placeOrder(request: PlaceOrderRequest): Observable<OrderDetailDto> {
     return this.http.post<OrderDetailDto>(`${this.baseUrl}/checkout/orders`, request);
   }
 
-  /** The customer's own order; 404 for an unknown number or another customer's order. */
+  /**
+   * The customer's own order (`OrdersFeature.MapOrderEndpoints`); 404 for an unknown number or
+   * another customer's order.
+   */
   order(number: string): Observable<OrderDetailDto> {
     return this.http.get<OrderDetailDto>(`${this.baseUrl}/orders/${encodeURIComponent(number)}`);
   }

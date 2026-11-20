@@ -15,16 +15,23 @@ import { MatIcon } from '@angular/material/icon';
 import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import {
+  CHECKOUT_KEY_TAKEN_PROBLEM,
   CheckoutApi,
   CheckoutChangeKind,
   CheckoutChangedProblem,
   PlaceOrderLine,
+  SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM,
   checkoutChangedProblemOf,
   reviewedLines,
   withNewPrices,
 } from '../../core/api/checkout.api';
 import { SHIPPING_METHOD_NAMES } from '../../core/api/order.models';
-import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
+import {
+  httpStatusOf,
+  problemMessage,
+  problemTypeOf,
+  validationErrorsOf,
+} from '../../core/api/problem-details';
 import { CartStateService } from '../../core/cart/cart-state.service';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { CheckoutSteps } from './checkout-steps';
@@ -124,11 +131,22 @@ export class CheckoutReviewPage {
     this.preview.hasValue() ? this.preview.value() : undefined,
   );
   protected readonly blocked = computed(() => (this.loaded()?.blockers.length ?? 0) > 0);
+  /** Express was chosen, but the cart no longer holds Lumen's own items (422 from the preview). */
+  protected readonly methodRefused = computed(
+    () => problemTypeOf(this.preview.error()) === SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM,
+  );
+  protected readonly previewError = computed(() =>
+    httpStatusOf(this.preview.error()) === 0
+      ? 'We couldn’t load your order summary. Check your connection and try again.'
+      : problemMessage(this.preview.error(), 'We couldn’t load your order summary. Try again.'),
+  );
 
   protected readonly placing = signal(false);
   /** The 409 answer to Place order: what changed, and the new total if confirming is enough. */
   protected readonly changed = signal<CheckoutChangedProblem | null>(null);
   protected readonly placeError = signal<string | null>(null);
+  /** The API's reasons for refusing the address (400 keyed `shippingAddress.<field>`). */
+  protected readonly addressErrors = signal<readonly string[]>([]);
   /**
    * The 409 only needs a fresh review (the cart changed in another tab): reload the preview. Any
    * other line that cannot be confirmed must be fixed in the cart.
@@ -174,6 +192,7 @@ export class CheckoutReviewPage {
     this.sentLines = lines;
     this.placing.set(true);
     this.placeError.set(null);
+    this.addressErrors.set([]);
     this.api
       .placeOrder({
         checkoutKey: this.store.checkoutKey(),
@@ -185,7 +204,7 @@ export class CheckoutReviewPage {
       .pipe(finalize(() => this.placing.set(false)))
       .subscribe({
         next: (order) => {
-          this.store.setOrderNumber(order.number);
+          this.store.orderPlaced(order);
           // The order holds the items now; the badge follows whatever the server did to the cart.
           this.cart.reload().subscribe({ error: () => undefined });
           void this.router.navigate(['/checkout/payment'], {
@@ -208,13 +227,25 @@ export class CheckoutReviewPage {
       );
       return;
     }
+    if (problemTypeOf(error) === CHECKOUT_KEY_TAKEN_PROBLEM) {
+      // The API asks for a reload, but a reload would send the same stored key and fail again.
+      this.store.renewCheckoutKey();
+      this.placeError.set('We couldn’t place your order. You have not been charged. Try again.');
+      return;
+    }
+    const errors = validationErrorsOf(error);
+    // The address rules key their errors `shippingAddress.<field>`; the attribute validation
+    // that runs first may capitalise the prefix.
+    const address = Object.entries(errors)
+      .filter(([key]) => key.toLowerCase().startsWith('shippingaddress'))
+      .flatMap(([, messages]) => messages);
+    if (address.length > 0) {
+      this.addressErrors.set(address);
+      this.placeError.set('We can’t ship to this address. Change it and try again.');
+      return;
+    }
     this.placeError.set(
-      httpStatusOf(error) === 400
-        ? problemMessage(error, 'Check your shipping address and try again.')
-        : problemMessage(
-            error,
-            'We couldn’t place your order. You have not been charged. Try again.',
-          ),
+      problemMessage(error, 'We couldn’t place your order. You have not been charged. Try again.'),
     );
   }
 }

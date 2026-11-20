@@ -1,6 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import { Service, computed, inject, signal } from '@angular/core';
-import { ShippingAddress, ShippingMethod } from '../api/order.models';
+import { OrderDetailDto, ShippingAddress, ShippingMethod } from '../api/order.models';
 
 export const CHECKOUT_STEPS = ['address', 'shipping', 'review', 'payment'] as const;
 export type CheckoutStep = (typeof CHECKOUT_STEPS)[number];
@@ -21,17 +21,25 @@ export const CHECKOUT_STORAGE_KEY = 'lumen.checkout.v1';
 /**
  * The checkout's state across its four routes. A root signal store mirrored to sessionStorage,
  * so Back, the stepper and a page refresh all keep what the shopper entered (WCAG 3.3.7).
- * Holds no prices: the review and payment steps always read them from the API.
+ * Stores no prices: the review and payment steps read them from the API. The one exception is
+ * Place order's own answer, kept in memory only, so the payment step can open on it without
+ * reading the order again; a refresh drops it and the page asks the API.
  */
 @Service()
 export class CheckoutStore {
   private readonly storage = storageOf(inject(DOCUMENT));
   private readonly state = signal<CheckoutState>(this.restore());
+  private readonly placed = signal<OrderDetailDto | null>(null);
 
   readonly checkoutKey = computed(() => this.state().checkoutKey);
   readonly address = computed(() => this.state().address);
   readonly shippingMethod = computed(() => this.state().shippingMethod);
   readonly orderNumber = computed(() => this.state().orderNumber);
+  /** Place order's answer, while it is still this checkout's order (memory only). */
+  readonly placedOrder = computed(() => {
+    const order = this.placed();
+    return order && order.number === this.orderNumber() ? order : null;
+  });
 
   /** Steps the shopper may open now: done ones, plus the next one to do. */
   readonly reachable = computed<ReadonlySet<CheckoutStep>>(() => {
@@ -69,8 +77,23 @@ export class CheckoutStore {
     this.update((state) => ({ ...state, orderNumber }));
   }
 
+  /** Place order succeeded: the payment step pays this order. */
+  orderPlaced(order: OrderDetailDto): void {
+    this.placed.set(order);
+    this.setOrderNumber(order.number);
+  }
+
+  /**
+   * A new checkout key, keeping what was entered. Only for a key the API refused as another
+   * customer's (`checkout-key-taken`): sending that key again could never place this order.
+   */
+  renewCheckoutKey(): void {
+    this.update((state) => ({ ...state, checkoutKey: newCheckoutKey(), orderNumber: null }));
+  }
+
   /** Forgets this checkout (after payment, or on sign-out) and starts the next with a new key. */
   reset(): void {
+    this.placed.set(null);
     this.update(() => emptyState());
   }
 

@@ -5,9 +5,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import {
   CHECKOUT_CHANGED_PROBLEM,
+  CHECKOUT_KEY_TAKEN_PROBLEM,
   CheckoutChangedProblem,
   CheckoutLineChangeDto,
   CheckoutPreviewDto,
+  SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM,
 } from '../../core/api/checkout.api';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../core/icons/app-icons';
@@ -135,6 +137,8 @@ describe('CheckoutReviewPage', () => {
     await fixture.whenStable();
 
     expect(store.orderNumber()).toBe('LG-NEW1');
+    // The payment step opens on this answer instead of reading the order again.
+    expect(store.placedOrder()?.number).toBe('LG-NEW1');
     expect(TestBed.inject(Router).url).toBe('/checkout/payment?order=LG-NEW1');
   });
 
@@ -191,6 +195,14 @@ describe('CheckoutReviewPage', () => {
     expect(text('.changes li')).toBe('Merino Trail Socks (Kestrel Outfitters): Only 1 available');
     expect(host().querySelector('button.confirm')).toBeNull();
     expect(host().querySelector('.banner.changed a')?.getAttribute('href')).toBe('/cart');
+
+    // Reviewing again shows the saved stock as a blocker, so Place order waits for the cart.
+    host().querySelector<HTMLButtonElement>('.banner.changed button.review-again')?.click();
+    const limited = aChange({ kind: 'quantity_limited', available: 1, message: 'Only 1 left' });
+    await vi.waitFor(() => http.expectOne(PREVIEW_URL).flush(aPreview({ blockers: [limited] })));
+    await fixture.whenStable();
+    expect(host().querySelector('.banner.changed')).toBeNull();
+    expect(placeButton().getAttribute('aria-disabled')).toBe('true');
   });
 
   it('offers a fresh review when the cart changed in another tab', async () => {
@@ -234,6 +246,75 @@ describe('CheckoutReviewPage', () => {
     expect(text('#place-blocked')).toBe('Update your cart before placing the order.');
     placeButton().click();
     http.expectNone('/api/v1/checkout/orders');
+  });
+
+  it('lists the API’s reasons when it refuses the address (400), with a way to change it', async () => {
+    await open();
+
+    placeButton().click();
+    http.expectOne('/api/v1/checkout/orders').flush(
+      {
+        title: 'The order is not valid',
+        status: 400,
+        errors: { 'shippingAddress.postalCode': ['Enter a 5-digit ZIP code, e.g. 97209.'] },
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await fixture.whenStable();
+
+    expect(text('.place-error p')).toBe('We can’t ship to this address. Change it and try again.');
+    expect(text('.place-error li')).toBe('Enter a 5-digit ZIP code, e.g. 97209.');
+    expect(host().querySelector('.place-error a')?.getAttribute('href')).toBe('/checkout/address');
+  });
+
+  it('starts a new checkout key when the API says this one is taken (409)', async () => {
+    await open();
+    const key = store.checkoutKey();
+
+    placeButton().click();
+    http.expectOne('/api/v1/checkout/orders').flush(
+      {
+        type: CHECKOUT_KEY_TAKEN_PROBLEM,
+        title: 'This checkout was already used',
+        status: 409,
+        detail: 'Reload the checkout page and place the order again.',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await fixture.whenStable();
+    expect(store.checkoutKey()).not.toBe(key);
+
+    placeButton().click();
+    const retry = http.expectOne('/api/v1/checkout/orders');
+    expect(retry.request.body).toMatchObject({ checkoutKey: store.checkoutKey() });
+    retry.flush(anOrder(), { status: 201, statusText: 'Created' });
+    http.expectOne('/api/v1/cart').flush(aCart([]));
+    await fixture.whenStable();
+  });
+
+  it('sends the shopper back to shipping when Express is no longer offered (422)', async () => {
+    fixture = TestBed.createComponent(CheckoutReviewPage);
+    fixture.detectChanges();
+    await vi.waitFor(() =>
+      http.expectOne(PREVIEW_URL).flush(
+        {
+          type: SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM,
+          title: 'This shipping method is not available',
+          status: 422,
+          detail:
+            "Express shipping is only offered for Lumen Goods' own items, and this cart has none.",
+        },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      ),
+    );
+    await fixture.whenStable();
+
+    expect(text('.banner.error p')).toBe(
+      "Express shipping is only offered for Lumen Goods' own items, and this cart has none.",
+    );
+    expect(host().querySelector('.banner.error a')?.getAttribute('href')).toBe(
+      '/checkout/shipping',
+    );
   });
 
   it('says nothing was charged when Place order fails for another reason', async () => {

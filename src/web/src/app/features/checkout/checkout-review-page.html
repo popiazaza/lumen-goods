@@ -60,9 +60,15 @@
           <a matButton="outlined" routerLink="/cart">Go to cart</a>
         </div>
       } @else {
-        <p>Change or remove these items in your cart, then review your order again.</p>
+        <p>
+          Change or remove these items in your cart, then review your order again. If a shop was
+          only slow to answer, you can review it again now.
+        </p>
         <div class="actions">
           <a matButton="filled" routerLink="/cart">Go to cart</a>
+          <button matButton="outlined" type="button" class="review-again" (click)="reviewAgain()">
+            Review again
+          </button>
         </div>
       }
     </div>
@@ -151,9 +157,19 @@
   </dl>
 
   @if (placeError()) {
-    <div class="banner error" role="alert">
+    <div class="banner error place-error" role="alert">
       <mat-icon svgIcon="error" aria-hidden="true" />
-      <p>{{ placeError() }}</p>
+      <div>
+        <p>{{ placeError() }}</p>
+        @if (addressErrors().length > 0) {
+          <ul class="changes">
+            @for (message of addressErrors(); track $index) {
+              <li>{{ message }}</li>
+            }
+          </ul>
+          <a matButton="outlined" routerLink="/checkout/address">Change shipping address</a>
+        }
+      </div>
     </div>
   }
 
@@ -185,10 +201,17 @@
 } @else if (preview.status() === 'error') {
   <div class="banner error" role="alert">
     <mat-icon svgIcon="error" aria-hidden="true" />
-    <div>
-      <p>We couldn’t load your order summary. Check your connection and try again.</p>
-      <button matButton="outlined" type="button" (click)="preview.reload()">Retry</button>
-    </div>
+    @if (methodRefused()) {
+      <div>
+        <p>{{ previewError() }}</p>
+        <a matButton="filled" routerLink="/checkout/shipping">Choose a shipping method</a>
+      </div>
+    } @else {
+      <div>
+        <p>{{ previewError() }}</p>
+        <button matButton="outlined" type="button" (click)="preview.reload()">Retry</button>
+      </div>
+    }
   </div>
 } @else {
   <p class="muted" role="status">Loading your order summary…</p>

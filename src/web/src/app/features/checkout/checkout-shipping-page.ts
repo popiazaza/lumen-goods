@@ -6,8 +6,13 @@ import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatRadioButton, MatRadioGroup } from '@angular/material/radio';
 import { Router, RouterLink } from '@angular/router';
-import { CheckoutApi, CheckoutPreviewDto } from '../../core/api/checkout.api';
+import {
+  CheckoutApi,
+  CheckoutPreviewDto,
+  SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM,
+} from '../../core/api/checkout.api';
 import { OWN_SOURCE, ShippingMethod } from '../../core/api/order.models';
+import { problemTypeOf } from '../../core/api/problem-details';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { CheckoutSteps } from './checkout-steps';
 
@@ -84,14 +89,15 @@ export class CheckoutShippingPage {
   protected readonly options = computed(() => this.shown()?.shippingOptions ?? []);
 
   constructor() {
-    // Express was chosen earlier but the cart no longer holds Lumen's own items.
+    // Express was chosen earlier but the cart no longer holds Lumen's own items: the API refuses
+    // to price Express for it (422) rather than answering without the option, so fall back to
+    // Standard, the only method such a cart has.
     effect(() => {
-      if (this.shown() && !this.expressOffered()) {
-        untracked(() => {
-          if (this.method.value === 'express') {
-            this.method.setValue('standard');
-          }
-        });
+      const refused =
+        problemTypeOf(this.preview.error()) === SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM ||
+        (!!this.shown() && !this.expressOffered());
+      if (refused && this.chosen() === 'express') {
+        untracked(() => this.method.setValue('standard'));
       }
     });
   }
