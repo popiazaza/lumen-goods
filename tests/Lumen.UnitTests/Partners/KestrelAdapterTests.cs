@@ -120,6 +120,8 @@ public sealed class KestrelAdapterTests
     [InlineData("14,95", 14.95)]
     [InlineData("1.249,00", 1249.00)]
     [InlineData("12.345.678,90", 12345678.90)]
+    [InlineData("1249,00", 1249.00)]
+    [InlineData("12345678,90", 12345678.90)]
     [InlineData(" 0,99 ", 0.99)]
     public void Kestrel_prices_parse_with_comma_decimals_and_dot_thousands(string text, decimal expected)
     {
@@ -130,7 +132,10 @@ public sealed class KestrelAdapterTests
     [Theory]
     [InlineData("12.5")]
     [InlineData("1,249.00")]
-    [InlineData("1249,00")]
+    [InlineData("1249.00")]
+    [InlineData("1.24,00")]
+    [InlineData("12.3456,00")]
+    [InlineData("1249,0")]
     [InlineData("14,9")]
     [InlineData("14,950")]
     [InlineData("-14,95")]
@@ -187,8 +192,8 @@ public sealed class KestrelAdapterTests
     }
 
     [Fact]
-    [Trait("BR", "BR-SYNC-01")]
-    public async Task BR_SYNC_01_503s_are_retried_and_a_feed_that_stays_down_is_reported()
+    [Trait("BR", "BR-SYNC-02")]
+    public async Task BR_SYNC_02_503s_are_retried_and_a_feed_that_stays_down_is_reported()
     {
         var kestrel = new StubPartner(_ => StubPartner.Status(HttpStatusCode.ServiceUnavailable));
 
@@ -199,7 +204,8 @@ public sealed class KestrelAdapterTests
     }
 
     [Fact]
-    public async Task An_occasional_503_is_absorbed_by_a_retry()
+    [Trait("BR", "BR-SYNC-02")]
+    public async Task BR_SYNC_02_an_occasional_503_is_absorbed_by_a_retry_in_the_same_run()
     {
         var calls = 0;
         var kestrel = new StubPartner(_ => Interlocked.Increment(ref calls) == 1 ? StubPartner.Status(HttpStatusCode.ServiceUnavailable) : FeedResponse(Feed));
