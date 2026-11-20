@@ -1,0 +1,141 @@
+<h1>{{ heading() }}</h1>
+
+@if (order(); as order) {
+  @if (isPaid()) {
+    <div class="thanks">
+      <mat-icon svgIcon="check_circle" aria-hidden="true" />
+      <div>
+        <p>
+          Thank you. Your order number is <strong class="number">{{ order.number }}</strong>.
+        </p>
+        @if (paymentText()) {
+          <p class="muted">
+            {{ paymentText() }}:
+            <span class="price">{{
+              order.totals.total | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+            }}</span>
+          </p>
+        }
+      </div>
+    </div>
+
+    <section aria-labelledby="next-heading">
+      <h2 id="next-heading">What happens next</h2>
+      <ul class="next" aria-live="polite">
+        @for (step of nextSteps(); track step.source) {
+          <li>{{ step.text }}</li>
+        }
+      </ul>
+      <p class="muted">
+        Each shop ships its items separately. You can follow every item on your order page.
+      </p>
+    </section>
+  } @else if (confirming()) {
+    <div class="confirming" role="status">
+      <mat-icon svgIcon="schedule" aria-hidden="true" />
+      <div>
+        <p><strong>Confirming your payment</strong></p>
+        <p>
+          We’re confirming your payment with the card provider. This page updates on its own, and
+          the result will also be in <a routerLink="/orders">Your orders</a>.
+        </p>
+      </div>
+    </div>
+    @if (order.canPay) {
+      <p>You can also try the same card again: you won’t be charged twice.</p>
+      <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
+        >Go to payment</a
+      >
+    }
+  } @else if (order.canPay) {
+    <p>This order is placed but not paid yet. We hold its prices and items until the hold ends.</p>
+    <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
+      >Pay now</a
+    >
+  } @else if (order.status === 'expired') {
+    <p>This order was not paid, so it was cancelled. You have not been charged.</p>
+  } @else {
+    <p role="status">This order can no longer be paid. This page updates on its own.</p>
+  }
+
+  <section aria-labelledby="items-heading">
+    <h2 id="items-heading">Items</h2>
+    @for (shipment of order.shipments; track shipment.source) {
+      <section class="group" [attr.aria-label]="'Sold by ' + shipment.sellerName">
+        <div class="group-head">
+          <h3>Sold by {{ shipment.sellerName }}</h3>
+          <span class="muted">
+            {{ shipment.method === 'express' ? 'Express' : 'Standard' }} shipping ·
+            {{ shipment.fee | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+            @if (shipment.feeRefunded) {
+              (refunded)
+            }
+          </span>
+        </div>
+        <ul class="lines">
+          @for (line of shipment.lines; track line.id) {
+            <li>
+              <div>
+                <span class="name">{{ line.quantity }} × {{ line.name }}</span>
+                <span class="status" [class]="line.status">
+                  <mat-icon [svgIcon]="lineIcons[line.status]" aria-hidden="true" />
+                  {{ line.statusText }}
+                </span>
+              </div>
+              <span class="price">{{
+                line.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+              }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  </section>
+
+  <section aria-labelledby="amounts-heading">
+    <h2 id="amounts-heading">{{ isPaid() ? 'Amounts charged' : 'Amounts' }}</h2>
+    <dl class="totals">
+      <dt>Items</dt>
+      <dd>{{ order.totals.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+      <dt>Shipping</dt>
+      <dd>{{ order.totals.shipping | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+      <dt>Sales tax</dt>
+      <dd>{{ order.totals.tax | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+      <dt class="grand">Total</dt>
+      <dd class="grand price">
+        {{ order.totals.total | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+      </dd>
+      @if (order.totals.refunded > 0) {
+        <dt>Refunded</dt>
+        <dd class="refund">
+          −{{ order.totals.refunded | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+        </dd>
+        <dt class="grand">You paid</dt>
+        <dd class="grand price">
+          {{ order.totals.netPaid | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+        </dd>
+      }
+    </dl>
+  </section>
+
+  <div class="actions">
+    <a matButton="filled" [routerLink]="['/orders', order.number]">View your order</a>
+    <a matButton routerLink="/">Continue shopping</a>
+  </div>
+} @else {
+  @switch (state()) {
+    @case ('not-found') {
+      <p>We couldn’t find this order in your account.</p>
+      <a matButton="filled" routerLink="/orders">Your orders</a>
+    }
+    @case ('error') {
+      <div class="error" role="alert">
+        <p>We couldn’t load your order. It is saved; check your connection and try again.</p>
+        <button matButton="outlined" type="button" (click)="retry()">Retry</button>
+      </div>
+    }
+    @default {
+      <p class="muted" role="status">Loading your order…</p>
+    }
+  }
+}

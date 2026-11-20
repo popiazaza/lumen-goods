@@ -1,0 +1,103 @@
+<h1>Your orders</h1>
+
+@if (signedOut()) {
+  <div class="state">
+    <mat-icon svgIcon="lock" class="state-icon" />
+    <p><strong>Sign in to see your orders.</strong></p>
+    <a matButton="filled" routerLink="/sign-in" [queryParams]="{ returnUrl: '/orders' }">Sign in</a>
+  </div>
+} @else if (isError()) {
+  <div class="state" role="alert">
+    <mat-icon svgIcon="error" class="state-icon" />
+    <p>We couldn’t load your orders. Check your connection and try again.</p>
+    <button matButton="filled" type="button" (click)="orders.reload()">
+      <mat-icon svgIcon="refresh" />
+      Retry
+    </button>
+  </div>
+} @else if (result(); as page) {
+  @if (page.totalCount === 0) {
+    <div class="state">
+      <p><strong>No orders yet.</strong></p>
+      <p>When you place an order, you can follow every item in it here.</p>
+      <a matButton="filled" routerLink="/">Start shopping</a>
+    </div>
+  } @else {
+    <div class="results" [attr.aria-busy]="orders.isLoading()" [class.loading]="orders.isLoading()">
+      <h2 #countHeading class="count" tabindex="-1">{{ countText() }}</h2>
+      @if (orders.isLoading()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Loading orders" />
+      }
+
+      @if (page.items.length === 0) {
+        <p>
+          There are no orders on page {{ pageNumber() }}.
+          <a routerLink="." [queryParams]="pageParams(1)">Go to the first page</a>
+        </p>
+      } @else {
+        <ol class="orders">
+          @for (order of page.items; track order.number) {
+            <li>
+              <mat-card appearance="outlined" class="order">
+                <div class="order-head">
+                  <h3>
+                    <a [routerLink]="['/orders', order.number]">Order {{ order.number }}</a>
+                  </h3>
+                  <app-status-badge [status]="statusOf(order)" />
+                </div>
+                <dl class="facts">
+                  <div>
+                    <dt>Placed</dt>
+                    <dd>
+                      <time [attr.datetime]="order.createdUtc">{{
+                        order.createdUtc | date: 'mediumDate'
+                      }}</time>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Total</dt>
+                    <dd class="price">{{ order.total | currency }}</dd>
+                  </div>
+                  @if (order.refundedTotal > 0) {
+                    <div class="refunded">
+                      <dt>Refunded</dt>
+                      <dd class="price">{{ order.refundedTotal | currency }}</dd>
+                    </div>
+                  }
+                  <div>
+                    <dt>Items</dt>
+                    <dd>{{ order.itemCount }}</dd>
+                  </div>
+                  <div class="sellers">
+                    <dt>Sold by</dt>
+                    <dd>{{ order.sellerNames.join(', ') }}</dd>
+                  </div>
+                </dl>
+              </mat-card>
+            </li>
+          }
+        </ol>
+      }
+
+      @if (page.totalPages > 1) {
+        <nav aria-label="Order pages" class="pager">
+          @if (page.page > 1) {
+            <a matButton routerLink="." [queryParams]="pageParams(page.page - 1)">
+              <mat-icon svgIcon="chevron_left" />
+              Previous
+            </a>
+          }
+          <span class="position">Page {{ page.page }} of {{ page.totalPages }}</span>
+          @if (page.page < page.totalPages) {
+            <a matButton routerLink="." [queryParams]="pageParams(page.page + 1)">
+              Next
+              <mat-icon svgIcon="chevron_right" iconPositionEnd />
+            </a>
+          }
+        </nav>
+      }
+    </div>
+  }
+} @else {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading your orders" />
+}

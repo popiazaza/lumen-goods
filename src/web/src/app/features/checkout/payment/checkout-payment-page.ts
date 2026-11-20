@@ -1,0 +1,969 @@
+import { LiveAnnouncer } from '@angular/cdk/a11y';
+import { CurrencyPipe, DOCUMENT, DatePipe } from '@angular/common';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
+import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import {
+  AbstractControl,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
+import { MatButton } from '@angular/material/button';
+import { MatError, MatFormField, MatHint, MatLabel, MatSuffix } from '@angular/material/form-field';
+import { MatIcon } from '@angular/material/icon';
+import { MatInput } from '@angular/material/input';
+import { MatProgressBar } from '@angular/material/progress-bar';
+import { MatRadioButton, MatRadioGroup } from '@angular/material/radio';
+import { Router, RouterLink } from '@angular/router';
+import {
+  Observable,
+  Subscription,
+  catchError,
+  exhaustMap,
+  filter,
+  finalize,
+  forkJoin,
+  interval,
+  map,
+  of,
+  takeWhile,
+  throwError,
+  timer,
+} from 'rxjs';
+import {
+  OrderDetailDto,
+  OrderStatus,
+  PaymentMethod,
+  PaymentStatus,
+  cardBrandName,
+} from '../../../core/api/order.models';
+import { OrdersApi } from '../../../core/api/orders.api';
+import {
+  ORDER_NOT_PAYABLE_PROBLEM,
+  PAYMENT_IN_PROGRESS_PROBLEM,
+  PayRequest,
+  PaymentStatusDto,
+  PaymentsApi,
+  SAME_PAYMENT_ONLY_PROBLEM,
+  paymentInProgressOf,
+} from '../../../core/api/payments.api';
+import {
+  httpStatusOf,
+  problemMessage,
+  problemOf,
+  problemTypeOf,
+  validationErrorsOf,
+} from '../../../core/api/problem-details';
+import { WalletApi } from '../../../core/api/wallet.api';
+import { CartStateService } from '../../../core/cart/cart-state.service';
+import { CheckoutStore } from '../../../core/checkout/checkout-store';
+import { signInQueryParams } from '../../../core/routing/return-url';
+import { ErrorSummary, FormProblem } from '../../../shared/forms/error-summary';
+import { CheckoutSteps } from '../checkout-steps';
+import {
+  caretAfterFormat,
+  cardNumberValidator,
+  cvcLength,
+  detectBrand,
+  digitsOf,
+  expiryValidator,
+  formatCardNumber,
+  formatExpiry,
+  parseExpiry,
+} from './card';
+
+/** How often the page asks for the payment's status while the gateway works (BR-PAY-04). */
+export const PAYMENT_POLL_INTERVAL_MS = 1500;
+/** After this long, the waiting message says the payment is taking longer than usual. */
+export const SLOW_PAYMENT_NOTICE_MS = 25_000;
+/** Announce the code's remaining time once at this point, then at expiry (never every second). */
+export const CODE_WARNING_MS = 60_000;
+
+/** Statuses during which the charge is still running: keep polling. `error` is retried once by the server. */
+const IN_PROGRESS: ReadonlySet<PaymentStatus> = new Set(['created', 'processing', 'error']);
+
+/**
+ * A Failed payment that nothing can try again: the card provider has not said whether it charged
+ * the card, so the API keeps the order awaiting payment and settles it later as Succeeded or
+ * Declined (BR-PAY-05). Until then the page can only wait for that answer.
+ */
+function awaitsSettlement(payment: PaymentStatusDto): boolean {
+  return payment.status === 'failed' && payment.retryMode === 'none';
+}
+
+/** The server will move this payment on by itself: keep polling. */
+function stillChanging(payment: PaymentStatusDto): boolean {
+  return IN_PROGRESS.has(payment.status) || awaitsSettlement(payment);
+}
+
+const PAID_ORDER: ReadonlySet<OrderStatus> = new Set([
+  'paid',
+  'completed',
+  'partially_refunded',
+  'refunded',
+]);
+
+type Phase =
+  'loading' | 'load-error' | 'signed-out' | 'choose' | 'processing' | 'code' | 'paid' | 'closed';
+
+/** The last attempt's outcome, shown above the form (and kept until the next attempt). */
+interface Outcome {
+  title: string;
+  detail: string;
+}
+
+type CardField = 'number' | 'name' | 'expiry' | 'cvc';
+
+const FIELD_IDS: Readonly<Record<CardField, string>> = {
+  number: 'card-number',
+  name: 'card-name',
+  expiry: 'card-expiry',
+  cvc: 'card-cvc',
+};
+
+/** The API's validation keys (`card.number`, `number`, `holderName`, ...) to the form's fields. */
+function cardFieldOf(key: string): CardField | undefined {
+  const name = key.toLowerCase().replace(/^card\./, '');
+  if (name === 'number' || name === 'expiry' || name === 'cvc') {
+    return name;
+  }
+  if (name === 'name' || name === 'holdername') {
+    return 'name';
+  }
+  if (name === 'expirymonth' || name === 'expiryyear') {
+    return 'expiry';
+  }
+  return undefined;
+}
+
+/**
+ * Checkout step 4 (`/checkout/payment?order=`): pay the placed order by card or wallet.
+ *
+ * The page is a view of the server's payment, not of its own requests: on load (and after a
+ * refresh) it reads the current payment and resumes where it was, polling while the gateway works,
+ * so a slow card (BR-PAY-04) is never shown as failed and never paid twice. The card number and
+ * CVC stay in this form only; the API keeps brand and last 4 digits.
+ */
+@Component({
+  selector: 'app-checkout-payment-page',
+  imports: [
+    CurrencyPipe,
+    DatePipe,
+    ReactiveFormsModule,
+    RouterLink,
+    MatButton,
+    MatError,
+    MatFormField,
+    MatHint,
+    MatIcon,
+    MatInput,
+    MatLabel,
+    MatProgressBar,
+    MatRadioButton,
+    MatRadioGroup,
+    MatSuffix,
+    CheckoutSteps,
+    ErrorSummary,
+  ],
+  templateUrl: './checkout-payment-page.html',
+  styleUrls: ['../checkout.scss', './checkout-payment-page.scss'],
+})
+export class CheckoutPaymentPage {
+  /** `?order=` (bound by the router); otherwise the order this checkout placed. */
+  readonly order = input<string>();
+
+  private readonly orders = inject(OrdersApi);
+  private readonly payments = inject(PaymentsApi);
+  private readonly walletApi = inject(WalletApi);
+  private readonly store = inject(CheckoutStore);
+  private readonly cart = inject(CartStateService);
+  private readonly router = inject(Router);
+  private readonly announcer = inject(LiveAnnouncer);
+  private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly document = inject(DOCUMENT);
+  private readonly summary = viewChild(ErrorSummary);
+  private readonly phaseHeading = viewChild<ElementRef<HTMLElement>>('phaseHeading');
+  private readonly outcomeBanner = viewChild<ElementRef<HTMLElement>>('outcomeBanner');
+  private polling?: Subscription;
+
+  /**
+   * The order this page pays. Without `?order=`, the checkout's order as the page opened (read
+   * untracked): paying or closing resets the checkout, and the page must go on showing that order
+   * and how it ended, not reload with no order ("This order can’t be paid" after paying).
+   */
+  protected readonly orderNumber = computed(
+    () => this.order() || untracked(() => this.store.orderNumber()) || '',
+  );
+  protected readonly orderDetail = signal<OrderDetailDto | null>(null);
+  protected readonly payment = signal<PaymentStatusDto | null>(null);
+  protected readonly phase = signal<Phase>('loading');
+  protected readonly loadError = signal('');
+  protected readonly closedReason = signal('');
+  protected readonly closedHeading = signal('');
+  /** Sign in again and come back to this order's payment (the `?order=` survives the store). */
+  protected readonly signInParams = computed(() =>
+    signInQueryParams(
+      this.router.serializeUrl(
+        this.router.createUrlTree(['/checkout/payment'], {
+          queryParams: { order: this.orderNumber() },
+        }),
+      ),
+    ),
+  );
+  protected readonly outcome = signal<Outcome | null>(null);
+  protected readonly submitting = signal(false);
+  protected readonly problems = signal<readonly FormProblem[]>([]);
+  protected readonly serverErrors = signal<Partial<Record<CardField, string>>>({});
+
+  protected readonly total = computed(
+    () => this.orderDetail()?.totals.total ?? this.payment()?.amount ?? null,
+  );
+  protected readonly holdExpires = computed(
+    () => this.payment()?.holdExpiresUtc ?? this.orderDetail()?.holdExpiresUtc ?? null,
+  );
+
+  protected readonly wallet = rxResource({ stream: () => this.walletApi.get() });
+  protected readonly walletBalance = computed(() =>
+    this.wallet.hasValue() ? this.wallet.value().balance : null,
+  );
+  /** The wallet pays only if it covers the whole total (BR-PAY-06); no split with a card. */
+  protected readonly walletCovers = computed(() => {
+    const balance = this.walletBalance();
+    const total = this.total();
+    return balance !== null && total !== null && balance >= total;
+  });
+
+  /** Ticks every second for the code countdown and the waiting time. */
+  protected readonly now = toSignal(interval(1000).pipe(map(() => Date.now())), {
+    initialValue: Date.now(),
+  });
+  private readonly waitingSince = signal(0);
+  protected readonly waitedSeconds = computed(() =>
+    Math.max(0, Math.floor((this.now() - this.waitingSince()) / 1000)),
+  );
+  protected readonly slow = computed(
+    () => this.now() - this.waitingSince() >= SLOW_PAYMENT_NOTICE_MS,
+  );
+  /** Waiting for the card provider to say whether a Failed charge went through (BR-PAY-05). */
+  protected readonly unsettled = computed(() => this.payment()?.status === 'failed');
+
+  /** Server clock minus browser clock, from the last payment status: the code expires on the server's time. */
+  private readonly clockOffset = signal(0);
+  protected readonly codeRemainingMs = computed(() => {
+    const expires = this.payment()?.oneTimeCodeExpiresUtc;
+    return expires ? Math.max(0, Date.parse(expires) - (this.now() + this.clockOffset())) : 0;
+  });
+  protected readonly codeExpired = computed(
+    () => this.phase() === 'code' && this.codeRemainingMs() <= 0,
+  );
+  protected readonly codeCountdown = computed(() => {
+    const seconds = Math.ceil(this.codeRemainingMs() / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  });
+  /** The mock gateway's code, which the API sends because no text message is; never guessed here. */
+  protected readonly testCode = computed(() => this.payment()?.testOneTimeCode ?? null);
+
+  /**
+   * After a Failed payment the gateway could not settle, only that same card payment may be tried
+   * again (BR-PAY-05): its idempotency key makes a second charge impossible. No wallet, no new card.
+   */
+  protected readonly samePaymentOnly = computed(
+    () => this.phase() === 'choose' && this.payment()?.retryMode === 'same_payment_only',
+  );
+  protected readonly walletUsable = computed(() => this.walletCovers() && !this.samePaymentOnly());
+  /** "A payment is already in progress": another tab or a double click started one first. */
+  protected readonly inProgressNotice = signal('');
+
+  protected readonly method = new FormControl<PaymentMethod>('card', { nonNullable: true });
+  protected readonly chosenMethod = toSignal(this.method.valueChanges, {
+    initialValue: this.method.value,
+  });
+
+  protected readonly cardForm = new FormGroup({
+    number: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, cardNumberValidator],
+    }),
+    name: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.maxLength(100)],
+    }),
+    expiry: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, expiryValidator()],
+    }),
+    cvc: new FormControl('', {
+      nonNullable: true,
+      validators: [
+        Validators.required,
+        (control: AbstractControl<string>) => this.checkCvc(control),
+      ],
+    }),
+  });
+  private readonly cardNumber = toSignal(this.cardForm.controls.number.valueChanges, {
+    initialValue: '',
+  });
+  protected readonly brand = computed(() => detectBrand(digitsOf(this.cardNumber())));
+  protected readonly brandName = computed(() => {
+    const brand = this.brand();
+    return brand && brand !== 'other' ? cardBrandName(brand) : '';
+  });
+  protected readonly cvcDigits = computed(() => cvcLength(this.brand()));
+
+  protected readonly codeForm = new FormGroup({
+    code: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, (control: AbstractControl<string>) => validCode(control)],
+    }),
+  });
+  protected readonly codeError = signal('');
+  /** The error first, so a screen reader reads why the code was refused when the field has focus. */
+  protected readonly codeDescribedBy = computed(() =>
+    [this.codeError() ? 'code-error' : '', this.testCode() ? 'code-test' : '', 'code-timer']
+      .filter(Boolean)
+      .join(' '),
+  );
+  private announcedWarning = false;
+  private announcedExpiry = false;
+
+  constructor() {
+    effect(() => {
+      const number = this.orderNumber();
+      untracked(() => this.load(number));
+    });
+
+    // The CVC's length depends on the brand.
+    this.cardForm.controls.number.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => this.cardForm.controls.cvc.updateValueAndValidity({ emitEvent: false }));
+
+    // Countdown: one announcement at a minute left and one at expiry, never every second.
+    effect(() => {
+      if (this.phase() !== 'code') {
+        return;
+      }
+      const remaining = this.codeRemainingMs();
+      untracked(() => {
+        if (remaining <= 0 && !this.announcedExpiry) {
+          this.announcedExpiry = true;
+          void this.announcer.announce('The code has expired.', 'assertive');
+        } else if (remaining > 0 && remaining <= CODE_WARNING_MS && !this.announcedWarning) {
+          this.announcedWarning = true;
+          void this.announcer.announce('The code expires in 1 minute.', 'polite');
+        }
+      });
+    });
+  }
+
+  // ---- Loading and following the payment ------------------------------------------------------
+
+  protected retryLoad(): void {
+    this.load(this.orderNumber());
+  }
+
+  /** Reads the order and its current payment and shows them; `then` runs once they are shown. */
+  private load(number: string, then?: () => void): void {
+    this.stopPolling();
+    if (!number) {
+      this.close('There is no order to pay. Review your order and place it first.');
+      return;
+    }
+    this.phase.set('loading');
+    // The current payment is what the page follows (a refresh during a slow card resumes from
+    // it). The order adds its total before the first payment: right after Place order that is
+    // the answer it gave; otherwise the order is read, and its 404 only matters if the payment
+    // read cannot find the order either.
+    const placed = this.store.placedOrder();
+    forkJoin({
+      order: placed?.number === number ? of(placed) : notFoundAsNull(this.orders.get(number)),
+      payment: notFoundAsNull(this.payments.current(number)),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ order, payment }) => {
+          if (!order && !payment) {
+            this.notFound(number);
+            return;
+          }
+          this.orderDetail.set(order);
+          this.show(payment, order);
+          then?.();
+        },
+        error: (error: unknown) => {
+          if (httpStatusOf(error) === 401) {
+            this.signedOut();
+            return;
+          }
+          this.loadFailed(error);
+        },
+      });
+  }
+
+  private loadFailed(error: unknown): void {
+    this.stopPolling();
+    this.loadError.set(
+      problemMessage(error, 'We couldn’t load your order. Check your connection and try again.'),
+    );
+    this.phase.set('load-error');
+  }
+
+  private notFound(number: string): void {
+    this.close(`We couldn’t find order ${number} in your account.`, 'Order not found');
+  }
+
+  /**
+   * The session ended (401): the page can no longer read the payment, which carries on without it.
+   * Signing in again comes back here, with the order in the URL.
+   */
+  private signedOut(): void {
+    this.stopPolling();
+    this.enter('signed-out');
+  }
+
+  /** A status read the server refused: stop, since asking again gets the same answer. */
+  private pollFailed(error: unknown): void {
+    const status = httpStatusOf(error);
+    if (status === 401) {
+      this.signedOut();
+    } else if (status === 404) {
+      this.notFound(this.orderNumber());
+    } else {
+      this.loadFailed(error);
+    }
+  }
+
+  /** Moves the page to whatever the server says the payment is doing now. */
+  private show(payment: PaymentStatusDto | null, order = this.orderDetail()): void {
+    this.payment.set(payment);
+    const serverTime = Date.parse(payment?.serverTimeUtc ?? '');
+    if (!Number.isNaN(serverTime)) {
+      this.clockOffset.set(serverTime - Date.now());
+    }
+    const orderStatus = payment?.orderStatus ?? order?.status;
+    if (payment?.status === 'succeeded' || (orderStatus && PAID_ORDER.has(orderStatus))) {
+      this.paid();
+      return;
+    }
+    if (orderStatus === 'expired') {
+      this.close(
+        payment && payment.attemptsLeft === 0
+          ? 'This order ran out of payment attempts, so it was cancelled. You have not been charged.'
+          : 'The 15-minute hold on this order’s prices ended before it was paid, so it was cancelled. You have not been charged.',
+      );
+      return;
+    }
+    if (!payment) {
+      this.enter('choose');
+      return;
+    }
+    // A Failed payment nothing can retry is never "cancelled" or "not charged": the card may have
+    // been charged, so the page waits with the shopper for the card provider's answer.
+    if (stillChanging(payment)) {
+      this.enter('processing');
+      this.startPolling(payment.orderNumber);
+      return;
+    }
+    if (payment.status === 'requires_action') {
+      if (payment.needsOneTimeCode) {
+        this.codeForm.reset();
+        this.codeError.set('');
+        this.announcedWarning = false;
+        this.announcedExpiry = false;
+        this.enter('code');
+      } else {
+        this.enter('processing');
+        this.startPolling(payment.orderNumber);
+      }
+      return;
+    }
+    // declined | expired | failed with the same card: tell the shopper, keep what they typed, let
+    // them try again.
+    this.inProgressNotice.set('');
+    this.outcome.set(outcomeOf(payment));
+    if (payment.method === 'wallet') {
+      // A declined wallet payment means the balance moved since it was read (another tab), so
+      // show the balance now and offer the card, which is what the decline message suggests.
+      this.wallet.reload();
+      this.method.setValue('card');
+    }
+    if (payment.retryMode === 'none') {
+      this.close(
+        payment.attemptsLeft === 0
+          ? 'This order ran out of payment attempts, so it was cancelled. You have not been charged.'
+          : 'This order can no longer be paid. You have not been charged.',
+      );
+      return;
+    }
+    if (payment.retryMode === 'same_payment_only') {
+      this.method.setValue('card');
+    }
+    this.enter('choose');
+    this.focusOutcome();
+  }
+
+  private enter(phase: Phase): void {
+    const previous = this.phase();
+    this.phase.set(phase);
+    if (phase === 'processing' && previous !== 'processing') {
+      this.waitingSince.set(Date.now());
+    }
+    // A new state replaces the content: start reading at its heading (not on the first load).
+    if (previous !== phase && previous !== 'loading' && phase !== 'choose') {
+      afterNextRender(
+        { write: () => this.phaseHeading()?.nativeElement.focus() },
+        { injector: this.injector },
+      );
+    }
+  }
+
+  /**
+   * Polls `GET .../payments/current` until the payment is final or waits for the shopper. The
+   * read also asks the API to settle the payment if it is due (BR-PAY-05).
+   */
+  private startPolling(number: string): void {
+    this.stopPolling();
+    this.polling = timer(PAYMENT_POLL_INTERVAL_MS, PAYMENT_POLL_INTERVAL_MS)
+      .pipe(
+        // A dropped request or a server error is not an answer: keep waiting, never show "failed"
+        // for it. Any other error (401, 403, 404) would answer the same every time: stop.
+        exhaustMap(() =>
+          this.payments
+            .current(number)
+            .pipe(
+              catchError((error: unknown) =>
+                isTransient(error) ? of(null) : throwError(() => error),
+              ),
+            ),
+        ),
+        filter((payment): payment is PaymentStatusDto => payment !== null),
+        takeWhile(stillChanging, true),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (payment) => {
+          if (stillChanging(payment)) {
+            this.payment.set(payment);
+          } else {
+            this.show(payment);
+          }
+        },
+        error: (error: unknown) => this.pollFailed(error),
+      });
+  }
+
+  private stopPolling(): void {
+    this.polling?.unsubscribe();
+    this.polling = undefined;
+  }
+
+  private paid(): void {
+    this.stopPolling();
+    this.phase.set('paid');
+    const number = this.payment()?.orderNumber ?? this.orderDetail()?.number ?? this.orderNumber();
+    this.endCheckoutOf(number);
+    this.cart.reload().subscribe({ error: () => undefined });
+    void this.announcer.announce('Payment confirmed.', 'polite');
+    // Replace this URL so Back cannot show a payable form for a paid order.
+    void this.router.navigate(['/orders', number, 'confirmation'], { replaceUrl: true });
+  }
+
+  private close(reason: string, heading = 'This order can’t be paid'): void {
+    this.stopPolling();
+    this.closedReason.set(reason);
+    this.closedHeading.set(heading);
+    this.enter('closed');
+    this.endCheckoutOf(this.orderNumber());
+  }
+
+  /**
+   * The checkout that placed this order is over, so the next one creates a new order. Paying or
+   * closing another order through `?order=` leaves a checkout in progress alone.
+   */
+  private endCheckoutOf(number: string): void {
+    if (number && number === this.store.orderNumber()) {
+      this.store.reset();
+    }
+  }
+
+  // ---- Paying ---------------------------------------------------------------------------------
+
+  protected pay(): void {
+    if (this.submitting() || this.phase() !== 'choose') {
+      return;
+    }
+    const method = this.method.value;
+    let request: PayRequest;
+    if (method === 'wallet') {
+      if (!this.walletUsable()) {
+        // The wallet was chosen, then stopped covering the total (its balance was read again
+        // after a decline, or only the same card may continue a failed payment). Say why and
+        // offer the card rather than ignore the click.
+        this.walletUnusable();
+        return;
+      }
+      request = { method: 'wallet', card: null };
+    } else {
+      this.serverErrors.set({});
+      if (this.cardForm.invalid) {
+        this.cardForm.markAllAsTouched();
+        this.showProblems();
+        return;
+      }
+      const value = this.cardForm.getRawValue();
+      const expiry = parseExpiry(value.expiry);
+      if (!expiry) {
+        return;
+      }
+      request = {
+        method: 'card',
+        card: {
+          number: digitsOf(value.number),
+          name: value.name.trim(),
+          expiryMonth: expiry.month,
+          expiryYear: expiry.year,
+          cvc: value.cvc.trim(),
+        },
+      };
+    }
+    this.problems.set([]);
+    this.outcome.set(null);
+    this.inProgressNotice.set('');
+    this.submitting.set(true);
+    const number = this.orderNumber();
+    this.payments
+      .pay(number, request)
+      .pipe(
+        finalize(() => this.submitting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (payment) => this.show(payment),
+        error: (error: unknown) => this.payFailed(number, error),
+      });
+  }
+
+  private walletUnusable(): void {
+    let detail: string;
+    if (this.samePaymentOnly()) {
+      detail = 'Only the same card payment can be tried again, so pay with that card.';
+    } else if (this.walletBalance() === null) {
+      detail = 'We couldn’t load your wallet balance, so pay by card.';
+    } else {
+      detail = 'Your wallet balance doesn’t cover the order total, so pay by card.';
+    }
+    this.method.setValue('card');
+    this.outcome.set({ title: 'The wallet can’t pay this order', detail });
+    this.focusOutcome();
+  }
+
+  /** Focuses the form again after a decline; everything typed is still there. */
+  protected tryAgain(): void {
+    this.outcome.set(null);
+    this.enter('choose');
+    afterNextRender(
+      {
+        write: () => {
+          const id = this.method.value === 'card' ? FIELD_IDS.number : 'pay-button';
+          this.document.getElementById(id)?.focus();
+        },
+      },
+      { injector: this.injector },
+    );
+  }
+
+  private payFailed(number: string, error: unknown): void {
+    if (this.followRunningPayment(error)) {
+      return;
+    }
+    const type = problemTypeOf(error);
+    if (type === PAYMENT_IN_PROGRESS_PROBLEM || type === ORDER_NOT_PAYABLE_PROBLEM) {
+      this.load(number);
+      return;
+    }
+    if (type === SAME_PAYMENT_ONLY_PROBLEM) {
+      // Not "you have not been charged": the gateway cannot tell yet whether the failed payment
+      // did, which is exactly why only that same card may continue it.
+      this.outcome.set({
+        title: problemOf(error)?.title ?? 'Try the same card again',
+        detail: problemMessage(error, 'Enter the same card as before to try that payment again.'),
+      });
+      this.method.setValue('card');
+      this.focusOutcome();
+      return;
+    }
+    const errors = validationErrorsOf(error);
+    if (Object.keys(errors).length > 0) {
+      const mapped: Partial<Record<CardField, string>> = {};
+      for (const [key, messages] of Object.entries(errors)) {
+        const field = cardFieldOf(key);
+        if (field && messages.length) {
+          mapped[field] = messages.join(' ');
+          this.cardForm.controls[field].setErrors({ server: true });
+        }
+      }
+      if (Object.keys(mapped).length > 0) {
+        this.serverErrors.set(mapped);
+        this.cardForm.markAllAsTouched();
+        this.showProblems();
+        return;
+      }
+    }
+    if (httpStatusOf(error) === undefined || isTransient(error)) {
+      // The request may have reached the API, and a charge started, before the answer was lost (a
+      // dropped connection, or a 502/504 from the proxy): only the server knows. Read the payment
+      // again and show that; paying again is safe, as one payment runs per order (BR-PAY-01).
+      this.load(number, () => {
+        if (this.phase() === 'choose' && !this.payment()) {
+          this.outcome.set({
+            title: 'We couldn’t reach the payment service',
+            detail:
+              'Your order shows no payment, so try again. You can’t be charged twice for this order.',
+          });
+        }
+        this.focusOutcome();
+      });
+      return;
+    }
+    // Any other 4xx refused the request before a charge could start. That says nothing about a
+    // Failed payment the card provider has yet to settle, so the claim is left out then.
+    const notCharged = this.payment()?.status === 'failed' ? '' : ' You have not been charged.';
+    this.outcome.set({
+      title: 'We couldn’t start the payment',
+      detail: `${problemMessage(error, 'Try again.')}${notCharged}`,
+    });
+    this.focusOutcome();
+  }
+
+  /** Focuses the outcome above the form, or the heading of the state that replaced the form. */
+  private focusOutcome(): void {
+    afterNextRender(
+      { write: () => (this.outcomeBanner() ?? this.phaseHeading())?.nativeElement.focus() },
+      { injector: this.injector },
+    );
+  }
+
+  /**
+   * A 409 payment-in-progress carries the running payment (BR-PAY-01): show it (processing or the
+   * code step) with a note, instead of an error. Nothing new was charged.
+   */
+  private followRunningPayment(error: unknown): boolean {
+    const running = paymentInProgressOf(error);
+    if (!running) {
+      return false;
+    }
+    const message = running.title || 'A payment is already in progress';
+    this.inProgressNotice.set(`${message}. We’re showing it here; you won’t be charged twice.`);
+    void this.announcer.announce(message, 'polite');
+    this.show(running.payment);
+    return true;
+  }
+
+  // ---- One-time code --------------------------------------------------------------------------
+
+  protected submitCode(): void {
+    if (this.submitting() || this.codeExpired()) {
+      return;
+    }
+    const control = this.codeForm.controls.code;
+    if (control.invalid) {
+      control.markAsTouched();
+      this.codeError.set(
+        control.hasError('required') ? 'Enter the 6-digit code' : 'The code must be 6 digits',
+      );
+      return;
+    }
+    this.codeError.set('');
+    this.submitting.set(true);
+    this.payments
+      .submitOneTimeCode(this.orderNumber(), digitsOf(control.value))
+      .pipe(
+        finalize(() => this.submitting.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (payment) => this.show(payment),
+        error: (error: unknown) => {
+          if (this.followRunningPayment(error)) {
+            return;
+          }
+          // Every ProblemDetails has a `type` (ASP.NET fills in an RFC link), so only a 409 (the
+          // payment moved on) or a 404 (the order is gone) means re-reading the page's state.
+          const status = httpStatusOf(error);
+          if (status === 409 || status === 404) {
+            this.load(this.orderNumber());
+            return;
+          }
+          const codeErrors = validationErrorsOf(error)['code'] ?? [];
+          this.codeError.set(
+            codeErrors.join(' ') || problemMessage(error, 'We couldn’t check the code. Try again.'),
+          );
+        },
+      });
+  }
+
+  /** After the code ran out: back to the form; the next attempt sends a new code. */
+  protected codeExpiredTryAgain(): void {
+    this.outcome.set({
+      title: 'The code has expired',
+      detail: 'You have not been charged. Pay again and we will send a new code.',
+    });
+    this.payments
+      .current(this.orderNumber())
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((payment) => {
+        if (payment && payment.status !== 'requires_action') {
+          this.show(payment);
+        } else {
+          // The code step that had focus is gone: start reading at the outcome above the form.
+          this.enter('choose');
+          this.focusOutcome();
+        }
+      });
+  }
+
+  // ---- Card form ------------------------------------------------------------------------------
+
+  /** Spaces the number as it is typed (4-4-4-4, or 4-6-5 for Amex) and keeps the caret in place. */
+  protected formatNumber(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const raw = input.value;
+    const caret = input.selectionStart ?? raw.length;
+    const formatted = formatCardNumber(raw);
+    if (formatted !== raw) {
+      this.cardForm.controls.number.setValue(formatted);
+      const position = caretAfterFormat(raw, caret, formatted);
+      input.setSelectionRange?.(position, position);
+    }
+  }
+
+  protected formatExpiryInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const deleting = (event as InputEvent).inputType?.startsWith('delete') ?? false;
+    const formatted = formatExpiry(input.value, deleting);
+    if (formatted !== input.value) {
+      this.cardForm.controls.expiry.setValue(formatted);
+    }
+  }
+
+  protected errorFor(field: CardField): string {
+    const control = this.cardForm.controls[field];
+    const server = this.serverErrors()[field];
+    if (control.hasError('server') && server) {
+      return server;
+    }
+    switch (field) {
+      case 'number':
+        return control.hasError('required')
+          ? 'Enter your card number'
+          : 'Enter a valid card number: check it for typos';
+      case 'name':
+        return control.hasError('required')
+          ? 'Enter the name on the card'
+          : 'The name must be 100 characters or fewer';
+      case 'expiry':
+        if (control.hasError('required')) {
+          return 'Enter the expiry date';
+        }
+        return control.hasError('expired')
+          ? 'This card has expired'
+          : 'Enter the expiry date as MM/YY, like 08/29';
+      case 'cvc':
+        return control.hasError('required')
+          ? 'Enter the security code'
+          : `Enter the ${this.cvcDigits()}-digit security code`;
+    }
+  }
+
+  private checkCvc(control: AbstractControl<string>): ValidationErrors | null {
+    const value = control.value?.trim() ?? '';
+    if (!value) {
+      return null;
+    }
+    const length = cvcLength(detectBrand(digitsOf(this.cardForm?.controls.number.value)));
+    return new RegExp(`^\\d{${length}}$`).test(value) ? null : { cvc: true };
+  }
+
+  private showProblems(): void {
+    const fields: CardField[] = ['number', 'name', 'expiry', 'cvc'];
+    this.problems.set(
+      fields
+        .filter((field) => this.cardForm.controls[field].invalid)
+        .map((field) => ({ fieldId: FIELD_IDS[field], message: this.errorFor(field) })),
+    );
+    afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
+  }
+}
+
+/** No answer (status 0) or a server error (5xx): the same request may well work in a moment. */
+function isTransient(error: unknown): boolean {
+  const status = httpStatusOf(error);
+  return status === 0 || (status !== undefined && status >= 500);
+}
+
+/** A read whose 404 is an answer (no such order, or no payment yet) rather than a failure. */
+function notFoundAsNull<T>(read: Observable<T>): Observable<T | null> {
+  return read.pipe(
+    catchError((error: unknown) =>
+      httpStatusOf(error) === 404 ? of(null) : throwError(() => error),
+    ),
+  );
+}
+
+/** 4 to 8 digits once spaces and dashes are taken out (a pasted "123 456" is fine). */
+function validCode(control: AbstractControl<string>): ValidationErrors | null {
+  const raw = control.value ?? '';
+  if (!raw.trim()) {
+    return null;
+  }
+  return /^[\d\s-]+$/.test(raw) && /^\d{4,8}$/.test(digitsOf(raw)) ? null : { code: true };
+}
+
+/** What to tell the shopper after an attempt that did not go through (BR-PAY-07 wording from the API). */
+function outcomeOf(payment: PaymentStatusDto): Outcome {
+  const attempts =
+    payment.attemptsLeft === 1 ? '1 attempt left' : `${payment.attemptsLeft} attempts left`;
+  switch (payment.status) {
+    // Never "not charged": only the card provider's later answer can say (BR-PAY-05).
+    case 'failed':
+      return {
+        title: 'We couldn’t confirm your payment',
+        detail:
+          payment.retryMode === 'same_payment_only'
+            ? `The card provider did not answer, so we can’t tell yet whether the card was charged. Enter the same card and try again: it continues the same payment, so you can’t be charged twice. ${attempts}.`
+            : `The card provider did not answer, so we can’t tell yet whether the card was charged. Paying again checks that payment with them first, so you can’t be charged twice. ${attempts}.`,
+      };
+    case 'expired':
+      return {
+        title: 'The code has expired',
+        detail: `You have not been charged. Pay again and we will send a new code. ${attempts}.`,
+      };
+    default:
+      return {
+        title: payment.declineMessage ?? 'Your card was declined',
+        detail: `Payment declined. You have not been charged. ${
+          payment.method === 'card'
+            ? 'Try another card or pay from your wallet'
+            : 'Try paying by card'
+        }. ${attempts}.`,
+      };
+  }
+}

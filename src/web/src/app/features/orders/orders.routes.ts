@@ -13,7 +13,7 @@ export const ordersRoutes: Routes = [
   },
   {
     path: ':id/confirmation',
-    title: 'Order confirmed',
+    title: 'Order confirmation',
     loadComponent: () => import('./order-confirmation-page').then((m) => m.OrderConfirmationPage),
   },
 ];

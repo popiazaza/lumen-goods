@@ -24,7 +24,8 @@ import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { Title } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
-import { httpStatusOf } from '../../core/api/problem-details';
+import { finalize } from 'rxjs';
+import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
 import { ProductDto, ProductsApi } from '../../core/api/products.api';
 import { CartStateService } from '../../core/cart/cart-state.service';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
@@ -156,6 +157,8 @@ export class ProductDetailPage {
     initialValue: 1,
   });
   protected readonly addedMessage = signal('');
+  protected readonly addError = signal('');
+  protected readonly adding = signal(false);
 
   constructor() {
     // The route title ("Product details") is generic; name the product once it is known (WCAG 2.4.2).
@@ -183,6 +186,12 @@ export class ProductDetailPage {
         this.addedMessage.set('');
       });
     });
+
+    // A refused add stays explained after the product is re-read, until another product opens.
+    effect(() => {
+      this.id();
+      untracked(() => this.addError.set(''));
+    });
   }
 
   protected step(delta: number, event: Event): void {
@@ -208,13 +217,34 @@ export class ProductDetailPage {
 
   protected addToCart(): void {
     const product = this.loaded();
-    if (!product || !this.canBuy()) {
+    if (!product || !this.canBuy() || this.adding()) {
       return;
     }
     const quantity = clampQuantity(this.buyForm.controls.quantity.value, this.maxQuantity());
     this.buyForm.controls.quantity.setValue(quantity);
-    this.cart.add(product.id, quantity);
-    this.addedMessage.set(quantity === 1 ? 'Added to cart.' : `Added ${quantity} to cart.`);
-    void this.announcer.announce(`Added to cart: ${quantity} × ${product.name}`, 'polite');
+    this.addedMessage.set('');
+    this.addError.set('');
+    this.adding.set(true);
+    this.cart
+      .add(product.id, quantity)
+      .pipe(finalize(() => this.adding.set(false)))
+      .subscribe({
+        next: (cart) => {
+          this.addedMessage.set(quantity === 1 ? 'Added to cart.' : `Added ${quantity} to cart.`);
+          const items = cart.itemCount === 1 ? '1 item' : `${cart.itemCount} items`;
+          void this.announcer.announce(
+            `Added to cart: ${quantity} × ${product.name}. Cart has ${items}.`,
+            'polite',
+          );
+        },
+        error: (error: unknown) => {
+          // 422: no longer sellable, out of stock, or above 10 or the stock left (BR-CART-03).
+          this.addError.set(problemMessage(error, 'We couldn’t add this to your cart. Try again.'));
+          // The product may have changed; show its current stock and price.
+          if (httpStatusOf(error) === 422) {
+            this.product.reload();
+          }
+        },
+      });
   }
 }

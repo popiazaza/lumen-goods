@@ -1,0 +1,112 @@
+<app-checkout-steps current="address" />
+<h1>Shipping address</h1>
+
+@if (problems().length > 0) {
+  <app-error-summary [problems]="problems()" />
+}
+
+<form class="checkout-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+  <p class="required-note">
+    All fields are required unless marked optional. We ship to the United States only.
+  </p>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Full name</mat-label>
+    <input
+      id="address-name"
+      matInput
+      formControlName="name"
+      autocomplete="shipping name"
+      required
+    />
+    @if (form.controls.name.invalid) {
+      <mat-error>{{ errorFor('name') }}</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Address line 1</mat-label>
+    <input
+      id="address-line1"
+      matInput
+      formControlName="line1"
+      autocomplete="shipping address-line1"
+      required
+    />
+    <mat-hint>Street address or P.O. box</mat-hint>
+    @if (form.controls.line1.invalid) {
+      <mat-error>{{ errorFor('line1') }}</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Address line 2 (optional)</mat-label>
+    <input
+      id="address-line2"
+      matInput
+      formControlName="line2"
+      autocomplete="shipping address-line2"
+    />
+    <mat-hint>Apartment, suite, unit</mat-hint>
+    @if (form.controls.line2.invalid) {
+      <mat-error>{{ errorFor('line2') }}</mat-error>
+    }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline">
+    <mat-label>City</mat-label>
+    <input
+      id="address-city"
+      matInput
+      formControlName="city"
+      autocomplete="shipping address-level2"
+      required
+    />
+    @if (form.controls.city.invalid) {
+      <mat-error>{{ errorFor('city') }}</mat-error>
+    }
+  </mat-form-field>
+
+  <div class="row">
+    <mat-form-field appearance="outline">
+      <mat-label>State</mat-label>
+      <select
+        id="address-region"
+        matNativeControl
+        formControlName="region"
+        autocomplete="shipping address-level1"
+        required
+      >
+        <option value="">Select a state</option>
+        @for (state of states; track state[0]) {
+          <option [value]="state[0]">{{ state[1] }}</option>
+        }
+      </select>
+      @if (form.controls.region.invalid) {
+        <mat-error>{{ errorFor('region') }}</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>ZIP code</mat-label>
+      <input
+        id="address-postalCode"
+        matInput
+        formControlName="postalCode"
+        autocomplete="shipping postal-code"
+        inputmode="numeric"
+        required
+      />
+      @if (form.controls.postalCode.invalid) {
+        <mat-error>{{ errorFor('postalCode') }}</mat-error>
+      }
+    </mat-form-field>
+  </div>
+
+  <p class="country">Country: <strong>United States</strong></p>
+
+  <div class="actions">
+    <button matButton="filled" type="submit">Continue to shipping</button>
+    <a matButton routerLink="/cart">Back to cart</a>
+  </div>
+</form>

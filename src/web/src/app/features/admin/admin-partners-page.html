@@ -59,6 +59,16 @@
             <dt>Live products</dt>
             <dd class="number">{{ partner.liveProductCount | number }}</dd>
           </div>
+          @if (partner.heldRemovals > 0) {
+            <div>
+              <dt>Held back from removal</dt>
+              <dd>
+                {{ partner.heldRemovals | number }}
+                {{ partner.heldRemovals === 1 ? 'product' : 'products' }} missing from the last
+                catalogue, still listed until confirmed
+              </dd>
+            </div>
+          }
           @if (isQueued(partner) && partner.refreshRequestedUtc) {
             <div>
               <dt>Refresh requested</dt>
