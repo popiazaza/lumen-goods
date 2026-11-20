@@ -1,0 +1,319 @@
+<app-checkout-steps current="payment" />
+<h1>Payment</h1>
+
+@if (total() !== null && phase() !== 'closed') {
+  <p class="order-line">
+    Order <strong>{{ orderNumber() }}</strong> · Total
+    <strong class="price">{{ total() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</strong>
+    @if (holdExpires(); as hold) {
+      <span class="muted">· Prices held until {{ hold | date: 'shortTime' }}</span>
+    }
+  </p>
+}
+
+@if (inProgressNotice() && (phase() === 'processing' || phase() === 'code')) {
+  <div class="banner in-progress" role="status">
+    <mat-icon svgIcon="info" aria-hidden="true" />
+    <p>{{ inProgressNotice() }}</p>
+  </div>
+}
+
+@switch (phase()) {
+  @case ('loading') {
+    <p class="muted" role="status">Loading your order…</p>
+  }
+
+  @case ('load-error') {
+    <div class="banner error" role="alert">
+      <mat-icon svgIcon="error" aria-hidden="true" />
+      <div>
+        <p>{{ loadError() }}</p>
+        <button matButton="outlined" type="button" (click)="retryLoad()">Retry</button>
+      </div>
+    </div>
+  }
+
+  @case ('signed-out') {
+    <section class="state" aria-labelledby="signed-out-heading">
+      <h2 #phaseHeading id="signed-out-heading" tabindex="-1">Sign in to see your payment</h2>
+      <p>
+        You were signed out, so we can’t show how your payment is going. Signing out doesn’t stop
+        it: sign in again to come back to this order.
+      </p>
+      <div class="actions">
+        <a matButton="filled" routerLink="/sign-in" [queryParams]="signInParams()">Sign in</a>
+      </div>
+    </section>
+  }
+
+  @case ('closed') {
+    <section class="state" aria-labelledby="closed-heading">
+      <h2 #phaseHeading id="closed-heading" tabindex="-1">{{ closedHeading() }}</h2>
+      <p>{{ closedReason() }}</p>
+      <div class="actions">
+        <a matButton="filled" routerLink="/cart">Go to your cart</a>
+        <a matButton routerLink="/orders">Your orders</a>
+      </div>
+    </section>
+  }
+
+  @case ('paid') {
+    <p role="status">Payment confirmed. Opening your order confirmation…</p>
+  }
+
+  @case ('processing') {
+    <section class="state processing" aria-labelledby="processing-heading">
+      <h2 #phaseHeading id="processing-heading" tabindex="-1">Confirming your payment…</h2>
+      <mat-progress-bar mode="indeterminate" aria-labelledby="processing-heading" />
+      <div role="status">
+        @if (unsettled()) {
+          <p>
+            The card provider didn’t answer in time, so we’re confirming with them whether your card
+            was charged. You won’t be charged twice.
+          </p>
+          <p>
+            We’ll keep checking here. You can also leave this page: the result will be in
+            <a routerLink="/orders">Your orders</a>.
+          </p>
+        } @else {
+          <p>
+            This can take up to 20 seconds. Keep this page open; refreshing it won’t charge you
+            twice.
+          </p>
+          @if (slow()) {
+            <p>
+              This is taking longer than usual. We’ll keep checking, and the result will also be in
+              <a routerLink="/orders">Your orders</a>.
+            </p>
+          }
+        }
+      </div>
+      @if (!unsettled()) {
+        <p class="muted" aria-hidden="true">Waiting {{ waitedSeconds() }} s</p>
+      }
+      <button matButton="filled" type="button" disabled>Pay</button>
+    </section>
+  }
+
+  @case ('code') {
+    <section class="state" aria-labelledby="code-heading">
+      <h2 #phaseHeading id="code-heading" tabindex="-1">Extra security check</h2>
+      <p>
+        Your card issuer asks for a one-time code to approve
+        <strong class="price">{{
+          total() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+        }}</strong>
+        to Lumen Goods.
+      </p>
+
+      @if (codeExpired()) {
+        <div class="banner error" role="alert">
+          <mat-icon svgIcon="schedule" aria-hidden="true" />
+          <div>
+            <p><strong>The code has expired.</strong> You have not been charged.</p>
+            <button matButton="filled" type="button" (click)="codeExpiredTryAgain()">
+              Try again
+            </button>
+          </div>
+        </div>
+      } @else {
+        <form class="code-form" [formGroup]="codeForm" (ngSubmit)="submitCode()" novalidate>
+          <mat-form-field appearance="outline">
+            <mat-label>Verification code</mat-label>
+            <input
+              id="one-time-code"
+              matInput
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              formControlName="code"
+              [attr.aria-describedby]="codeDescribedBy()"
+              [attr.aria-invalid]="codeError() ? true : null"
+              required
+            />
+            @if (testCode(); as code) {
+              <mat-hint id="code-test">Test code: {{ code }} (no text message is sent)</mat-hint>
+            }
+          </mat-form-field>
+          @if (codeError()) {
+            <p id="code-error" class="field-error" role="alert">
+              <mat-icon svgIcon="error" aria-hidden="true" />
+              {{ codeError() }}
+            </p>
+          }
+          <p id="code-timer" class="timer" role="timer">
+            <mat-icon svgIcon="schedule" aria-hidden="true" />
+            Code expires in {{ codeCountdown() }}
+          </p>
+          <div class="actions">
+            <button matButton="filled" type="submit" [attr.aria-disabled]="submitting()">
+              {{ submitting() ? 'Verifying…' : 'Verify' }}
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+  }
+
+  @case ('choose') {
+    @if (outcome(); as outcome) {
+      <div #outcomeBanner class="banner error outcome" role="alert" tabindex="-1">
+        <mat-icon svgIcon="error" aria-hidden="true" />
+        <div>
+          <p class="outcome-title">
+            <strong>{{ outcome.title }}</strong>
+          </p>
+          <p>{{ outcome.detail }}</p>
+          <button matButton="outlined" type="button" class="try-again" (click)="tryAgain()">
+            Try again
+          </button>
+        </div>
+      </div>
+    }
+    @if (problems().length > 0) {
+      <app-error-summary [problems]="problems()" />
+    }
+
+    <form class="checkout-form" [formGroup]="cardForm" (ngSubmit)="pay()" novalidate>
+      <h2 id="method-heading">How would you like to pay?</h2>
+      <mat-radio-group class="methods" aria-labelledby="method-heading" [formControl]="method">
+        <mat-radio-button value="card">
+          <span class="method-label">
+            <mat-icon svgIcon="credit_card" aria-hidden="true" />
+            Credit or debit card
+          </span>
+        </mat-radio-button>
+        <mat-radio-button
+          value="wallet"
+          [disabled]="!walletUsable()"
+          aria-describedby="wallet-note"
+        >
+          <span class="method-label">
+            <mat-icon svgIcon="wallet" aria-hidden="true" />
+            Lumen Goods wallet
+          </span>
+        </mat-radio-button>
+      </mat-radio-group>
+      <p id="wallet-note" class="wallet-note muted">
+        @if (samePaymentOnly()) {
+          Only the same card payment can be tried again, so the wallet can’t be used for this
+          attempt.
+        } @else if (walletBalance() !== null) {
+          Wallet balance:
+          <span class="price">{{
+            walletBalance() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+          }}</span>
+          @if (!walletCovers()) {
+            · Not enough to pay
+            <span class="price">{{
+              total() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+            }}</span>, so pay by card.
+          }
+        } @else if (wallet.status() === 'error') {
+          We couldn’t load your wallet balance, so the wallet can’t be used right now.
+        } @else {
+          Loading your wallet balance…
+        }
+      </p>
+
+      @if (chosenMethod() === 'card') {
+        <fieldset class="card-fields">
+          <legend>Card details</legend>
+          <mat-form-field appearance="outline">
+            <mat-label>Card number</mat-label>
+            <input
+              id="card-number"
+              matInput
+              type="text"
+              inputmode="numeric"
+              autocomplete="cc-number"
+              formControlName="number"
+              spellcheck="false"
+              (input)="formatNumber($event)"
+              required
+            />
+            @if (brandName()) {
+              <span matTextSuffix class="brand" aria-live="polite">{{ brandName() }}</span>
+            }
+            <mat-hint
+              >Test cards: 4111 1111 1111 1111 approves; see the README for the others</mat-hint
+            >
+            @if (cardForm.controls.number.invalid) {
+              <mat-error>{{ errorFor('number') }}</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Name on card</mat-label>
+            <input id="card-name" matInput autocomplete="cc-name" formControlName="name" required />
+            @if (cardForm.controls.name.invalid) {
+              <mat-error>{{ errorFor('name') }}</mat-error>
+            }
+          </mat-form-field>
+
+          <div class="row">
+            <mat-form-field appearance="outline">
+              <mat-label>Expiry date (MM/YY)</mat-label>
+              <input
+                id="card-expiry"
+                matInput
+                type="text"
+                inputmode="numeric"
+                autocomplete="cc-exp"
+                placeholder="MM/YY"
+                formControlName="expiry"
+                (input)="formatExpiryInput($event)"
+                required
+              />
+              @if (cardForm.controls.expiry.invalid) {
+                <mat-error>{{ errorFor('expiry') }}</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Security code (CVC)</mat-label>
+              <input
+                id="card-cvc"
+                matInput
+                type="text"
+                inputmode="numeric"
+                autocomplete="cc-csc"
+                formControlName="cvc"
+                required
+              />
+              <mat-hint
+                >{{ cvcDigits() }} digits{{
+                  cvcDigits() === 4 ? ' on the front' : ' on the back'
+                }}</mat-hint
+              >
+              @if (cardForm.controls.cvc.invalid) {
+                <mat-error>{{ errorFor('cvc') }}</mat-error>
+              }
+            </mat-form-field>
+          </div>
+        </fieldset>
+      }
+
+      <div class="actions">
+        <button
+          id="pay-button"
+          matButton="filled"
+          type="submit"
+          class="pay"
+          [attr.aria-disabled]="submitting()"
+        >
+          <mat-icon svgIcon="lock" />
+          @if (submitting()) {
+            Paying…
+          } @else {
+            Pay {{ total() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+          }
+        </button>
+      </div>
+      <p class="muted">
+        Card payments usually take a few seconds but can take up to 20. You pay exactly the order
+        total.
+      </p>
+    </form>
+  }
+}

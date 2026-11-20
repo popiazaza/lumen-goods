@@ -43,6 +43,27 @@ export function problemOf(error: unknown): ProblemDetails | undefined {
   return undefined;
 }
 
+/**
+ * The problem `type` of a failed call, if the API sent one. The API gives several answers the same
+ * status (409 has four meanings across checkout and payments), so pages compare this with a
+ * `urn:lumen:problem:...` constant. Never test it for presence: ASP.NET fills in an RFC link as
+ * the type of every plain problem.
+ */
+export function problemTypeOf(error: unknown): string | undefined {
+  const body: unknown = httpErrorOf(error)?.error;
+  return body && typeof body === 'object' && 'type' in body && typeof body.type === 'string'
+    ? body.type
+    : undefined;
+}
+
+/**
+ * The messages of a 400 validation problem, keyed as the API sent them (`shippingAddress.postalCode`,
+ * `card.number`, ...); empty when the error is not one.
+ */
+export function validationErrorsOf(error: unknown): Readonly<Record<string, string[]>> {
+  return httpStatusOf(error) === 400 ? (problemOf(error)?.errors ?? {}) : {};
+}
+
 /** Human-readable text for a failed call: the API's `detail` or `title`, else the fallback. */
 export function problemMessage(error: unknown, fallback: string): string {
   const problem = problemOf(error);

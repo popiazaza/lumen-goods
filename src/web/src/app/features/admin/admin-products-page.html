@@ -1,0 +1,176 @@
+<div class="toolbar">
+  <h1>Products</h1>
+  @if (!accessStatus()) {
+    <a matButton="filled" routerLink="/admin/products/new">
+      <mat-icon svgIcon="add" />
+      Add product
+    </a>
+  }
+</div>
+
+@if (accessStatus(); as status) {
+  <app-admin-access-denied [status]="status" returnUrl="/admin/products" />
+} @else {
+  @let q = query();
+  <div class="filters">
+    <form class="search" role="search" (submit)="submitSearch($event)">
+      <mat-form-field subscriptSizing="dynamic">
+        <mat-label>Search name or SKU</mat-label>
+        <input matInput type="search" name="q" [formControl]="search" />
+      </mat-form-field>
+      <button matButton="tonal" type="submit">
+        <mat-icon svgIcon="search" />
+        Search
+      </button>
+    </form>
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label>Status</mat-label>
+      <mat-select [value]="q.status" (selectionChange)="setStatus($event.value)">
+        @for (option of statusOptions; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field subscriptSizing="dynamic">
+      <mat-label>Category</mat-label>
+      <mat-select [value]="q.category ?? ''" (selectionChange)="setCategory($event.value)">
+        <mat-option value="">All categories</mat-option>
+        @for (option of categories; track option.value) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    @if (hasFilters()) {
+      <button matButton type="button" (click)="clearFilters()">
+        <mat-icon svgIcon="close" />
+        Clear filters
+      </button>
+    }
+  </div>
+
+  <p class="action-message" role="status" [class.failed]="actionMessage()?.failed">
+    {{ actionMessage()?.text }}
+  </p>
+
+  @if (isError()) {
+    <div class="state" role="alert">
+      <mat-icon svgIcon="error" class="state-icon" />
+      <p>{{ errorMessage() }}</p>
+      <div class="state-actions">
+        <button matButton="filled" type="button" (click)="products.reload()">
+          <mat-icon svgIcon="refresh" />
+          Retry
+        </button>
+        @if (hasFilters()) {
+          <button matButton type="button" (click)="clearFilters()">Clear filters</button>
+        }
+      </div>
+    </div>
+  } @else if (result(); as page) {
+    <div
+      class="results"
+      [attr.aria-busy]="products.isLoading()"
+      [class.loading]="products.isLoading()"
+    >
+      <p class="count">
+        {{ page.totalCount === 1 ? '1 product' : page.totalCount + ' products' }}
+      </p>
+      @if (products.isLoading()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Loading products" />
+      }
+      @if (page.totalCount === 0) {
+        <div class="state">
+          @if (hasFilters()) {
+            <p><strong>No products match these filters.</strong></p>
+            <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+          } @else {
+            <p><strong>No products yet.</strong></p>
+            <a matButton="filled" routerLink="/admin/products/new">Add product</a>
+          }
+        </div>
+      } @else {
+        <div class="table-scroll" role="region" aria-label="Products" tabindex="0">
+          <table mat-table [dataSource]="page.items">
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef scope="col">Product</th>
+              <td mat-cell *matCellDef="let product" class="wrap">
+                <a [routerLink]="['/admin/products', product.id]">{{ product.name }}</a>
+                <span class="sub">SKU {{ product.sku }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="category">
+              <th mat-header-cell *matHeaderCellDef scope="col">Category</th>
+              <td mat-cell *matCellDef="let product">{{ categoryLabel(product.category) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="price">
+              <th mat-header-cell *matHeaderCellDef scope="col" class="number">Price</th>
+              <td mat-cell *matCellDef="let product" class="number">
+                @if (product.price !== null) {
+                  {{ product.price | currency }}
+                } @else {
+                  Not set
+                }
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="stock">
+              <th mat-header-cell *matHeaderCellDef scope="col" class="number">On hand</th>
+              <td mat-cell *matCellDef="let product" class="number">
+                {{ product.onHand }}
+                <span class="sub">{{ product.reserved }} reserved</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef scope="col">Status</th>
+              <td mat-cell *matCellDef="let product">
+                <app-status-badge [status]="statusOf(product)" />
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef scope="col">
+                <span class="cdk-visually-hidden">Actions</span>
+              </th>
+              <td mat-cell *matCellDef="let product">
+                <div class="row-actions">
+                  <a
+                    matButton
+                    [routerLink]="['/admin/products', product.id]"
+                    [attr.aria-label]="'Edit ' + product.name"
+                  >
+                    <mat-icon svgIcon="edit" />
+                    Edit
+                  </a>
+                  <button
+                    matButton
+                    type="button"
+                    class="toggle-active"
+                    [disabled]="busyId() !== null"
+                    disabledInteractive
+                    [attr.aria-label]="
+                      (product.isActive ? 'Deactivate ' : 'Reactivate ') + product.name
+                    "
+                    (click)="toggleActive(product)"
+                  >
+                    <mat-icon [svgIcon]="product.isActive ? 'visibility_off' : 'visibility'" />
+                    {{ product.isActive ? 'Deactivate' : 'Reactivate' }}
+                  </button>
+                </div>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns"></tr>
+          </table>
+        </div>
+        <mat-paginator
+          aria-label="Product pages"
+          [length]="page.totalCount"
+          [pageIndex]="q.page - 1"
+          [pageSize]="q.pageSize"
+          [pageSizeOptions]="pageSizes"
+          (page)="changePage($event)"
+        />
+      }
+    </div>
+  } @else {
+    <mat-progress-bar mode="indeterminate" aria-label="Loading products" />
+  }
+}

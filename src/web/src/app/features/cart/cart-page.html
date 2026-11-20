@@ -1,0 +1,262 @@
+<h1>Your cart</h1>
+
+@if (mergeNotice(); as notice) {
+  <div class="banner merge" role="status">
+    <mat-icon svgIcon="info" aria-hidden="true" />
+    <p>{{ notice }}</p>
+    <button matButton type="button" (click)="dismissMergeNotice()">
+      Dismiss<span class="cdk-visually-hidden"> merge notice</span>
+    </button>
+  </div>
+}
+
+@if (cart(); as cart) {
+  @if (cart.lines.length === 0) {
+    <div class="empty">
+      <mat-icon svgIcon="cart" aria-hidden="true" />
+      <p>Your cart is empty.</p>
+      <p class="muted">
+        Browse our own goods and picks from our partner shops; everything goes in one cart.
+      </p>
+      <a matButton="filled" routerLink="/">Continue shopping</a>
+    </div>
+  } @else {
+    @if (changedLines().length > 0) {
+      <div class="banner notices" role="region" aria-labelledby="changes-title">
+        <mat-icon svgIcon="warning" aria-hidden="true" />
+        <div>
+          <p id="changes-title">
+            <strong>
+              {{ changedLines().length === 1 ? '1 item' : changedLines().length + ' items' }}
+              in your cart changed since you added
+              {{ changedLines().length === 1 ? 'it' : 'them' }}.
+            </strong>
+            Check the notes below.
+          </p>
+          <ul>
+            @for (line of changedLines(); track line.id) {
+              <li>{{ line.product.name }}</li>
+            }
+          </ul>
+        </div>
+      </div>
+    }
+
+    <div class="layout">
+      <div class="lines">
+        @for (group of groups(); track group.source) {
+          <section class="group" [attr.aria-labelledby]="'seller-' + group.source">
+            <div class="group-head">
+              <h2 [id]="'seller-' + group.source">Sold by {{ group.sellerName }}</h2>
+              <span class="ships">
+                <mat-icon svgIcon="local_shipping" aria-hidden="true" />
+                Ships separately
+              </span>
+            </div>
+
+            <ul class="line-list">
+              @for (line of group.lines; track line.id) {
+                @let view = lineViews().get(line.id);
+                <li
+                  class="line"
+                  [class.blocked]="line.blocksCheckout"
+                  [attr.aria-busy]="isBusy(line.id)"
+                  [attr.aria-labelledby]="'name-' + line.id"
+                >
+                  <app-product-image class="thumb" [src]="line.product.imageUrl" />
+                  <div class="info">
+                    <a
+                      class="name"
+                      [id]="'name-' + line.id"
+                      [routerLink]="['/products', line.product.id]"
+                      >{{ line.product.name }}</a
+                    >
+                    <p class="unit">
+                      @if (line.unitPrice !== null) {
+                        <span class="price">{{
+                          line.unitPrice | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+                        }}</span>
+                        each
+                      } @else {
+                        No longer priced
+                      }
+                    </p>
+
+                    @if (view && view.notices.length > 0) {
+                      <ul class="notices" [id]="'notices-' + line.id">
+                        @for (notice of view.notices; track notice.kind) {
+                          <li [class]="notice.tone">
+                            <mat-icon [svgIcon]="notice.icon" aria-hidden="true" />
+                            <span>{{ notice.text }}</span>
+                          </li>
+                        }
+                      </ul>
+                    }
+                    @if (lineErrors()[line.id]; as error) {
+                      <p class="line-error" role="alert">
+                        <mat-icon svgIcon="error" aria-hidden="true" />
+                        {{ error }}
+                      </p>
+                    }
+
+                    <div class="controls">
+                      <div
+                        class="stepper"
+                        role="group"
+                        [attr.aria-label]="'Quantity of ' + line.product.name"
+                      >
+                        <button
+                          matIconButton
+                          type="button"
+                          disabledInteractive
+                          [disabled]="
+                            line.quantity <= 1 || isBusy(line.id) || line.maxQuantity === 0
+                          "
+                          [attr.aria-label]="'Decrease quantity of ' + line.product.name"
+                          (click)="step(line, -1)"
+                        >
+                          <mat-icon svgIcon="remove" />
+                        </button>
+                        <label class="cdk-visually-hidden" [for]="'qty-' + line.id">
+                          Quantity of {{ line.product.name }}
+                        </label>
+                        <input
+                          [id]="'qty-' + line.id"
+                          type="number"
+                          inputmode="numeric"
+                          min="1"
+                          [max]="view?.max ?? 10"
+                          [value]="line.quantity"
+                          [disabled]="line.maxQuantity === 0"
+                          [attr.aria-describedby]="
+                            view && view.notices.length > 0 ? 'notices-' + line.id : null
+                          "
+                          (change)="typed(line, $event)"
+                        />
+                        <button
+                          matIconButton
+                          type="button"
+                          disabledInteractive
+                          [disabled]="
+                            line.quantity >= (view?.max ?? 10) ||
+                            isBusy(line.id) ||
+                            line.maxQuantity === 0
+                          "
+                          [attr.aria-label]="'Increase quantity of ' + line.product.name"
+                          (click)="step(line, 1)"
+                        >
+                          <mat-icon svgIcon="add" />
+                        </button>
+                      </div>
+
+                      <span class="line-total price">
+                        @if (line.lineTotal !== null) {
+                          {{ line.lineTotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+                        }
+                      </span>
+                    </div>
+
+                    <div class="line-actions">
+                      @if (
+                        line.notices.quantityLimited &&
+                        line.quantity > line.notices.quantityLimited.allowed &&
+                        line.notices.quantityLimited.allowed > 0
+                      ) {
+                        <button
+                          matButton="tonal"
+                          type="button"
+                          (click)="setQuantity(line, line.notices.quantityLimited.allowed)"
+                        >
+                          Change to {{ line.notices.quantityLimited.allowed }}
+                        </button>
+                      }
+                      @if (view?.canAcknowledge) {
+                        <button
+                          matButton="outlined"
+                          type="button"
+                          class="acknowledge"
+                          [disabled]="isBusy(line.id)"
+                          disabledInteractive
+                          (click)="acknowledge(line)"
+                        >
+                          Acknowledge<span class="cdk-visually-hidden">
+                            changes to {{ line.product.name }}</span
+                          >
+                        </button>
+                      }
+                      <button
+                        matButton
+                        type="button"
+                        class="remove"
+                        [disabled]="isBusy(line.id)"
+                        disabledInteractive
+                        (click)="remove(line)"
+                      >
+                        <mat-icon svgIcon="delete" />
+                        Remove<span class="cdk-visually-hidden"> {{ line.product.name }}</span>
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      </div>
+
+      <aside class="summary" aria-labelledby="summary-title">
+        <h2 id="summary-title">Order summary</h2>
+        <dl class="totals">
+          <dt>Subtotal ({{ cart.itemCount === 1 ? '1 item' : cart.itemCount + ' items' }})</dt>
+          <dd>{{ cart.totals.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+          <dt>{{ cart.totals.isEstimate ? 'Estimated shipping' : 'Shipping' }}</dt>
+          <dd>{{ cart.totals.shipping | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+          <dt>{{ cart.totals.isEstimate ? 'Estimated tax' : 'Tax' }}</dt>
+          <dd>{{ cart.totals.tax | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
+          <dt class="grand">{{ cart.totals.isEstimate ? 'Estimated total' : 'Total' }}</dt>
+          <dd class="grand price cart-total">
+            {{ cart.totals.total | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+          </dd>
+        </dl>
+        <p class="muted">
+          Standard shipping per shop. You choose shipping and see the final total before you pay.
+          @if (hasUnavailable()) {
+            Items that can’t be ordered are not included.
+          }
+        </p>
+
+        <button
+          matButton="filled"
+          type="button"
+          class="checkout"
+          [disabled]="!cart.canCheckout"
+          disabledInteractive
+          [attr.aria-describedby]="cart.canCheckout ? null : 'checkout-blocked'"
+          (click)="checkout()"
+        >
+          <mat-icon svgIcon="lock" />
+          Check out
+        </button>
+        @if (!cart.canCheckout) {
+          <p id="checkout-blocked" class="blocked-reason">
+            <mat-icon svgIcon="block" aria-hidden="true" />
+            {{ blockedReason() }}
+          </p>
+        } @else if (!session().isAuthenticated) {
+          <p class="muted">You’ll sign in or create an account next.</p>
+        }
+        <a matButton routerLink="/">Continue shopping</a>
+      </aside>
+    </div>
+  }
+} @else if (loadFailed()) {
+  <div class="banner error" role="alert">
+    <mat-icon svgIcon="error" aria-hidden="true" />
+    <div>
+      <p>We couldn’t load your cart. Check your connection and try again.</p>
+      <button matButton="outlined" type="button" (click)="retry()">Retry</button>
+    </div>
+  </div>
+} @else {
+  <p class="muted" role="status">Loading your cart…</p>
+}

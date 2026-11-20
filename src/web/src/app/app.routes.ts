@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { adminGuard } from './core/routing/admin.guard';
 import { adminRoutes } from './features/admin/admin.routes';
 import { checkoutRoutes } from './features/checkout/checkout.routes';
 import { ordersRoutes } from './features/orders/orders.routes';
@@ -35,7 +36,7 @@ export const routes: Routes = [
   },
   { path: 'checkout', children: checkoutRoutes },
   { path: 'orders', children: ordersRoutes },
-  { path: 'admin', children: adminRoutes },
+  { path: 'admin', canMatch: [adminGuard], children: adminRoutes },
   {
     path: '**',
     title: 'Page not found',

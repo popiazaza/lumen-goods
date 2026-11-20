@@ -1,0 +1,132 @@
+// The admin list pages (orders, products): a filter bar, a table that scrolls inside its own
+// labelled region on narrow screens (WCAG 1.4.10), and a paginator.
+@use '../orders/order-page';
+
+:host {
+  display: block;
+}
+
+@include order-page.state;
+
+.state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lg-space-2);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lg-space-3);
+  margin-bottom: var(--lg-space-6);
+
+  h1 {
+    margin: 0;
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lg-space-3);
+  margin-bottom: var(--lg-space-4);
+
+  mat-form-field {
+    flex: 1 1 12rem;
+    max-width: 20rem;
+  }
+
+  .search {
+    display: flex;
+    flex: 2 1 20rem;
+    align-items: center;
+    gap: var(--lg-space-2);
+
+    mat-form-field {
+      max-width: none;
+    }
+  }
+}
+
+.action-message {
+  margin: 0;
+  color: var(--lg-status-success);
+
+  &:not(:empty) {
+    margin-bottom: var(--lg-space-3);
+  }
+
+  &.failed {
+    color: var(--mat-sys-error);
+  }
+}
+
+.results {
+  display: grid;
+  gap: var(--lg-space-3);
+
+  &.loading .table-scroll {
+    opacity: 0.6;
+  }
+}
+
+.count {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--lg-radius-card);
+
+  table {
+    width: 100%;
+    min-width: 48rem;
+  }
+}
+
+th,
+td {
+  vertical-align: top;
+}
+
+td {
+  padding-top: var(--lg-space-3);
+  padding-bottom: var(--lg-space-3);
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wrap {
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  display: block;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
+}
+
+.badges,
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lg-space-1);
+}
+
+.row-actions {
+  justify-content: flex-end;
+}
+
+td > a:not([matButton]) {
+  display: inline-block;
+  min-height: 24px;
+}

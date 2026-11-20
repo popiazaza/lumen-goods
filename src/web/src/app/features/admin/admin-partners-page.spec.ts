@@ -99,6 +99,15 @@ describe('AdminPartnersPage', () => {
     expect(showAll?.getAttribute('aria-expanded')).toBe('true');
   });
 
+  it('says how many products the mass-removal guard is holding back', async () => {
+    await load([HARBOR, { ...KESTREL, heldRemovals: 12 }]);
+
+    expect(text(card('Kestrel Outfitters'), '.facts')).toContain(
+      'Held back from removal 12 products missing from the last catalogue, still listed until confirmed',
+    );
+    expect(text(card('Harbor Supply Co.'), '.facts')).not.toContain('Held back');
+  });
+
   /** The 202 carries the server's clock: the refresh was accepted at 06:10:00Z. */
   const ACCEPTED = {
     status: 202,
