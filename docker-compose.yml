@@ -34,6 +34,8 @@ services:
       dockerfile: src/Lumen.Api/Dockerfile
     environment:
       ConnectionStrings__Lumen: Host=db;Database=lumen;Username=lumen;Password=${POSTGRES_PASSWORD:-lumen-dev-password}
+      # nginx forwards the browser's Host, and only serves these two (DNS rebinding); the healthcheck below sends localhost.
+      AllowedHosts: "localhost;127.0.0.1"
       # Plain HTTP on localhost; production behind TLS keeps the default (Always).
       Auth__CookieSecurePolicy: SameAsRequest
       # Keys for the session cookie and XSRF tokens, on a volume: sign-ins survive a restart or a rebuilt container.
