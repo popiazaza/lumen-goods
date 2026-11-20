@@ -19,8 +19,8 @@ namespace Lumen.Api.Infrastructure.Telemetry;
 /// OpenTelemetry for the API. Traces: requests, HTTP calls (partners, images), SQL (Npgsql) and Lumen's own spans.
 /// Metrics: requests, HTTP calls, the runtime and Lumen's counters and gauges. All of it, logs included, goes out over
 /// OTLP only when <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> is set (docker compose's <c>observability</c> profile: the Aspire
-/// dashboard; in Azure, a collector or Azure Monitor). Without it no exporter is added and nothing leaves the process,
-/// and the gauges' database reads are not set up.
+/// dashboard; in Azure, a collector or Azure Monitor). Without it no exporter is added and nothing leaves the process;
+/// tracing and the gauges' database reads are then not set up at all.
 /// </summary>
 internal static class TelemetryExtensions
 {
@@ -33,14 +33,6 @@ internal static class TelemetryExtensions
         services.AddSingleton<LumenMetrics>();
         var telemetry = services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService("lumen-api"))
-            .WithTracing(tracing => tracing
-                .SetSampler(new ParentBasedSampler(new SkipUnparentedClientSpans()))
-                .AddSource(LumenTelemetry.Name)
-                // The compose health check calls /health every 3 s; its spans would be noise.
-                .AddAspNetCoreInstrumentation(options => options.Filter = context => !context.Request.Path.StartsWithSegments("/health"))
-                .AddHttpClientInstrumentation()
-                // Npgsql 10 traces every command through its own "Npgsql" ActivitySource; no extra package needed.
-                .AddSource("Npgsql"))
             .WithMetrics(metrics => metrics
                 .AddMeter(LumenTelemetry.Name)
                 .AddInstrumentation(sp => sp.GetRequiredService<LumenMetrics>())
@@ -50,6 +42,17 @@ internal static class TelemetryExtensions
 
         if (!string.IsNullOrWhiteSpace(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
         {
+            // Only with an exporter: a tracer provider records every request, HTTP call and SQL command it listens to,
+            // which costs on each of them even when no span ever leaves the process.
+            telemetry.WithTracing(tracing => tracing
+                .SetSampler(new ParentBasedSampler(new SkipUnparentedClientSpans()))
+                .AddSource(LumenTelemetry.Name)
+                // The compose health check calls /health every 3 s; its spans would be noise.
+                .AddAspNetCoreInstrumentation(options => options.Filter = context => !context.Request.Path.StartsWithSegments("/health"))
+                .AddHttpClientInstrumentation()
+                // Npgsql 10 traces every command through its own "Npgsql" ActivitySource; no extra package needed.
+                .AddSource("Npgsql"));
+
             // Traces, metrics and logs. Protocol, headers and intervals follow the standard OTEL_EXPORTER_OTLP_* variables.
             telemetry.UseOtlpExporter();
             services.AddHostedService<GaugeRefresher>();

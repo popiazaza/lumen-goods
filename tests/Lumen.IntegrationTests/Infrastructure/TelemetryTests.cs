@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
 
 namespace Lumen.IntegrationTests.Infrastructure;
 
@@ -15,7 +16,7 @@ namespace Lumen.IntegrationTests.Infrastructure;
 /// Lumen's own spans and metrics, read in process the way an exporter reads them. Spans come from one static
 /// ActivitySource shared by every test host, so they are picked by payment id; metrics come from this class's host
 /// only (its <see cref="IMeterFactory"/>), so another test's payment never counts here. The test hosts set no OTLP
-/// endpoint, so they have no gauge refresher: the tests refresh the gauges themselves.
+/// endpoint, so they have no tracer provider and no gauge refresher: the tests listen and refresh themselves.
 /// </summary>
 public sealed class TelemetryTests(CheckoutHost host) : IClassFixture<CheckoutHost>
 {
@@ -104,8 +105,9 @@ public sealed class TelemetryTests(CheckoutHost host) : IClassFixture<CheckoutHo
     }
 
     [Fact]
-    public void The_gauge_refresher_is_set_up_only_when_an_OTLP_endpoint_is_configured()
+    public void Tracing_and_the_gauge_refresher_are_set_up_only_when_an_OTLP_endpoint_is_configured()
     {
+        host.App.Services.GetService<TracerProvider>().Should().BeNull("no span would leave the process");
         host.App.Services.GetServices<IHostedService>().OfType<GaugeRefresher>().Should().BeEmpty();
 
         // Registrations only: a started tracer provider listens process-wide, to every other test host's requests too.
@@ -113,6 +115,7 @@ public sealed class TelemetryTests(CheckoutHost host) : IClassFixture<CheckoutHo
             .AddInMemoryCollection([new("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector.test:4317")])
             .Build());
 
+        exporting.Should().Contain(d => d.ServiceType == typeof(TracerProvider));
         exporting.Should().ContainSingle(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType == typeof(GaugeRefresher));
     }
 
