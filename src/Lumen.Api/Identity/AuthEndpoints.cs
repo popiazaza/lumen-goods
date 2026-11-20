@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Lumen.Api.Carts;
+using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Api.Infrastructure.Security;
 using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Antiforgery;
@@ -49,8 +51,10 @@ internal static class AuthEndpoints
     {
         var auth = api.MapGroup("/auth").WithTags("Auth");
         auth.MapGet("/session", GetSession);
-        auth.MapPost("/register", Register);
-        auth.MapPost("/sign-in", SignIn);
+        auth.MapPost("/register", Register).RequireRateLimiting(RateLimitPolicies.Register)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+        auth.MapPost("/sign-in", SignIn).RequireRateLimiting(RateLimitPolicies.SignIn)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
         auth.MapPost("/sign-out", SignOut);
         return api;
     }
@@ -64,22 +68,29 @@ internal static class AuthEndpoints
 
     private static async Task<Results<Ok<SessionResponse>, ValidationProblem>> Register(
         RegisterRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn, IAntiforgery antiforgery,
-        [AsParameters] AfterSignIn afterSignIn)
+        LumenDbContext db, [AsParameters] AfterSignIn afterSignIn)
     {
         var user = new AppUser { UserName = request.Email, Email = request.Email };
-        var created = await users.CreateAsync(user, request.Password);
-        if (!created.Succeeded)
-        {
-            // Keys match the request property names, as the built-in request validation reports them.
-            return TypedResults.ValidationProblem(created.Errors
-                .GroupBy(e => e.Code.Contains("Password", StringComparison.Ordinal) ? nameof(RegisterRequest.Password) : nameof(RegisterRequest.Email))
-                .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray()));
-        }
 
-        var roleAdded = await users.AddToRoleAsync(user, Roles.Customer);
-        if (!roleAdded.Succeeded)
+        // The account and its role are one change: a failure in between must not leave an account that is not a customer.
+        await using (var transaction = await db.Database.BeginTransactionAsync(http.RequestAborted))
         {
-            throw new InvalidOperationException($"Could not assign the customer role: {string.Join("; ", roleAdded.Errors.Select(e => e.Description))}");
+            var created = await users.CreateAsync(user, request.Password);
+            if (!created.Succeeded)
+            {
+                // Keys match the request property names, as the built-in request validation reports them.
+                return TypedResults.ValidationProblem(created.Errors
+                    .GroupBy(e => e.Code.Contains("Password", StringComparison.Ordinal) ? nameof(RegisterRequest.Password) : nameof(RegisterRequest.Email))
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray()));
+            }
+
+            var roleAdded = await users.AddToRoleAsync(user, Roles.Customer);
+            if (!roleAdded.Succeeded)
+            {
+                throw new InvalidOperationException($"Could not assign the customer role: {string.Join("; ", roleAdded.Errors.Select(e => e.Description))}");
+            }
+
+            await transaction.CommitAsync(CancellationToken.None);
         }
 
         // BR-PAY-06: every new customer starts with a wallet. Idempotent and best effort: if it fails here, it opens on first use.
@@ -92,8 +103,16 @@ internal static class AuthEndpoints
 
     private static async Task<Results<Ok<SessionResponse>, ProblemHttpResult>> SignIn(
         SignInRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn,
-        IPasswordHasher<AppUser> hasher, IAntiforgery antiforgery, [AsParameters] AfterSignIn afterSignIn)
+        IPasswordHasher<AppUser> hasher, IAntiforgery antiforgery, SignInGate gate, [AsParameters] AfterSignIn afterSignIn)
     {
+        // One attempt per email at a time, from reading the account to saving its failed count, so the lockout below
+        // counts every wrong password of a burst.
+        using var turn = await gate.WaitTurnAsync(users.NormalizeEmail(request.Email) ?? "", http.RequestAborted);
+        if (!turn.IsAcquired)
+        {
+            return InboundRateLimiting.TooManyRequests(http, retryAfter: null);
+        }
+
         var user = await users.FindByEmailAsync(request.Email);
         if (user is null)
         {

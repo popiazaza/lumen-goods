@@ -1,5 +1,6 @@
 using Lumen.Api.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 
 namespace Lumen.Api.Identity;
@@ -56,7 +57,28 @@ internal static class IdentityServiceCollectionExtensions
             options.Cookie.SecurePolicy = securePolicy;
         });
 
+        AddDataProtectionKeys(services, configuration);
         return services;
+    }
+
+    /// <summary>
+    /// The session cookie and the XSRF tokens are encrypted with Data Protection keys. In a container the default key
+    /// store is lost with the container, signing everyone out and failing every open page's next POST, so compose keeps
+    /// the keys on a volume (<c>DataProtection:KeysPath</c>). Unset (tests, <c>dotnet run</c>), the framework default
+    /// applies: the user profile when there is one, otherwise keys in memory.
+    /// </summary>
+    private static void AddDataProtectionKeys(IServiceCollection services, IConfiguration configuration)
+    {
+        var keysPath = configuration["DataProtection:KeysPath"];
+        if (string.IsNullOrWhiteSpace(keysPath))
+        {
+            return;
+        }
+
+        // A fixed application name, so the keys still apply if the app moves to another directory or image layout.
+        services.AddDataProtection()
+            .SetApplicationName("Lumen.Api")
+            .PersistKeysToFileSystem(new DirectoryInfo(keysPath));
     }
 
     private static Task SetStatus(Microsoft.AspNetCore.Authentication.RedirectContext<CookieAuthenticationOptions> context, int status)

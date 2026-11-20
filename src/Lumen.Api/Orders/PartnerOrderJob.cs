@@ -1,3 +1,4 @@
+using Lumen.Api.Infrastructure.Telemetry;
 using Lumen.Api.Partners;
 using Lumen.Api.Partners.Ports;
 using Microsoft.Extensions.Options;
@@ -38,6 +39,7 @@ internal sealed class PartnerOrderJob(
     IOptionsMonitor<PartnerOrdersOptions> options,
     IOptionsMonitor<JobsOptions> jobs,
     TimeProvider clock,
+    LumenMetrics metrics,
     ILogger<PartnerOrderJob> logger) : BackgroundService
 {
     // One gate per partner: a partner's runs never overlap in this process, and never wait for another partner's.
@@ -85,11 +87,18 @@ internal sealed class PartnerOrderJob(
                     break;
                 }
 
+                // One span per claimed partner order: the partner's HTTP call and the SQL applying its answer nest in it.
+                using var activity = LumenTelemetry.Source.StartActivity(item.Poll ? "partner order poll" : "partner order send");
+                activity?.SetTag(LumenTelemetry.Partner, partner).SetTag(LumenTelemetry.ExternalRef, item.Request.ExternalRef);
                 var result = await CallPartnerAsync(gateway, item, cancellationToken);
+                var error = result.Error;
+                string outcome;
                 try
                 {
                     await using var scope = scopes.CreateAsyncScope();
-                    steps.Add(await scope.ServiceProvider.GetRequiredService<PartnerOrderProcessor>().ApplyAsync(item, result, cancellationToken));
+                    var step = await scope.ServiceProvider.GetRequiredService<PartnerOrderProcessor>().ApplyAsync(item, result, cancellationToken);
+                    steps.Add(step);
+                    outcome = step.ToString();
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -98,7 +107,12 @@ internal sealed class PartnerOrderJob(
                     logger.LogError(ex, "Could not apply {Partner}'s {Outcome} answer for partner order {PartnerOrderId}",
                         partner, result.Outcome, item.PartnerOrderId);
                     failed++;
+                    activity?.AddException(ex);
+                    (outcome, error) = ("NotApplied", $"Could not apply the {result.Outcome} answer: {ex.GetType().Name}");
                 }
+
+                LumenTelemetry.SetOutcome(activity, outcome, error);
+                metrics.PartnerOrderCalled(partner, outcome);
             }
 
             int flagged;

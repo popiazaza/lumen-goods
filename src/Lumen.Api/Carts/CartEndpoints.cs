@@ -17,9 +17,6 @@ internal static class CartEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .AddEndpointFilter(async (context, next) =>
             {
-                // A cart is personal and changes often: never cached by the browser or a proxy.
-                context.HttpContext.Response.Headers.CacheControl = "no-store";
-
                 // Guests and customers shop; staff accounts (the admin) do not, just as they have no wallet. The role is
                 // in the session's claims, the same check the wallet makes.
                 var user = context.HttpContext.User;

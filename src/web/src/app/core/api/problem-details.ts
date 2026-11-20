@@ -1,6 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
 /**
+ * A 429 from one of the API's rate limits (sign-in, registration, Place order, payments). Its
+ * `detail` says how long to wait. The sign-in lockout is also a 429, but has no such type.
+ */
+export const RATE_LIMITED_PROBLEM = 'urn:lumen:problem:rate-limited';
+
+/**
 RFC 9457 error body returned by Lumen.Api for every 4xx and 5xx.
 */
 export interface ProblemDetails {

@@ -177,6 +177,27 @@ describe('Sign in and register', () => {
     );
   });
 
+  it('tells a rate limit apart from a lockout', async () => {
+    await harness.navigateByUrl('/sign-in');
+    type('sign-in-email', 'customer@lumen.test');
+    type('sign-in-password', 'Customer!2026');
+
+    await submit();
+    http.expectOne('/api/v1/auth/sign-in').flush(
+      {
+        type: 'urn:lumen:problem:rate-limited',
+        title: 'Too many attempts',
+        detail: 'Wait 60 seconds, then try again.',
+        status: 429,
+      },
+      { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '60' } }
+    );
+    await harness.fixture.whenStable();
+
+    expect(text('.failure .failure-title')).toBe('Too many attempts');
+    expect(text('.failure .failure-title + p')).toBe('Wait 60 seconds, then try again.');
+  });
+
   it('registers, putting the API’s field errors under their fields', async () => {
     await harness.navigateByUrl('/register?returnUrl=%2Fcheckout%2Faddress');
     type('register-email', 'taken@lumen.test');

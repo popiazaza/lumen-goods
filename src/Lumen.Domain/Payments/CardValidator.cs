@@ -1,7 +1,22 @@
 namespace Lumen.Domain.Payments;
 
-/// <summary>What the customer typed on the card form. <see cref="ExpiryYear"/> may be two digits (26) or four (2026).</summary>
-public sealed record CardDetails(string? Number, int ExpiryMonth, int ExpiryYear, string? Cvc, string? HolderName);
+/// <summary>
+/// What the customer typed on the card form. <see cref="ExpiryYear"/> may be two digits (26) or four (2026).
+/// <see cref="ToString"/> shows only the last 4 digits and leaves out the CVC and the name, so a logged or
+/// interpolated card cannot leak them (BR-PAY-02).
+/// </summary>
+public sealed record CardDetails(string? Number, int ExpiryMonth, int ExpiryYear, string? Cvc, string? HolderName)
+{
+    /// <summary>"****0034": the last 4 digits of whatever was typed, or "****" when there are fewer.</summary>
+    public static string MaskNumber(string? number)
+    {
+        var digits = number is null ? "" : new string([.. number.Where(char.IsAsciiDigit)]);
+        return digits.Length >= 4 ? "****" + digits[^4..] : "****";
+    }
+
+    public override string ToString() =>
+        $"CardDetails {{ Number = {MaskNumber(Number)}, ExpiryMonth = {ExpiryMonth}, ExpiryYear = {ExpiryYear} }}";
+}
 
 /// <summary>The validation outcome: the parsed card when valid, otherwise one message per invalid field.</summary>
 /// <param name="Errors">Keyed by form field (<c>number</c>, <c>expiry</c>, <c>cvc</c>, <c>holderName</c>), ready for a validation problem response.</param>

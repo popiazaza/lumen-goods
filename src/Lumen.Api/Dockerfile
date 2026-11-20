@@ -14,6 +14,10 @@ RUN dotnet publish src/Lumen.Api/Lumen.Api.csproj -c Release -o /app --no-restor
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.15 AS runtime
 WORKDIR /app
+
+# Data Protection keys (DataProtection__KeysPath); compose mounts a volume here. A new volume takes this owner.
+RUN mkdir -p /app/keys && chown "$APP_UID" /app/keys
+
 COPY --from=build /app .
 USER $APP_UID
 EXPOSE 8080

@@ -34,8 +34,12 @@ services:
       dockerfile: src/Lumen.Api/Dockerfile
     environment:
       ConnectionStrings__Lumen: Host=db;Database=lumen;Username=lumen;Password=${POSTGRES_PASSWORD:-lumen-dev-password}
+      # nginx forwards the browser's Host, and only serves these two (DNS rebinding); the healthcheck below sends localhost.
+      AllowedHosts: "localhost;127.0.0.1"
       # Plain HTTP on localhost; production behind TLS keeps the default (Always).
       Auth__CookieSecurePolicy: SameAsRequest
+      # Keys for the session cookie and XSRF tokens, on a volume: sign-ins survive a restart or a rebuilt container.
+      DataProtection__KeysPath: /app/keys
       Docs__Enabled: "true"
       # Demo accounts listed in the README; off in the base (production) configuration.
       Seed__Enabled: "true"
@@ -46,6 +50,13 @@ services:
       Partners__Kestrel__BaseUrl: ${KESTREL_BASE_URL:-http://kestrel:8080}
       Partners__Kestrel__Username: ${KESTREL_USERNAME:-lumen}
       Partners__Kestrel__Password: ${KESTREL_PASSWORD:-kestrel-secret}
+      # OpenTelemetry: traces, metrics and logs go over OTLP only when this is set. With the "observability" profile,
+      # set it to http://aspire-dashboard:18889 (see .env.example). Empty by default: nothing is exported.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # Metrics every 10 s instead of the SDK's 60 s, so the dashboard's charts move during a demo.
+      OTEL_METRIC_EXPORT_INTERVAL: "10000"
+    volumes:
+      - api-keys:/app/keys
     healthcheck:
       # Healthy only once migrations and seeding are done and the database answers (/health).
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q Healthy <&3"]
@@ -93,7 +104,22 @@ services:
     healthcheck: *tcp-healthcheck
     restart: unless-stopped
 
+  # Optional, local only: "docker compose --profile observability up" adds the Aspire dashboard
+  # (http://localhost:18888) for the API's traces, metrics and logs. The API sends them only when
+  # OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889 is set (OTLP over gRPC on the compose network).
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6.5
+    profiles: [observability]
+    environment:
+      # Unsecured and anonymous on purpose: no login for the UI, the OTLP endpoint or the telemetry API. Acceptable
+      # only because the UI binds to 127.0.0.1 and OTLP is not published; never expose this container as it is.
+      ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-18888}:18888"
+    restart: unless-stopped
+
 volumes:
   db-data:
+  api-keys:
   harbor-data:
   kestrel-data:
