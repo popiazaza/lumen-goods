@@ -44,6 +44,12 @@ person decided, how its output was checked, and where it was wrong.
 | Compose published ports on every interface while the demo admin password is public | reviewer | `6b52dfd` |
 | `DateTimeOffset` serialised as `+00:00` where the product format requires `Z` | test | `f0cb457` |
 | A commit message claimed 34 seeded Kestrel products; the seed has 37 | author check before push | amended before push |
+| A partner order whose send timed out was refunded at the 30-minute deadline, though the partner may have accepted it and shipped | reviewer | `8e2ee7c` |
+| An admin's confirm or reject could cross a resend already on its way to the partner | second reviewer, checking the fixes | `9a5b7c0` |
+| Unpaid orders could stop expiring (and keep own stock reserved) once 50 unreadable failed payments filled every job batch | reviewer | `0ed4d3f` |
+| Customers saw the partner's internal code in a refund reason (`OUT_OF_STOCK:K-7735`) | screenshots for the PR | `3b2afb9` |
+| The payment diagram in the orders README did not render (a second colon in a label), and three docs disagreed with the code | writing DESIGN.md | `7e633df` |
+| An XML comment containing a double hyphen broke every project's build | running the documented test command | fixed before commit |
 
 ## Guardrails
 

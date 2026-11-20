@@ -9,5 +9,9 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- A business rule filter (the filter-trait option with "BR=BR-PAY-05") matches tests in only some projects; the
+         others would fail the whole run with exit code 8, "zero tests ran". A failing or erroring test still fails it.
+         (No double hyphen in this comment: XML forbids it.) -->
+    <TestingPlatformCommandLineArguments>$(TestingPlatformCommandLineArguments) --ignore-exit-code 8</TestingPlatformCommandLineArguments>
   </PropertyGroup>
 </Project>
