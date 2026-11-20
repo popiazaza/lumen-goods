@@ -51,7 +51,6 @@ internal sealed class PartnerSyncStateConfiguration : IEntityTypeConfiguration<P
 {
     public void Configure(EntityTypeBuilder<PartnerSyncState> builder)
     {
-        builder.ToTable("partner_sync_state");
         builder.HasKey(s => s.Partner);
         builder.Property(s => s.Partner).HasMaxLength(32);
         builder.Property(s => s.LastError).HasMaxLength(2000);
@@ -63,7 +62,6 @@ internal sealed class PartnerSyncErrorConfiguration : IEntityTypeConfiguration<P
 {
     public void Configure(EntityTypeBuilder<PartnerSyncError> builder)
     {
-        builder.ToTable("partner_sync_errors");
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.Partner).HasMaxLength(32);

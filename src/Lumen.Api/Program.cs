@@ -2,6 +2,7 @@ using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure;
 using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.Json;
 using Lumen.Api.Infrastructure.Security;
 using Lumen.Api.Partners;
 using Scalar.AspNetCore;
@@ -10,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddProblemDetails();
+builder.Services.ConfigureHttpJsonOptions(options => JsonDefaults.Configure(options.SerializerOptions));
 builder.Services.AddValidation();
 builder.Services.AddOpenApi();
 builder.Services.AddLumenData(builder.Configuration);

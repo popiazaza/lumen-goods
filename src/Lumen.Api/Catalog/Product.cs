@@ -41,10 +41,11 @@ public sealed class Product
     /// <summary>Partner products: the status to show when <see cref="Quantity"/> is null.</summary>
     public AvailabilityStatus StatusWhenQuantityUnknown { get; set; } = AvailabilityStatus.OutOfStock;
 
-    /// <summary>Lumen's own products only: units on hand and units reserved by unpaid orders.</summary>
+    /// <summary>Lumen's own products only (null for partner products): units physically on hand.</summary>
     public int? OnHand { get; set; }
 
-    public int? Reserved { get; set; }
+    /// <summary>Own products: units held by orders awaiting payment. Always 0 for partner products.</summary>
+    public int Reserved { get; set; }
 
     /// <summary>False for discontinued (Harbor), inactive (Kestrel) or deactivated (Lumen admin) products.</summary>
     public bool IsActive { get; set; } = true;
@@ -71,12 +72,11 @@ public sealed class Product
     /// <summary>PostgreSQL xmin, used as an optimistic concurrency token (admin edits racing with reservations).</summary>
     public uint Version { get; set; }
 
+    /// <summary>In-memory twin of <see cref="ProductQueries.IsSellable"/> (a test keeps the two in step).</summary>
     public bool IsSellable => IsActive && PriceUsd.HasValue;
 
     /// <summary>Own products: on hand minus reserved. Partner products: what the partner told us.</summary>
-    public int? AvailableQuantity => Source == ProductSources.Lumen
-        ? Math.Max(0, (OnHand ?? 0) - (Reserved ?? 0))
-        : Quantity;
+    public int? AvailableQuantity => OnHand is { } onHand ? Math.Max(0, onHand - Reserved) : Quantity;
 }
 
 /// <param name="SourceUrl">Where Lumen fetches the image (partner URL or own asset path); never sent to the browser.</param>

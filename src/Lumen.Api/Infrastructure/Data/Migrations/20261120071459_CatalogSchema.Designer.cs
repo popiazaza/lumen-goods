@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Lumen.Api.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(LumenDbContext))]
-    [Migration("20261120070545_CatalogSchema")]
+    [Migration("20261120071459_CatalogSchema")]
     partial class CatalogSchema
     {
         /// <inheritdoc />
@@ -23,6 +23,7 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Lumen.Api.Catalog.Product", b =>
@@ -83,8 +84,10 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                     b.Property<int?>("Quantity")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("Reserved")
-                        .HasColumnType("integer");
+                    b.Property<int>("Reserved")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -118,18 +121,42 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FirstSeenUtc");
+                    b.HasIndex("Category")
+                        .HasDatabaseName("IX_Products_Listed_Category")
+                        .HasFilter("\"IsListed\"");
 
-                    b.HasIndex("PriceUsd");
+                    b.HasIndex("Description")
+                        .HasDatabaseName("IX_Products_Description_Trgm");
 
-                    b.HasIndex("IsListed", "Category");
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Description"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Description"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("IX_Products_Name_Trgm");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("FirstSeenUtc", "Id")
+                        .HasDatabaseName("IX_Products_Listed_Newest")
+                        .HasFilter("\"IsListed\"");
+
+                    b.HasIndex("Name", "Id")
+                        .HasDatabaseName("IX_Products_Listed_Name")
+                        .HasFilter("\"IsListed\"");
+
+                    b.HasIndex("PriceUsd", "Id")
+                        .HasDatabaseName("IX_Products_Listed_Price")
+                        .HasFilter("\"IsListed\"");
 
                     b.HasIndex("Source", "SourceProductId")
                         .IsUnique();
 
-                    b.ToTable("products", null, t =>
+                    b.ToTable("Products", t =>
                         {
-                            t.HasCheckConstraint("ck_products_own_stock", "\"OnHand\" IS NULL OR (\"OnHand\" >= 0 AND \"Reserved\" >= 0 AND \"Reserved\" <= \"OnHand\")");
+                            t.HasCheckConstraint("CK_Products_OwnStockOnlyForLumen", "(\"Source\" = 'lumen') = (\"OnHand\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_Products_StockNotOverReserved", "\"Reserved\" >= 0 AND (\"OnHand\" IS NULL OR (\"OnHand\" >= 0 AND \"Reserved\" <= \"OnHand\"))");
                         });
                 });
 
@@ -228,7 +255,7 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.HasIndex("Partner", "OccurredUtc");
 
-                    b.ToTable("partner_sync_errors", (string)null);
+                    b.ToTable("PartnerSyncErrors");
                 });
 
             modelBuilder.Entity("Lumen.Api.Partners.PartnerSyncState", b =>
@@ -265,7 +292,7 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
 
                     b.HasKey("Partner");
 
-                    b.ToTable("partner_sync_state", (string)null);
+                    b.ToTable("PartnerSyncStates");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>

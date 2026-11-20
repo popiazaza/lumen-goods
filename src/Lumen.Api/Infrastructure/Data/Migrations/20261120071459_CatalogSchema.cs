@@ -11,8 +11,11 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AlterDatabase()
+                .Annotation("Npgsql:PostgresExtension:pg_trgm", ",,");
+
             migrationBuilder.CreateTable(
-                name: "partner_sync_errors",
+                name: "PartnerSyncErrors",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -24,11 +27,11 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_partner_sync_errors", x => x.Id);
+                    table.PrimaryKey("PK_PartnerSyncErrors", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
-                name: "partner_sync_state",
+                name: "PartnerSyncStates",
                 columns: table => new
                 {
                     Partner = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
@@ -43,11 +46,11 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_partner_sync_state", x => x.Partner);
+                    table.PrimaryKey("PK_PartnerSyncStates", x => x.Partner);
                 });
 
             migrationBuilder.CreateTable(
-                name: "products",
+                name: "Products",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -63,7 +66,7 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                     Quantity = table.Column<int>(type: "integer", nullable: true),
                     StatusWhenQuantityUnknown = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
                     OnHand = table.Column<int>(type: "integer", nullable: true),
-                    Reserved = table.Column<int>(type: "integer", nullable: true),
+                    Reserved = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     IsListed = table.Column<bool>(type: "boolean", nullable: false),
                     Images = table.Column<string>(type: "jsonb", nullable: false),
@@ -75,33 +78,57 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_products", x => x.Id);
-                    table.CheckConstraint("ck_products_own_stock", "\"OnHand\" IS NULL OR (\"OnHand\" >= 0 AND \"Reserved\" >= 0 AND \"Reserved\" <= \"OnHand\")");
+                    table.PrimaryKey("PK_Products", x => x.Id);
+                    table.CheckConstraint("CK_Products_OwnStockOnlyForLumen", "(\"Source\" = 'lumen') = (\"OnHand\" IS NOT NULL)");
+                    table.CheckConstraint("CK_Products_StockNotOverReserved", "\"Reserved\" >= 0 AND (\"OnHand\" IS NULL OR (\"OnHand\" >= 0 AND \"Reserved\" <= \"OnHand\"))");
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_partner_sync_errors_Partner_OccurredUtc",
-                table: "partner_sync_errors",
+                name: "IX_PartnerSyncErrors_Partner_OccurredUtc",
+                table: "PartnerSyncErrors",
                 columns: new[] { "Partner", "OccurredUtc" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_products_FirstSeenUtc",
-                table: "products",
-                column: "FirstSeenUtc");
+                name: "IX_Products_Description_Trgm",
+                table: "Products",
+                column: "Description")
+                .Annotation("Npgsql:IndexMethod", "gin")
+                .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_products_IsListed_Category",
-                table: "products",
-                columns: new[] { "IsListed", "Category" });
+                name: "IX_Products_Listed_Category",
+                table: "Products",
+                column: "Category",
+                filter: "\"IsListed\"");
 
             migrationBuilder.CreateIndex(
-                name: "IX_products_PriceUsd",
-                table: "products",
-                column: "PriceUsd");
+                name: "IX_Products_Listed_Name",
+                table: "Products",
+                columns: new[] { "Name", "Id" },
+                filter: "\"IsListed\"");
 
             migrationBuilder.CreateIndex(
-                name: "IX_products_Source_SourceProductId",
-                table: "products",
+                name: "IX_Products_Listed_Newest",
+                table: "Products",
+                columns: new[] { "FirstSeenUtc", "Id" },
+                filter: "\"IsListed\"");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Products_Listed_Price",
+                table: "Products",
+                columns: new[] { "PriceUsd", "Id" },
+                filter: "\"IsListed\"");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Products_Name_Trgm",
+                table: "Products",
+                column: "Name")
+                .Annotation("Npgsql:IndexMethod", "gin")
+                .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Products_Source_SourceProductId",
+                table: "Products",
                 columns: new[] { "Source", "SourceProductId" },
                 unique: true);
         }
@@ -110,13 +137,16 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "partner_sync_errors");
+                name: "PartnerSyncErrors");
 
             migrationBuilder.DropTable(
-                name: "partner_sync_state");
+                name: "PartnerSyncStates");
 
             migrationBuilder.DropTable(
-                name: "products");
+                name: "Products");
+
+            migrationBuilder.AlterDatabase()
+                .OldAnnotation("Npgsql:PostgresExtension:pg_trgm", ",,");
         }
     }
 }

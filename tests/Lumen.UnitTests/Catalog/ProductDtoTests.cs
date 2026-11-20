@@ -1,13 +1,17 @@
 using System.Text.Json;
 using Lumen.Api.Catalog;
+using Lumen.Api.Infrastructure.Json;
 using Lumen.Domain.Catalog;
 
 namespace Lumen.UnitTests.Catalog;
 
-/// <summary>The storefront product format from the spec, checked on the JSON the API actually writes.</summary>
+/// <summary>
+/// The storefront product format from the spec, checked with the API's own JSON settings (<see cref="JsonDefaults"/>,
+/// the same ones the HTTP pipeline uses), so this is what clients actually receive.
+/// </summary>
 public sealed class ProductDtoTests
 {
-    private static readonly JsonSerializerOptions WebJson = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions WebJson = JsonDefaults.Create();
     private static readonly AvailabilityPolicy Policy = new();
 
     private static Product PartnerProduct() => new()
@@ -94,6 +98,9 @@ public sealed class ProductDtoTests
         own.Quantity = null;
         own.OnHand = 10;
         own.Reserved = 7;
+        own.SourceCurrency = "USD";
+        own.SourcePrice = null;
+        own.FxRateToUsd = null;
 
         Serialize(own).GetProperty("availability").GetProperty("quantity").GetInt32().Should().Be(3);
     }

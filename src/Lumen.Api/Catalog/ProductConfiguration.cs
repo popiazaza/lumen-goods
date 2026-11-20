@@ -11,7 +11,6 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 
     public void Configure(EntityTypeBuilder<Product> builder)
     {
-        builder.ToTable("products");
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();
 
@@ -28,9 +27,15 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.StatusWhenQuantityUnknown).HasConversion<string>().HasMaxLength(16);
         builder.Property(p => p.ContentHash).HasMaxLength(64);
 
-        // Own stock can never go negative or be over-reserved (BR-STOCK-01 relies on this as the last line of defence).
-        builder.ToTable(t => t.HasCheckConstraint("ck_products_own_stock",
-            "\"OnHand\" IS NULL OR (\"OnHand\" >= 0 AND \"Reserved\" >= 0 AND \"Reserved\" <= \"OnHand\")"));
+        // Own products (and only they) track stock; it can never go negative or be over-reserved. BR-STOCK-01 relies on
+        // this as the last line of defence behind the conditional reserve UPDATE.
+        builder.Property(p => p.Reserved).HasDefaultValue(0);
+        builder.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_Products_OwnStockOnlyForLumen", "(\"Source\" = 'lumen') = (\"OnHand\" IS NOT NULL)");
+            t.HasCheckConstraint("CK_Products_StockNotOverReserved",
+                "\"Reserved\" >= 0 AND (\"OnHand\" IS NULL OR (\"OnHand\" >= 0 AND \"Reserved\" <= \"OnHand\"))");
+        });
 
         builder.Property(p => p.Version).IsRowVersion();
 
@@ -54,9 +59,14 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
                     v => v.Aggregate(0, (h, kv) => HashCode.Combine(h, kv.Key, kv.Value)),
                     v => new Dictionary<string, string>(v)));
 
-        builder.HasIndex(p => new { p.IsListed, p.Category });
-        builder.HasIndex(p => p.PriceUsd);
-        builder.HasIndex(p => p.FirstSeenUtc);
+        // The storefront only ever lists IsListed rows, so the listing indexes are partial; each sort ends with Id, the
+        // paging tie-breaker. Trigram indexes serve case-insensitive "contains" search (ILIKE '%term%').
+        builder.HasIndex(p => p.Category).HasFilter("\"IsListed\"").HasDatabaseName("IX_Products_Listed_Category");
+        builder.HasIndex(p => new { p.PriceUsd, p.Id }).HasFilter("\"IsListed\"").HasDatabaseName("IX_Products_Listed_Price");
+        builder.HasIndex(p => new { p.FirstSeenUtc, p.Id }).HasFilter("\"IsListed\"").HasDatabaseName("IX_Products_Listed_Newest");
+        builder.HasIndex(p => new { p.Name, p.Id }).HasFilter("\"IsListed\"").HasDatabaseName("IX_Products_Listed_Name");
+        builder.HasIndex(p => p.Name).HasMethod("gin").HasOperators("gin_trgm_ops").HasDatabaseName("IX_Products_Name_Trgm");
+        builder.HasIndex(p => p.Description).HasMethod("gin").HasOperators("gin_trgm_ops").HasDatabaseName("IX_Products_Description_Trgm");
 
         builder.Ignore(p => p.IsSellable);
         builder.Ignore(p => p.AvailableQuantity);

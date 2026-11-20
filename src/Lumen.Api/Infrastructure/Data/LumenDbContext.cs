@@ -23,6 +23,10 @@ public sealed class LumenDbContext(DbContextOptions<LumenDbContext> options)
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        // Table and column names follow EF Core's PascalCase defaults everywhere (like the Identity tables), so
+        // hand-written SQL always quotes them the same way.
+        builder.HasPostgresExtension("pg_trgm");
         builder.ApplyConfigurationsFromAssembly(typeof(LumenDbContext).Assembly);
     }
 }
