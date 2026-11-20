@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.angular/
+**/TestResults/
+**/*.db
+src/StandIns/*/data/
+**/.env
+.git/
+.vs/
+.idea/
+.vscode/
+tests/
+docs/
+*.md
+!src/**/README.md

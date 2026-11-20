@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Lumen.Api/Lumen.Api.csproj" />
+    <Project Path="src/Lumen.Domain/Lumen.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/StandIns/">
+    <Project Path="src/StandIns/HarborSupply.StandIn/HarborSupply.StandIn.csproj" />
+    <Project Path="src/StandIns/KestrelOutfitters.StandIn/KestrelOutfitters.StandIn.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HarborSupply.StandIn.Tests/HarborSupply.StandIn.Tests.csproj" />
+    <Project Path="tests/KestrelOutfitters.StandIn.Tests/KestrelOutfitters.StandIn.Tests.csproj" />
+    <Project Path="tests/Lumen.IntegrationTests/Lumen.IntegrationTests.csproj" />
+    <Project Path="tests/Lumen.UnitTests/Lumen.UnitTests.csproj" />
+  </Folder>
+</Solution>

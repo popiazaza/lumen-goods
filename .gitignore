@@ -1,0 +1,39 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.trx
+coverage*/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+*.tsbuildinfo
+npm-debug.log*
+
+# Local data and secrets (anchored: a bare "data/" would also hide Infrastructure/Data/ on
+# case-insensitive file systems)
+.env
+*.db
+*.db-shm
+*.db-wal
+/data/
+/src/StandIns/*/data/
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Vendor-specific agent files (this repo uses AGENTS.md and .agents/ only)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

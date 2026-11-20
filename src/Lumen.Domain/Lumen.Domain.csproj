@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure domain code: money, pricing, refunds, status transitions. No EF Core, no HTTP. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Lumen.UnitTests" />
+  </ItemGroup>
+
+</Project>
