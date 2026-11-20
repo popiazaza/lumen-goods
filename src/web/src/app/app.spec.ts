@@ -71,7 +71,11 @@ describe('App shell', () => {
     query<HTMLFormElement>(fixture, 'form[role="search"]').dispatchEvent(new Event('submit'));
 
     // Not whenStable(): the catalogue's product request stays pending in HttpTestingController.
-    await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/?q=desk%20lamp'));
+    // The first lazy load of the catalogue chunk can take over a second while the whole suite
+    // runs in parallel, so allow longer than waitFor's 1 s default.
+    await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/?q=desk%20lamp'), {
+      timeout: 5000,
+    });
   });
 
   it('opens the mobile menu and closes it with Escape, returning focus to the toggle', async () => {
