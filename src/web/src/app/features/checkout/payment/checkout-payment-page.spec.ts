@@ -341,6 +341,7 @@ describe('CheckoutPaymentPage', () => {
 
     it('resumes polling after a reload instead of showing the form again', async () => {
       TestBed.inject(CheckoutStore).setAddress(US_ADDRESS);
+      TestBed.inject(CheckoutStore).setOrderNumber(ORDER);
       await open(aPaymentStatus({ status: 'processing' }));
 
       expect(text('#processing-heading')).toBe('Confirming your payment…');
@@ -709,6 +710,79 @@ describe('CheckoutPaymentPage', () => {
       expect(text('.outcome-title')).toBe('The code is not correct');
       expect(host().querySelector('#card-number')).toBeTruthy();
     });
+  });
+
+  describe('opened without ?order= (the stepper’s Payment link)', () => {
+    let store: CheckoutStore;
+
+    /** Opens the page on the order this checkout placed, as the stepper does. */
+    async function openFromCheckout(): Promise<void> {
+      store = TestBed.inject(CheckoutStore);
+      store.setAddress(US_ADDRESS);
+      store.setShippingMethod('standard');
+      store.orderPlaced(anOrder());
+      fixture = TestBed.createComponent(CheckoutPaymentPage);
+      await settle();
+      http.expectOne(CURRENT_URL).flush({ title: 'No payment yet' }, NOT_FOUND);
+      http.expectOne('/api/v1/wallet').flush(aWallet());
+      await settle();
+    }
+
+    it('pays the checkout’s order, ends the checkout and never flashes "can’t be paid"', async () => {
+      await openFromCheckout();
+      expect(text('.order-line')).toContain(`Order ${ORDER} · Total $67.46`);
+      fillCard();
+
+      await pay();
+      http
+        .expectOne(`${ORDER_URL}/payments`)
+        .flush(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
+      await settle();
+
+      // The reset checkout must not reload the page with no order.
+      expect(host().querySelector('#closed-heading')).toBeNull();
+      expect(text('p[role="status"]')).toBe('Payment confirmed. Opening your order confirmation…');
+      expect(store.orderNumber()).toBeNull();
+      http.expectOne('/api/v1/cart').flush(aCart([]));
+      await settle();
+      expect(url()).toBe(`/orders/${ORDER}/confirmation`);
+    });
+
+    it('keeps the reason the order closed after the checkout resets', async () => {
+      await openFromCheckout();
+      fillCard('4242000000000018');
+
+      await pay();
+      http.expectOne(`${ORDER_URL}/payments`).flush(
+        aPaymentStatus({
+          status: 'declined',
+          declineMessage: 'Insufficient funds',
+          retryMode: 'none',
+          attemptsLeft: 0,
+          orderStatus: 'expired',
+        }),
+      );
+      await settle();
+
+      expect(store.orderNumber()).toBeNull();
+      expect(text('.state p')).toBe(
+        'This order ran out of payment attempts, so it was cancelled. You have not been charged.',
+      );
+    });
+  });
+
+  it('leaves the checkout in progress alone when paying another order through ?order=', async () => {
+    const store = TestBed.inject(CheckoutStore);
+    store.setAddress(US_ADDRESS);
+    store.setOrderNumber('LG-OTHER1');
+
+    await open(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
+    http.expectOne('/api/v1/cart').flush(aCart([]));
+    await settle();
+
+    expect(url()).toBe(`/orders/${ORDER}/confirmation`);
+    expect(store.orderNumber()).toBe('LG-OTHER1');
+    expect(store.address()).toEqual(US_ADDRESS);
   });
 
   it('goes straight to the confirmation for an order that is already paid', async () => {

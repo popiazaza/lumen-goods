@@ -199,7 +199,14 @@ export class CheckoutPaymentPage {
   private readonly outcomeBanner = viewChild<ElementRef<HTMLElement>>('outcomeBanner');
   private polling?: Subscription;
 
-  protected readonly orderNumber = computed(() => this.order() || this.store.orderNumber() || '');
+  /**
+   * The order this page pays. Without `?order=`, the checkout's order as the page opened (read
+   * untracked): paying or closing resets the checkout, and the page must go on showing that order
+   * and how it ended, not reload with no order ("This order can’t be paid" after paying).
+   */
+  protected readonly orderNumber = computed(
+    () => this.order() || untracked(() => this.store.orderNumber()) || '',
+  );
   protected readonly orderDetail = signal<OrderDetailDto | null>(null);
   protected readonly payment = signal<PaymentStatusDto | null>(null);
   protected readonly phase = signal<Phase>('loading');
@@ -506,7 +513,7 @@ export class CheckoutPaymentPage {
     this.stopPolling();
     this.phase.set('paid');
     const number = this.payment()?.orderNumber ?? this.orderDetail()?.number ?? this.orderNumber();
-    this.store.reset();
+    this.endCheckoutOf(number);
     this.cart.reload().subscribe({ error: () => undefined });
     void this.announcer.announce('Payment confirmed.', 'polite');
     // Replace this URL so Back cannot show a payable form for a paid order.
@@ -517,8 +524,15 @@ export class CheckoutPaymentPage {
     this.stopPolling();
     this.closedReason.set(reason);
     this.enter('closed');
-    if (this.orderNumber() && this.orderNumber() === this.store.orderNumber()) {
-      // The next checkout must create a new order.
+    this.endCheckoutOf(this.orderNumber());
+  }
+
+  /**
+   * The checkout that placed this order is over, so the next one creates a new order. Paying or
+   * closing another order through `?order=` leaves a checkout in progress alone.
+   */
+  private endCheckoutOf(number: string): void {
+    if (number && number === this.store.orderNumber()) {
       this.store.reset();
     }
   }
