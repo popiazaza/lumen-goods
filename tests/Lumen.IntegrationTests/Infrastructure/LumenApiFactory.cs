@@ -14,7 +14,15 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
 {
     private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:18.7-alpine3.24").Build();
 
-    public async ValueTask InitializeAsync() => await _database.StartAsync();
+    public async ValueTask InitializeAsync()
+    {
+        await _database.StartAsync();
+
+        // Build the host (migrations, seeding) once, here. WebApplicationFactory creates its server lazily and without
+        // a lock, so test classes touching Services/CreateClient in parallel could otherwise start two hosts that
+        // migrate and seed the same database at the same time.
+        _ = Server;
+    }
 
     public override async ValueTask DisposeAsync()
     {
