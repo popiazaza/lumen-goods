@@ -96,6 +96,14 @@ public sealed class OrderPresentationTests
         detail.Totals.Refunded.Should().Be(40.03m);
         detail.Totals.NetPaid.Should().Be(order.Total - 40.03m);
         detail.Refunds.Should().ContainSingle().Which.Should().BeEquivalentTo(new { Amount = 40.03m, ShippingAmount = 4.99m, LineIds = new[] { kestrel.Id } });
+        detail.Refunds.Single().Reason.Should().Be("Not supplied by Kestrel Outfitters", "the partner's own code is for the admin");
+
+        var admin = OrderDetailMapping.ToDetail(order, new Dictionary<Guid, List<ProductImage>>(), Sellers, Policy(), Now, "https://shop.test", forAdmin: true);
+        admin.Refunds.Single().Reason.Should().Be("Not supplied by Kestrel Outfitters (OUT_OF_STOCK:K-7731)");
+
+        refund.Status = RefundStatus.Failed;
+        OrderDetailMapping.ToDetail(order, new Dictionary<Guid, List<ProductImage>>(), Sellers, Policy(), Now, "https://shop.test")
+            .IsUpdating.Should().BeTrue("a failed refund is retried, so the page keeps refreshing until it is paid back");
     }
 
     [Fact]

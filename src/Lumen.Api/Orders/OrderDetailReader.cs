@@ -32,7 +32,7 @@ internal sealed class OrderDetailReader(LumenDbContext db, SellerDirectory selle
             return null;
         }
 
-        var detail = await ToDetailAsync(order, mediaBaseUrl, cancellationToken);
+        var detail = await ToDetailAsync(order, mediaBaseUrl, cancellationToken, forAdmin: true);
         var email = await db.Users.AsNoTracking().Where(u => u.Id == order.CustomerId).Select(u => u.Email).SingleOrDefaultAsync(cancellationToken);
         var events = await db.PaymentEvents.AsNoTracking()
             .Where(e => e.OrderId == order.Id)
@@ -69,14 +69,14 @@ internal sealed class OrderDetailReader(LumenDbContext db, SellerDirectory selle
             .AsSplitQuery()
             .SingleOrDefaultAsync(filter, cancellationToken);
 
-    private async Task<OrderDetailDto> ToDetailAsync(Order order, string mediaBaseUrl, CancellationToken cancellationToken)
+    private async Task<OrderDetailDto> ToDetailAsync(Order order, string mediaBaseUrl, CancellationToken cancellationToken, bool forAdmin = false)
     {
         var productIds = order.Lines.Select(l => l.ProductId).Distinct().ToList();
         var images = await db.Products.AsNoTracking()
             .Where(p => productIds.Contains(p.Id))
             .Select(p => new { p.Id, p.Images })
             .ToDictionaryAsync(p => p.Id, p => p.Images, cancellationToken);
-        return OrderDetailMapping.ToDetail(order, images, sellers, paymentWindow, clock.GetUtcNow(), mediaBaseUrl);
+        return OrderDetailMapping.ToDetail(order, images, sellers, paymentWindow, clock.GetUtcNow(), mediaBaseUrl, forAdmin);
     }
 
     private PartnerOrderDto ToDto(OrderLine line, PartnerOrder partnerOrder) => new(
@@ -102,13 +102,24 @@ internal sealed class OrderDetailReader(LumenDbContext db, SellerDirectory selle
 /// <summary>The order-to-DTO mapping, without the database (unit-tested on its own).</summary>
 internal static class OrderDetailMapping
 {
+    /// <summary>
+    /// What the customer reads as a refund's reason: who did not supply the line. The stored reason also carries the
+    /// partner's own code or the admin's note (e.g. "(OUT_OF_STOCK:K-7735)"), which is for the admin, not the customer.
+    /// </summary>
+    public static string CustomerReason(string reason)
+    {
+        var detail = reason.IndexOf(" (", StringComparison.Ordinal);
+        return detail > 0 ? reason[..detail] : reason;
+    }
+
     public static OrderDetailDto ToDetail(
         Order order,
         IReadOnlyDictionary<Guid, List<ProductImage>> productImages,
         SellerDirectory sellers,
         PaymentWindowPolicy paymentWindow,
         DateTimeOffset now,
-        string mediaBaseUrl)
+        string mediaBaseUrl,
+        bool forAdmin = false)
     {
         var refundedPerLine = RefundedPerLine(order);
         var paidBackLines = order.Refunds.Where(r => r.Status == RefundStatus.Succeeded).SelectMany(r => r.Lines).Select(l => l.OrderLineId).ToHashSet();
@@ -169,12 +180,12 @@ internal static class OrderDetailMapping
                     payment.CompletedUtc?.UtcDateTime),
             [.. order.Refunds
                 .OrderBy(r => r.CreatedUtc).ThenBy(r => r.Id)
-                .Select(r => new RefundDto(r.Id, r.Amount, r.Status, r.Reason, [.. r.Lines.Select(l => l.OrderLineId)], r.ShippingAmount,
+                .Select(r => new RefundDto(r.Id, r.Amount, r.Status, forAdmin ? r.Reason : CustomerReason(r.Reason), [.. r.Lines.Select(l => l.OrderLineId)], r.ShippingAmount,
                     r.CreatedUtc.UtcDateTime, r.CompletedUtc?.UtcDateTime))],
             CanPay: order.Status == OrderStatus.AwaitingPayment && paymentWindow.CanStartAttempt(order.FailedPaymentAttempts, order.CreatedUtc, now),
             IsUpdating: order.Status == OrderStatus.PaymentProcessing
                         || order.Lines.Any(l => l.Status == OrderLineStatus.AwaitingPartner)
-                        || order.Refunds.Any(r => r.Status == RefundStatus.Pending));
+                        || refundPending);
     }
 
     /// <summary>
