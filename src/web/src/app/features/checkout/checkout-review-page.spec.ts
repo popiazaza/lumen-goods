@@ -13,7 +13,8 @@ import {
 } from '../../core/api/checkout.api';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../core/icons/app-icons';
-import { US_ADDRESS, aCart, aPreview, anOrder } from '../../testing/fixtures';
+import { US_ADDRESS, aCart, aPreview } from '../../testing/fixtures';
+import { anOrder } from '../../testing/order-fixtures';
 import { CheckoutReviewPage } from './checkout-review-page';
 
 @Component({ template: '<h1>Elsewhere</h1>' })

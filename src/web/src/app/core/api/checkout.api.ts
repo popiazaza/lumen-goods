@@ -173,8 +173,8 @@ export function checkoutChangedProblemOf(error: unknown): CheckoutChangedProblem
 }
 
 /**
- * Checkout (signed-in customers): `GET /checkout/preview`, `POST /checkout/orders`, and the order
- * read that the payment and confirmation pages use (`GET /orders/{number}`).
+ * Checkout (signed-in customers): `GET /checkout/preview` and `POST /checkout/orders`. The placed
+ * order is read back with `OrdersApi.get`.
  */
 @Service()
 export class CheckoutApi {
@@ -195,13 +195,5 @@ export class CheckoutApi {
    */
   placeOrder(request: PlaceOrderRequest): Observable<OrderDetailDto> {
     return this.http.post<OrderDetailDto>(`${this.baseUrl}/checkout/orders`, request);
-  }
-
-  /**
-   * The customer's own order (`OrdersFeature.MapOrderEndpoints`); 404 for an unknown number or
-   * another customer's order.
-   */
-  order(number: string): Observable<OrderDetailDto> {
-    return this.http.get<OrderDetailDto>(`${this.baseUrl}/orders/${encodeURIComponent(number)}`);
   }
 }

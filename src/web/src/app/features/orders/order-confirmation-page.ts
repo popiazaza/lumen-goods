@@ -14,7 +14,7 @@ import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 import { Subscription, catchError, map, of, repeat, takeWhile } from 'rxjs';
-import { CheckoutApi } from '../../core/api/checkout.api';
+import { OrdersApi } from '../../core/api/orders.api';
 import {
   OWN_SOURCE,
   OrderDetailDto,
@@ -53,7 +53,7 @@ export class OrderConfirmationPage {
   /** The order number, bound from the `:id` route parameter. */
   readonly id = input.required<string>();
 
-  private readonly api = inject(CheckoutApi);
+  private readonly api = inject(OrdersApi);
   private readonly destroyRef = inject(DestroyRef);
   private polling?: Subscription;
 
@@ -131,7 +131,7 @@ export class OrderConfirmationPage {
     this.order.set(null);
     this.state.set('loading');
     this.polling = this.api
-      .order(number)
+      .get(number)
       .pipe(
         map((order): Read => ({ order })),
         catchError((error: unknown) => of<Read>({ error })),

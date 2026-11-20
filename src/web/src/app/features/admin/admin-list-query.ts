@@ -1,5 +1,5 @@
 import { ParamMap, Params } from '@angular/router';
-import { ORDER_STATUSES, OrderStatus } from '../../core/api/orders.api';
+import { ORDER_STATUSES, OrderStatus } from '../../core/api/order.models';
 import { ProductStatusFilter } from '../../core/api/admin-products.api';
 import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
 

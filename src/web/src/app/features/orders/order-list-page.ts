@@ -17,7 +17,8 @@ import { MatCard } from '@angular/material/card';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { ActivatedRoute, Params, RouterLink } from '@angular/router';
-import { OrderSummary, OrdersApi } from '../../core/api/orders.api';
+import { OrderSummaryDto } from '../../core/api/order.models';
+import { OrdersApi } from '../../core/api/orders.api';
 import { PagedResult } from '../../core/api/paged-result';
 import { httpStatusOf } from '../../core/api/problem-details';
 import { registerOrderIcons } from './order-icons';
@@ -66,8 +67,8 @@ export class OrderListPage {
   });
   /** The last page that loaded: stays on screen (dimmed) while the next one loads. */
   protected readonly result = linkedSignal<
-    PagedResult<OrderSummary> | undefined,
-    PagedResult<OrderSummary> | undefined
+    PagedResult<OrderSummaryDto> | undefined,
+    PagedResult<OrderSummaryDto> | undefined
   >({
     source: () => (this.orders.hasValue() ? this.orders.value() : undefined),
     computation: (next, previous) => next ?? previous?.value,
@@ -101,7 +102,7 @@ export class OrderListPage {
     });
   }
 
-  protected statusOf(order: OrderSummary): StatusView {
+  protected statusOf(order: OrderSummaryDto): StatusView {
     return orderStatusView(order.status, order.statusText);
   }
 }

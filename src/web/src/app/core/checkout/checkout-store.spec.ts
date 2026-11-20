@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { US_ADDRESS, anOrder } from '../../testing/fixtures';
+import { US_ADDRESS } from '../../testing/fixtures';
+import { anOrder } from '../../testing/order-fixtures';
 import { CHECKOUT_STORAGE_KEY, CheckoutStore, newCheckoutKey } from './checkout-store';
 
 describe('CheckoutStore', () => {

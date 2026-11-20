@@ -2,7 +2,7 @@
 import { PartnerStatus } from '../core/api/admin-partners.api';
 import { CartDto, CartLineDto } from '../core/api/cart.api';
 import { CheckoutPreviewDto } from '../core/api/checkout.api';
-import { OrderDetailDto, OrderLineDto, ShippingAddress } from '../core/api/order.models';
+import { ShippingAddress } from '../core/api/order.models';
 import { PaymentStatusDto } from '../core/api/payments.api';
 import { ProductDto, ProductPage } from '../core/api/products.api';
 import { Seller } from '../core/api/sellers.api';
@@ -174,65 +174,6 @@ export function aPreview(overrides: Partial<CheckoutPreviewDto> = {}): CheckoutP
       { method: 'express', fee: 12.99, shippingTotal: 17.98 },
     ],
     blockers: [],
-    ...overrides,
-  };
-}
-
-export function anOrderLine(overrides: Partial<OrderLineDto> = {}): OrderLineDto {
-  return {
-    id: 'order-line-1',
-    name: 'Enamel Camp Mug',
-    quantity: 2,
-    subtotal: 37,
-    status: 'confirmed',
-    statusText: 'Confirmed',
-    ...overrides,
-  };
-}
-
-export function anOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
-  return {
-    number: 'LG-7K3M9QX2',
-    status: 'awaiting_payment',
-    holdExpiresUtc: '2026-11-20T08:15:00Z',
-    shipments: [
-      {
-        source: 'lumen',
-        sellerName: 'Lumen Goods',
-        method: 'standard',
-        fee: 4.99,
-        feeRefunded: false,
-        lines: [anOrderLine({ status: 'pending', statusText: 'Pending' })],
-      },
-      {
-        source: 'kestrel',
-        sellerName: 'Kestrel Outfitters',
-        method: 'standard',
-        fee: 4.99,
-        feeRefunded: false,
-        lines: [
-          anOrderLine({
-            id: 'order-line-2',
-            name: 'Merino Trail Socks',
-            quantity: 1,
-            subtotal: 16.22,
-            status: 'pending',
-            statusText: 'Pending',
-          }),
-        ],
-      },
-    ],
-    totals: {
-      subtotal: 53.22,
-      shipping: 9.98,
-      tax: 4.26,
-      total: 67.46,
-      refunded: 0,
-      netPaid: 67.46,
-    },
-    payment: null,
-    canPay: true,
-    isUpdating: false,
     ...overrides,
   };
 }

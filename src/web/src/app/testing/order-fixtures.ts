@@ -1,7 +1,12 @@
 // Order and admin test data builders shared by specs. Not imported by app code, so never bundled.
 import { AdminOrder, AdminOrderSummary, PartnerOrder } from '../core/api/admin-orders.api';
 import { AdminProduct } from '../core/api/admin-products.api';
-import { OrderDetail, OrderLine, OrderSummary } from '../core/api/orders.api';
+import {
+  OrderDetailDto,
+  OrderLineDto,
+  OrderSummaryDto,
+  PaymentSummaryDto,
+} from '../core/api/order.models';
 import { PagedResult } from '../core/api/paged-result';
 
 export function aPagedResult<T>(
@@ -18,7 +23,7 @@ export function aPagedResult<T>(
   };
 }
 
-export function anOrderSummary(overrides: Partial<OrderSummary> = {}): OrderSummary {
+export function anOrderSummary(overrides: Partial<OrderSummaryDto> = {}): OrderSummaryDto {
   return {
     number: 'LG-7K3M9QX2',
     status: 'paid',
@@ -32,7 +37,7 @@ export function anOrderSummary(overrides: Partial<OrderSummary> = {}): OrderSumm
   };
 }
 
-export function anOrderLine(overrides: Partial<OrderLine> = {}): OrderLine {
+export function anOrderLine(overrides: Partial<OrderLineDto> = {}): OrderLineDto {
   return {
     id: 'line-1',
     lineNumber: 1,
@@ -64,7 +69,7 @@ export const SOCKS_LINE = anOrderLine({
 });
 
 /** The contract's example: a Lumen line confirmed, a Kestrel line still awaiting its partner. */
-export function anOrderDetail(overrides: Partial<OrderDetail> = {}): OrderDetail {
+export function anOrderDetail(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
   return {
     number: 'LG-7K3M9QX2',
     status: 'paid',
@@ -108,15 +113,7 @@ export function anOrderDetail(overrides: Partial<OrderDetail> = {}): OrderDetail
       country: 'US',
     },
     shippingMethod: 'express',
-    payment: {
-      paymentId: 'payment-1',
-      method: 'card',
-      status: 'succeeded',
-      amount: 75.46,
-      cardBrand: 'visa',
-      cardLast4: '1111',
-      completedUtc: '2026-11-20T08:01:10Z',
-    },
+    payment: aCardPayment(),
     refunds: [],
     canPay: false,
     isUpdating: true,
@@ -124,8 +121,51 @@ export function anOrderDetail(overrides: Partial<OrderDetail> = {}): OrderDetail
   };
 }
 
+export function aCardPayment(overrides: Partial<PaymentSummaryDto> = {}): PaymentSummaryDto {
+  return {
+    paymentId: 'payment-1',
+    method: 'card',
+    status: 'succeeded',
+    amount: 75.46,
+    cardBrand: 'visa',
+    cardLast4: '1111',
+    completedUtc: '2026-11-20T08:01:10Z',
+    ...overrides,
+  };
+}
+
+/**
+ * Place order's answer: the same order before payment, Standard shipping for both sellers, every
+ * line pending, the payment step open.
+ */
+export function anOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
+  const order = anOrderDetail();
+  return {
+    ...order,
+    status: 'awaiting_payment',
+    statusText: 'Awaiting payment',
+    paidUtc: null,
+    shipments: order.shipments.map((shipment) => ({
+      ...shipment,
+      method: 'standard' as const,
+      fee: 4.99,
+      lines: shipment.lines.map((line) => ({
+        ...line,
+        status: 'pending' as const,
+        statusText: 'Awaiting payment',
+      })),
+    })),
+    totals: { subtotal: 53.22, shipping: 9.98, tax: 4.26, total: 67.46, refunded: 0, netPaid: 0 },
+    shippingMethod: 'standard',
+    payment: null,
+    canPay: true,
+    isUpdating: false,
+    ...overrides,
+  };
+}
+
 /** The same order once Kestrel has answered: every line final, nothing left to wait for. */
-export function aSettledOrderDetail(overrides: Partial<OrderDetail> = {}): OrderDetail {
+export function aSettledOrderDetail(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
   const order = anOrderDetail();
   return {
     ...order,

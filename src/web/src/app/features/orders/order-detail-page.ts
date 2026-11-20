@@ -7,7 +7,8 @@ import { MatCard } from '@angular/material/card';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
-import { OrderDetail, OrderLine, OrdersApi } from '../../core/api/orders.api';
+import { OrderDetailDto, OrderLineDto } from '../../core/api/order.models';
+import { OrdersApi } from '../../core/api/orders.api';
 import { httpStatusOf } from '../../core/api/problem-details';
 import { ProductImage } from '../../shared/products/product-image';
 import { registerOrderIcons } from './order-icons';
@@ -90,11 +91,11 @@ export class OrderDetailPage {
     this.announceLineChanges();
   }
 
-  protected orderStatus(order: OrderDetail): StatusView {
+  protected orderStatus(order: OrderDetailDto): StatusView {
     return orderStatusView(order.status, order.statusText);
   }
 
-  protected lineStatus(line: OrderLine): StatusView {
+  protected lineStatus(line: OrderLineDto): StatusView {
     return lineStatusView(line.status, line.statusText);
   }
 

@@ -45,7 +45,6 @@ import {
   throwError,
   timer,
 } from 'rxjs';
-import { CheckoutApi } from '../../../core/api/checkout.api';
 import {
   OrderDetailDto,
   OrderStatus,
@@ -53,6 +52,7 @@ import {
   PaymentStatus,
   cardBrandName,
 } from '../../../core/api/order.models';
+import { OrdersApi } from '../../../core/api/orders.api';
 import {
   ORDER_NOT_PAYABLE_PROBLEM,
   PAYMENT_IN_PROGRESS_PROBLEM,
@@ -170,7 +170,7 @@ export class CheckoutPaymentPage {
   /** `?order=` (bound by the router); otherwise the order this checkout placed. */
   readonly order = input<string>();
 
-  private readonly checkoutApi = inject(CheckoutApi);
+  private readonly orders = inject(OrdersApi);
   private readonly payments = inject(PaymentsApi);
   private readonly walletApi = inject(WalletApi);
   private readonly store = inject(CheckoutStore);
@@ -348,7 +348,7 @@ export class CheckoutPaymentPage {
     const placed = this.store.placedOrder();
     forkJoin({
       order:
-        placed?.number === number ? of(placed) : notFoundAsNull(this.checkoutApi.order(number)),
+        placed?.number === number ? of(placed) : notFoundAsNull(this.orders.get(number)),
       payment: notFoundAsNull(this.payments.current(number)),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))

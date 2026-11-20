@@ -2,7 +2,7 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { MatCard } from '@angular/material/card';
 import { MatIcon } from '@angular/material/icon';
-import { OrderDetail, OrderLine, Refund } from '../../core/api/orders.api';
+import { OrderDetailDto, OrderLineDto, RefundDto } from '../../core/api/order.models';
 import { paymentMethodLabel, paymentStatusView, refundStatusView } from './order-labels';
 import { StatusBadge } from './status-badge';
 
@@ -131,7 +131,7 @@ import { StatusBadge } from './status-badge';
   styleUrl: './order-summary-panel.scss',
 })
 export class OrderSummaryPanel {
-  readonly order = input.required<OrderDetail>();
+  readonly order = input.required<OrderDetailDto>();
 
   protected readonly methodLabel = computed(() => {
     const payment = this.order().payment;
@@ -150,7 +150,7 @@ export class OrderSummaryPanel {
   );
 
   /** The lines a refund pays back, each with the amount the API refunded for it. */
-  protected refundedLines(refund: Refund): OrderLine[] {
+  protected refundedLines(refund: RefundDto): OrderLineDto[] {
     const lines = this.linesById();
     return refund.lineIds.flatMap((id) => lines.get(id) ?? []);
   }

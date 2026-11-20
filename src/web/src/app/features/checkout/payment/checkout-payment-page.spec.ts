@@ -12,7 +12,8 @@ import {
 } from '../../../core/api/payments.api';
 import { CheckoutStore } from '../../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../../core/icons/app-icons';
-import { US_ADDRESS, aCart, aPaymentStatus, aWallet, anOrder } from '../../../testing/fixtures';
+import { US_ADDRESS, aCart, aPaymentStatus, aWallet } from '../../../testing/fixtures';
+import { anOrder } from '../../../testing/order-fixtures';
 import { CheckoutPaymentPage, PAYMENT_POLL_INTERVAL_MS } from './checkout-payment-page';
 
 @Component({ template: '<h1>Confirmation</h1>' })

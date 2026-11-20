@@ -8,8 +8,8 @@ import {
   aPaymentStatus,
   aPreview,
   aWallet,
-  anOrder,
 } from '../../testing/fixtures';
+import { anOrder } from '../../testing/order-fixtures';
 import { CartApi } from './cart.api';
 import {
   CHECKOUT_CHANGED_PROBLEM,
@@ -63,7 +63,7 @@ describe('purchase flow API services', () => {
     expect(http.expectOne('/api/v1/cart/acknowledge').request.method).toBe('POST');
   });
 
-  it('CheckoutApi previews a method, places an order and reads it back', () => {
+  it('CheckoutApi previews a method and places an order', () => {
     const api = TestBed.inject(CheckoutApi);
 
     api.preview('express').subscribe();
@@ -81,9 +81,6 @@ describe('purchase flow API services', () => {
     expect(place.request.method).toBe('POST');
     expect(place.request.body).toEqual(request);
     place.flush(anOrder());
-
-    api.order('LG 1').subscribe();
-    http.expectOne('/api/v1/orders/LG%201').flush(anOrder());
   });
 
   it('flattens the reviewed lines and swaps in confirmed new prices', () => {

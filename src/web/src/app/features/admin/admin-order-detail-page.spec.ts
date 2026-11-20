@@ -9,7 +9,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { provideRouter } from '@angular/router';
 import { AdminOrder } from '../../core/api/admin-orders.api';
-import { OrderDetail } from '../../core/api/orders.api';
+import { OrderDetailDto } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import {
   SOCKS_LINE,
@@ -44,7 +44,7 @@ function needingAttention(): AdminOrder {
 /** What the API answers after the admin rejected the Kestrel line: refunded, fee included. */
 function rejected(): AdminOrder {
   const before = needingAttention();
-  const order: OrderDetail = {
+  const order: OrderDetailDto = {
     ...before.order,
     status: 'partially_refunded',
     statusText: 'Partially refunded',

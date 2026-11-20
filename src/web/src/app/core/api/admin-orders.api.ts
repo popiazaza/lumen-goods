@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Service, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from './api-base-url';
-import { OrderDetail, OrderStatus, PaymentMethod } from './orders.api';
+import { OrderDetailDto, OrderStatus, PaymentMethod } from './order.models';
 import { PagedResult, toQueryParams } from './paged-result';
 
 // Contract: Lumen.Api/Orders/AdminOrderContracts.cs (admin role; 401 signed out, 403 without it).
@@ -72,7 +72,7 @@ export interface PartnerOrder {
 
 /** `GET /admin/orders/{number}`: the customer's view plus what only the admin sees. */
 export interface AdminOrder {
-  order: OrderDetail;
+  order: OrderDetailDto;
   customerEmail: string;
   failedPaymentAttempts: number;
   paymentEvents: PaymentEvent[];

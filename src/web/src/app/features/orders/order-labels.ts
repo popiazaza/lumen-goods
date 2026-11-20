@@ -1,12 +1,12 @@
 import {
-  CardBrand,
   OrderLineStatus,
   OrderStatus,
   PaymentStatus,
-  PaymentSummary,
+  PaymentSummaryDto,
   RefundStatus,
   ShippingMethod,
-} from '../../core/api/orders.api';
+  cardBrandName,
+} from '../../core/api/order.models';
 
 // How statuses look. The words for order and line statuses come from the API (`statusText`); the
 // client only picks a tone and an icon, so a badge never relies on colour alone (WCAG 1.4.1).
@@ -69,19 +69,12 @@ export function shippingLabel(method: ShippingMethod): string {
   return SHIPPING_LABELS[method] ?? humanise(method);
 }
 
-const CARD_BRANDS: Readonly<Record<CardBrand, string>> = {
-  visa: 'Visa',
-  mastercard: 'Mastercard',
-  amex: 'American Express',
-  other: 'Card',
-};
-
 /** "Visa ending 1111" or "Lumen wallet". */
-export function paymentMethodLabel(payment: PaymentSummary): string {
+export function paymentMethodLabel(payment: PaymentSummaryDto): string {
   if (payment.method === 'wallet') {
     return 'Lumen wallet';
   }
-  const brand = (payment.cardBrand && CARD_BRANDS[payment.cardBrand]) || 'Card';
+  const brand = cardBrandName(payment.cardBrand);
   return payment.cardLast4 ? `${brand} ending ${payment.cardLast4}` : brand;
 }
 

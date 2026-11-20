@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { OrderDetail, OrderLine } from '../../core/api/orders.api';
+import { OrderDetailDto, OrderLineDto } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import {
   SOCKS_LINE,
@@ -53,7 +53,7 @@ describe('OrderDetailPage', () => {
     fixture.detectChanges();
   }
 
-  async function show(order: OrderDetail | { status: number }): Promise<void> {
+  async function show(order: OrderDetailDto | { status: number }): Promise<void> {
     open();
     const request = http.expectOne(URL);
     if ('number' in order) {
@@ -67,7 +67,7 @@ describe('OrderDetailPage', () => {
     await fixture.whenStable();
   }
 
-  function oneLineOrder(line: Partial<OrderLine>): OrderDetail {
+  function oneLineOrder(line: Partial<OrderLineDto>): OrderDetailDto {
     const order = anOrderDetail({ isUpdating: false });
     return {
       ...order,

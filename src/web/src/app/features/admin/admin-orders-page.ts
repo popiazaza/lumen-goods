@@ -23,7 +23,7 @@ import {
 } from '@angular/material/table';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AdminOrderSummary, AdminOrdersApi } from '../../core/api/admin-orders.api';
-import { ORDER_STATUSES } from '../../core/api/orders.api';
+import { ORDER_STATUSES } from '../../core/api/order.models';
 import { PagedResult } from '../../core/api/paged-result';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
 import { registerOrderIcons } from '../orders/order-icons';

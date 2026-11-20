@@ -4,7 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { OrderDetailDto } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
-import { anOrder, anOrderLine } from '../../testing/fixtures';
+import { aCardPayment, anOrder, anOrderLine } from '../../testing/order-fixtures';
 import { CONFIRMATION_POLL_MS, OrderConfirmationPage } from './order-confirmation-page';
 
 const ORDER_URL = '/api/v1/orders/LG-7K3M9QX2';
@@ -15,7 +15,7 @@ function aPaidOrder(overrides: Partial<OrderDetailDto> = {}): OrderDetailDto {
     status: 'paid',
     canPay: false,
     isUpdating: true,
-    payment: { method: 'card', status: 'succeeded', cardBrand: 'visa', cardLast4: '1111' },
+    payment: aCardPayment({ amount: 67.46 }),
     shipments: [
       {
         ...order.shipments[0],

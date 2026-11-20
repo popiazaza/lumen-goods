@@ -10,7 +10,7 @@ import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
 import { switchMap, tap } from 'rxjs';
 import { AdminOrdersApi, LineDecision } from '../../core/api/admin-orders.api';
-import { OrderDetail, OrderLine } from '../../core/api/orders.api';
+import { OrderDetailDto, OrderLineDto } from '../../core/api/order.models';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
 import { registerOrderIcons } from '../orders/order-icons';
 import { StatusView, lineStatusView, orderStatusView, shippingLabel } from '../orders/order-labels';
@@ -87,11 +87,11 @@ export class AdminOrderDetailPage {
     registerOrderIcons();
   }
 
-  protected orderStatus(order: OrderDetail): StatusView {
+  protected orderStatus(order: OrderDetailDto): StatusView {
     return orderStatusView(order.status, order.statusText);
   }
 
-  protected lineStatus(line: OrderLine): StatusView {
+  protected lineStatus(line: OrderLineDto): StatusView {
     return lineStatusView(line.status, line.statusText);
   }
 
@@ -99,7 +99,7 @@ export class AdminOrderDetailPage {
    * Asks for confirmation, then saves the decision. The answer is the updated order, which
    * replaces the page's copy; if the line no longer needs attention (409), the order is reloaded.
    */
-  protected resolve(line: OrderLine, sellerName: string, decision: LineDecision): void {
+  protected resolve(line: OrderLineDto, sellerName: string, decision: LineDecision): void {
     if (this.savingLine()) {
       return;
     }
@@ -142,7 +142,7 @@ export class AdminOrderDetailPage {
 }
 
 function confirmation(
-  line: OrderLine,
+  line: OrderLineDto,
   sellerName: string,
   decision: LineDecision,
 ): ConfirmDialogData {
