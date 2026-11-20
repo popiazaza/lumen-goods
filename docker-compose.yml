@@ -131,7 +131,9 @@ networks:
       config:
         # Fixed so nginx can have a fixed address. Outside Docker's default address pools (172.17-31.x, 192.168.x), so
         # no other compose project is given it; if your network uses it, change the subnet and both addresses above.
+        # The other containers get addresses from ip_range only, so none can take nginx's before it starts.
         - subnet: 172.16.87.0/24
+          ip_range: 172.16.87.128/25
 
 volumes:
   db-data:
