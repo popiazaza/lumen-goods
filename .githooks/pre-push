@@ -6,6 +6,12 @@ set -e
 
 cd "$(git rev-parse --show-toplevel)"
 
+# The pr-assets branch (PR screenshots, checked out as its own worktree) has no code to check.
+if [ ! -f LumenGoods.slnx ]; then
+  echo "pre-push: no LumenGoods.slnx here, nothing to check"
+  exit 0
+fi
+
 echo "pre-push: dotnet build"
 dotnet build LumenGoods.slnx -nologo -v quiet
 
