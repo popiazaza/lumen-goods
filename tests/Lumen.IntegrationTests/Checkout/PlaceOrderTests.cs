@@ -434,6 +434,26 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
 
     [Fact]
     [Trait("BR", "BR-CHK-03")]
+    public async Task BR_CHK_03_an_order_whose_hold_ended_no_longer_counts_but_one_taking_a_payment_still_does()
+    {
+        var (shopper, _, preview) = await ShopperWithTwoUnpaidOrdersAsync();
+        (await shopper.PlaceAsync(preview)).StatusCode.Should().Be(HttpStatusCode.Created);
+        var processing = await host.WithDbAsync(db => db.Orders.Where(o => o.CustomerId == shopper.Id).Select(o => o.Id).Take(2).ToListAsync(Ct));
+        await host.WithDbAsync(db => db.Orders.Where(o => processing.Contains(o.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(o => o.Status, OrderStatus.PaymentProcessing), Ct));
+
+        // Every hold ends; the payment window job (off in tests) has not expired the order still awaiting payment.
+        host.Clock.Advance(TimeSpan.FromMinutes(15));
+        var fourth = await shopper.PlaceAsync(preview);
+        var fifth = await shopper.PlaceAsync(preview);
+
+        fourth.StatusCode.Should().Be(HttpStatusCode.Created, "only the two orders taking a payment count");
+        fifth.StatusCode.Should().Be(HttpStatusCode.Conflict, "the two payments in progress and the new order make 3, past their holds or not");
+        (await fifth.ReadJsonAsync()).GetProperty("type").GetString().Should().Be(CheckoutProblemTypes.TooManyUnpaidOrders);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CHK-03")]
     [Trait("BR", "BR-PAY-01")]
     public async Task BR_CHK_03_a_repeat_whose_first_request_fills_the_last_slot_after_the_key_lookup_still_gets_that_order()
     {

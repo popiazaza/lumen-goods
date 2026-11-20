@@ -466,11 +466,19 @@ internal sealed class PlaceOrderService(
         return order;
     }
 
-    /// <summary>BR-CHK-03: the customer's orders that hold stock and wait for (or are taking) a payment.</summary>
-    private Task<int> CountUnpaidAsync(Guid customerId, CancellationToken cancellationToken) =>
-        db.Orders.CountAsync(
-            o => o.CustomerId == customerId && (o.Status == OrderStatus.AwaitingPayment || o.Status == OrderStatus.PaymentProcessing),
+    /// <summary>
+    /// BR-CHK-03: the customer's orders that can still be paid or are taking a payment. One awaiting payment counts only
+    /// while its hold lasts: after that it cannot be paid, even while the payment window job has not expired it yet (for
+    /// example while it waits for the gateway to settle a failed payment). A payment in progress always counts.
+    /// </summary>
+    private Task<int> CountUnpaidAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        return db.Orders.CountAsync(
+            o => o.CustomerId == customerId
+                && ((o.Status == OrderStatus.AwaitingPayment && o.HoldExpiresUtc > now) || o.Status == OrderStatus.PaymentProcessing),
             cancellationToken);
+    }
 
     /// <summary>
     /// Locks the customer's account row until the transaction ends. NO KEY UPDATE, so inserts that only reference the
