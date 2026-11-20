@@ -1,7 +1,213 @@
-import { Component } from '@angular/core';
+import { LiveAnnouncer } from '@angular/cdk/a11y';
+import { DatePipe } from '@angular/common';
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  linkedSignal,
+  signal,
+  untracked,
+} from '@angular/core';
+import { rxResource, toSignal } from '@angular/core/rxjs-interop';
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { MatButton, MatIconButton } from '@angular/material/button';
+import {
+  MatFormField,
+  MatHint,
+  MatLabel,
+  MatPrefix,
+  MatSuffix,
+} from '@angular/material/form-field';
+import { MatIcon } from '@angular/material/icon';
+import { MatInput } from '@angular/material/input';
+import { Title } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
+import { httpStatusOf } from '../../core/api/problem-details';
+import { ProductDto, ProductsApi } from '../../core/api/products.api';
+import { CartStateService } from '../../core/cart/cart-state.service';
+import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
+import { SITE_NAME } from '../../core/routing/page-title-strategy';
+import { SellerDirectory } from '../../core/catalogue/seller-directory';
+import { AvailabilityBadge } from '../../shared/products/availability-badge';
+import { ProductImage } from '../../shared/products/product-image';
+import { categoryLabel, humaniseAttributeKey } from '../../shared/products/product-labels';
+import { ProductPrice } from '../../shared/products/product-price';
+import { clampQuantity, maxSelectableQuantity } from './quantity';
 
+/** The tags the server's sanitiser keeps (A-21); anything else is treated as plain text. */
+const ALLOWED_HTML = /<\/?(p|br|b|strong|i|em|ul|ol|li)\b[^>]*>/i;
+
+/** Product detail (`/products/:id`): gallery, price, stock, description, attributes, Add to cart. */
 @Component({
   selector: 'app-product-detail-page',
-  template: `<h1>Product details</h1>`,
+  imports: [
+    DatePipe,
+    ReactiveFormsModule,
+    RouterLink,
+    MatButton,
+    MatFormField,
+    MatHint,
+    MatIcon,
+    MatIconButton,
+    MatInput,
+    MatLabel,
+    MatPrefix,
+    MatSuffix,
+    AvailabilityBadge,
+    ProductImage,
+    ProductPrice,
+  ],
+  templateUrl: './product-detail-page.html',
+  styleUrl: './product-detail-page.scss',
 })
-export class ProductDetailPage {}
+export class ProductDetailPage {
+  /** The `:id` route param (`withComponentInputBinding`). */
+  readonly id = input.required<string>();
+
+  private readonly productsApi = inject(ProductsApi);
+  private readonly cart = inject(CartStateService);
+  private readonly announcer = inject(LiveAnnouncer);
+  private readonly title = inject(Title);
+  protected readonly sellerDirectory = inject(SellerDirectory);
+  protected readonly lastQuery = inject(LastCatalogueQuery);
+  protected readonly categoryLabel = categoryLabel;
+
+  protected readonly product = rxResource({
+    params: () => this.id(),
+    stream: ({ params }) => this.productsApi.get(params),
+  });
+
+  protected readonly loaded = computed<ProductDto | undefined>(() =>
+    this.product.hasValue() ? this.product.value() : undefined,
+  );
+  protected readonly isNotFound = computed(() => httpStatusOf(this.product.error()) === 404);
+  protected readonly isError = computed(() => this.product.status() === 'error');
+
+  /** One `<h1>` for every state, so the focus the router puts on it survives the load. */
+  protected readonly heading = computed(() => {
+    const product = this.loaded();
+    if (product) {
+      return product.name;
+    }
+    return this.isNotFound() ? 'Product not found' : 'Product details';
+  });
+
+  /** Primary image first, then the rest in the API's order. */
+  protected readonly images = computed(() => {
+    const images = this.loaded()?.images ?? [];
+    return [...images.filter((image) => image.isPrimary), ...images.filter((i) => !i.isPrimary)];
+  });
+  protected readonly selectedImage = linkedSignal({ source: this.images, computation: () => 0 });
+  protected readonly mainImageAlt = computed(() => {
+    const name = this.loaded()?.name ?? '';
+    const total = this.images().length;
+    return total > 1 ? `${name}, image ${this.selectedImage() + 1} of ${total}` : name;
+  });
+
+  protected readonly descriptionIsHtml = computed(() =>
+    ALLOWED_HTML.test(this.loaded()?.description ?? ''),
+  );
+
+  protected readonly attributes = computed(() =>
+    Object.entries(this.loaded()?.attributes ?? {}).map(([key, value]) => ({
+      key,
+      label: humaniseAttributeKey(key),
+      value,
+    })),
+  );
+
+  protected readonly sellerName = computed(() => {
+    const product = this.loaded();
+    return product ? this.sellerDirectory.nameOf(product.source) : '';
+  });
+
+  protected readonly maxQuantity = computed(() => {
+    const product = this.loaded();
+    return product ? maxSelectableQuantity(product) : 0;
+  });
+  protected readonly canBuy = computed(() => this.maxQuantity() > 0);
+
+  protected readonly quantityHint = computed(() => {
+    const quantity = this.loaded()?.availability.quantity;
+    const max = this.maxQuantity();
+    return quantity != null && quantity <= max ? `${max} available` : `Up to ${max} at a time`;
+  });
+
+  /** Why Add to cart is disabled, shown next to it and linked with `aria-describedby`. */
+  protected readonly unavailableReason = computed(() => {
+    const product = this.loaded();
+    if (!product || this.canBuy()) {
+      return '';
+    }
+    if (!product.sellable) {
+      return product.price === null
+        ? 'This product has no online price, so it can’t be bought here.'
+        : 'This product is no longer available.';
+    }
+    return 'This product is out of stock right now.';
+  });
+
+  protected readonly buyForm = new FormGroup({
+    quantity: new FormControl(1, { nonNullable: true }),
+  });
+  protected readonly quantity = toSignal(this.buyForm.controls.quantity.valueChanges, {
+    initialValue: 1,
+  });
+  protected readonly addedMessage = signal('');
+
+  constructor() {
+    // The route title ("Product details") is generic; name the product once it is known (WCAG 2.4.2).
+    effect(() => {
+      const product = this.loaded();
+      if (product) {
+        this.title.setTitle(`${product.name} — ${SITE_NAME}`);
+      } else if (this.isNotFound()) {
+        this.title.setTitle(`Product not found — ${SITE_NAME}`);
+      }
+    });
+
+    // A new product (or a stock change) starts the selector again at 1.
+    effect(() => {
+      const canBuy = this.canBuy();
+      this.loaded();
+      untracked(() => {
+        const control = this.buyForm.controls.quantity;
+        control.setValue(1);
+        if (canBuy) {
+          control.enable();
+        } else {
+          control.disable();
+        }
+        this.addedMessage.set('');
+      });
+    });
+  }
+
+  protected step(delta: number): void {
+    const control = this.buyForm.controls.quantity;
+    control.setValue(clampQuantity(control.value + delta, this.maxQuantity()));
+  }
+
+  /** Typed values outside 1..max snap back into range when the field loses focus. */
+  protected normaliseQuantity(): void {
+    const control = this.buyForm.controls.quantity;
+    const clamped = clampQuantity(control.value, this.maxQuantity());
+    if (clamped !== control.value) {
+      control.setValue(clamped);
+    }
+  }
+
+  protected addToCart(): void {
+    const product = this.loaded();
+    if (!product || !this.canBuy()) {
+      return;
+    }
+    const quantity = clampQuantity(this.buyForm.controls.quantity.value, this.maxQuantity());
+    this.buyForm.controls.quantity.setValue(quantity);
+    this.cart.add(product.id, quantity);
+    this.addedMessage.set(quantity === 1 ? 'Added to cart.' : `Added ${quantity} to cart.`);
+    void this.announcer.announce(`Added to cart: ${quantity} × ${product.name}`, 'polite');
+  }
+}

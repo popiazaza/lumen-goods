@@ -1,0 +1,169 @@
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <ol>
+    <li><a routerLink="/" [queryParams]="lastQuery.params()">Shop</a></li>
+    @if (loaded(); as product) {
+      <li>
+        <a routerLink="/" [queryParams]="{ category: product.category }">{{
+          categoryLabel(product.category)
+        }}</a>
+      </li>
+      <li aria-current="page">{{ product.name }}</li>
+    }
+  </ol>
+</nav>
+
+<article class="product" [class.ready]="!!loaded()">
+  <h1 class="title" [class.cdk-visually-hidden]="product.isLoading()">{{ heading() }}</h1>
+
+  @if (loaded(); as product) {
+    <div class="gallery">
+      <app-product-image
+        class="main-image"
+        [src]="images()[selectedImage()]?.url"
+        [alt]="mainImageAlt()"
+        [eager]="true"
+      />
+      @if (images().length > 1) {
+        <ul class="thumbs" aria-label="Product images">
+          @for (image of images(); track $index; let index = $index) {
+            <li>
+              <button
+                type="button"
+                class="thumb"
+                [class.selected]="index === selectedImage()"
+                [attr.aria-pressed]="index === selectedImage()"
+                [attr.aria-label]="'Show image ' + (index + 1) + ' of ' + images().length"
+                (click)="selectedImage.set(index)"
+              >
+                <app-product-image [src]="image.url" />
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+
+    <div class="buy">
+      <p class="seller">
+        Sold by <strong>{{ sellerName() }}</strong>
+      </p>
+      <app-product-price class="price-line" [price]="product.price" />
+      <app-availability-badge [product]="product" />
+
+      <form class="buy-form" [formGroup]="buyForm" (ngSubmit)="addToCart()">
+        <mat-form-field class="quantity" appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Quantity</mat-label>
+          <button
+            matIconButton
+            matIconPrefix
+            type="button"
+            aria-label="Decrease quantity"
+            [disabled]="!canBuy() || quantity() <= 1"
+            (click)="step(-1)"
+          >
+            <mat-icon svgIcon="remove" />
+          </button>
+          <input
+            matInput
+            type="number"
+            inputmode="numeric"
+            min="1"
+            [max]="maxQuantity()"
+            formControlName="quantity"
+            (blur)="normaliseQuantity()"
+          />
+          <button
+            matIconButton
+            matIconSuffix
+            type="button"
+            aria-label="Increase quantity"
+            [disabled]="!canBuy() || quantity() >= maxQuantity()"
+            (click)="step(1)"
+          >
+            <mat-icon svgIcon="add" />
+          </button>
+          @if (canBuy()) {
+            <mat-hint>{{ quantityHint() }}</mat-hint>
+          }
+        </mat-form-field>
+
+        <button
+          matButton="filled"
+          type="submit"
+          class="add"
+          [disabled]="!canBuy()"
+          disabledInteractive
+          [attr.aria-describedby]="canBuy() ? null : 'buy-note'"
+        >
+          <mat-icon svgIcon="cart" />
+          Add to cart
+        </button>
+      </form>
+
+      @if (!canBuy()) {
+        <p id="buy-note" class="note">{{ unavailableReason() }}</p>
+      }
+      @if (addedMessage()) {
+        <p class="added">
+          <mat-icon svgIcon="check_circle" />
+          <span>{{ addedMessage() }}</span>
+          <a routerLink="/cart">View cart</a>
+        </p>
+      }
+      <p class="updated">
+        Price and stock as of
+        <time [attr.datetime]="product.lastUpdatedUtc">{{
+          product.lastUpdatedUtc | date: 'medium'
+        }}</time>
+      </p>
+    </div>
+
+    <div class="details">
+      <section aria-labelledby="description-heading">
+        <h2 id="description-heading">Description</h2>
+        @if (descriptionIsHtml()) {
+          <!-- Sanitised on the server (A-21); Angular's sanitiser runs again here. -->
+          <div class="description" [innerHTML]="product.description"></div>
+        } @else {
+          <p class="description plain">{{ product.description }}</p>
+        }
+      </section>
+
+      @if (attributes().length > 0) {
+        <section aria-labelledby="attributes-heading">
+          <h2 id="attributes-heading">Details</h2>
+          <dl class="attributes">
+            @for (attribute of attributes(); track attribute.key) {
+              <div>
+                <dt>{{ attribute.label }}</dt>
+                <dd>{{ attribute.value }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+      }
+    </div>
+  } @else if (isNotFound()) {
+    <div class="state">
+      <p>This product isn’t in the shop, or the link is mistyped.</p>
+      <a matButton="filled" routerLink="/" [queryParams]="lastQuery.params()">Back to the shop</a>
+    </div>
+  } @else if (isError()) {
+    <div class="state" role="alert">
+      <p>We couldn’t load this product. Check your connection and try again.</p>
+      <button matButton="filled" type="button" (click)="product.reload()">
+        <mat-icon svgIcon="refresh" />
+        Retry
+      </button>
+    </div>
+  } @else {
+    <div class="skeleton" aria-hidden="true">
+      <div class="skeleton-image"></div>
+      <div class="skeleton-text">
+        <div class="skeleton-line wide"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+    </div>
+  }
+</article>

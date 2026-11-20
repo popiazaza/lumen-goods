@@ -18,4 +18,18 @@ export class CartStateService {
   setItemCount(count: number): void {
     this.count.set(Math.max(0, Math.trunc(count)));
   }
+
+  /**
+   * Adds a product to the cart. Until the cart API lands this only moves the badge count; it will
+   * then POST the line and take the count from the server's answer (which may cap the quantity).
+   */
+  add(productId: string, quantity: number): void {
+    if (!productId) {
+      throw new Error('A product id is required to add to the cart.');
+    }
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new RangeError(`Quantity must be a whole number of at least 1, got ${quantity}.`);
+    }
+    this.count.update((count) => count + quantity);
+  }
 }
