@@ -52,7 +52,7 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
 
     public OrderClaimHook Claims { get; } = new();
 
-    public UnpaidCountHook UnpaidCounts { get; } = new();
+    public QueryHook Queries { get; } = new();
 
     public WebApplicationFactory<Program> App { get; private set; } = null!;
 
@@ -81,7 +81,7 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(Clock);
-                services.ConfigureDbContext<LumenDbContext>(options => options.AddInterceptors(Claims, UnpaidCounts));
+                services.ConfigureDbContext<LumenDbContext>(options => options.AddInterceptors(Claims, Queries));
                 services.AddSingleton<MockPaymentGateway>();
                 services.AddSingleton<IPaymentGateway>(sp =>
                 {
@@ -327,27 +327,33 @@ public sealed class OrderClaimHook : DbCommandInterceptor
 }
 
 /// <summary>
-/// Runs a step just before the API's next count of a customer's unpaid orders (BR-CHK-03), so a test can commit another
-/// order exactly between Place order's checkout key lookup and its count. Does nothing unless armed.
+/// Runs a step just before the API's next query whose SQL matches, with that query's cancellation token: to commit
+/// another writer's change exactly between two reads of one request, or to make the database hang. Registered on every
+/// <see cref="LumenDbContext"/> of the host; does nothing unless armed.
 /// </summary>
-public sealed class UnpaidCountHook : DbCommandInterceptor
+public sealed class QueryHook : DbCommandInterceptor
 {
-    private Func<Task>? _beforeNextCount;
+    private Armed? _next;
 
-    public void BeforeNextCount(Func<Task> step) => _beforeNextCount = step;
+    /// <summary>Unpaid-order counts (BR-CHK-03).</summary>
+    public static bool IsUnpaidCount(string sql) =>
+        sql.StartsWith("SELECT count(*)::int", StringComparison.Ordinal) && sql.Contains("FROM \"Orders\"", StringComparison.Ordinal);
+
+    public void BeforeNext(Func<string, bool> matches, Func<CancellationToken, Task> step) => _next = new Armed(matches, step);
 
     public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
         DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
     {
-        if (command.CommandText.StartsWith("SELECT count(*)::int", StringComparison.Ordinal)
-            && command.CommandText.Contains("FROM \"Orders\"", StringComparison.Ordinal)
-            && Interlocked.Exchange(ref _beforeNextCount, null) is { } step)
+        if (Volatile.Read(ref _next) is { } armed && armed.Matches(command.CommandText)
+            && ReferenceEquals(Interlocked.CompareExchange(ref _next, null, armed), armed))
         {
-            await step();
+            await armed.Step(cancellationToken);
         }
 
         return result;
     }
+
+    private sealed record Armed(Func<string, bool> Matches, Func<CancellationToken, Task> Step);
 }
 
 /// <summary>A signed-in customer driving the checkout and payment API like the storefront does.</summary>

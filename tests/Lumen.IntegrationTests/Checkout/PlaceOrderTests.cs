@@ -462,7 +462,7 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         HttpResponseMessage? first = null;
         // The repeat has looked its key up and found nothing; before it counts, the first request with that key commits
         // the customer's third order.
-        host.UnpaidCounts.BeforeNextCount(async () => first = await shopper.PlaceAsync(preview, key));
+        host.Queries.BeforeNext(QueryHook.IsUnpaidCount, async _ => first = await shopper.PlaceAsync(preview, key));
 
         var repeat = await shopper.PlaceAsync(preview, key);
 

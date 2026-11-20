@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Lumen.Api.Infrastructure.Data;
@@ -5,6 +6,8 @@ using Lumen.Api.Partners.Sync;
 using Lumen.Api.Payments;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Payments;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -16,12 +19,17 @@ namespace Lumen.Api.Infrastructure.Telemetry;
 /// OpenTelemetry for the API. Traces: requests, HTTP calls (partners, images), SQL (Npgsql) and Lumen's own spans.
 /// Metrics: requests, HTTP calls, the runtime and Lumen's counters and gauges. All of it, logs included, goes out over
 /// OTLP only when <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> is set (docker compose's <c>observability</c> profile: the Aspire
-/// dashboard; in Azure, a collector or Azure Monitor). Without it no exporter is added and nothing leaves the process.
+/// dashboard; in Azure, a collector or Azure Monitor). Without it no exporter is added and nothing leaves the process,
+/// and the gauges' database reads are not set up.
 /// </summary>
 internal static class TelemetryExtensions
 {
     public static IServiceCollection AddLumenTelemetry(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddOptions<TelemetryOptions>()
+            .Bind(configuration.GetSection(TelemetryOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
         services.AddSingleton<LumenMetrics>();
         var telemetry = services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService("lumen-api"))
@@ -44,6 +52,7 @@ internal static class TelemetryExtensions
         {
             // Traces, metrics and logs. Protocol, headers and intervals follow the standard OTEL_EXPORTER_OTLP_* variables.
             telemetry.UseOtlpExporter();
+            services.AddHostedService<GaugeRefresher>();
         }
 
         return services;
@@ -96,8 +105,9 @@ internal static class LumenTelemetry
 
 /// <summary>
 /// Lumen's own metrics, on the "Lumen" meter from <see cref="IMeterFactory"/> (so each host, and each test host, has its
-/// own). Counters are added once the outcome is committed. The gauges run one small indexed query each when the metrics
-/// are exported (<c>OTEL_METRIC_EXPORT_INTERVAL</c>), never on a request.
+/// own). Counters are added once the outcome is committed. The gauges report the values <see cref="RefreshGaugesAsync"/>
+/// last read (a few small indexed queries, every <see cref="TelemetryOptions.GaugeRefreshInterval"/>), never on a request
+/// and never while metrics are collected: a slow or unreachable database would otherwise hold up every metric.
 /// </summary>
 internal sealed class LumenMetrics
 {
@@ -107,14 +117,20 @@ internal sealed class LumenMetrics
     private readonly IServiceScopeFactory _scopes;
     private readonly PartnerRegistry _partners;
     private readonly TimeProvider _time;
+    private readonly IOptions<TelemetryOptions> _options;
     private readonly ILogger<LumenMetrics> _logger;
     private readonly Counter<long> _payments;
     private readonly Counter<long> _partnerOrders;
     private readonly Counter<long> _refunds;
 
-    public LumenMetrics(IMeterFactory meters, IServiceScopeFactory scopes, PartnerRegistry partners, TimeProvider time, ILogger<LumenMetrics> logger)
+    /// <summary>What the gauges report; null (nothing reported) until the first refresh, and after a failed one.</summary>
+    private volatile GaugeValues? _gauges;
+
+    public LumenMetrics(
+        IMeterFactory meters, IServiceScopeFactory scopes, PartnerRegistry partners, TimeProvider time, IOptions<TelemetryOptions> options,
+        ILogger<LumenMetrics> logger)
     {
-        (_scopes, _partners, _time, _logger) = (scopes, partners, time, logger);
+        (_scopes, _partners, _time, _options, _logger) = (scopes, partners, time, options, logger);
         var meter = meters.Create(LumenTelemetry.Name);
         _payments = meter.CreateCounter<long>("lumen.payments", "{payment}",
             "Payments that reached an outcome (Succeeded, Declined, Failed or Expired), by outcome.");
@@ -145,47 +161,103 @@ internal sealed class LumenMetrics
     public void RefundFinished(PaymentMethod method, RefundStatus outcome) =>
         _refunds.Add(1, new KeyValuePair<string, object?>(LumenTelemetry.Method, method.ToString()), new KeyValuePair<string, object?>(LumenTelemetry.Outcome, outcome.ToString()));
 
-    // Every partner and status reports, 0 included, so an emptied queue shows 0 rather than its last value.
-    private IEnumerable<Measurement<long>> ObserveWaitingPartnerOrders() => Read(db =>
+    /// <summary>
+    /// Reads the gauges' values from the database, within <see cref="TelemetryOptions.GaugeQueryTimeout"/>. A failed or
+    /// timed-out read is logged and leaves the gauges reporting nothing until the next one succeeds, rather than values
+    /// nobody can tell are stale.
+    /// </summary>
+    public async Task RefreshGaugesAsync(CancellationToken cancellationToken)
     {
-        var counts = db.PartnerOrders.Where(p => Undecided.Contains(p.Status))
-            .GroupBy(p => p.Source)
-            .Select(g => new { Partner = g.Key, Count = g.LongCount() })
-            .ToDictionary(c => c.Partner, c => c.Count);
-        return _partners.All.Select(p => new Measurement<long>(counts.GetValueOrDefault(p.Code), new KeyValuePair<string, object?>(LumenTelemetry.Partner, p.Code)));
-    });
-
-    private IEnumerable<Measurement<long>> ObservePendingRefunds() => Read(db =>
-    {
-        var counts = db.Refunds.Where(r => Unpaid.Contains(r.Status))
-            .GroupBy(r => r.Status)
-            .Select(g => new { Status = g.Key, Count = g.LongCount() })
-            .ToDictionary(c => c.Status, c => c.Count);
-        return Unpaid.Select(s => new Measurement<long>(counts.GetValueOrDefault(s), new KeyValuePair<string, object?>(LumenTelemetry.Status, s.ToString())));
-    });
-
-    private IEnumerable<Measurement<double>> ObserveSyncAge() => Read(db =>
-    {
-        var now = _time.GetUtcNow();
-        return db.PartnerSyncStates.Where(s => s.LastSuccessUtc != null)
-            .Select(s => new { s.Partner, LastSuccessUtc = s.LastSuccessUtc!.Value })
-            .ToList()
-            .Select(s => new Measurement<double>((now - s.LastSuccessUtc).TotalSeconds, new KeyValuePair<string, object?>(LumenTelemetry.Partner, s.Partner)));
-    });
-
-    /// <summary>Runs one gauge's query in its own scope. A failed read reports nothing this time instead of failing the export.</summary>
-    private List<Measurement<T>> Read<T>(Func<LumenDbContext, IEnumerable<Measurement<T>>> query)
-        where T : struct
-    {
+        using var timeout = new CancellationTokenSource(_options.Value.GaugeQueryTimeout, _time);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         try
         {
-            using var scope = _scopes.CreateScope();
-            return [.. query(scope.ServiceProvider.GetRequiredService<LumenDbContext>())];
+            await using var scope = _scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LumenDbContext>();
+            var waiting = await db.PartnerOrders.Where(p => Undecided.Contains(p.Status))
+                .GroupBy(p => p.Source)
+                .Select(g => new { Partner = g.Key, Count = g.LongCount() })
+                .ToDictionaryAsync(c => c.Partner, c => c.Count, linked.Token);
+            var refunds = await db.Refunds.Where(r => Unpaid.Contains(r.Status))
+                .GroupBy(r => r.Status)
+                .Select(g => new { Status = g.Key, Count = g.LongCount() })
+                .ToDictionaryAsync(c => c.Status, c => c.Count, linked.Token);
+            var synced = await db.PartnerSyncStates.Where(s => s.LastSuccessUtc != null)
+                .Select(s => new { s.Partner, LastSuccessUtc = s.LastSuccessUtc!.Value })
+                .ToDictionaryAsync(s => s.Partner, s => s.LastSuccessUtc, linked.Token);
+            _gauges = new GaugeValues(waiting, refunds, synced);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
-            _logger.LogWarning(ex, "Could not read a Lumen gauge; it reports nothing this time");
-            return [];
+            _gauges = null;
+            _logger.LogWarning(ex, "Could not read the Lumen gauges within {Timeout}; they report nothing until the next read succeeds",
+                _options.Value.GaugeQueryTimeout);
         }
     }
+
+    // Every partner and status reports, 0 included, so an emptied queue shows 0 rather than its last value.
+    private IEnumerable<Measurement<long>> ObserveWaitingPartnerOrders() => _gauges is { } gauges
+        ? _partners.All.Select(p => new Measurement<long>(
+            gauges.WaitingPartnerOrders.GetValueOrDefault(p.Code), new KeyValuePair<string, object?>(LumenTelemetry.Partner, p.Code)))
+        : [];
+
+    private IEnumerable<Measurement<long>> ObservePendingRefunds() => _gauges is { } gauges
+        ? Unpaid.Select(s => new Measurement<long>(
+            gauges.PendingRefunds.GetValueOrDefault(s), new KeyValuePair<string, object?>(LumenTelemetry.Status, s.ToString())))
+        : [];
+
+    // Taken at collection time, so the age keeps growing between refreshes as it does between syncs.
+    private IEnumerable<Measurement<double>> ObserveSyncAge()
+    {
+        if (_gauges is not { } gauges)
+        {
+            return [];
+        }
+
+        var now = _time.GetUtcNow();
+        return gauges.LastSyncedUtc.Select(s => new Measurement<double>(
+            (now - s.Value).TotalSeconds, new KeyValuePair<string, object?>(LumenTelemetry.Partner, s.Key)));
+    }
+
+    private sealed record GaugeValues(
+        Dictionary<string, long> WaitingPartnerOrders, Dictionary<RefundStatus, long> PendingRefunds, Dictionary<string, DateTimeOffset> LastSyncedUtc);
+}
+
+/// <summary>
+/// Refreshes <see cref="LumenMetrics"/>' gauges every <see cref="TelemetryOptions.GaugeRefreshInterval"/>. Registered only
+/// when metrics are exported (<c>OTEL_EXPORTER_OTLP_ENDPOINT</c>): otherwise nobody reads them.
+/// </summary>
+internal sealed class GaugeRefresher(LumenMetrics metrics, IOptions<TelemetryOptions> options, TimeProvider time) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Yield();
+        using var timer = new PeriodicTimer(options.Value.GaugeRefreshInterval, time);
+        try
+        {
+            do
+            {
+                await metrics.RefreshGaugesAsync(stoppingToken);
+            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutting down.
+        }
+    }
+}
+
+/// <summary>Telemetry settings (section <c>Telemetry</c>).</summary>
+public sealed class TelemetryOptions
+{
+    public const string SectionName = "Telemetry";
+
+    /// <summary>How often the gauges' values are read from the database (only while metrics are exported).</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
+    public TimeSpan GaugeRefreshInterval { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>How long one read of the gauges may take before it is abandoned until the next.</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "00:01:00")]
+    public TimeSpan GaugeQueryTimeout { get; init; } = TimeSpan.FromSeconds(5);
 }
