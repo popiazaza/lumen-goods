@@ -118,7 +118,7 @@
         </div>
       } @else {
         <form class="code-form" [formGroup]="codeForm" (ngSubmit)="submitCode()" novalidate>
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Verification code</mat-label>
             <input
               id="one-time-code"
@@ -219,7 +219,7 @@
       @if (chosenMethod() === 'card') {
         <fieldset class="card-fields">
           <legend>Card details</legend>
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Card number</mat-label>
             <input
               id="card-number"
@@ -243,7 +243,7 @@
             }
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Name on card</mat-label>
             <input id="card-name" matInput autocomplete="cc-name" formControlName="name" required />
             @if (cardForm.controls.name.invalid) {
@@ -252,7 +252,7 @@
           </mat-form-field>
 
           <div class="row">
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
               <mat-label>Expiry date (MM/YY)</mat-label>
               <input
                 id="card-expiry"
@@ -270,7 +270,7 @@
               }
             </mat-form-field>
 
-            <mat-form-field appearance="outline">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
               <mat-label>Security code (CVC)</mat-label>
               <input
                 id="card-cvc"
