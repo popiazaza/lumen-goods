@@ -509,4 +509,32 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         body.GetProperty("errors").EnumerateObject().Select(p => p.Name)
             .Should().BeEquivalentTo("shippingAddress.region", "shippingAddress.postalCode");
     }
+
+    [Fact]
+    public async Task Place_order_without_a_key_or_lines_or_with_a_quantity_out_of_range_is_a_validation_error()
+    {
+        var shopper = await host.NewShopperAsync();
+        await shopper.AddToCartAsync(await host.OwnProductAsync(), 1);
+        var preview = await shopper.PreviewAsync();
+        var line = preview.Shipments.Single().Lines.Single();
+        object[] Lines(int quantity) => [new { productId = line.ProductId, quantity, unitPrice = line.UnitPrice }];
+        Task<HttpResponseMessage> PlaceAsync(Guid? checkoutKey, object[]? lines) =>
+            CheckoutHost.SendJsonAsync(shopper.Session, HttpMethod.Post, "/api/v1/checkout/orders", new
+            {
+                checkoutKey, lines, expectedTotal = preview.Total, shippingAddress = CheckoutHost.Address, shippingMethod = "standard",
+            });
+
+        // The built-in validation answers these before the handler runs (attributes on PlaceOrderRequest).
+        HttpResponseMessage[] responses =
+        [
+            await PlaceAsync(null, Lines(1)),
+            await PlaceAsync(Guid.NewGuid(), null),
+            await PlaceAsync(Guid.NewGuid(), []),
+            await PlaceAsync(Guid.NewGuid(), Lines(0)),
+            await PlaceAsync(Guid.NewGuid(), Lines(11)),
+        ];
+
+        responses.Select(r => r.StatusCode).Should().AllBeEquivalentTo(HttpStatusCode.BadRequest);
+        (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
+    }
 }

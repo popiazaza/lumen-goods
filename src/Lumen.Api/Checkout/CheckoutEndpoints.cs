@@ -1,4 +1,3 @@
-using Lumen.Api.Carts;
 using Lumen.Api.Catalog;
 using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Api.Orders;
@@ -41,7 +40,7 @@ internal static class CheckoutEndpoints
         checkout.MapPost("/orders", PlaceOrder).WithName("PlaceOrder")
             .RequireRateLimiting(RateLimitPolicies.PlaceOrder)
             .Produces<PriceChangedProblem>(StatusCodes.Status409Conflict, "application/problem+json")
-            .ProducesValidationProblem().ProducesProblem(StatusCodes.Status422UnprocessableEntity).ProducesProblem(StatusCodes.Status429TooManyRequests);
+            .ProducesProblem(StatusCodes.Status422UnprocessableEntity).ProducesProblem(StatusCodes.Status429TooManyRequests);
         return api;
     }
 
@@ -74,7 +73,13 @@ internal static class CheckoutEndpoints
         }
     }
 
-    private static async Task<IResult> PlaceOrder(
+    /// <summary>
+    /// The built-in validation (AddValidation) has already refused a missing checkout key, address or lines, an empty
+    /// line list, a line without a product id and a quantity outside 1 to 10. What is left here is what attributes cannot
+    /// say: values that need the whole request (duplicates, the address rules for the launch country) and the total, which
+    /// is keyed by its JSON name.
+    /// </summary>
+    private static async Task<Results<Created<OrderDetailDto>, Ok<OrderDetailDto>, JsonHttpResult<PriceChangedProblem>, ValidationProblem, ProblemHttpResult, UnauthorizedHttpResult>> PlaceOrder(
         PlaceOrderRequest request,
         HttpContext http,
         PlaceOrderService orders,
@@ -89,7 +94,7 @@ internal static class CheckoutEndpoints
         }
 
         var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);
-        if (request.CheckoutKey is null || request.CheckoutKey == Guid.Empty)
+        if (request.CheckoutKey == Guid.Empty)
         {
             errors["checkoutKey"] = ["Send the checkout key the page created for this checkout."];
         }
@@ -103,33 +108,23 @@ internal static class CheckoutEndpoints
             errors["expectedTotal"] = ["The reviewed total cannot be negative."];
         }
 
-        if (request.Lines is null || request.Lines.Count == 0)
+        var lines = request.Lines!;
+        for (var i = 0; i < lines.Count; i++)
         {
-            errors["lines"] = ["Send the lines you reviewed."];
+            // Validation skips a null element of the list (JSON "lines": [null]).
+            if (lines[i] is not { } line)
+            {
+                errors[$"lines[{i}]"] = ["Each line needs its product id and quantity."];
+            }
+            else if (line.UnitPrice < 0)
+            {
+                errors[$"lines[{i}].unitPrice"] = ["The reviewed unit price cannot be negative."];
+            }
         }
-        else
-        {
-            for (var i = 0; i < request.Lines.Count; i++)
-            {
-                var line = request.Lines[i];
-                if (line?.ProductId is null)
-                {
-                    errors[$"lines[{i}].productId"] = ["Each line needs its product id."];
-                }
-                else if (line.Quantity is < 1 or > CartLine.MaxQuantity)
-                {
-                    errors[$"lines[{i}].quantity"] = [$"Quantity must be 1 to {CartLine.MaxQuantity}."];
-                }
-                else if (line.UnitPrice < 0)
-                {
-                    errors[$"lines[{i}].unitPrice"] = ["The reviewed unit price cannot be negative."];
-                }
-            }
 
-            if (request.Lines.Where(l => l?.ProductId is not null).GroupBy(l => l.ProductId).Any(g => g.Count() > 1))
-            {
-                errors["lines"] = ["Each product appears once."];
-            }
+        if (lines.Where(l => l is not null).GroupBy(l => l.ProductId).Any(g => g.Count() > 1))
+        {
+            errors["lines"] = ["Each product appears once."];
         }
 
         if (!Enum.IsDefined(request.ShippingMethod))
@@ -137,16 +132,9 @@ internal static class CheckoutEndpoints
             errors["shippingMethod"] = ["shippingMethod must be standard or express."];
         }
 
-        if (request.ShippingAddress is null)
+        foreach (var (key, value) in ShippingAddressRules.Validate(request.ShippingAddress!, checkout.Value.Country))
         {
-            errors["shippingAddress"] = ["Enter the shipping address."];
-        }
-        else
-        {
-            foreach (var (key, value) in ShippingAddressRules.Validate(request.ShippingAddress, checkout.Value.Country))
-            {
-                errors[key] = value;
-            }
+            errors[key] = value;
         }
 
         if (errors.Count > 0)
@@ -163,7 +151,7 @@ internal static class CheckoutEndpoints
                 var order = (await details.ByIdAsync(created.OrderId, mediaBase, cancellationToken))!;
                 return TypedResults.Created($"/api/v1/orders/{order.Number}", order);
             case PlaceOrderOutcome.AlreadyPlaced placed:
-                return TypedResults.Ok(await details.ByIdAsync(placed.OrderId, mediaBase, cancellationToken));
+                return TypedResults.Ok((await details.ByIdAsync(placed.OrderId, mediaBase, cancellationToken))!);
             case PlaceOrderOutcome.Changed changed:
                 return TypedResults.Json(changed.Problem, statusCode: StatusCodes.Status409Conflict, contentType: "application/problem+json");
             case PlaceOrderOutcome.EmptyCart:
