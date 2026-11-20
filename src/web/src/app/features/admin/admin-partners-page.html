@@ -1,0 +1,151 @@
+<h1>Partner status</h1>
+
+@if (accessStatus(); as status) {
+  <div class="state">
+    <mat-icon svgIcon="lock" class="state-icon" />
+    <p><strong>Sign in as an admin to see this page.</strong></p>
+    @if (status === 403) {
+      <p>You are signed in with an account that does not have the admin role.</p>
+    }
+    <a matButton="filled" routerLink="/sign-in">Sign in</a>
+  </div>
+} @else if (list(); as partners) {
+  <p class="intro">
+    Partner catalogues refresh in the background. <strong>Refresh now</strong> asks for a refresh
+    straight away.
+  </p>
+
+  <div class="cards">
+    @for (partner of partners; track partner.partner) {
+      @let partnerHealth = health(partner);
+      @let run = refreshes()[partner.partner];
+      <mat-card appearance="outlined" class="card">
+        <div class="card-header">
+          <h2>{{ partner.name }}</h2>
+          <p class="health" [class]="partnerHealth.tone">
+            <mat-icon [svgIcon]="partnerHealth.icon" />
+            <span>{{ partnerHealth.text }}</span>
+          </p>
+        </div>
+
+        <dl class="facts">
+          <div>
+            <dt>Last refreshed</dt>
+            <dd>
+              @if (partner.lastSuccessUtc) {
+                {{ relativeTime(partner.lastSuccessUtc, now()) }}
+                <time [attr.datetime]="partner.lastSuccessUtc"
+                  >({{ partner.lastSuccessUtc | date: 'medium' }})</time
+                >
+              } @else {
+                Never
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Last attempt</dt>
+            <dd>
+              @if (partner.lastAttemptUtc) {
+                {{ relativeTime(partner.lastAttemptUtc, now()) }}
+                <time [attr.datetime]="partner.lastAttemptUtc"
+                  >({{ partner.lastAttemptUtc | date: 'medium' }})</time
+                >
+              } @else {
+                Never
+              }
+            </dd>
+          </div>
+          <div>
+            <dt>Live products</dt>
+            <dd class="number">{{ partner.liveProductCount | number }}</dd>
+          </div>
+          @if (isQueued(partner) && partner.refreshRequestedUtc) {
+            <div>
+              <dt>Refresh requested</dt>
+              <dd>{{ relativeTime(partner.refreshRequestedUtc, now()) }}, waiting to run</dd>
+            </div>
+          }
+        </dl>
+
+        @if (partner.lastError) {
+          <div class="last-error">
+            <mat-icon svgIcon="error" />
+            <div>
+              <strong>Last error</strong>
+              <p>{{ partner.lastError }}</p>
+            </div>
+          </div>
+        }
+
+        <h3>Recent errors</h3>
+        @if (partner.recentErrors.length === 0) {
+          <p class="muted">No recent errors.</p>
+        } @else {
+          <ul class="errors">
+            @for (error of shownErrors(partner); track $index) {
+              <li>
+                <div class="error-meta">
+                  <time [attr.datetime]="error.occurredUtc">{{
+                    error.occurredUtc | date: 'medium'
+                  }}</time>
+                  <span>{{ error.operation }}</span>
+                  @if (error.statusCode !== null) {
+                    <span>HTTP {{ error.statusCode }}</span>
+                  }
+                </div>
+                <p>{{ error.message }}</p>
+              </li>
+            }
+          </ul>
+          @if (partner.recentErrors.length > recentErrorsShown) {
+            <button
+              matButton
+              type="button"
+              [attr.aria-expanded]="isExpanded(partner)"
+              (click)="toggleErrors(partner)"
+            >
+              {{ isExpanded(partner) ? 'Show fewer' : 'Show all ' + partner.recentErrors.length }}
+            </button>
+          }
+        }
+
+        <div class="actions">
+          <button
+            matButton="filled"
+            type="button"
+            [disabled]="isRefreshing(partner)"
+            (click)="refresh(partner)"
+          >
+            <mat-icon svgIcon="refresh" />
+            {{ isRefreshing(partner) ? 'Refreshing…' : 'Refresh now' }}
+          </button>
+          @if (run?.kind === 'running') {
+            <mat-progress-bar
+              mode="indeterminate"
+              [attr.aria-label]="'Refreshing ' + partner.name"
+            />
+            <p class="muted">
+              Waiting for the refresh to run. Checking every {{ pollSeconds }} seconds for up to a
+              minute.
+            </p>
+          } @else if (run) {
+            <p class="outcome" [class]="run.kind">{{ run.message }}</p>
+          }
+        </div>
+      </mat-card>
+    } @empty {
+      <p>No partner shops are configured.</p>
+    }
+  </div>
+} @else if (partners.status() === 'error') {
+  <div class="state" role="alert">
+    <mat-icon svgIcon="error" class="state-icon" />
+    <p>We couldn’t load the partner status. Check your connection and try again.</p>
+    <button matButton="filled" type="button" (click)="partners.reload()">
+      <mat-icon svgIcon="refresh" />
+      Retry
+    </button>
+  </div>
+} @else {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading partner status" />
+}
