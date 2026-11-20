@@ -1,4 +1,5 @@
 using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.Telemetry;
 using Lumen.Api.Orders;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Payments;
@@ -19,6 +20,7 @@ internal sealed class PaymentRecorder(
     PaymentWindowPolicy window,
     OneTimeCodePolicy codes,
     TimeProvider time,
+    LumenMetrics metrics,
     ILogger<PaymentRecorder> logger)
 {
     private const int MaxConcurrencyRetries = 5;
@@ -209,6 +211,7 @@ internal sealed class PaymentRecorder(
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             await writer.LockOrderAsync(orderId, cancellationToken);
             var payment = await db.Payments.SingleAsync(p => p.Id == paymentId, cancellationToken);
+            var before = payment.Status;
             var order = await db.Orders.Include(o => o.Lines).SingleAsync(o => o.Id == orderId, cancellationToken);
             if (!await change(order, payment, time.GetUtcNow()))
             {
@@ -219,6 +222,7 @@ internal sealed class PaymentRecorder(
             {
                 await db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
+                metrics.PaymentChanged(before, payment.Status);
                 return payment.Status;
             }
             catch (DbUpdateConcurrencyException) when (attempt < MaxConcurrencyRetries)

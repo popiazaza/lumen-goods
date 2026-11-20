@@ -1,4 +1,5 @@
 using Lumen.Api.Infrastructure.Data;
+using Lumen.Api.Infrastructure.Telemetry;
 using Lumen.Api.Orders;
 using Lumen.Api.Partners;
 using Lumen.Api.Wallets;
@@ -140,6 +141,7 @@ internal sealed class RefundExecutor(
     OrderPaymentWriter writer,
     IOptionsMonitor<PaymentJobsOptions> options,
     TimeProvider time,
+    LumenMetrics metrics,
     ILogger<RefundExecutor> logger)
 {
     public async Task<RefundStatus> ExecuteAsync(Guid refundId, CancellationToken cancellationToken)
@@ -219,6 +221,7 @@ internal sealed class RefundExecutor(
             return (await db.Refunds.AsNoTracking().SingleAsync(r => r.Id == refundId, cancellationToken)).Status;
         }
 
+        metrics.RefundFinished(PaymentMethod.Wallet, RefundStatus.Succeeded);
         logger.LogInformation("Refund {Refund}: {Amount} USD credited to the wallet, balance now {Balance}", refundId, amount, balance);
         return RefundStatus.Succeeded;
     }
@@ -236,6 +239,7 @@ internal sealed class RefundExecutor(
         await MarkAsync(refund, payment, succeeded, error, time.GetUtcNow(), cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        metrics.RefundFinished(payment.Method, refund.Status);
         if (succeeded)
         {
             logger.LogInformation("Refund {Refund}: {Amount} USD refunded to the card", refundId, refund.Amount);
