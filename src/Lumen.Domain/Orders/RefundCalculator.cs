@@ -24,25 +24,34 @@ public sealed record LineRefund(Guid LineId, string Source, decimal Subtotal, de
 
 public sealed record ShippingRefund(string Source, decimal Fee);
 
-/// <summary>The refund to pay out. <see cref="Total"/> is what to send back; it is 0 when nothing is owed.</summary>
-/// <param name="Capped">True when the items add up to more than is left to refund and <see cref="Total"/> was cut to that.</param>
-public sealed record RefundBreakdown(IReadOnlyList<LineRefund> Lines, IReadOnlyList<ShippingRefund> Shipping, decimal Total, bool Capped);
+/// <summary>The refund to pay out. <see cref="Total"/> is exactly the sum of the items; it is 0 when nothing is owed.</summary>
+public sealed record RefundBreakdown(IReadOnlyList<LineRefund> Lines, IReadOnlyList<ShippingRefund> Shipping, decimal Total);
 
 /// <summary>
 /// BR-ORD-03: a line a partner cannot supply is refunded: its subtotal and its own tax, plus the seller's shipping fee
 /// once every line of that shipment has been rejected (counting earlier rejections) and the fee was not refunded yet.
 /// - Idempotent: a line already Rejected was already refunded and refunds nothing, however often the rejection is seen.
-/// - Never more than was paid: the total is capped at amount charged − amount already refunded.
+/// - Never more than was paid: every amount comes from what the order charged and each is refunded once, so a refund
+///   larger than what is left (amount charged − amount refunded) can only mean the snapshot is wrong. That throws
+///   rather than paying out a trimmed amount whose items no longer add up.
 /// - Nothing is ever charged: the result is never negative.
 /// </summary>
 public static class RefundCalculator
 {
     /// <exception cref="ArgumentException">A line id is not on the order, or a line's seller has no shipment.</exception>
-    /// <exception cref="InvalidOperationException">A line cannot be rejected from its status (e.g. it is already Confirmed).</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A line cannot be rejected from its status (e.g. it is already Confirmed), or the snapshot is inconsistent
+    /// (more refunded than charged, or this refund would take the total past the amount charged).
+    /// </exception>
     public static RefundBreakdown Calculate(PaidOrderSnapshot order, IReadOnlyCollection<Guid> rejectedLineIds)
     {
         ArgumentNullException.ThrowIfNull(order);
         ArgumentNullException.ThrowIfNull(rejectedLineIds);
+        if (order.AmountRefunded < 0 || order.AmountRefunded > order.AmountCharged)
+        {
+            throw new InvalidOperationException(
+                $"Inconsistent order snapshot: {order.AmountRefunded:0.00} refunded of {order.AmountCharged:0.00} charged.");
+        }
 
         var linesById = order.Lines.ToDictionary(l => l.LineId);
         var newlyRejected = new List<PaidOrderLine>();
@@ -83,9 +92,15 @@ public static class RefundCalculator
             }
         }
 
-        var owed = lineRefunds.Sum(r => r.Amount) + shippingRefunds.Sum(r => r.Fee);
-        var leftToRefund = Math.Max(0m, order.AmountCharged - order.AmountRefunded);
-        var total = Math.Min(owed, leftToRefund);
-        return new RefundBreakdown(lineRefunds, shippingRefunds, total, Capped: total < owed);
+        var total = lineRefunds.Sum(r => r.Amount) + shippingRefunds.Sum(r => r.Fee);
+        var leftToRefund = order.AmountCharged - order.AmountRefunded;
+        if (total > leftToRefund)
+        {
+            throw new InvalidOperationException(
+                $"Inconsistent order snapshot: a refund of {total:0.00} would exceed the {leftToRefund:0.00} left to refund " +
+                $"({order.AmountCharged:0.00} charged, {order.AmountRefunded:0.00} already refunded).");
+        }
+
+        return new RefundBreakdown(lineRefunds, shippingRefunds, total);
     }
 }

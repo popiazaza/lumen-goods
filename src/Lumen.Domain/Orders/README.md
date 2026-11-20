@@ -190,6 +190,8 @@ stateDiagram-v2
 - each newly rejected line's subtotal + its own tax (tax is stored per line, so this is exact);
 - plus the seller's shipping fee once every line of that shipment is rejected (earlier rejections count) and the fee was not refunded yet;
 - nothing for a line that is already Rejected, so seeing the same rejection twice refunds once;
-- capped so that all refunds together never exceed the amount charged.
+- never more than is left to refund: every amount comes from what the order charged and is refunded once, so a refund
+  that would take the total past the amount charged means the snapshot is wrong, and the calculator throws instead of
+  paying out a trimmed amount whose items no longer add up. `Total` is always exactly the sum of the items.
 
 Example: a Lumen line and a Kestrel line of 2 × $16.22 (tax $2.60). Kestrel rejects it: $32.44 + $2.60 + $4.99 = $40.03.
