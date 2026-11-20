@@ -23,6 +23,26 @@ internal static class OrderLocks
             .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM "Orders" WHERE "Id" = {orderId} FOR UPDATE SKIP LOCKED""")
             .ToListAsync(cancellationToken)).Count == 1;
 
+    /// <summary>
+    /// Locks an order line and its partner order (after the order), waiting for a job run that holds them, so what is
+    /// read afterwards is what will be written over.
+    /// </summary>
+    public static async Task LockLineAndPartnerOrderAsync(this LumenDbContext db, Guid orderId, Guid lineId, CancellationToken cancellationToken)
+    {
+        await db.Database
+            .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM "OrderLines" WHERE "Id" = {lineId} AND "OrderId" = {orderId} FOR UPDATE""")
+            .ToListAsync(cancellationToken);
+        await db.Database
+            .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM "PartnerOrders" WHERE "OrderLineId" = {lineId} FOR UPDATE""")
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>Locks those of these partner order rows nobody holds; returns the ids it locked.</summary>
+    public static async Task<List<Guid>> TryLockPartnerOrdersAsync(this LumenDbContext db, Guid[] partnerOrderIds, CancellationToken cancellationToken) =>
+        await db.Database
+            .SqlQuery<Guid>($"""SELECT "Id" AS "Value" FROM "PartnerOrders" WHERE "Id" = ANY({partnerOrderIds}) FOR UPDATE SKIP LOCKED""")
+            .ToListAsync(cancellationToken);
+
     /// <summary>Locks a partner order row (after its order), so the job's claim step skips it meanwhile.</summary>
     public static async Task LockPartnerOrderAsync(this LumenDbContext db, Guid partnerOrderId, CancellationToken cancellationToken) =>
         await db.Database

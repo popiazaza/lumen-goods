@@ -11,7 +11,7 @@ namespace Lumen.Api.Orders;
 /// <summary>
 /// One row of the customer's order history (<c>GET /api/v1/orders</c>, a <c>PagedResult</c>, newest first).
 /// </summary>
-/// <param name="StatusText">What the customer sees: "Awaiting payment", "Processing", "Partially refunded", ...</param>
+/// <param name="StatusText">What the customer sees: "Awaiting payment", "Processing", "Partial refund pending", "Partially refunded", ...</param>
 /// <param name="ItemCount">Sum of the line quantities.</param>
 /// <param name="SellerNames">The shops the items came from, e.g. ["Lumen Goods", "Kestrel Outfitters"].</param>
 /// <example>
@@ -94,7 +94,7 @@ public sealed record OrderShipmentDto(
 /// <param name="Status">pending | awaiting_partner | needs_attention | confirmed | rejected.</param>
 /// <param name="StatusText">
 /// BR-ORD-02 wording with the seller's name: "Confirmed", "Awaiting Harbor Supply Co.", "Confirmed by Harbor Supply Co.",
-/// "Delayed", "Not supplied, refunded $40.03".
+/// "Delayed", "Not supplied, refund pending" (until the refund is paid back), "Not supplied, refunded $40.03".
 /// </param>
 /// <param name="RefundedAmount">What was refunded for this line (subtotal + tax); 0.00 when nothing was.</param>
 public sealed record OrderLineDto(

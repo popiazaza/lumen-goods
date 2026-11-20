@@ -14,6 +14,8 @@ internal sealed class PartnerOrderGateways(IEnumerable<IPartnerOrderGateway> gat
     private readonly Dictionary<string, IPartnerOrderGateway> _byPartner =
         gateways.ToDictionary(g => g.Partner, StringComparer.OrdinalIgnoreCase);
 
+    public IReadOnlyCollection<IPartnerOrderGateway> All => _byPartner.Values;
+
     public IPartnerOrderGateway? Find(string partner) => _byPartner.GetValueOrDefault(partner);
 }
 

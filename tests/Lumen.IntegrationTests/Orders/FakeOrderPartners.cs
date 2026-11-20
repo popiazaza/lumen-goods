@@ -21,8 +21,14 @@ public abstract class FakeOrderPartner : HttpMessageHandler
     /// <summary>References whose next N answers are lost after the partner acted on them.</summary>
     public ConcurrentDictionary<string, int> LoseAnswers { get; } = new();
 
-    /// <summary>When true every call answers 503.</summary>
+    /// <summary>When true every call answers 503: the partner got the request, and what it did is unknown.</summary>
     public bool Down { get; set; }
+
+    /// <summary>When true every call fails before reaching the partner, as a refused connection does.</summary>
+    public bool Unreachable { get; set; }
+
+    /// <summary>Runs first on every call: to hold a call (a slow partner) or move the fake clock while it is "on the wire".</summary>
+    public Func<HttpRequestMessage, Task>? OnRequest { get; set; }
 
     public IReadOnlyList<OrderCall> Calls => [.. _calls];
 
@@ -33,6 +39,18 @@ public abstract class FakeOrderPartner : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
+        if (OnRequest is { } onRequest)
+        {
+            await onRequest(request);
+        }
+
+        if (Unreachable)
+        {
+            _calls.Enqueue(new OrderCall(request.Method.Method, request.RequestUri!.AbsolutePath, ReferenceOf(request, body), body));
+            throw new HttpRequestException(HttpRequestError.ConnectionError,
+                "No connection could be made because the target machine actively refused it.");
+        }
+
         if (Down)
         {
             _calls.Enqueue(new OrderCall(request.Method.Method, request.RequestUri!.AbsolutePath, ReferenceOf(request, body), body));
@@ -173,7 +191,10 @@ public sealed class FakeKestrelOrders : FakeOrderPartner
     /// <summary>The state (and reason) Kestrel reports for orders of a product ref; RECEIVED when not set.</summary>
     public ConcurrentDictionary<string, (string State, string? Reason)> Decisions { get; } = new();
 
-    /// <summary>Product refs Kestrel does not know: 400 INVALID_REQUEST.</summary>
+    /// <summary>Makes the ticket for a new order; tickets are opaque, any length or shape the partner likes.</summary>
+    public Func<string> NewTicket { get; set; } = () => $"tk_{Guid.NewGuid():N}"[..14];
+
+    /// <summary>Product refs Kestrel does not know: 400 INVALID_REQUEST, checked before the reference, as the stand-in does.</summary>
     public ConcurrentDictionary<string, bool> Unknown { get; } = new();
 
     public IReadOnlyDictionary<string, string> TicketsByReference => _ticketsByReference;
@@ -210,7 +231,7 @@ public sealed class FakeKestrelOrders : FakeOrderPartner
                         (string?)order.Reference));
                 }
 
-                var ticket = $"tk_{Guid.NewGuid():N}"[..14];
+                var ticket = NewTicket();
                 _ticketsByReference[order.Reference] = ticket;
                 _refByTicket[ticket] = order.Ref;
                 return Task.FromResult((Xml(HttpStatusCode.Accepted, new XElement("OrderAck", new XAttribute("status", "RECEIVED"), new XAttribute("ticket", ticket))),

@@ -102,6 +102,7 @@ public sealed class HarborOrderGatewayTests
         result.Reason.Should().Be("INSUFFICIENT_STOCK: 1 available");
         result.AvailableQuantity.Should().Be(1);
         result.HttpStatus.Should().Be(409);
+        result.OutcomeUnknown.Should().BeFalse("Harbor answers a used external_ref with the original order, so a rejection is final");
     }
 
     [Fact]
@@ -128,19 +129,23 @@ public sealed class HarborOrderGatewayTests
 
         result.Outcome.Should().Be(PartnerOrderOutcome.RetryLater);
         result.RetryAfter.Should().Be(TimeSpan.FromSeconds(12));
+        result.OutcomeUnknown.Should().BeFalse("a 429 is refused before anything is ordered");
         harbor.Requests.Should().ContainSingle("the job resends the order itself, with the same external_ref");
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.InternalServerError)]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
-    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.InternalServerError, true)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, true)]
+    [InlineData(HttpStatusCode.Unauthorized, false)]
+    [InlineData(HttpStatusCode.NotFound, false)]
     [Trait("BR", "BR-ORD-01")]
-    public async Task BR_ORD_01_a_failed_send_retries_later_and_is_never_repeated_inside_the_http_pipeline(HttpStatusCode status)
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_01_a_failed_send_retries_later_and_is_never_repeated_inside_the_http_pipeline(HttpStatusCode status, bool outcomeUnknown)
     {
         var (result, harbor) = await SubmitAsync(_ => OrderStub.Empty(status));
 
         result.Outcome.Should().Be(PartnerOrderOutcome.RetryLater);
+        result.OutcomeUnknown.Should().Be(outcomeUnknown, "a 5xx may have created the order; a refusal cannot have");
         result.HttpStatus.Should().Be((int)status);
         result.Error.Should().Contain(((int)status).ToString(System.Globalization.CultureInfo.InvariantCulture));
         harbor.Requests.Should().ContainSingle();
@@ -154,7 +159,30 @@ public sealed class HarborOrderGatewayTests
 
         result.Outcome.Should().Be(PartnerOrderOutcome.RetryLater);
         result.Error.Should().Contain("Connection reset");
+        result.OutcomeUnknown.Should().BeTrue("the request may have been processed before the connection broke");
         harbor.Requests.Should().ContainSingle();
+    }
+
+    [Theory]
+    [InlineData(HttpRequestError.ConnectionError)]
+    [InlineData(HttpRequestError.NameResolutionError)]
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_04_a_send_that_never_reached_harbor_is_not_an_unknown_outcome(HttpRequestError error)
+    {
+        var (result, _) = await SubmitAsync(_ => throw new HttpRequestException(error, "No connection could be made."));
+
+        result.Outcome.Should().Be(PartnerOrderOutcome.RetryLater);
+        result.OutcomeUnknown.Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_04_a_timed_out_send_is_an_unknown_outcome()
+    {
+        var (result, _) = await SubmitAsync(_ => throw new TaskCanceledException("The request was canceled due to the configured HttpClient.Timeout."));
+
+        result.Outcome.Should().Be(PartnerOrderOutcome.RetryLater);
+        result.OutcomeUnknown.Should().BeTrue();
     }
 
     [Fact]

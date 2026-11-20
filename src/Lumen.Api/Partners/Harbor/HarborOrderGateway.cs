@@ -16,7 +16,9 @@ namespace Lumen.Api.Partners.Harbor;
 /// - the POST is never repeated by the HTTP pipeline (its retry is off for unsafe methods). The partner order job
 ///   resends it later with the same <c>external_ref</c>, which Harbor answers with 200 and the original order
 ///   instead of ordering again; so a 201 whose response was lost is recovered without a second order;
-/// - <c>order_id</c> is opaque: stored as Harbor sent it (a string, or the text of a number), never parsed.
+/// - <c>order_id</c> is opaque: stored as Harbor sent it (a string, or the text of a number), never parsed;
+/// - a rejection (409, 422, 400) is final even after an earlier send whose answer was lost: the contract answers a used
+///   external_ref with the original order, so a rejected resend proves Harbor has no order for it.
 /// It never throws for partner or transport failures: those are <see cref="PartnerOrderOutcome.RetryLater"/>.
 /// </summary>
 internal sealed class HarborOrderGateway(
@@ -54,9 +56,9 @@ internal sealed class HarborOrderGateway(
         }
         catch (PartnerException ex)
         {
-            // Timeout, connection error, open circuit: Harbor may or may not have the order. Resending the same
-            // external_ref settles it (200 with the original order, or a first 201).
-            return new PartnerOrderResult(PartnerOrderOutcome.RetryLater, Error: ex.Message, HttpStatus: ex.StatusCode);
+            // A timeout may mean Harbor has the order (unknown outcome); a refused connection or an open circuit means
+            // it never got the request. Resending the same external_ref settles it (200 with the original, or a first 201).
+            return PartnerOrderResult.SendFailed(ex);
         }
     }
 
@@ -110,12 +112,14 @@ internal sealed class HarborOrderGateway(
             }
 
             default:
-                // 401/403 (credentials), 404 (wrong base URL), 3xx, 5xx, or a 2xx the contract does not use: nothing
-                // to act on. Resending the same external_ref is always safe.
+                // 401/403 (credentials), 404 (wrong base URL) and 3xx were refused without being acted on; a 5xx, 408 or
+                // a 2xx the contract does not use may have created the order (unknown outcome). Resending the same
+                // external_ref is always safe.
                 var detail = HarborErrorBody.Read(body);
                 var suffix = detail.Code is null ? "" : $" ({detail.Describe(detail.Code)})";
                 return new PartnerOrderResult(PartnerOrderOutcome.RetryLater,
-                    Error: $"Harbor POST /v2/orders returned {status} {response.ReasonPhrase}{suffix}.", HttpStatus: status);
+                    Error: $"Harbor POST /v2/orders returned {status} {response.ReasonPhrase}{suffix}.", HttpStatus: status,
+                    OutcomeUnknown: PartnerOrderResult.MayHaveActed(status));
         }
     }
 

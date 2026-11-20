@@ -58,7 +58,7 @@ internal sealed class KestrelOrderGateway(
                 case HttpStatusCode.Accepted:
                     // Received, but without a ticket there is nothing to poll. Resending the same reference returns
                     // 409 DUPLICATE_REFERENCE with the ticket.
-                    return RetryLater($"Kestrel POST /orders returned 202 without a readable ticket for {request.ExternalRef}.", status);
+                    return RetryLater($"Kestrel POST /orders returned 202 without a readable ticket for {request.ExternalRef}.", status, outcomeUnknown: true);
 
                 case HttpStatusCode.Conflict when Is(answer, "Error") && Attribute(answer, "code") == "DUPLICATE_REFERENCE"
                                                   && Attribute(answer, "ticket") is { } ticket:
@@ -66,24 +66,30 @@ internal sealed class KestrelOrderGateway(
                     return new PartnerOrderResult(PartnerOrderOutcome.Accepted, PartnerOrderId: ticket, AlreadyExisted: true, HttpStatus: status);
 
                 case HttpStatusCode.Conflict:
-                    return RetryLater($"Kestrel POST /orders returned 409 without a DUPLICATE_REFERENCE ticket for {request.ExternalRef}.", status);
+                    // A conflict says Kestrel may already have this reference: the outcome is unknown until a ticket comes back.
+                    return RetryLater($"Kestrel POST /orders returned 409 without a DUPLICATE_REFERENCE ticket for {request.ExternalRef}.", status, outcomeUnknown: true);
 
                 case HttpStatusCode.BadRequest:
                 {
-                    // Malformed request or unknown ref: Kestrel will not take this order however often it is sent.
+                    // Malformed request or unknown ref: Kestrel will not take this order however often it is sent. The
+                    // contract does not say a used reference is checked first, so after an earlier send whose answer
+                    // was lost this does not prove Kestrel has no order for it (OutcomeUnknown).
                     var code = Is(answer, "Error") ? Attribute(answer, "code") ?? "INVALID_REQUEST" : "INVALID_REQUEST";
                     var text = Is(answer, "Error") ? Attribute(answer, "message") : null;
-                    return new PartnerOrderResult(PartnerOrderOutcome.Rejected, Reason: text is null ? code : $"{code}: {text}", HttpStatus: status);
+                    return new PartnerOrderResult(PartnerOrderOutcome.Rejected, Reason: text is null ? code : $"{code}: {text}", HttpStatus: status,
+                        OutcomeUnknown: true);
                 }
 
                 default:
-                    return RetryLater($"Kestrel POST /orders returned {status} {response.ReasonPhrase}.", status);
+                    return RetryLater($"Kestrel POST /orders returned {status} {response.ReasonPhrase}.", status,
+                        outcomeUnknown: PartnerOrderResult.MayHaveActed(status));
             }
         }
         catch (PartnerException ex)
         {
-            // Kestrel may or may not have received it; resending the same reference settles it (202 or 409 with the ticket).
-            return RetryLater(ex.Message, ex.StatusCode);
+            // A timeout may mean Kestrel has it (unknown outcome); a refused connection means it never got it. Resending
+            // the same reference settles it (202 or 409 with the ticket).
+            return PartnerOrderResult.SendFailed(ex);
         }
     }
 
@@ -148,8 +154,8 @@ internal sealed class KestrelOrderGateway(
     private static string? Attribute(XElement element, string name) =>
         element.Attribute(name)?.Value is { } value && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
 
-    private static PartnerOrderResult RetryLater(string error, int? status) =>
-        new(PartnerOrderOutcome.RetryLater, Error: error, HttpStatus: status);
+    private static PartnerOrderResult RetryLater(string error, int? status, bool outcomeUnknown = false) =>
+        new(PartnerOrderOutcome.RetryLater, Error: error, HttpStatus: status, OutcomeUnknown: outcomeUnknown);
 
     private static PartnerOrderResult NotConfigured() =>
         new(PartnerOrderOutcome.RetryLater, Error: "Kestrel is not configured (Partners:Kestrel:BaseUrl).");

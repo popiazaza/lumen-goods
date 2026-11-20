@@ -25,7 +25,13 @@ public sealed class PartnerOrder
     /// </summary>
     public required string ExternalRef { get; set; }
 
-    /// <summary>The partner's id for it once known: Harbor <c>order_id</c> (H-10001) or Kestrel ticket (KT-5521).</summary>
+    /// <summary>
+    /// The longest partner order id or ticket Lumen stores. Partner ids are opaque and never cut: a longer one is
+    /// refused (recorded as an error) rather than stored shortened.
+    /// </summary>
+    public const int MaxPartnerOrderIdLength = 200;
+
+    /// <summary>The partner's id for it once known: Harbor <c>order_id</c> (H-10001) or Kestrel ticket (KT-5521). Opaque, stored exactly.</summary>
     public string? PartnerOrderId { get; set; }
 
     public PartnerOrderStatus Status { get; set; } = OrderTransitions.PartnerOrder.Initial;
@@ -44,6 +50,14 @@ public sealed class PartnerOrder
 
     /// <summary>The last transport or partner error, for the admin order page.</summary>
     public string? LastError { get; set; }
+
+    /// <summary>
+    /// BR-ORD-04: some send of this partner order may have reached the partner and been acted on, but Lumen never
+    /// learned the result (a timeout after sending, a 5xx, a crash before the answer was saved). The partner may hold the
+    /// order, so it is never given up and refunded automatically: at the deadline its line goes to an admin. Set when a
+    /// send is claimed and kept unless that send provably never reached the partner; sticky until the partner answers.
+    /// </summary>
+    public bool OutcomeUnknown { get; set; }
 
     public DateTimeOffset CreatedUtc { get; set; }
 

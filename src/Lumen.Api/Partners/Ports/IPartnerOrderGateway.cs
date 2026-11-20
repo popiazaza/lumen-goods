@@ -91,6 +91,14 @@ public enum PartnerOrderOutcome
 /// <param name="RetryAfter">RetryLater: how long the partner asked Lumen to wait (Harbor 429 Retry-After), if it said.</param>
 /// <param name="Error">RetryLater and NotFound: what went wrong, for the partner order's LastError and the admin pages.</param>
 /// <param name="HttpStatus">The partner's HTTP status, when it answered at all.</param>
+/// <param name="OutcomeUnknown">
+/// BR-ORD-04: after this call the partner may hold an order for this reference although Lumen cannot tell. RetryLater:
+/// the request may have been acted on (a timeout after sending, a 5xx, an answer Lumen could not read); false when it
+/// never reached the partner or was refused without being acted on (connection refused, name not resolved, open
+/// circuit, 429, 401). Rejected: the rejection does not rule out an order an earlier send of the same reference
+/// created (Kestrel's 400 says nothing about a reference it may already have; Harbor answers a used reference with
+/// the original order before judging it, so its rejections are final).
+/// </param>
 public sealed record PartnerOrderResult(
     PartnerOrderOutcome Outcome,
     string? PartnerOrderId = null,
@@ -99,8 +107,30 @@ public sealed record PartnerOrderResult(
     int? AvailableQuantity = null,
     TimeSpan? RetryAfter = null,
     string? Error = null,
-    int? HttpStatus = null)
+    int? HttpStatus = null,
+    bool OutcomeUnknown = false)
 {
+    /// <summary>
+    /// RetryLater for a send that failed in transport (<see cref="PartnerException"/> from the partner client): the
+    /// outcome is unknown unless the request provably never reached the partner (connection or TLS not established,
+    /// name not resolved, circuit open, client-side rate limit queue full).
+    /// </summary>
+    public static PartnerOrderResult SendFailed(PartnerException failure)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        var neverSent = failure.InnerException switch
+        {
+            Polly.CircuitBreaker.BrokenCircuitException => true,
+            Polly.RateLimiting.RateLimiterRejectedException => true,
+            HttpRequestException { HttpRequestError: HttpRequestError.ConnectionError or HttpRequestError.NameResolutionError or HttpRequestError.SecureConnectionError } => true,
+            _ => false,
+        };
+        return new PartnerOrderResult(PartnerOrderOutcome.RetryLater, Error: failure.Message, HttpStatus: failure.StatusCode, OutcomeUnknown: !neverSent);
+    }
+
+    /// <summary>Whether an HTTP status means the partner may have acted on the request (5xx, 408, or a 2xx Lumen could not use).</summary>
+    public static bool MayHaveActed(int status) => status is >= 500 or 408 or (>= 200 and < 300);
+
     /// <summary>
     /// The answer for <see cref="PartnerOrderUpdates.ApplyPartnerAnswer"/> (Accepted, Confirmed or Rejected), or null
     /// when the partner gave none (RetryLater, NotFound).

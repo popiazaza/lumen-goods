@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
@@ -30,8 +31,10 @@ namespace Lumen.IntegrationTests.Orders;
 /// </summary>
 internal sealed class OrderJobHost : IAsyncDisposable
 {
-    private OrderJobHost(LumenApiFactory factory, DateTimeOffset start, Action<IWebHostBuilder>? configure)
+    private OrderJobHost(LumenApiFactory factory, DateTimeOffset start, Action<IWebHostBuilder>? configure, FakeHarborOrders? harbor, FakeKestrelOrders? kestrel)
     {
+        Harbor = harbor ?? new FakeHarborOrders();
+        Kestrel = kestrel ?? new FakeKestrelOrders();
         Clock = new FakeTimeProvider(start);
         App = factory.WithWebHostBuilder(builder =>
         {
@@ -48,14 +51,18 @@ internal sealed class OrderJobHost : IAsyncDisposable
                 services.AddSingleton<TimeProvider>(Clock);
                 services.AddHttpClient(HarborCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Harbor);
                 services.AddHttpClient(KestrelCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Kestrel);
+                services.ConfigureDbContext<LumenDbContext>(options => options.AddInterceptors(SaveFailures));
             });
             configure?.Invoke(builder);
         });
     }
 
-    public FakeHarborOrders Harbor { get; } = new();
+    public FakeHarborOrders Harbor { get; }
 
-    public FakeKestrelOrders Kestrel { get; } = new();
+    public FakeKestrelOrders Kestrel { get; }
+
+    /// <summary>Makes saving a partner's confirmation fail, as if the database went away right after the partner accepted.</summary>
+    public FailingConfirmationSave SaveFailures { get; } = new();
 
     public FakeTimeProvider Clock { get; }
 
@@ -63,11 +70,19 @@ internal sealed class OrderJobHost : IAsyncDisposable
 
     public PartnerOrdersOptions Options => App.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PartnerOrdersOptions>>().Value;
 
-    public static OrderJobHost Start(LumenApiFactory factory, Action<IWebHostBuilder>? configure = null) => new(factory, OrderingTestData.Now, configure);
+    /// <param name="harbor">Share a fake partner between hosts (two job instances talking to one partner).</param>
+    public static OrderJobHost Start(LumenApiFactory factory, Action<IWebHostBuilder>? configure = null, FakeHarborOrders? harbor = null, FakeKestrelOrders? kestrel = null) =>
+        new(factory, OrderingTestData.Now, configure, harbor, kestrel);
+
+    internal PartnerOrderJob Job => App.Services.GetRequiredService<PartnerOrderJob>();
+
+    /// <summary>One run for one partner only, for these orders only.</summary>
+    internal Task<PartnerOrderRunReport> RunPartnerAsync(string partner, params Order[] orders) =>
+        Job.RunPartnerOnceAsync(partner, [.. orders.Select(o => o.Id)], OrderingTestData.Ct);
 
     /// <summary>One run of the partner order job, for these orders only.</summary>
     internal Task<PartnerOrderRunReport> RunAsync(params Order[] orders) =>
-        App.Services.GetRequiredService<PartnerOrderJob>().RunOnceAsync([.. orders.Select(o => o.Id)], OrderingTestData.Ct);
+        Job.RunOnceAsync([.. orders.Select(o => o.Id)], OrderingTestData.Ct);
 
     /// <summary>Applies a partner's answer directly, as the job would after a call (e.g. the same rejection seen twice).</summary>
     internal async Task<PartnerOrderStep> ApplyAsync(Order order, OrderLine line, Lumen.Api.Partners.Ports.PartnerOrderResult result)
@@ -80,6 +95,27 @@ internal sealed class OrderJobHost : IAsyncDisposable
     }
 
     public ValueTask DisposeAsync() => App.DisposeAsync();
+}
+
+/// <summary>Fails the next N saves that confirm a partner order, after the partner already accepted it.</summary>
+internal sealed class FailingConfirmationSave : SaveChangesInterceptor
+{
+    private int _failuresLeft;
+
+    public void FailNext(int times = 1) => Interlocked.Exchange(ref _failuresLeft, times);
+
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        var confirming = eventData.Context?.ChangeTracker.Entries<PartnerOrder>()
+            .Any(e => e.State == EntityState.Modified && e.Entity.Status == PartnerOrderStatus.Confirmed) ?? false;
+        if (confirming && Interlocked.Decrement(ref _failuresLeft) >= 0)
+        {
+            throw new DbUpdateException("Simulated: the database connection broke while saving the partner's confirmation.");
+        }
+
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
 }
 
 /// <summary>One line of a test order: who sells it, its id at the seller, price and quantity.</summary>

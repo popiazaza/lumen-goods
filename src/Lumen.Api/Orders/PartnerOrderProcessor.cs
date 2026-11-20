@@ -10,13 +10,18 @@ namespace Lumen.Api.Orders;
 
 /// <summary>What the job needs to call a partner for one claimed partner order. Read in the claim transaction.</summary>
 /// <param name="Poll">Ask for the decision on <paramref name="Ticket"/> instead of sending the order.</param>
+/// <param name="OutcomeUnknownBefore">
+/// Whether an earlier send's outcome was already unknown when this one was claimed (the claim itself marks the row
+/// unknown until this send's result is saved, so a crash in between leaves it unknown).
+/// </param>
 internal sealed record PartnerOrderWork(
     Guid PartnerOrderId,
     Guid OrderId,
     string Source,
     bool Poll,
     string? Ticket,
-    PartnerOrderRequest Request);
+    PartnerOrderRequest Request,
+    bool OutcomeUnknownBefore = false);
 
 /// <summary>What applying one partner call did.</summary>
 internal enum PartnerOrderStep
@@ -33,8 +38,14 @@ internal enum PartnerOrderStep
     /// <summary>The partner will not supply it; the line is Rejected and refunded (BR-ORD-03).</summary>
     Rejected,
 
-    /// <summary>Not accepted within the deadline (BR-ORD-04); the line is Rejected and refunded.</summary>
+    /// <summary>Not accepted within the deadline and never received by the partner (BR-ORD-04); the line is Rejected and refunded.</summary>
     GivenUp,
+
+    /// <summary>
+    /// BR-ORD-04: the partner may hold the order but Lumen cannot tell (an unknown outcome at the deadline, or a refused
+    /// resend after a lost answer): the line now needs an admin and is not refunded automatically.
+    /// </summary>
+    NeedsAttention,
 
     /// <summary>No answer to act on; tried again later with the same reference.</summary>
     RetryScheduled,
@@ -44,9 +55,9 @@ internal enum PartnerOrderStep
 }
 
 /// <summary>
-/// The database side of the partner order job (BR-ORD-01, BR-ORD-03, BR-ORD-04): claims due partner orders in one short
-/// transaction, and applies each partner's answer in another, with all partner I/O in between, outside any transaction
-/// (the job does it). Every step is idempotent: an answer applied twice, or after the partner order became final,
+/// The database side of the partner order job (BR-ORD-01, BR-ORD-03, BR-ORD-04): claims a due partner order in one short
+/// transaction, and applies the partner's answer in another, with the partner call in between, outside any transaction
+/// (the job makes it). Every step is idempotent: an answer applied twice, or after the partner order became final,
 /// changes nothing (<see cref="PartnerOrderUpdates"/>), and a line is refunded once however often it is rejected.
 /// </summary>
 internal sealed class PartnerOrderProcessor(
@@ -67,14 +78,16 @@ internal sealed class PartnerOrderProcessor(
     private readonly HashSet<string> _partnersWithNewErrors = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// Claims the partner orders due now: due rows of paid orders only (BR-ORD-01: never one of an unpaid order), locked
-    /// with <c>FOR UPDATE SKIP LOCKED</c> so concurrent job instances never take the same row, then reserved for
-    /// <see cref="PartnerOrdersOptions.ClaimTimeout"/> before the transaction commits, since the partner call happens after it.
-    /// A Pending partner order moves to Submitted here, as it is about to be sent.
+    /// Claims the partner's next due partner order: a due row of a paid order only (BR-ORD-01: never one of an unpaid
+    /// order), locked with <c>FOR UPDATE SKIP LOCKED</c> so concurrent job instances never take the same row, then
+    /// reserved for <see cref="PartnerOrdersOptions.ClaimTimeout"/> before the transaction commits, since the partner call
+    /// happens after it. A send moves Pending to Submitted and marks the outcome unknown until its result is saved.
     /// </summary>
-    /// <param name="onlyOrderIds">Restricts the run to these orders (tests share one database); null for all.</param>
-    public async Task<IReadOnlyList<PartnerOrderWork>> ClaimDueAsync(IReadOnlyCollection<Guid>? onlyOrderIds, CancellationToken cancellationToken)
+    /// <param name="onlyOrderIds">Restricts the claim to these orders (tests share one database); null for all.</param>
+    /// <returns>The claimed work, or null when nothing of this partner is due.</returns>
+    public async Task<PartnerOrderWork?> ClaimNextAsync(string partner, IReadOnlyCollection<Guid>? onlyOrderIds, CancellationToken cancellationToken)
     {
+        db.ChangeTracker.Clear();
         var now = clock.GetUtcNow();
         var settings = options.CurrentValue;
         var scoped = onlyOrderIds is not null;
@@ -88,65 +101,66 @@ internal sealed class PartnerOrderProcessor(
             FROM "PartnerOrders" AS p
             JOIN "OrderLines" AS l ON l."Id" = p."OrderLineId"
             JOIN "Orders" AS o ON o."Id" = l."OrderId"
-            WHERE p."Status" = ANY({OpenStatuses})
+            WHERE p."Source" = {partner}
+              AND p."Status" = ANY({OpenStatuses})
               AND (p."NextAttemptUtc" <= {now} OR (p."NextAttemptUtc" IS NULL AND p."Status" = {nameof(PartnerOrderStatus.Pending)}))
               AND o."Status" = {nameof(OrderStatus.Paid)}
               AND (NOT {scoped} OR o."Id" = ANY({orderIds}))
             ORDER BY p."NextAttemptUtc" NULLS FIRST, p."Id"
-            LIMIT {settings.BatchSize}
+            LIMIT 1
             FOR UPDATE OF p SKIP LOCKED
             """).ToListAsync(cancellationToken);
 
         if (ids.Count == 0)
         {
             await transaction.CommitAsync(cancellationToken);
-            return [];
+            return null;
         }
 
-        var claimed = await db.PartnerOrders.Include(p => p.OrderLine).Where(p => ids.Contains(p.Id)).ToListAsync(cancellationToken);
-        var lineOrderIds = claimed.Select(p => p.OrderLine!.OrderId).Distinct().ToList();
-        var orders = await db.Orders.AsNoTracking().Where(o => lineOrderIds.Contains(o.Id)).ToDictionaryAsync(o => o.Id, cancellationToken);
-
-        var work = new List<PartnerOrderWork>(claimed.Count);
-        foreach (var partnerOrder in claimed.OrderBy(p => ids.IndexOf(p.Id)))
+        var partnerOrder = await db.PartnerOrders.Include(p => p.OrderLine).SingleAsync(p => p.Id == ids[0], cancellationToken);
+        var line = partnerOrder.OrderLine!;
+        var shipTo = (await db.Orders.AsNoTracking().SingleAsync(o => o.Id == line.OrderId, cancellationToken)).ShipTo;
+        var poll = partnerOrder.Status == PartnerOrderStatus.Accepted && !string.IsNullOrEmpty(partnerOrder.PartnerOrderId);
+        var unknownBefore = partnerOrder.OutcomeUnknown;
+        if (partnerOrder.Status == PartnerOrderStatus.Pending)
         {
-            var line = partnerOrder.OrderLine!;
-            var shipTo = orders[line.OrderId].ShipTo;
-            var poll = partnerOrder.Status == PartnerOrderStatus.Accepted && !string.IsNullOrEmpty(partnerOrder.PartnerOrderId);
-            if (partnerOrder.Status == PartnerOrderStatus.Pending)
-            {
-                partnerOrder.Status = OrderTransitions.PartnerOrder.Move(partnerOrder.Status, PartnerOrderStatus.Submitted);
-            }
-
-            partnerOrder.SubmittedUtc ??= now;
-            partnerOrder.Attempts++;
-            partnerOrder.NextAttemptUtc = now + settings.ClaimTimeout;
-
-            work.Add(new PartnerOrderWork(
-                partnerOrder.Id,
-                line.OrderId,
-                partnerOrder.Source,
-                poll,
-                partnerOrder.PartnerOrderId,
-                new PartnerOrderRequest(
-                    partnerOrder.ExternalRef,
-                    line.SourceProductId,
-                    line.Quantity,
-                    new PartnerShipTo(shipTo.Name, shipTo.Line1, shipTo.Line2, shipTo.City, shipTo.Region, shipTo.PostalCode, shipTo.Country))));
+            partnerOrder.Status = OrderTransitions.PartnerOrder.Move(partnerOrder.Status, PartnerOrderStatus.Submitted);
         }
 
+        if (!poll)
+        {
+            // Pessimistic until this send's result is saved: if the job dies after sending, the partner may have it.
+            partnerOrder.OutcomeUnknown = true;
+        }
+
+        partnerOrder.SubmittedUtc ??= now;
+        partnerOrder.Attempts++;
+        partnerOrder.NextAttemptUtc = now + settings.ClaimTimeout;
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return work;
+
+        return new PartnerOrderWork(
+            partnerOrder.Id,
+            line.OrderId,
+            partnerOrder.Source,
+            poll,
+            partnerOrder.PartnerOrderId,
+            new PartnerOrderRequest(
+                partnerOrder.ExternalRef,
+                line.SourceProductId,
+                line.Quantity,
+                new PartnerShipTo(shipTo.Name, shipTo.Line1, shipTo.Line2, shipTo.City, shipTo.Region, shipTo.PostalCode, shipTo.Country)),
+            unknownBefore);
     }
 
     /// <summary>
-    /// Applies one partner call's result in a short transaction holding the order row lock: the answer through
-    /// <see cref="PartnerOrderUpdates.ApplyPartnerAnswer"/> (refunding a rejected line, BR-ORD-03), or, with no answer,
-    /// a retry with back-off, or giving up once the partner order is past its deadline (BR-ORD-04).
+    /// Applies one partner call's result in a short transaction holding the order and partner order row locks: the
+    /// answer through <see cref="PartnerOrderUpdates.ApplyPartnerAnswer"/> (refunding a rejected line, BR-ORD-03), or,
+    /// with no answer, a retry with back-off and, past the deadline, giving up or handing the line to an admin (BR-ORD-04).
     /// </summary>
     public async Task<PartnerOrderStep> ApplyAsync(PartnerOrderWork work, PartnerOrderResult result, CancellationToken cancellationToken)
     {
+        db.ChangeTracker.Clear();
         var now = clock.GetUtcNow();
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         await db.LockOrderAsync(work.OrderId, cancellationToken);
@@ -172,9 +186,10 @@ internal sealed class PartnerOrderProcessor(
         else
         {
             PrepareForAnswer(order, line, partnerOrder, now);
+            result = RefuseOverlongId(result, partnerOrder.Source);
             step = result.Answer is { } answer
-                ? await ApplyAnswerAsync(order, line, partnerOrder, answer, result, now, cancellationToken)
-                : await ApplyNoAnswerAsync(order, line, partnerOrder, result, now, cancellationToken);
+                ? await ApplyAnswerAsync(order, line, partnerOrder, answer, result, work, now, cancellationToken)
+                : await ApplyNoAnswerAsync(order, line, partnerOrder, result, work, now, cancellationToken);
         }
 
         LineRejection.DeriveOrderStatus(order);
@@ -185,19 +200,22 @@ internal sealed class PartnerOrderProcessor(
     }
 
     /// <summary>
-    /// BR-ORD-04: lines whose partner accepted the order but has not decided within
+    /// BR-ORD-04: the partner's lines whose partner accepted the order but has not decided within
     /// <see cref="PartnerOrdersOptions.NeedsAttentionAfter"/> are flagged for an admin. Nothing is refunded: the goods may
-    /// still ship. Polling goes on, so a late decision still lands. Orders being changed right now are skipped until the next run.
+    /// still ship. Polling goes on, so a late decision still lands. Orders or partner orders being changed right now are
+    /// skipped until the next run.
     /// </summary>
     /// <returns>How many lines were flagged.</returns>
-    public async Task<int> FlagUndecidedAsync(IReadOnlyCollection<Guid>? onlyOrderIds, CancellationToken cancellationToken)
+    public async Task<int> FlagUndecidedAsync(string partner, IReadOnlyCollection<Guid>? onlyOrderIds, CancellationToken cancellationToken)
     {
+        db.ChangeTracker.Clear();
         var now = clock.GetUtcNow();
         var settings = options.CurrentValue;
         var cutoff = now - settings.NeedsAttentionAfter;
 
         var query = db.PartnerOrders.AsNoTracking()
-            .Where(p => p.Status == PartnerOrderStatus.Accepted && p.AcceptedUtc <= cutoff && p.OrderLine!.Status == OrderLineStatus.AwaitingPartner);
+            .Where(p => p.Source == partner && p.Status == PartnerOrderStatus.Accepted && p.AcceptedUtc <= cutoff
+                        && p.OrderLine!.Status == OrderLineStatus.AwaitingPartner);
         if (onlyOrderIds is not null)
         {
             query = query.Where(p => onlyOrderIds.Contains(p.OrderLine!.OrderId));
@@ -219,12 +237,13 @@ internal sealed class PartnerOrderProcessor(
                 continue;
             }
 
+            // Only partner orders no job instance is working on right now: their row lock is free.
+            var lockable = (await db.TryLockPartnerOrdersAsync([.. group.Select(d => d.Id)], cancellationToken)).ToHashSet();
             var order = await db.Orders
                 .Include(o => o.Lines).ThenInclude(l => l.PartnerOrder)
                 .AsSplitQuery()
                 .SingleAsync(o => o.Id == group.Key, cancellationToken);
-            var partnerOrderIds = group.Select(d => d.Id).ToHashSet();
-            foreach (var line in order.Lines.Where(l => l.PartnerOrder is { } p && partnerOrderIds.Contains(p.Id)))
+            foreach (var line in order.Lines.Where(l => l.PartnerOrder is { } p && lockable.Contains(p.Id)))
             {
                 var partnerOrder = line.PartnerOrder!;
                 if (line.Status != OrderLineStatus.AwaitingPartner || partnerOrder.Status != PartnerOrderStatus.Accepted
@@ -272,13 +291,42 @@ internal sealed class PartnerOrderProcessor(
         }
     }
 
+    /// <summary>
+    /// Partner ids are opaque and never cut. One longer than Lumen stores cannot be kept, so the answer is not applied:
+    /// it is recorded as an error, and as the partner may hold the order, its outcome counts as unknown (BR-ORD-04).
+    /// </summary>
+    private static PartnerOrderResult RefuseOverlongId(PartnerOrderResult result, string partner) =>
+        result.Answer is not null && result.PartnerOrderId is { Length: > PartnerOrder.MaxPartnerOrderIdLength } id
+            ? result with
+            {
+                Outcome = PartnerOrderOutcome.RetryLater,
+                PartnerOrderId = null,
+                OutcomeUnknown = true,
+                Error = $"{partner} answered {result.Outcome} with an order id of {id.Length} characters, longer than the "
+                        + $"{PartnerOrder.MaxPartnerOrderIdLength} Lumen stores; ids are never cut, so the answer was not applied.",
+            }
+            : result;
+
     private async Task<PartnerOrderStep> ApplyAnswerAsync(
-        Order order, OrderLine line, PartnerOrder partnerOrder, PartnerOrderStatus answer, PartnerOrderResult result, DateTimeOffset now,
-        CancellationToken cancellationToken)
+        Order order, OrderLine line, PartnerOrder partnerOrder, PartnerOrderStatus answer, PartnerOrderResult result, PartnerOrderWork work,
+        DateTimeOffset now, CancellationToken cancellationToken)
     {
         var settings = options.CurrentValue;
+        var seller = sellers.Name(partnerOrder.Source);
 
-        // Harbor's order_id, or Kestrel's ticket (also one adopted from 409 DUPLICATE_REFERENCE): opaque, stored as sent.
+        // BR-ORD-04: a resend refused in a way that does not rule out an order an earlier, unanswered send created
+        // (Kestrel's 400): the partner may still have it, so an admin decides; nothing is refunded and nothing resent.
+        if (answer == PartnerOrderStatus.Rejected && !work.Poll && work.OutcomeUnknownBefore && result.OutcomeUnknown)
+        {
+            var reason = string.IsNullOrWhiteSpace(result.Reason) ? "REJECTED" : result.Reason.Trim();
+            partnerOrder.OutcomeUnknown = true;
+            partnerOrder.LastError = LineRejection.Truncate($"{seller} refused a resend ({reason}) after an earlier send whose answer was lost.", MaxErrorLength);
+            return Escalate(line, partnerOrder,
+                $"{seller} refused a resend ({reason}) after an earlier send whose answer was lost; it may still have the order",
+                nextAttemptUtc: null, now);
+        }
+
+        // Harbor's order_id, or Kestrel's ticket (also one adopted from 409 DUPLICATE_REFERENCE): opaque, stored exactly.
         if (result.PartnerOrderId is { } partnerId && partnerId != partnerOrder.PartnerOrderId)
         {
             if (partnerOrder.PartnerOrderId is not null)
@@ -287,7 +335,7 @@ internal sealed class PartnerOrderProcessor(
                     partnerOrder.ExternalRef, partnerOrder.Source, partnerId, partnerOrder.PartnerOrderId);
             }
 
-            partnerOrder.PartnerOrderId = LineRejection.Truncate(partnerId, 64);
+            partnerOrder.PartnerOrderId = partnerId;
         }
 
         var update = PartnerOrderUpdates.ApplyPartnerAnswer(partnerOrder.Status, line.Status, answer);
@@ -298,6 +346,8 @@ internal sealed class PartnerOrderProcessor(
             return PartnerOrderStep.Ignored;
         }
 
+        // The partner answered for this reference: whatever it says, the outcome is no longer unknown.
+        partnerOrder.OutcomeUnknown = false;
         switch (update.PartnerOrder)
         {
             case PartnerOrderStatus.Accepted:
@@ -323,7 +373,7 @@ internal sealed class PartnerOrderProcessor(
             {
                 var reason = string.IsNullOrWhiteSpace(result.Reason) ? "REJECTED" : result.Reason.Trim();
                 var paymentId = await LineRejection.SucceededPaymentIdAsync(db, order.Id, cancellationToken);
-                var refund = LineRejection.Reject(order, line, paymentId, $"Not supplied by {sellers.Name(partnerOrder.Source)} ({reason})", now);
+                var refund = LineRejection.Reject(order, line, paymentId, $"Not supplied by {seller} ({reason})", now);
                 if (refund is not null)
                 {
                     db.Refunds.Add(refund);
@@ -351,13 +401,20 @@ internal sealed class PartnerOrderProcessor(
     }
 
     private async Task<PartnerOrderStep> ApplyNoAnswerAsync(
-        Order order, OrderLine line, PartnerOrder partnerOrder, PartnerOrderResult result, DateTimeOffset now, CancellationToken cancellationToken)
+        Order order, OrderLine line, PartnerOrder partnerOrder, PartnerOrderResult result, PartnerOrderWork work, DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         var settings = options.CurrentValue;
         var seller = sellers.Name(partnerOrder.Source);
         var error = string.IsNullOrWhiteSpace(result.Error) ? $"{seller} gave no usable answer ({result.Outcome})." : result.Error.Trim();
         partnerOrder.LastError = LineRejection.Truncate(error, MaxErrorLength);
         AddError(partnerOrder.Source, result.HttpStatus, $"{partnerOrder.ExternalRef}: {error}", now);
+
+        if (!work.Poll)
+        {
+            // Unknown stays unknown: only this send having provably not reached the partner leaves the earlier state.
+            partnerOrder.OutcomeUnknown = work.OutcomeUnknownBefore || result.OutcomeUnknown;
+        }
 
         if (result.Outcome == PartnerOrderOutcome.NotFound)
         {
@@ -370,24 +427,54 @@ internal sealed class PartnerOrderProcessor(
             // "Within 30 minutes of payment": the partner order row is written in the payment transaction, so its
             // creation time stands in when the order carries no payment time.
             var giveUpAt = PartnerOrderSchedule.GiveUpAt(order.PaidUtc ?? partnerOrder.CreatedUtc, settings);
-            if (now >= giveUpAt)
+            if (now < giveUpAt)
             {
+                partnerOrder.NextAttemptUtc = PartnerOrderSchedule.NextSend(partnerOrder.Attempts, now, result.RetryAfter, giveUpAt, settings);
+                return PartnerOrderStep.RetryScheduled;
+            }
+
+            if (!partnerOrder.OutcomeUnknown)
+            {
+                // Every send failed before reaching the partner, or was refused unseen: it cannot have the order.
                 await GiveUpAsync(order, line, partnerOrder, seller, now, cancellationToken);
                 return PartnerOrderStep.GivenUp;
             }
 
-            partnerOrder.NextAttemptUtc = PartnerOrderSchedule.NextSend(partnerOrder.Attempts, now, result.RetryAfter, giveUpAt, settings);
-            return PartnerOrderStep.RetryScheduled;
+            // BR-ORD-04: a send may have reached the partner, so it may ship: an admin decides, nothing is refunded. Sends
+            // go on slowly with the same reference, so a partner that comes back settles it (200, or 409 with a ticket).
+            var wait = result.RetryAfter is { } retryAfter && retryAfter > settings.MaxRetryDelay ? retryAfter : settings.MaxRetryDelay;
+            return Escalate(line, partnerOrder,
+                $"No answer from {seller} within {PartnerOrderSchedule.Describe(settings.GiveUpAfter)} of payment, and it may have received the order",
+                now + wait, now);
         }
 
         // Accepted: never given up automatically (BR-ORD-04), the goods may still ship. Keep asking.
         partnerOrder.NextAttemptUtc = partnerOrder.PartnerOrderId is null
-            ? now + (result.RetryAfter is { } wait && wait > settings.RetryDelay ? wait : settings.RetryDelay)
+            ? now + (result.RetryAfter is { } wait2 && wait2 > settings.RetryDelay ? wait2 : settings.RetryDelay)
             : PartnerOrderSchedule.NextPoll(partnerOrder.AcceptedUtc ?? now, now, result.RetryAfter, settings);
         return PartnerOrderStep.RetryScheduled;
     }
 
-    /// <summary>BR-ORD-04: not accepted within the deadline, after a last attempt at it: the line is refunded (BR-ORD-03).</summary>
+    /// <summary>Hands the line to an admin (NeedsAttention) once; later calls only reschedule.</summary>
+    private PartnerOrderStep Escalate(OrderLine line, PartnerOrder partnerOrder, string reason, DateTimeOffset? nextAttemptUtc, DateTimeOffset now)
+    {
+        partnerOrder.NextAttemptUtc = nextAttemptUtc;
+        if (line.Status != OrderLineStatus.AwaitingPartner)
+        {
+            return PartnerOrderStep.RetryScheduled;
+        }
+
+        line.Status = OrderTransitions.Line.Move(line.Status, OrderLineStatus.NeedsAttention);
+        line.StatusReason = LineRejection.Truncate(reason);
+        AddError(partnerOrder.Source, null, $"{partnerOrder.ExternalRef}: {reason}; an admin must confirm or reject the line.", now);
+        logger.LogWarning("Partner order {ExternalRef} needs an admin: {Reason}", partnerOrder.ExternalRef, reason);
+        return PartnerOrderStep.NeedsAttention;
+    }
+
+    /// <summary>
+    /// BR-ORD-04: not accepted within the deadline, after a last attempt at it, and no send ever reached the partner: the
+    /// line is refunded (BR-ORD-03).
+    /// </summary>
     private async Task GiveUpAsync(Order order, OrderLine line, PartnerOrder partnerOrder, string seller, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var settings = options.CurrentValue;

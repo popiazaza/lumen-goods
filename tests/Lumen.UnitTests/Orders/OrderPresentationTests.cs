@@ -24,15 +24,18 @@ public sealed class OrderPresentationTests
     }));
 
     [Theory]
-    [InlineData(OrderLineStatus.AwaitingPartner, ProductSources.Kestrel, "Kestrel Outfitters", 0, "Awaiting Kestrel Outfitters")]
-    [InlineData(OrderLineStatus.Confirmed, ProductSources.Harbor, "Harbor Supply Co.", 0, "Confirmed by Harbor Supply Co.")]
-    [InlineData(OrderLineStatus.Confirmed, ProductSources.Lumen, "Lumen Goods", 0, "Confirmed")]
-    [InlineData(OrderLineStatus.NeedsAttention, ProductSources.Kestrel, "Kestrel Outfitters", 0, "Delayed")]
-    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", 40.03, "Not supplied, refunded $40.03")]
-    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", 1355.17, "Not supplied, refunded $1,355.17")]
+    [InlineData(OrderLineStatus.AwaitingPartner, ProductSources.Kestrel, "Kestrel Outfitters", 0, false, "Awaiting Kestrel Outfitters")]
+    [InlineData(OrderLineStatus.Confirmed, ProductSources.Harbor, "Harbor Supply Co.", 0, false, "Confirmed by Harbor Supply Co.")]
+    [InlineData(OrderLineStatus.Confirmed, ProductSources.Lumen, "Lumen Goods", 0, false, "Confirmed")]
+    [InlineData(OrderLineStatus.NeedsAttention, ProductSources.Kestrel, "Kestrel Outfitters", 0, false, "Delayed")]
+    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", 40.03, false, "Not supplied, refund pending")]
+    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", 40.03, true, "Not supplied, refunded $40.03")]
+    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", 1355.17, true, "Not supplied, refunded $1,355.17")]
+    [InlineData(OrderLineStatus.Rejected, ProductSources.Harbor, "Harbor Supply Co.", 0, false, "Not supplied")]
     [Trait("BR", "BR-ORD-02")]
-    public void BR_ORD_02_each_line_says_its_status_with_the_shops_name(OrderLineStatus status, string source, string seller, double refunded, string expected) =>
-        OrderStatusText.ForLine(status, OrderStatus.Paid, source, seller, (decimal)refunded).Should().Be(expected);
+    public void BR_ORD_02_each_line_says_its_status_with_the_shops_name(
+        OrderLineStatus status, string source, string seller, double refunded, bool refundPaid, string expected) =>
+        OrderStatusText.ForLine(status, OrderStatus.Paid, source, seller, (decimal)refunded, refundPaid).Should().Be(expected);
 
     [Theory]
     [InlineData(OrderStatus.AwaitingPayment, "Awaiting payment")]
@@ -45,6 +48,14 @@ public sealed class OrderPresentationTests
     [Trait("BR", "BR-ORD-02")]
     public void BR_ORD_02_the_order_status_in_customer_words(OrderStatus status, string expected) =>
         OrderStatusText.ForOrder(status).Should().Be(expected);
+
+    [Theory]
+    [InlineData(OrderStatus.PartiallyRefunded, "Partial refund pending")]
+    [InlineData(OrderStatus.Refunded, "Refund pending")]
+    [InlineData(OrderStatus.Paid, "Processing")]
+    [Trait("BR", "BR-ORD-02")]
+    public void BR_ORD_02_a_refunded_order_says_refund_pending_until_the_money_is_back(OrderStatus status, string expected) =>
+        OrderStatusText.ForOrder(status, refundPending: true).Should().Be(expected);
 
     [Fact]
     [Trait("BR", "BR-ORD-02")]
@@ -71,9 +82,15 @@ public sealed class OrderPresentationTests
         var detail = OrderDetailMapping.ToDetail(order, new Dictionary<Guid, List<ProductImage>>(), Sellers, Policy(), Now, "https://shop.test");
 
         var line = detail.Shipments.Single(s => s.Source == ProductSources.Kestrel).Lines.Single();
-        line.StatusText.Should().Be("Not supplied, refunded $40.03");
+        line.StatusText.Should().Be("Not supplied, refund pending");
         line.RefundedAmount.Should().Be(35.04m);
         detail.Shipments.Single(s => s.Source == ProductSources.Kestrel).FeeRefunded.Should().BeTrue();
+        detail.StatusText.Should().Be("Partial refund pending");
+        detail.IsUpdating.Should().BeTrue("the page refreshes until the refund is paid back");
+
+        refund.Status = RefundStatus.Succeeded;
+        detail = OrderDetailMapping.ToDetail(order, new Dictionary<Guid, List<ProductImage>>(), Sellers, Policy(), Now, "https://shop.test");
+        detail.Shipments.Single(s => s.Source == ProductSources.Kestrel).Lines.Single().StatusText.Should().Be("Not supplied, refunded $40.03");
         detail.StatusText.Should().Be("Partially refunded");
         detail.IsUpdating.Should().BeFalse();
         detail.Totals.Refunded.Should().Be(40.03m);

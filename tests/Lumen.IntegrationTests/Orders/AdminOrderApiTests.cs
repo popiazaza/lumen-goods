@@ -146,8 +146,8 @@ public sealed class AdminOrderApiTests(LumenApiFactory factory)
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var resolved = await response.ReadAsync<AdminOrderDto>();
-        resolved.Order.Shipments.Single(s => s.SellerName == "Kestrel Outfitters").Lines.Single().StatusText.Should().Be("Not supplied, refunded $40.03");
-        resolved.Order.StatusText.Should().Be("Partially refunded");
+        resolved.Order.Shipments.Single(s => s.SellerName == "Kestrel Outfitters").Lines.Single().StatusText.Should().Be("Not supplied, refund pending");
+        resolved.Order.StatusText.Should().Be("Partial refund pending");
         resolved.Order.Refunds.Should().ContainSingle().Which.Reason.Should().Be("Not supplied by Kestrel Outfitters (rejected by an admin: Kestrel support: lost in the warehouse)");
         var partnerOrder = resolved.PartnerOrders.Single();
         partnerOrder.Status.Should().Be(PartnerOrderStatus.ClosedByAdmin);
@@ -199,6 +199,86 @@ public sealed class AdminOrderApiTests(LumenApiFactory factory)
         var after = await factory.ReloadAsync(order);
         after.Line(2).Status.Should().Be(OrderLineStatus.Confirmed);
         after.Refunds.Should().BeEmpty();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_04_resolving_while_a_job_run_holds_the_partner_order_waits_for_it_and_never_fails_with_500()
+    {
+        await using var host = OrderJobHost.Start(factory);
+        var order = await DelayedKestrelOrderAsync(host);
+        var partnerOrderId = order.Line(2).PartnerOrder!.Id;
+        var admin = await factory.SignedInAdminAsync();
+
+        // A job run claims the partner order: it holds the row lock and changes the row (attempts, next attempt).
+        await using var claim = factory.NewContext();
+        await using var transaction = await claim.Database.BeginTransactionAsync(Ct);
+        var later = DateTimeOffset.UtcNow.AddMinutes(5);
+        await claim.Database.ExecuteSqlAsync(
+            $"""UPDATE "PartnerOrders" SET "Attempts" = "Attempts" + 1, "NextAttemptUtc" = {later} WHERE "Id" = {partnerOrderId}""", Ct);
+
+        var resolving = admin.PostAsJsonAsync($"/api/v1/admin/orders/{order.Number}/lines/{order.Line(2).Id}/resolve", Reject);
+        await WaitUntilSomeoneWaitsForMyLocksAsync(claim);
+        resolving.IsCompleted.Should().BeFalse("the resolve waits for the claim instead of reading the row under it");
+        await transaction.CommitAsync(Ct);
+        var response = await resolving;
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var after = await factory.ReloadAsync(order);
+        after.Line(2).Status.Should().Be(OrderLineStatus.Rejected);
+        after.Line(2).PartnerOrder!.Status.Should().Be(PartnerOrderStatus.ClosedByAdmin);
+        after.Line(2).PartnerOrder!.NextAttemptUtc.Should().BeNull("the decision is written over the claim, not the other way round");
+        after.Line(2).PartnerOrder!.Attempts.Should().Be(3, "the claim's change was read, not overwritten");
+        after.Refunds.Should().ContainSingle();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_04_an_admin_rejects_a_line_whose_send_had_an_unknown_outcome_it_is_refunded_and_never_sent_again()
+    {
+        await using var host = OrderJobHost.Start(factory);
+        var order = await factory.PaidOrderAsync(Now, LineSpec.Own(18.50m), LineSpec.Harbor(49.90m));
+        var reference = $"{order.Number}-2";
+        host.Harbor.Down = true;
+        await host.RunAsync(order);
+        host.Clock.Advance(host.Options.GiveUpAfter);
+        (await host.RunAsync(order)).Steps.Should().Equal(PartnerOrderStep.NeedsAttention);
+        var admin = await factory.SignedInAdminAsync();
+
+        var before = await (await admin.GetAsync($"/api/v1/admin/orders/{order.Number}")).ReadAsync<AdminOrderDto>();
+        before.PartnerOrders.Single().Should().BeEquivalentTo(new { NeedsAttention = true, OutcomeUnknown = true, Status = PartnerOrderStatus.Submitted });
+        var resolved = await (await admin.PostAsJsonAsync($"/api/v1/admin/orders/{order.Number}/lines/{order.Line(2).Id}/resolve",
+            new { decision = "reject", note = "Harbor support: no such order" })).ReadAsync<AdminOrderDto>();
+
+        resolved.PartnerOrders.Single().Status.Should().Be(PartnerOrderStatus.GivenUp);
+        resolved.Order.Refunds.Should().ContainSingle().Which.Amount.Should().Be(49.90m + 3.99m + 4.99m);
+        var sends = host.Harbor.CallsFor(reference).Count;
+        host.Harbor.Down = false;
+        host.Clock.Advance(TimeSpan.FromHours(1));
+        (await host.RunAsync(order)).Steps.Should().BeEmpty();
+        host.Harbor.CallsFor(reference).Should().HaveCount(sends);
+    }
+
+    /// <summary>Waits until another connection is blocked on a row lock this connection's transaction holds.</summary>
+    private static async Task WaitUntilSomeoneWaitsForMyLocksAsync(Microsoft.EntityFrameworkCore.DbContext holder)
+    {
+        for (var i = 0; i < 300; i++)
+        {
+            var waiting = await holder.Database.SqlQuery<int>($"""
+                SELECT count(*)::int AS "Value"
+                FROM pg_locks AS w
+                JOIN pg_locks AS h ON h.locktype = 'transactionid' AND h.transactionid = w.transactionid AND h.granted AND h.pid = pg_backend_pid()
+                WHERE w.locktype = 'transactionid' AND NOT w.granted
+                """).SingleAsync(Ct);
+            if (waiting > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(50, Ct);
+        }
+
+        throw new TimeoutException("Nobody started waiting for the held row lock.");
     }
 
     /// <summary>A paid order with a Lumen line and a Kestrel line (2 × $16.22) that Kestrel accepted 24 hours ago and never decided.</summary>

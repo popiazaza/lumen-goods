@@ -41,9 +41,17 @@ public sealed class PartnerOrdersOptions : IValidatableObject
     [Range(typeof(TimeSpan), "00:00:30", "01:00:00")]
     public TimeSpan ClaimTimeout { get; init; } = TimeSpan.FromMinutes(5);
 
-    /// <summary>Partner orders one run claims at most; the rest wait for the next run a few seconds later.</summary>
+    /// <summary>Partner orders one run handles at most per partner; the rest wait for that partner's next run a few seconds later.</summary>
     [Range(1, 10_000)]
     public int BatchSize { get; init; } = 20;
+
+    /// <summary>
+    /// How long one run keeps claiming work for a partner. Each partner runs on its own, so a slow partner only delays
+    /// itself; this keeps even that partner's run short. Well under <see cref="ClaimTimeout"/>, so a partner order
+    /// claimed near the end of a run is answered long before another instance may take it over.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:01", "00:30:00")]
+    public TimeSpan RunBudget { get; init; } = TimeSpan.FromMinutes(1);
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
@@ -55,6 +63,11 @@ public sealed class PartnerOrdersOptions : IValidatableObject
         if (RetryDelay >= GiveUpAfter)
         {
             yield return new ValidationResult("RetryDelay must be shorter than GiveUpAfter, or nothing is ever retried.", [nameof(RetryDelay)]);
+        }
+
+        if (RunBudget * 2 > ClaimTimeout)
+        {
+            yield return new ValidationResult("RunBudget must be at most half of ClaimTimeout.", [nameof(RunBudget), nameof(ClaimTimeout)]);
         }
 
         if (MaxRetryDelay < RetryDelay || MaxPollInterval < PollInterval)

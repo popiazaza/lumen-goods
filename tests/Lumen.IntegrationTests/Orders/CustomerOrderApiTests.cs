@@ -5,6 +5,7 @@ using Lumen.Api.Orders;
 using Lumen.Domain.Orders;
 using Lumen.IntegrationTests.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using static Lumen.IntegrationTests.Orders.OrderingTestData;
 
 namespace Lumen.IntegrationTests.Orders;
@@ -95,12 +96,13 @@ public sealed class CustomerOrderApiTests(LumenApiFactory factory)
         var response = await session.GetAsync($"/api/v1/orders/{order.Number}");
         var final = await response.ReadAsync<OrderDetailDto>();
 
+        // The refund is recorded; the refund job pays it back moments later.
         var kestrelLine = final.Shipments.Single(s => s.SellerName == "Kestrel Outfitters").Lines.Single();
-        kestrelLine.StatusText.Should().Be("Not supplied, refunded $40.03");
+        kestrelLine.StatusText.Should().Be("Not supplied, refund pending");
         kestrelLine.RefundedAmount.Should().Be(35.04m);
         final.Shipments.Single(s => s.SellerName == "Kestrel Outfitters").FeeRefunded.Should().BeTrue();
-        final.StatusText.Should().Be("Partially refunded");
-        final.IsUpdating.Should().BeFalse();
+        final.StatusText.Should().Be("Partial refund pending");
+        final.IsUpdating.Should().BeTrue("the page refreshes until the refund is paid back");
         final.Totals.Refunded.Should().Be(40.03m);
         final.Totals.NetPaid.Should().Be(order.Total - 40.03m);
         final.Refunds.Should().ContainSingle().Which.Should().BeEquivalentTo(new
@@ -117,5 +119,19 @@ public sealed class CustomerOrderApiTests(LumenApiFactory factory)
         wireLine.GetProperty("imageUrl").GetString().Should().MatchRegex("/media/[0-9a-f-]{36}/0\\?v=[0-9a-f]{12}$");
         json.GetProperty("refunds")[0].GetProperty("shippingAmount").GetRawText().Should().Be("4.99");
         json.GetProperty("shipments")[1].GetProperty("lines")[0].GetProperty("statusText").ValueKind.Should().Be(JsonValueKind.String);
+
+        // Paid back (what the refund job records): the line and the order say so.
+        await using (var db = factory.NewContext())
+        {
+            await db.Refunds.Where(r => r.OrderId == order.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(r => r.Status, RefundStatus.Succeeded).SetProperty(r => r.CompletedUtc, Now.AddMinutes(1)), Ct);
+        }
+
+        var paidBack = await (await session.GetAsync($"/api/v1/orders/{order.Number}")).ReadAsync<OrderDetailDto>();
+        paidBack.Shipments.Single(s => s.SellerName == "Kestrel Outfitters").Lines.Single().StatusText.Should().Be("Not supplied, refunded $40.03");
+        paidBack.StatusText.Should().Be("Partially refunded");
+        paidBack.IsUpdating.Should().BeFalse();
+        var history = await (await session.GetAsync("/api/v1/orders")).ReadAsync<PagedResult<OrderSummaryDto>>();
+        history.Items.Single(o => o.Number == order.Number).StatusText.Should().Be("Partially refunded");
     }
 }

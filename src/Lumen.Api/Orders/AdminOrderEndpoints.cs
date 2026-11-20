@@ -120,12 +120,13 @@ internal static class AdminOrderEndpoints
                 Sources = o.Shipments.Select(s => s.Source).ToList(),
                 PaymentMethod = o.Payments.OrderByDescending(p => p.CreatedUtc).Select(p => (PaymentMethod?)p.Method).FirstOrDefault(),
                 NeedsAttention = o.Lines.Any(l => l.Status == OrderLineStatus.NeedsAttention),
+                RefundPending = o.Refunds.Any(r => r.Status != RefundStatus.Succeeded),
             })
             .ToListAsync(cancellationToken);
 
         var items = rows
             .Select(r => new AdminOrderSummaryDto(
-                r.Number, r.Status, OrderStatusText.ForOrder(r.Status), r.CreatedUtc.UtcDateTime, r.Email ?? "", r.Total, r.RefundedTotal,
+                r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending), r.CreatedUtc.UtcDateTime, r.Email ?? "", r.Total, r.RefundedTotal,
                 sellers.Names(r.Sources), r.PaymentMethod, r.NeedsAttention))
             .ToList();
         return TypedResults.Ok(PagedResult<AdminOrderSummaryDto>.Create(items, paging, total));
@@ -141,9 +142,12 @@ internal static class AdminOrderEndpoints
     }
 
     /// <summary>
-    /// BR-ORD-04: confirm (the goods are coming) or reject (refund it, BR-ORD-03) a line that needs attention, through
-    /// <see cref="PartnerOrderUpdates.ResolveByAdmin"/>, which also closes its partner order so polling stops. Runs in one
-    /// short transaction holding the order lock, so it cannot cross a late partner answer applied by the job.
+    /// BR-ORD-04: confirm (the goods are coming) or reject (refund it, BR-ORD-03) a line that needs attention, and close
+    /// its partner order so the job stops sending or polling it. An accepted partner order closes through
+    /// <see cref="PartnerOrderUpdates.ResolveByAdmin"/>; one never answered (sent, outcome unknown) is confirmed (the
+    /// admin checked the partner has it) or given up. Runs in one short transaction that locks the order, the partner
+    /// order and the line before reading them, so a job run claiming or answering the same partner order meanwhile is
+    /// waited for, never overwritten; a conflict that still slips through is a 409, never a 500.
     /// </summary>
     private static async Task<Results<Ok<AdminOrderDto>, NotFound<ProblemDetails>, ValidationProblem, ProblemHttpResult>> ResolveLine(
         string number, Guid lineId, ResolveOrderLineRequest body, LumenDbContext db, OrderDetailReader reader, SellerDirectory sellers,
@@ -160,13 +164,15 @@ internal static class AdminOrderEndpoints
             return OrderEndpoints.NotFound();
         }
 
-        var now = clock.GetUtcNow();
         var note = string.IsNullOrWhiteSpace(body.Note) ? null : body.Note.Trim();
         var because = note is null ? "" : $": {note}";
 
-        await using (var transaction = await db.Database.BeginTransactionAsync(cancellationToken))
+        try
         {
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             await db.LockOrderAsync(orderId, cancellationToken);
+            await db.LockLineAndPartnerOrderAsync(orderId, lineId, cancellationToken);
+            var now = clock.GetUtcNow();
             var order = await db.Orders
                 .Include(o => o.Lines).ThenInclude(l => l.PartnerOrder)
                 .Include(o => o.Shipments)
@@ -184,19 +190,21 @@ internal static class AdminOrderEndpoints
             }
 
             if (line.Status != OrderLineStatus.NeedsAttention || line.PartnerOrder is not { } partnerOrder
-                || partnerOrder.Status != PartnerOrderStatus.Accepted)
+                || partnerOrder.Status is not (PartnerOrderStatus.Accepted or PartnerOrderStatus.Submitted))
             {
-                return TypedResults.Problem(
-                    type: OrderProblemTypes.LineNotAwaitingDecision,
-                    title: "This line does not need a decision",
-                    detail: $"Line {line.LineNumber.ToString(CultureInfo.InvariantCulture)} is {OrderStatusText.ForLine(line.Status, order.Status, line.Source, sellers.Name(line.Source), line.RefundedAmount).ToLowerInvariant()}; only a delayed line can be resolved.",
-                    statusCode: StatusCodes.Status409Conflict);
+                return NotAwaitingDecision(line.LineNumber);
             }
 
-            await db.LockPartnerOrderAsync(partnerOrder.Id, cancellationToken);
             var decision = resolution == LineResolution.Confirm ? OrderLineStatus.Confirmed : OrderLineStatus.Rejected;
-            var update = PartnerOrderUpdates.ResolveByAdmin(partnerOrder.Status, line.Status, decision);
             var seller = sellers.Name(line.Source);
+
+            // Accepted: the domain's admin resolution closes it. Submitted (sent, never answered): the admin vouches the
+            // partner has it (Confirmed) or gives it up; both are final, so the job stops sending it.
+            var partnerOrderAfter = partnerOrder.Status == PartnerOrderStatus.Accepted
+                ? PartnerOrderUpdates.ResolveByAdmin(partnerOrder.Status, line.Status, decision).PartnerOrder
+                : OrderTransitions.PartnerOrder.Move(partnerOrder.Status,
+                    decision == OrderLineStatus.Confirmed ? PartnerOrderStatus.Confirmed : PartnerOrderStatus.GivenUp);
+
             if (decision == OrderLineStatus.Rejected)
             {
                 var paymentId = await LineRejection.SucceededPaymentIdAsync(db, order.Id, cancellationToken);
@@ -209,11 +217,11 @@ internal static class AdminOrderEndpoints
             }
             else
             {
-                line.Status = update.Line;
+                line.Status = OrderTransitions.Line.Move(line.Status, OrderLineStatus.Confirmed);
                 line.StatusReason = LineRejection.Truncate($"Confirmed by an admin{because}");
             }
 
-            partnerOrder.Status = update.PartnerOrder;
+            partnerOrder.Status = partnerOrderAfter;
             partnerOrder.DecidedUtc = now;
             partnerOrder.NextAttemptUtc = null;
             partnerOrder.Reason = LineRejection.Truncate($"Closed by an admin, line {(decision == OrderLineStatus.Confirmed ? "confirmed" : "rejected")}{because}");
@@ -222,11 +230,23 @@ internal static class AdminOrderEndpoints
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            return NotAwaitingDecision(null);
+        }
 
         db.ChangeTracker.Clear();
         var updated = await reader.ForAdminAsync(normalised, request.PublicBaseUrl(catalog.Value), cancellationToken);
         return TypedResults.Ok(updated!);
     }
+
+    private static ProblemHttpResult NotAwaitingDecision(int? lineNumber) => TypedResults.Problem(
+        type: OrderProblemTypes.LineNotAwaitingDecision,
+        title: "This line does not need a decision",
+        detail: lineNumber is { } n
+            ? $"Line {n.ToString(CultureInfo.InvariantCulture)} is not delayed (any more); only a delayed line can be resolved. Reload the order."
+            : "The line changed while it was being resolved. Reload the order.",
+        statusCode: StatusCodes.Status409Conflict);
 
     /// <summary>
     /// A date (yyyy-MM-dd, a UTC day; as the end of a range it includes that whole day) or a date-time with an offset,

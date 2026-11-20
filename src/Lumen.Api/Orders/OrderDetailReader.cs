@@ -95,7 +95,8 @@ internal sealed class OrderDetailReader(LumenDbContext db, SellerDirectory selle
         partnerOrder.SubmittedUtc?.UtcDateTime,
         partnerOrder.AcceptedUtc?.UtcDateTime,
         partnerOrder.DecidedUtc?.UtcDateTime,
-        NeedsAttention: line.Status == OrderLineStatus.NeedsAttention);
+        NeedsAttention: line.Status == OrderLineStatus.NeedsAttention,
+        OutcomeUnknown: partnerOrder.OutcomeUnknown);
 }
 
 /// <summary>The order-to-DTO mapping, without the database (unit-tested on its own).</summary>
@@ -110,6 +111,8 @@ internal static class OrderDetailMapping
         string mediaBaseUrl)
     {
         var refundedPerLine = RefundedPerLine(order);
+        var paidBackLines = order.Refunds.Where(r => r.Status == RefundStatus.Succeeded).SelectMany(r => r.Lines).Select(l => l.OrderLineId).ToHashSet();
+        var refundPending = order.Refunds.Any(r => r.Status != RefundStatus.Succeeded);
         var sources = order.Shipments.Select(s => s.Source).Concat(order.Lines.Select(l => l.Source)).Distinct(StringComparer.Ordinal)
             .OrderBy(sellers.Rank).ThenBy(s => s, StringComparer.Ordinal);
 
@@ -132,7 +135,8 @@ internal static class OrderDetailMapping
                     l.LineSubtotal,
                     l.Tax,
                     l.Status,
-                    OrderStatusText.ForLine(l.Status, order.Status, l.Source, sellerName, refundedPerLine.GetValueOrDefault(l.Id, l.RefundedAmount)),
+                    OrderStatusText.ForLine(l.Status, order.Status, l.Source, sellerName, refundedPerLine.GetValueOrDefault(l.Id, l.RefundedAmount),
+                        paidBackLines.Contains(l.Id)),
                     l.RefundedAmount))
                 .ToList();
             shipments.Add(new OrderShipmentDto(source, sellerName, shipment?.Method ?? default, shipment?.Fee ?? 0m, shipment?.FeeRefunded ?? false, lines));
@@ -145,7 +149,7 @@ internal static class OrderDetailMapping
         return new OrderDetailDto(
             order.Number,
             order.Status,
-            OrderStatusText.ForOrder(order.Status),
+            OrderStatusText.ForOrder(order.Status, refundPending),
             order.CreatedUtc.UtcDateTime,
             order.PaidUtc?.UtcDateTime,
             order.HoldExpiresUtc.UtcDateTime,
@@ -168,7 +172,9 @@ internal static class OrderDetailMapping
                 .Select(r => new RefundDto(r.Id, r.Amount, r.Status, r.Reason, [.. r.Lines.Select(l => l.OrderLineId)], r.ShippingAmount,
                     r.CreatedUtc.UtcDateTime, r.CompletedUtc?.UtcDateTime))],
             CanPay: order.Status == OrderStatus.AwaitingPayment && paymentWindow.CanStartAttempt(order.FailedPaymentAttempts, order.CreatedUtc, now),
-            IsUpdating: order.Status == OrderStatus.PaymentProcessing || order.Lines.Any(l => l.Status == OrderLineStatus.AwaitingPartner));
+            IsUpdating: order.Status == OrderStatus.PaymentProcessing
+                        || order.Lines.Any(l => l.Status == OrderLineStatus.AwaitingPartner)
+                        || order.Refunds.Any(r => r.Status == RefundStatus.Pending));
     }
 
     /// <summary>

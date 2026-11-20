@@ -623,9 +623,12 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                     b.Property<Guid>("OrderLineId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("OutcomeUnknown")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("PartnerOrderId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Reason")
                         .HasMaxLength(500)

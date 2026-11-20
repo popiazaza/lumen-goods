@@ -59,6 +59,22 @@ public sealed class PartnerOrderScheduleTests
         PartnerOrderSchedule.NeedsAttentionAt(Paid, Options).Should().Be(Paid.AddHours(24));
     }
 
+    [Fact]
+    public void A_run_budget_must_stay_well_under_the_claim_timeout()
+    {
+        static List<System.ComponentModel.DataAnnotations.ValidationResult> Problems(PartnerOrdersOptions options)
+        {
+            var results = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
+            System.ComponentModel.DataAnnotations.Validator.TryValidateObject(
+                options, new System.ComponentModel.DataAnnotations.ValidationContext(options), results, validateAllProperties: true);
+            return results;
+        }
+
+        Problems(new PartnerOrdersOptions()).Should().BeEmpty();
+        Problems(new PartnerOrdersOptions { RunBudget = TimeSpan.FromMinutes(3), ClaimTimeout = TimeSpan.FromMinutes(5) })
+            .Should().ContainSingle().Which.ErrorMessage.Should().Contain("RunBudget");
+    }
+
     [Theory]
     [InlineData(30 * 60, "30 minutes")]
     [InlineData(60 * 60, "1 hour")]

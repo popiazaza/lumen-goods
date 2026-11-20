@@ -57,12 +57,13 @@ internal static class OrderEndpoints
                 o.RefundedTotal,
                 ItemCount = o.Lines.Sum(l => l.Quantity),
                 Sources = o.Shipments.Select(s => s.Source).ToList(),
+                RefundPending = o.Refunds.Any(r => r.Status != RefundStatus.Succeeded),
             })
             .ToListAsync(cancellationToken);
 
         var items = rows
             .Select(r => new OrderSummaryDto(
-                r.Number, r.Status, OrderStatusText.ForOrder(r.Status), r.CreatedUtc.UtcDateTime, r.Total, r.RefundedTotal, r.ItemCount,
+                r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending), r.CreatedUtc.UtcDateTime, r.Total, r.RefundedTotal, r.ItemCount,
                 sellers.Names(r.Sources)))
             .ToList();
         return TypedResults.Ok(PagedResult<OrderSummaryDto>.Create(items, paging, total));

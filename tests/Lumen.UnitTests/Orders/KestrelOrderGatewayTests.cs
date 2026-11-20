@@ -97,12 +97,12 @@ public sealed class KestrelOrderGatewayTests
     }
 
     [Fact]
-    public async Task A_409_without_a_ticket_or_a_202_without_one_is_resent_later()
+    public async Task A_409_without_a_ticket_or_a_202_without_one_is_resent_later_and_kestrel_may_have_the_order()
     {
-        (await SubmitAsync(_ => OrderStub.Xml(HttpStatusCode.Conflict, """<Error code="DUPLICATE_REFERENCE"/>"""))).Result.Outcome
-            .Should().Be(PartnerOrderOutcome.RetryLater);
-        (await SubmitAsync(_ => OrderStub.Xml(HttpStatusCode.Accepted, """<OrderAck status="RECEIVED"/>"""))).Result.Outcome
-            .Should().Be(PartnerOrderOutcome.RetryLater);
+        (await SubmitAsync(_ => OrderStub.Xml(HttpStatusCode.Conflict, """<Error code="DUPLICATE_REFERENCE"/>"""))).Result
+            .Should().BeEquivalentTo(new { Outcome = PartnerOrderOutcome.RetryLater, OutcomeUnknown = true });
+        (await SubmitAsync(_ => OrderStub.Xml(HttpStatusCode.Accepted, """<OrderAck status="RECEIVED"/>"""))).Result
+            .Should().BeEquivalentTo(new { Outcome = PartnerOrderOutcome.RetryLater, OutcomeUnknown = true });
     }
 
     [Fact]
@@ -113,17 +113,20 @@ public sealed class KestrelOrderGatewayTests
 
         result.Outcome.Should().Be(PartnerOrderOutcome.Rejected);
         result.Reason.Should().Be("INVALID_REQUEST: Unknown ref: K-7731");
+        result.OutcomeUnknown.Should().BeTrue("Kestrel's contract does not say a used reference is checked first, so a 400 does not rule out an earlier order");
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
-    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, true)]
+    [InlineData(HttpStatusCode.Unauthorized, false)]
     [Trait("BR", "BR-ORD-01")]
-    public async Task BR_ORD_01_a_failed_send_retries_later_and_is_never_repeated_inside_the_http_pipeline(HttpStatusCode status)
+    [Trait("BR", "BR-ORD-04")]
+    public async Task BR_ORD_01_a_failed_send_retries_later_and_is_never_repeated_inside_the_http_pipeline(HttpStatusCode status, bool outcomeUnknown)
     {
         var (result, kestrel) = await SubmitAsync(_ => OrderStub.Empty(status));
 
         result.Outcome.Should().Be(PartnerOrderOutcome.RetryLater);
+        result.OutcomeUnknown.Should().Be(outcomeUnknown);
         kestrel.Requests.Should().ContainSingle();
     }
 

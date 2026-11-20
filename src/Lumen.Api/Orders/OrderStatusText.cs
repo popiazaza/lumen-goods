@@ -10,27 +10,33 @@ namespace Lumen.Api.Orders;
 /// </summary>
 public static class OrderStatusText
 {
-    public static string ForOrder(OrderStatus status) => status switch
+    /// <param name="refundPending">
+    /// A refund of the order is recorded but not paid back yet (the refund job sends it within seconds; a failed one is
+    /// retried): a refunded order says so until the money is back.
+    /// </param>
+    public static string ForOrder(OrderStatus status, bool refundPending = false) => status switch
     {
         OrderStatus.AwaitingPayment => "Awaiting payment",
         OrderStatus.PaymentProcessing => "Confirming your payment",
         OrderStatus.Paid => "Processing",
         OrderStatus.Completed => "Completed",
-        OrderStatus.PartiallyRefunded => "Partially refunded",
-        OrderStatus.Refunded => "Refunded",
+        OrderStatus.PartiallyRefunded => refundPending ? "Partial refund pending" : "Partially refunded",
+        OrderStatus.Refunded => refundPending ? "Refund pending" : "Refunded",
         OrderStatus.Expired => "Expired",
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
     };
 
     /// <param name="source">The line's seller (a <see cref="ProductSources"/> value): own lines say "Confirmed", partner lines name the shop.</param>
-    /// <param name="refunded">What the customer got back for this line: its subtotal and tax, plus the seller's shipping fee when it was refunded with it.</param>
-    public static string ForLine(OrderLineStatus line, OrderStatus order, string source, string sellerName, decimal refunded) => line switch
+    /// <param name="refunded">What the customer gets back for this line: its subtotal and tax, plus the seller's shipping fee when it is refunded with it.</param>
+    /// <param name="refundPaid">The refund has been paid back (Succeeded); until then the line says "refund pending".</param>
+    public static string ForLine(OrderLineStatus line, OrderStatus order, string source, string sellerName, decimal refunded, bool refundPaid) => line switch
     {
         OrderLineStatus.Pending => order == OrderStatus.Expired ? "Expired" : "Awaiting payment",
         OrderLineStatus.AwaitingPartner => $"Awaiting {sellerName}",
         OrderLineStatus.NeedsAttention => "Delayed",
         OrderLineStatus.Confirmed => source == ProductSources.Lumen ? "Confirmed" : $"Confirmed by {sellerName}",
-        OrderLineStatus.Rejected => $"Not supplied, refunded ${Money(refunded)}",
+        OrderLineStatus.Rejected when refunded <= 0 => "Not supplied",
+        OrderLineStatus.Rejected => refundPaid ? $"Not supplied, refunded ${Money(refunded)}" : "Not supplied, refund pending",
         _ => throw new ArgumentOutOfRangeException(nameof(line), line, null),
     };
 
