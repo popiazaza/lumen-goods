@@ -1,7 +1,8 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { aCart, aCartLine } from '../../testing/fixtures';
+import { CART_CHANGED_PROBLEM, CartDto } from '../api/cart.api';
 import { CartStateService } from './cart-state.service';
 
 describe('CartStateService', () => {
@@ -40,6 +41,40 @@ describe('CartStateService', () => {
     request.flush(aCart([aCartLine({ quantity: 2 })]));
 
     expect(cart.itemCount()).toBe(2);
+  });
+
+  it('re-reads the cart and adds once more after a sign-in elsewhere merged the guest cart (409)', () => {
+    let answer: CartDto | undefined;
+    cart.add('harbor-1', 1).subscribe((value) => (answer = value));
+
+    http.expectOne('/api/v1/cart/lines').flush(
+      {
+        type: CART_CHANGED_PROBLEM,
+        title: 'Your cart was updated; reload it',
+        status: 409,
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    http.expectOne('/api/v1/cart').flush(aCart([aCartLine({ id: 'saved', quantity: 2 })]));
+    http.expectOne('/api/v1/cart/lines').flush(aCart([aCartLine({ id: 'saved', quantity: 3 })]));
+
+    expect(answer?.itemCount).toBe(3);
+    expect(cart.itemCount()).toBe(3);
+  });
+
+  it('passes other refusals through without retrying', () => {
+    let failed: unknown;
+    cart.add('harbor-1', 1).subscribe({ error: (error: unknown) => (failed = error) });
+
+    http
+      .expectOne('/api/v1/cart/lines')
+      .flush(
+        { type: 'urn:lumen:problem:cart-quantity-limit', status: 422 },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+
+    expect(failed).toBeInstanceOf(HttpErrorResponse);
+    http.expectNone('/api/v1/cart');
   });
 
   it('sends quantity changes, removals and acknowledgements to the line', () => {

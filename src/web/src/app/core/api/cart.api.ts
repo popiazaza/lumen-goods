@@ -92,12 +92,19 @@ export const CART_PRODUCT_UNAVAILABLE_PROBLEM = 'urn:lumen:problem:cart-product-
 export const CART_QUANTITY_LIMIT_PROBLEM = 'urn:lumen:problem:cart-quantity-limit';
 /** 404: the line is gone (removed in another tab). */
 export const CART_LINE_NOT_FOUND_PROBLEM = 'urn:lumen:problem:cart-line-not-found';
+/**
+ * 409: the guest cart this request's cookie named is gone, merged into an account by a sign-in
+ * (another tab) that raced the request. Read `GET /cart` again (now the customer's) and retry.
+ */
+export const CART_CHANGED_PROBLEM = 'urn:lumen:problem:cart-changed';
 
 /**
  * The shopper's cart under `/api/v1/cart`, for guests (cookie) and customers alike. Every call
  * answers 200 with the whole cart. Errors are ProblemDetails: 400 for a quantity outside 1 to 10,
  * 422 when the product cannot be bought or the quantity is above what is allowed (BR-CART-03),
- * 404 for a line that no longer exists. `GET /cart` never creates a cart.
+ * 404 for a line that no longer exists, 409 `cart-changed` after a racing sign-in, and 403 for a
+ * signed-in staff account (only guests and customers have a cart). `GET /cart` never creates a
+ * cart.
  */
 @Service()
 export class CartApi {

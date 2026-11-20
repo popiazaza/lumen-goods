@@ -1,6 +1,7 @@
 import { Service, computed, inject, signal } from '@angular/core';
-import { Observable, defer, tap } from 'rxjs';
-import { CartApi, CartDto } from '../api/cart.api';
+import { Observable, catchError, defer, switchMap, tap, throwError } from 'rxjs';
+import { CART_CHANGED_PROBLEM, CartApi, CartDto } from '../api/cart.api';
+import { problemTypeOf } from '../api/problem-details';
 
 export type CartLoadStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -53,7 +54,11 @@ export class CartStateService {
     );
   }
 
-  /** Adds a product, or more of it to its line. The API may answer 422 (BR-CART-03). */
+  /**
+   * Adds a product, or more of it to its line. The API may answer 422 (BR-CART-03). A 409
+   * `cart-changed` means a sign-in in another tab merged the guest cart this request named: the
+   * add never happened, so it is sent once more after re-reading the (now merged) cart.
+   */
   add(productId: string, quantity: number): Observable<CartDto> {
     if (!productId) {
       throw new Error('A product id is required to add to the cart.');
@@ -61,7 +66,14 @@ export class CartStateService {
     if (!Number.isInteger(quantity) || quantity < 1) {
       throw new RangeError(`Quantity must be a whole number of at least 1, got ${quantity}.`);
     }
-    return this.track(this.api.addLine(productId, quantity));
+    const send = () => this.track(this.api.addLine(productId, quantity));
+    return send().pipe(
+      catchError((error: unknown) =>
+        problemTypeOf(error) === CART_CHANGED_PROBLEM
+          ? this.reload().pipe(switchMap(() => send()))
+          : throwError(() => error),
+      ),
+    );
   }
 
   setQuantity(lineId: string, quantity: number): Observable<CartDto> {
