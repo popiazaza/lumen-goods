@@ -28,6 +28,18 @@ public sealed class PartnerSyncState
 
     /// <summary>Set by the admin "Refresh now" button; the sync job runs as soon as it sees it.</summary>
     public DateTimeOffset? RefreshRequestedUtc { get; set; }
+
+    /// <summary>
+    /// BR-SYNC-02: products missing from the partner's last full catalogue that the mass-deletion guard kept listed.
+    /// Zero when nothing is held back.
+    /// </summary>
+    public int HeldRemovals { get; set; }
+
+    /// <summary>
+    /// Set by "Refresh now" with confirmRemovals: the next full pass also applies the removals the guard would hold back.
+    /// Cleared by that run.
+    /// </summary>
+    public DateTimeOffset? RemovalsConfirmedUtc { get; set; }
 }
 
 /// <summary>Recent partner errors ("recent errors" on the admin page). Old rows are trimmed by the sync jobs.</summary>
@@ -55,6 +67,7 @@ internal sealed class PartnerSyncStateConfiguration : IEntityTypeConfiguration<P
         builder.Property(s => s.Partner).HasMaxLength(32);
         builder.Property(s => s.LastError).HasMaxLength(2000);
         builder.Property(s => s.Watermark).HasMaxLength(200);
+        builder.Property(s => s.HeldRemovals).HasDefaultValue(0);
     }
 }
 

@@ -73,7 +73,7 @@ public sealed class Product
     public uint Version { get; set; }
 
     /// <summary>In-memory twin of <see cref="ProductQueries.IsSellable"/> (a test keeps the two in step).</summary>
-    public bool IsSellable => IsActive && PriceUsd.HasValue;
+    public bool IsSellable => IsActive && IsListed && PriceUsd.HasValue;
 
     /// <summary>Own products: on hand minus reserved. Partner products: what the partner told us.</summary>
     public int? AvailableQuantity => OnHand is { } onHand ? Math.Max(0, onHand - Reserved) : Quantity;

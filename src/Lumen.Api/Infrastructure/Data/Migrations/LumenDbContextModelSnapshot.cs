@@ -261,6 +261,11 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<int>("HeldRemovals")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTimeOffset?>("LastAttemptUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -278,6 +283,9 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("RefreshRequestedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RemovalsConfirmedUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("StockRefreshedUtc")

@@ -86,8 +86,38 @@ public sealed class ProductDtoTests
     {
         var image = Serialize(PartnerProduct()).GetProperty("images")[0];
 
-        image.GetProperty("url").GetString().Should().Be("http://localhost:8080/media/01938f2a-0000-7000-8000-000000000001/0");
+        var url = image.GetProperty("url").GetString();
+        url.Should().MatchRegex(@"^http://localhost:8080/media/01938f2a-0000-7000-8000-000000000001/0\?v=[0-9a-f]{12}$");
+        url.Should().NotContain("kestrel");
         image.GetProperty("isPrimary").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public void Image_urls_change_when_the_image_source_changes_so_a_day_of_browser_caching_is_safe()
+    {
+        var product = PartnerProduct();
+        var before = product.ToDto(Policy, "http://localhost:8080").Images[0].Url;
+
+        product.Images = [new ProductImage("http://kestrel:8080/img/k7731_l_v2.png", true)];
+        var after = product.ToDto(Policy, "http://localhost:8080").Images[0].Url;
+        product.PriceUsd = 12.34m;
+        var afterPriceChange = product.ToDto(Policy, "http://localhost:8080").Images[0].Url;
+
+        after.Should().NotBe(before);
+        afterPriceChange.Should().Be(after, "only the image source versions the URL, not every product change");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CAT-02")]
+    public void BR_CAT_02_an_unlisted_product_still_resolves_but_is_not_sellable()
+    {
+        var product = PartnerProduct();
+        product.IsListed = false;
+
+        var json = Serialize(product);
+
+        json.GetProperty("sellable").GetBoolean().Should().BeFalse();
+        json.GetProperty("price").GetProperty("amount").GetDecimal().Should().Be(49.90m, "the last known price is still shown");
     }
 
     [Fact]
