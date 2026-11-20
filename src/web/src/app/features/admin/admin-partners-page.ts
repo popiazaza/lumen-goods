@@ -8,7 +8,12 @@ import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
 import { concatMap, first, interval, map, switchMap, take, tap, timer } from 'rxjs';
-import { AdminPartnersApi, PartnerStatus } from '../../core/api/admin-partners.api';
+import {
+  AdminPartnersApi,
+  PartnerStatus,
+  instantOf,
+  refreshHasRun,
+} from '../../core/api/admin-partners.api';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
 import { relativeTime } from './relative-time';
 
@@ -80,7 +85,10 @@ export class AdminPartnersPage {
   /** An admin asked for a refresh that has not started yet. */
   protected isQueued(partner: PartnerStatus): boolean {
     const requested = partner.refreshRequestedUtc;
-    return !!requested && (!partner.lastAttemptUtc || requested > partner.lastAttemptUtc);
+    return (
+      !!requested &&
+      (!partner.lastAttemptUtc || instantOf(requested) > instantOf(partner.lastAttemptUtc))
+    );
   }
 
   protected isRefreshing(partner: PartnerStatus): boolean {
@@ -108,22 +116,27 @@ export class AdminPartnersPage {
   }
 
   /**
-   * Asks for a refresh (202), then re-reads the status every few seconds until this partner's
-   * `lastAttemptUtc` moves (the background job has run), or gives up after a minute.
+   * Asks for a refresh (202), then re-reads the status every few seconds until the refresh it asked
+   * for has run (`refreshHasRun`), or gives up after a minute. The baseline is when the request was
+   * accepted, not the status loaded with the page, so an unrelated scheduled sync in between does
+   * not end the wait early.
    */
   protected refresh(partner: PartnerStatus): void {
     if (this.isRefreshing(partner)) {
       return;
     }
-    const attemptBefore = partner.lastAttemptUtc;
     this.setRefresh(partner, { kind: 'running' });
     void this.announcer.announce(`Refreshing ${partner.name}`, 'polite');
+    // Fallback baseline if the server sends no Date header; taken before the POST, so a run the
+    // POST triggers is never older than it.
+    const sentAt = Date.now();
 
     this.api
       .refresh(partner.partner)
       .pipe(
-        switchMap(() =>
-          timer(REFRESH_POLL_INTERVAL_MS, REFRESH_POLL_INTERVAL_MS).pipe(
+        switchMap((acceptedAt) => {
+          const requestedAt = acceptedAt ?? sentAt;
+          return timer(REFRESH_POLL_INTERVAL_MS, REFRESH_POLL_INTERVAL_MS).pipe(
             take(Math.floor(REFRESH_POLL_TIMEOUT_MS / REFRESH_POLL_INTERVAL_MS)),
             concatMap(() => this.api.list()),
             tap((list) => {
@@ -131,25 +144,30 @@ export class AdminPartnersPage {
               this.now.set(Date.now());
             }),
             map((list) => list.find((p) => p.partner === partner.partner)),
-            first((p) => !!p && p.lastAttemptUtc !== attemptBefore, undefined),
-          ),
-        ),
+            first((p) => !!p && refreshHasRun(p, requestedAt), undefined),
+            map((after) => ({ after, requestedAt })),
+          );
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: (updated) => this.finish(partner, updated),
+        next: ({ after, requestedAt }) => this.finish(partner, after, requestedAt),
         error: (error: unknown) => this.fail(partner, error),
       });
   }
 
-  private finish(before: PartnerStatus, after: PartnerStatus | undefined): void {
+  private finish(
+    before: PartnerStatus,
+    after: PartnerStatus | undefined,
+    requestedAt: number,
+  ): void {
     let state: Exclude<RefreshState, { kind: 'running' }>;
     if (!after) {
       state = {
         kind: 'timed-out',
         message: `${before.name} has not finished refreshing after ${REFRESH_POLL_TIMEOUT_MS / 1000} seconds. It may still be running; reload this page later to check.`,
       };
-    } else if (after.lastSuccessUtc && after.lastSuccessUtc !== before.lastSuccessUtc) {
+    } else if (instantOf(after.lastSuccessUtc) >= requestedAt) {
       state = {
         kind: 'succeeded',
         message: `${after.name} refreshed: ${after.liveProductCount.toLocaleString('en-US')} live products.`,

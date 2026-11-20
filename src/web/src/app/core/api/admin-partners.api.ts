@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Service, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { API_BASE_URL } from './api-base-url';
 
 export interface PartnerSyncError {
@@ -38,12 +38,36 @@ export class AdminPartnersApi {
 
   /**
    * Asks the background sync to refresh one partner now. Answers 202 at once; the refresh runs
-   * later, so callers poll `list()` until `lastAttemptUtc` changes. HttpClient adds X-XSRF-TOKEN.
+   * later, so callers poll `list()`. HttpClient adds X-XSRF-TOKEN.
+   *
+   * Emits when the server accepted the request, read from its `Date` header (epoch ms on the
+   * server's clock, comparable with the status timestamps whatever the browser's clock says), or
+   * `null` when the header is missing.
    */
-  refresh(partner: string): Observable<void> {
-    return this.http.post<void>(
-      `${this.baseUrl}/admin/partners/${encodeURIComponent(partner)}/refresh`,
-      null,
-    );
+  refresh(partner: string): Observable<number | null> {
+    return this.http
+      .post(`${this.baseUrl}/admin/partners/${encodeURIComponent(partner)}/refresh`, null, {
+        observe: 'response',
+      })
+      .pipe(
+        map((response) => {
+          const accepted = Date.parse(response.headers.get('Date') ?? '');
+          return Number.isNaN(accepted) ? null : accepted;
+        }),
+      );
   }
+}
+
+/** Epoch ms of a status timestamp; `NaN` (never greater or equal) for `null` or junk. */
+export function instantOf(isoUtc: string | null): number {
+  return isoUtc ? Date.parse(isoUtc) : Number.NaN;
+}
+
+/**
+ * The refresh requested at `requestedAt` (epoch ms) has run: the request is no longer pending and
+ * an attempt started at or after it. An earlier scheduled sync moving `lastAttemptUtc` does not
+ * count.
+ */
+export function refreshHasRun(partner: PartnerStatus, requestedAt: number): boolean {
+  return partner.refreshRequestedUtc === null && instantOf(partner.lastAttemptUtc) >= requestedAt;
 }

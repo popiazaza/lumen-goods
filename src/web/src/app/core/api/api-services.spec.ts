@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import { aPage, aPartner, aProduct } from '../../testing/fixtures';
-import { AdminPartnersApi } from './admin-partners.api';
+import { AdminPartnersApi, refreshHasRun } from './admin-partners.api';
 import { ProductsApi } from './products.api';
 import { SellersApi } from './sellers.api';
 
@@ -66,14 +66,36 @@ describe('API services', () => {
     expect(await result).toEqual([{ source: 'harbor', name: 'Harbor Supply Co.' }]);
   });
 
-  it('AdminPartnersApi lists partners and POSTs a refresh', () => {
+  it('AdminPartnersApi lists partners and POSTs a refresh, reporting the server accept time', async () => {
     const api = TestBed.inject(AdminPartnersApi);
     api.list().subscribe();
     http.expectOne('/api/v1/admin/partners').flush([aPartner()]);
 
-    api.refresh('harbor').subscribe();
+    const accepted = firstValueFrom(api.refresh('harbor'));
     const refresh = http.expectOne('/api/v1/admin/partners/harbor/refresh');
     expect(refresh.request.method).toBe('POST');
-    refresh.flush(null, { status: 202, statusText: 'Accepted' });
+    refresh.flush(null, {
+      status: 202,
+      statusText: 'Accepted',
+      headers: { Date: 'Fri, 20 Nov 2026 06:10:00 GMT' },
+    });
+    expect(await accepted).toBe(Date.parse('2026-11-20T06:10:00Z'));
+
+    const withoutDate = firstValueFrom(api.refresh('kestrel'));
+    http
+      .expectOne('/api/v1/admin/partners/kestrel/refresh')
+      .flush(null, { status: 202, statusText: 'Accepted' });
+    expect(await withoutDate).toBeNull();
+  });
+
+  it('refreshHasRun needs the request consumed and an attempt at or after it', () => {
+    const at = Date.parse('2026-11-20T06:10:00Z');
+    const ran = aPartner({ refreshRequestedUtc: null, lastAttemptUtc: '2026-11-20T06:10:00.000Z' });
+
+    expect(refreshHasRun(ran, at)).toBe(true);
+    expect(refreshHasRun({ ...ran, refreshRequestedUtc: '2026-11-20T06:10:00Z' }, at)).toBe(false);
+    expect(refreshHasRun({ ...ran, lastAttemptUtc: '2026-11-20T06:09:59.999Z' }, at)).toBe(false);
+    expect(refreshHasRun({ ...ran, lastAttemptUtc: null }, at)).toBe(false);
+    expect(refreshHasRun({ ...ran, lastAttemptUtc: '2026-11-20T08:10:00+02:00' }, at)).toBe(true);
   });
 });

@@ -114,6 +114,7 @@
             matButton="filled"
             type="button"
             [disabled]="isRefreshing(partner)"
+            disabledInteractive
             (click)="refresh(partner)"
           >
             <mat-icon svgIcon="refresh" />

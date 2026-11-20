@@ -99,40 +99,75 @@ describe('AdminPartnersPage', () => {
     expect(showAll?.getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('refreshes: POST, then polls every 3 s until lastAttemptUtc changes', async () => {
+  /** The 202 carries the server's clock: the refresh was accepted at 06:10:00Z. */
+  const ACCEPTED = {
+    status: 202,
+    statusText: 'Accepted',
+    headers: { Date: 'Fri, 20 Nov 2026 06:10:00 GMT' },
+  };
+  const QUEUED = { refreshRequestedUtc: '2026-11-20T06:10:00Z' };
+  const isBusy = (name: string) => refreshButton(name).getAttribute('aria-disabled') === 'true';
+
+  async function startRefresh(name: string, partner: string): Promise<void> {
     await load();
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
-
-    refreshButton('Harbor Supply Co.').click();
-    const post = http.expectOne('/api/v1/admin/partners/harbor/refresh');
+    refreshButton(name).click();
+    const post = http.expectOne(`/api/v1/admin/partners/${partner}/refresh`);
     expect(post.request.method).toBe('POST');
-    post.flush(null, { status: 202, statusText: 'Accepted' });
+    post.flush(null, ACCEPTED);
     fixture.detectChanges();
-    expect(refreshButton('Harbor Supply Co.').disabled).toBe(true);
+  }
+
+  async function poll(partners: PartnerStatus[]): Promise<void> {
+    await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
+    http.expectOne('/api/v1/admin/partners').flush(partners);
+    fixture.detectChanges();
+  }
+
+  it('refreshes: POST, then polls every 3 s until the requested refresh has run', async () => {
+    await startRefresh('Harbor Supply Co.', 'harbor');
+    expect(isBusy('Harbor Supply Co.')).toBe(true);
+    // Stays focusable while busy (disabledInteractive), and a second click does nothing.
+    expect(refreshButton('Harbor Supply Co.').disabled).toBe(false);
+    refreshButton('Harbor Supply Co.').click();
+    http.expectNone('/api/v1/admin/partners/harbor/refresh');
     expect(refreshButton('Harbor Supply Co.').textContent).toContain('Refreshing…');
     expect(card('Harbor Supply Co.').querySelector('mat-progress-bar')).not.toBeNull();
 
-    // First poll: the job has not run yet.
+    // Not run yet: the request is still pending.
     http.expectNone('/api/v1/admin/partners');
-    await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
-    http.expectOne('/api/v1/admin/partners').flush([HARBOR, KESTREL]);
+    await poll([{ ...HARBOR, ...QUEUED }, KESTREL]);
+    expect(isBusy('Harbor Supply Co.')).toBe(true);
 
-    // Second poll: it has.
-    await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
-    const refreshed = {
-      ...HARBOR,
-      lastAttemptUtc: '2026-11-20T06:20:00Z',
-      lastSuccessUtc: '2026-11-20T06:20:00Z',
-      liveProductCount: 220,
-    };
-    http.expectOne('/api/v1/admin/partners').flush([refreshed, KESTREL]);
-    fixture.detectChanges();
+    // A scheduled sync that started before the request moved lastAttemptUtc: not ours, keep going.
+    await poll([
+      {
+        ...HARBOR,
+        ...QUEUED,
+        lastAttemptUtc: '2026-11-20T06:08:00Z',
+        lastSuccessUtc: '2026-11-20T06:08:00Z',
+      },
+      KESTREL,
+    ]);
+    expect(isBusy('Harbor Supply Co.')).toBe(true);
+
+    // Ours has run.
+    await poll([
+      {
+        ...HARBOR,
+        refreshRequestedUtc: null,
+        lastAttemptUtc: '2026-11-20T06:10:02Z',
+        lastSuccessUtc: '2026-11-20T06:10:05.250Z',
+        liveProductCount: 220,
+      },
+      KESTREL,
+    ]);
 
     // Polling has stopped.
     await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS * 3);
     http.expectNone('/api/v1/admin/partners');
 
-    expect(refreshButton('Harbor Supply Co.').disabled).toBe(false);
+    expect(isBusy('Harbor Supply Co.')).toBe(false);
     expect(text(card('Harbor Supply Co.'), '.number')).toBe('220');
     expect(text(card('Harbor Supply Co.'), '.outcome')).toBe(
       'Harbor Supply Co. refreshed: 220 live products.',
@@ -143,46 +178,103 @@ describe('AdminPartnersPage', () => {
     );
   });
 
-  it('reports a refresh that ran but failed', async () => {
-    await load();
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
+  it('reports a refresh that ran but failed, with its error', async () => {
+    await startRefresh('Kestrel Outfitters', 'kestrel');
 
-    refreshButton('Kestrel Outfitters').click();
-    http
-      .expectOne('/api/v1/admin/partners/kestrel/refresh')
-      .flush(null, { status: 202, statusText: 'Accepted' });
-    await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
-    http
-      .expectOne('/api/v1/admin/partners')
-      .flush([
-        HARBOR,
-        { ...KESTREL, lastAttemptUtc: '2026-11-20T06:30:00Z', lastError: 'HTTP 503' },
-      ]);
-    fixture.detectChanges();
+    await poll([
+      HARBOR,
+      { ...KESTREL, lastAttemptUtc: '2026-11-20T06:10:03Z', lastError: 'HTTP 503 from stock CSV' },
+    ]);
 
+    expect(isBusy('Kestrel Outfitters')).toBe(false);
     expect(text(card('Kestrel Outfitters'), '.outcome')).toBe(
-      'Kestrel Outfitters refresh failed: HTTP 503',
+      'Kestrel Outfitters refresh failed: HTTP 503 from stock CSV',
     );
   });
 
-  it('gives up polling after a minute and says the refresh may still be running', async () => {
+  it('compares instants, not strings, and uses the browser clock without a Date header', async () => {
     await load();
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
-
+    vi.useFakeTimers({
+      now: Date.parse('2026-11-20T06:10:00Z'),
+      toFake: ['Date', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'],
+    });
     refreshButton('Harbor Supply Co.').click();
     http
       .expectOne('/api/v1/admin/partners/harbor/refresh')
       .flush(null, { status: 202, statusText: 'Accepted' });
+
+    // "06:10:00.5Z" sorts before "06:10:00Z" as text but is later as a time.
+    await poll([
+      {
+        ...HARBOR,
+        refreshRequestedUtc: '2026-11-20T06:10:00.5Z',
+        lastAttemptUtc: '2026-11-20T06:10:00Z',
+      },
+      KESTREL,
+    ]);
+    expect(text(card('Harbor Supply Co.'), '.facts')).toContain('Refresh requested');
+    expect(isBusy('Harbor Supply Co.')).toBe(true);
+
+    await poll([
+      {
+        ...HARBOR,
+        refreshRequestedUtc: null,
+        lastAttemptUtc: '2026-11-20T06:10:04+00:00',
+        lastSuccessUtc: '2026-11-20T06:10:04+00:00',
+      },
+      KESTREL,
+    ]);
+    expect(text(card('Harbor Supply Co.'), '.outcome')).toBe(
+      'Harbor Supply Co. refreshed: 214 live products.',
+    );
+  });
+
+  it('stops polling on a 500, shows the error and enables the button again', async () => {
+    await startRefresh('Harbor Supply Co.', 'harbor');
+
+    await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
+    http
+      .expectOne('/api/v1/admin/partners')
+      .flush(
+        { title: 'Internal Server Error', detail: 'The partner status store is unavailable.' },
+        { status: 500, statusText: 'Internal Server Error' },
+      );
+    fixture.detectChanges();
+
+    await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS * 3);
+    http.expectNone('/api/v1/admin/partners');
+    expect(isBusy('Harbor Supply Co.')).toBe(false);
+    expect(text(card('Harbor Supply Co.'), '.outcome')).toBe(
+      'Couldn’t refresh Harbor Supply Co.: The partner status store is unavailable.',
+    );
+    expect(announcer.announce).toHaveBeenLastCalledWith(
+      'Couldn’t refresh Harbor Supply Co.: The partner status store is unavailable.',
+      'assertive',
+    );
+  });
+
+  it('stops polling when the page is destroyed mid-refresh', async () => {
+    await startRefresh('Harbor Supply Co.', 'harbor');
+    await poll([{ ...HARBOR, ...QUEUED }, KESTREL]);
+
+    fixture.destroy();
+
+    await vi.advanceTimersByTimeAsync(REFRESH_POLL_TIMEOUT_MS);
+    http.expectNone('/api/v1/admin/partners');
+  });
+
+  it('gives up polling after a minute and says the refresh may still be running', async () => {
+    await startRefresh('Harbor Supply Co.', 'harbor');
+
     const polls = REFRESH_POLL_TIMEOUT_MS / REFRESH_POLL_INTERVAL_MS;
-    for (let poll = 0; poll < polls; poll++) {
-      await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
-      http.expectOne('/api/v1/admin/partners').flush([HARBOR, KESTREL]);
+    for (let index = 0; index < polls; index++) {
+      await poll([{ ...HARBOR, ...QUEUED }, KESTREL]);
     }
     await vi.advanceTimersByTimeAsync(REFRESH_POLL_INTERVAL_MS);
     http.expectNone('/api/v1/admin/partners');
     fixture.detectChanges();
 
-    expect(refreshButton('Harbor Supply Co.').disabled).toBe(false);
+    expect(isBusy('Harbor Supply Co.')).toBe(false);
     expect(text(card('Harbor Supply Co.'), '.outcome')).toContain(
       'has not finished refreshing after 60 seconds',
     );
