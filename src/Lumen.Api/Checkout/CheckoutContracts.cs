@@ -96,7 +96,11 @@ public sealed record ShippingOptionDto(
 /// </summary>
 /// <param name="CheckoutKey">A random id the checkout page creates once and sends with every Place order attempt.</param>
 /// <param name="Lines">Every reviewed line (<see cref="CheckoutPreviewDto.Shipments"/>' lines, flattened).</param>
-/// <param name="ExpectedTotal">The total the customer reviewed (<see cref="CheckoutPreviewDto.Total"/>).</param>
+/// <param name="ExpectedTotal">
+/// The total the customer reviewed (<see cref="CheckoutPreviewDto.Total"/>). Required: a missing total is a 400 keyed
+/// <c>expectedTotal</c>, never read as 0.00. Nullable only so that a missing value can be told apart; the endpoint
+/// checks it (the built-in <c>[Required]</c> check would key the error by the C# name).
+/// </param>
 /// <example>
 /// <code>
 /// { "checkoutKey": "8d7c9e1a-4f7b-4b8e-9a51-3c2d1e0f9a7b",
@@ -110,7 +114,7 @@ public sealed record ShippingOptionDto(
 public sealed record PlaceOrderRequest(
     [Required] Guid? CheckoutKey,
     [Required, MinLength(1)] IReadOnlyList<PlaceOrderLineDto>? Lines,
-    [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal ExpectedTotal,
+    [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal? ExpectedTotal,
     [Required] ShippingAddressDto? ShippingAddress,
     ShippingMethod ShippingMethod = ShippingMethod.Standard);
 

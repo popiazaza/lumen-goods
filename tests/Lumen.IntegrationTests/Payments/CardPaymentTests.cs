@@ -36,6 +36,7 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
 
     [Theory]
     [Trait("BR", "BR-PAY-02")]
+    [Trait("BR", "BR-PAY-05")]
     [InlineData("4111 1111 1111 1111", PaymentStatus.Succeeded, null)]
     [InlineData("5555 5555 5555 4444", PaymentStatus.Succeeded, null)]
     [InlineData("4242 0000 0000 0018", PaymentStatus.Declined, "Insufficient funds")]
@@ -59,8 +60,11 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
                 .Should().Be((OrderStatus.AwaitingPayment, 4, PaymentRetryMode.AnyMethod, true));
         }
 
-        (await host.GatewayChargesAsync((await host.OrderAsync(order.Number)).Id)).Should().ContainSingle()
-            .Which.ErrorCount.Should().Be(0, "a decline is never retried automatically (BR-PAY-05)");
+        // BR-PAY-05 scenario 2 (0018): a decline is never retried automatically, so the gateway got exactly one call.
+        (await host.GatewayChargesAsync((await host.OrderAsync(order.Number)).Id)).Should().ContainSingle();
+        host.Gateway.ChargeCalls(payment.PaymentId).Should().Be(1, "a decline is never retried automatically (BR-PAY-05)");
+        (await host.EventsAsync(payment.PaymentId)).Should().ContainSingle(e => e.Type == PaymentEventType.SentToGateway)
+            .Which.Detail.Should().Be("First try");
     }
 
     [Fact]
@@ -376,6 +380,59 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
         (retried.PaymentId, retried.Status).Should().Be((failed.Id, PaymentStatus.Succeeded));
         (await host.GatewayChargesAsync((await host.OrderAsync(order.Number)).Id)).Should().ContainSingle("the same payment id was charged once");
         (await host.EventsAsync(failed.Id)).Should().Contain(e => e.Detail == "Try again by the customer, same payment id");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-PAY-05")]
+    public async Task BR_PAY_05_a_failed_payment_settled_as_never_charged_just_before_the_claim_lets_a_new_payment_start()
+    {
+        var (shopper, order) = await OrderAsync();
+        var failed = await FailedCardPaymentAsync(order, MockGatewayChargeStatus.Error);
+        host.Gateway.StatusUnavailable.Add(failed.Id);
+
+        // The request asks the gateway (no answer: still Failed, same card, so it may try again); then, before its claim,
+        // the gateway answers the job, which settles the payment as never charged.
+        host.Claims.BeforeNextClaim(async () =>
+        {
+            host.Gateway.StatusUnavailable.Clear();
+            await using var scope = host.App.Services.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<PaymentHousekeeping>().SettleIfDueAsync(failed.Id, Ct);
+        });
+
+        var started = await AcceptedAsync(await shopper.PayByCardAsync(order.Number, "4242 0000 0000 0059"));
+        await host.ChargesFinishedAsync();
+
+        started.PaymentId.Should().NotBe(failed.Id, "the settled payment is final, so any method may pay with a new payment");
+        var saved = await host.OrderAsync(order.Number);
+        saved.Payments.Single(p => p.Id == failed.Id).Should().BeEquivalentTo(new
+        {
+            Status = PaymentStatus.Declined, DeclineReason = (DeclineReason?)DeclineReason.GatewayErrorUnresolvedNotCharged,
+        });
+        saved.Payments.Single(p => p.Id == started.PaymentId).Status.Should().Be(PaymentStatus.Succeeded);
+        (saved.Status, saved.FailedPaymentAttempts).Should().Be((OrderStatus.Completed, 1));
+        host.Gateway.ChargeCalls(failed.Id).Should().Be(0, "the settled payment id is never charged again");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-STOCK-01")]
+    [Trait("BR", "BR-PAY-05")]
+    public async Task BR_STOCK_01_a_hold_that_ends_during_the_gateway_status_call_stops_the_payment_and_charges_nothing()
+    {
+        var (shopper, order) = await OrderAsync();
+        var failed = await FailedCardPaymentAsync(order, MockGatewayChargeStatus.Error);
+        host.Gateway.StatusUnavailable.Add(failed.Id);
+        host.Clock.Advance(TimeSpan.FromMinutes(15) - TimeSpan.FromSeconds(1));
+
+        // The status lookup Pay makes first takes 2 s: the hold ends while it runs.
+        host.Gateway.DuringNextStatusLookup(failed.Id, () => host.Clock.Advance(TimeSpan.FromSeconds(2)));
+        var response = await shopper.PayByCardAsync(order.Number, "4242 0000 0000 0059");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.ReadJsonAsync()).GetProperty("type").GetString().Should().Be(PaymentProblemTypes.OrderNotPayable);
+        await host.ChargesFinishedAsync();
+        host.Gateway.ChargeCalls(failed.Id).Should().Be(0, "nothing is charged after the hold");
+        var saved = await host.OrderAsync(order.Number);
+        (saved.Status, saved.Payments.Single().Status).Should().Be((OrderStatus.AwaitingPayment, PaymentStatus.Failed));
     }
 
     /// <summary>

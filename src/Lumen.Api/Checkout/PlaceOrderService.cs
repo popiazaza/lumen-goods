@@ -159,6 +159,13 @@ internal sealed class PlaceOrderService(
             : null;
         if (quote is null || changes.Count > 0 || quote.GrandTotal != request.ExpectedTotal)
         {
+            // BR-PAY-01 (a): a concurrent repeat with the same key may have created the order since the lookup above,
+            // and taken the last units with it, so the cart read here says "Out of stock". Answer with that order.
+            if (await FindOrderAsync(customerId, checkoutKey, cancellationToken) is { } placedMeanwhile)
+            {
+                return new PlaceOrderOutcome.AlreadyPlaced(placedMeanwhile);
+            }
+
             var detail = !onlyPrices ? ChangedLinesDetail : changes.Count > 0 ? PriceChangedDetail : TotalChangedDetail;
             logger.LogInformation(
                 "Place order for customer {Customer}: {Changes} differences from the review, total {Expected} reviewed, {Total} now; nothing created",
@@ -173,7 +180,8 @@ internal sealed class PlaceOrderService(
     /// Write-through (BR-CHK-01, BR-CHK-02): saves each partner's live answer to its product row (live price; quantity;
     /// out of stock or no longer sold), so the 409's new total and every later read use what was just learnt. The content
     /// hash is recomputed from the stored result, so the next partner sync compares the partner's data with these
-    /// values and corrects them if the partner disagrees. A row a sync changed meanwhile is left to the sync.
+    /// values and corrects them if the partner disagrees. A row a sync changed meanwhile is left to the sync; the other
+    /// rows are still saved.
     /// </summary>
     private async Task SaveLiveResultsAsync(
         IReadOnlyList<CheckoutCartLine> checkedLines, IReadOnlyDictionary<Guid, PartnerLineCheckResult> live, CancellationToken cancellationToken)
@@ -221,11 +229,30 @@ internal sealed class PlaceOrderService(
 
         try
         {
-            await db.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            logger.LogInformation(ex, "A partner sync updated products during Place order's live check; keeping the sync's values");
+            // Each pass leaves at least one more changed row to the sync, so this ends after at most one pass per product.
+            while (true)
+            {
+                try
+                {
+                    await db.SaveChangesAsync(cancellationToken);
+                    break;
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    logger.LogInformation(ex, "A partner sync updated {Count} products during Place order's live check; keeping the sync's values for those",
+                        ex.Entries.Count);
+                    if (ex.Entries.Count == 0)
+                    {
+                        break; // which rows is unknown: the sync's values stand for all of them
+                    }
+
+                    // The failed save rolled back every row; only the ones a sync changed meanwhile keep the sync's values.
+                    foreach (var entry in ex.Entries)
+                    {
+                        entry.State = EntityState.Detached;
+                    }
+                }
+            }
         }
         finally
         {

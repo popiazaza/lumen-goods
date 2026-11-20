@@ -1,5 +1,6 @@
 using Lumen.Api.Carts;
 using Lumen.Api.Catalog;
+using Lumen.Api.Orders;
 using Lumen.Domain.Pricing;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
@@ -15,7 +16,10 @@ public static class CheckoutProblemTypes
     /// <summary>422: Express asked for a cart without Lumen's own items (BR-SHIP-01).</summary>
     public const string ShippingMethodNotAvailable = "urn:lumen:problem:shipping-method-not-available";
 
-    /// <summary>409: the checkout key is already used by another customer's order.</summary>
+    /// <summary>
+    /// 409: the checkout key is already used by another customer's order. Resending the same key always gives this
+    /// again, so the client must start the review again with a new key.
+    /// </summary>
     public const string CheckoutKeyTaken = "urn:lumen:problem:checkout-key-taken";
 }
 
@@ -66,7 +70,7 @@ internal static class CheckoutEndpoints
         PlaceOrderRequest request,
         HttpContext http,
         PlaceOrderService orders,
-        OrderDetailMapper details,
+        OrderDetailReader details,
         IOptions<CheckoutOptions> checkout,
         IOptions<CatalogOptions> catalog,
         CancellationToken cancellationToken)
@@ -82,7 +86,11 @@ internal static class CheckoutEndpoints
             errors["checkoutKey"] = ["Send the checkout key the page created for this checkout."];
         }
 
-        if (request.ExpectedTotal < 0)
+        if (request.ExpectedTotal is null)
+        {
+            errors["expectedTotal"] = ["Send the total you reviewed."];
+        }
+        else if (request.ExpectedTotal < 0)
         {
             errors["expectedTotal"] = ["The reviewed total cannot be negative."];
         }
@@ -143,10 +151,11 @@ internal static class CheckoutEndpoints
         switch (outcome)
         {
             case PlaceOrderOutcome.Created created:
-                var order = (await details.LoadAsync(created.OrderId, mediaBase, cancellationToken))!;
+                // The same OrderDetailDto as GET /orders/{number}, from the same reader.
+                var order = (await details.ByIdAsync(created.OrderId, mediaBase, cancellationToken))!;
                 return TypedResults.Created($"/api/v1/orders/{order.Number}", order);
             case PlaceOrderOutcome.AlreadyPlaced placed:
-                return TypedResults.Ok(await details.LoadAsync(placed.OrderId, mediaBase, cancellationToken));
+                return TypedResults.Ok(await details.ByIdAsync(placed.OrderId, mediaBase, cancellationToken));
             case PlaceOrderOutcome.Changed changed:
                 return TypedResults.Json(changed.Problem, statusCode: StatusCodes.Status409Conflict, contentType: "application/problem+json");
             case PlaceOrderOutcome.EmptyCart:
@@ -156,7 +165,8 @@ internal static class CheckoutEndpoints
                 return ShippingNotAvailable(notAvailable.Message);
             case PlaceOrderOutcome.CheckoutKeyTaken:
                 return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, type: CheckoutProblemTypes.CheckoutKeyTaken,
-                    title: "This checkout was already used", detail: "Reload the checkout page and place the order again.");
+                    title: "This checkout was already used",
+                    detail: "This checkout key was already used for a different order. Start the review again with a new checkout key.");
             default:
                 throw new InvalidOperationException($"Unhandled Place order outcome {outcome.GetType().Name}.");
         }
