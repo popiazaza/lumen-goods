@@ -93,17 +93,23 @@
           matButton="filled"
           type="submit"
           class="add"
-          [disabled]="!canBuy()"
+          [disabled]="!canBuy() || adding()"
           disabledInteractive
           [attr.aria-describedby]="canBuy() ? null : 'buy-note'"
         >
           <mat-icon svgIcon="cart" />
-          Add to cart
+          {{ adding() ? 'Adding…' : 'Add to cart' }}
         </button>
       </form>
 
       @if (!canBuy()) {
         <p id="buy-note" class="note">{{ unavailableReason() }}</p>
+      }
+      @if (addError()) {
+        <p class="add-error" role="alert">
+          <mat-icon svgIcon="error" />
+          <span>{{ addError() }}</span>
+        </p>
       }
       @if (addedMessage()) {
         <p class="added">

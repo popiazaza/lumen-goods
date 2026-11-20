@@ -118,13 +118,18 @@
   font: var(--mat-sys-body-medium);
 }
 
-.added {
+.added,
+.add-error {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--lg-space-2);
   margin: 0;
   color: var(--lg-status-success);
+}
+
+.add-error {
+  color: var(--mat-sys-error);
 }
 
 .description {
