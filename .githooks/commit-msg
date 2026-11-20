@@ -1,0 +1,16 @@
+#!/bin/sh
+# Rejects commit messages that are not Conventional Commits: type(scope)!: description
+# Enable once per clone: git config core.hooksPath .githooks
+
+# The subject is the first line that is neither a comment nor blank (editors may leave either above it).
+first_line=$(sed -e '/^#/d' -e '/^[[:space:]]*$/d' "$1" | head -n 1)
+
+case "$first_line" in
+  Merge*|Revert*|fixup!*|squash!*|amend!*) exit 0 ;;
+esac
+
+if ! printf '%s\n' "$first_line" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9-]+\))?!?: [^ ].*$'; then
+  echo "commit-msg: use Conventional Commits, e.g. \"feat(cart): merge the guest cart on sign-in\"" >&2
+  echo "  got: $first_line" >&2
+  exit 1
+fi

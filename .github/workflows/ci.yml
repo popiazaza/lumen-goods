@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Actions are pinned to commit SHAs (tags can be moved by an attacker).
+jobs:
+  dotnet:
+    name: .NET build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+      - run: dotnet restore LumenGoods.slnx
+      - run: dotnet build LumenGoods.slnx --no-restore -c Release
+      # Integration tests start PostgreSQL with Testcontainers (Docker is available on ubuntu runners).
+      - run: dotnet test LumenGoods.slnx --no-build -c Release
+
+  web:
+    name: Angular lint, tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.1
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  compose:
+    name: docker compose smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [dotnet, web]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # --wait returns once every service is healthy: the API only after migrations and seeding.
+      - run: docker compose up --build --detach --wait --wait-timeout 300
+      - name: Storefront, API, admin sign-in and both partner sandboxes answer
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:8080/ > /dev/null
+          curl -fsS -c jar.txt http://localhost:8080/api/v1/auth/session
+          xsrf=$(awk '$6 == "XSRF-TOKEN" { print $7 }' jar.txt)
+          curl -fsS -b jar.txt -H "Content-Type: application/json" -H "X-XSRF-TOKEN: $xsrf" \
+            -d '{"email":"admin@lumengoods.test","password":"Admin!2026"}' \
+            http://localhost:8080/api/v1/auth/sign-in | grep -q '"admin"'
+          curl -fsS -H "X-Harbor-Key: harbor-dev-key-123" "http://localhost:8081/v2/catalog/items?limit=1" > /dev/null
+          curl -fsS -u lumen:kestrel-secret "http://localhost:8082/stock?refs=K-7731" | grep -q '^ref;units;restock_date'
+      - if: failure()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down --volumes
