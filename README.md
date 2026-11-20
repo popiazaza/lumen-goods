@@ -82,6 +82,7 @@ Every other scenario (price changes, removed products, Harbor commands) is in th
 
 | Requirement | Where to see it | Rules and tests |
 |---|---|---|
+| Search, filters, sort and paging, kept in the URL | Catalogue | BR-CAT-03 |
 | One cart across three shops, one payment | Cart, checkout | BR-CART-01..03, BR-SHIP-01, BR-PAY-01 |
 | Prices in USD; Kestrel's EUR converted | Catalogue, cart | BR-MONEY-01 |
 | Shipping and sales tax on the order | Checkout review, order | BR-MONEY-02, BR-SHIP-01 |
@@ -112,7 +113,11 @@ cd src/web && npm ci && npm test                                    # Angular un
 | `tests/*.StandIn.Tests` | Each stand-in's raw status codes, headers and bodies against its partner contract |
 | `src/web` (Vitest) | Components, URL state, cart and checkout state, payment page states |
 
-CI (`.github/workflows/ci.yml`) runs all of them plus a `docker compose up` smoke test on every pull request.
+CI (`.github/workflows/ci.yml`) runs all of them plus a `docker compose up` smoke test on every pull request that
+changes code (docs-only pull requests skip it).
+
+Prerequisites for running the tests outside Docker: .NET SDK 10.0.404 (`global.json`), Node.js 26.13 or later, and
+Docker running (the integration tests start PostgreSQL with Testcontainers).
 
 ## Exact versions
 

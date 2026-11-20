@@ -1,6 +1,6 @@
 # Lumen Goods web
 
-The storefront and admin UI: Angular 22.3, Angular Material 3, zoneless, Vitest.
+The storefront and admin UI: Angular 22.3, Angular Material 22.3 (M3 theme), zoneless, Vitest.
 
 ```bash
 npm ci

@@ -33,7 +33,7 @@ The spec talks about "amounts charged" and "any refund". Card 0042 answers after
 - Bad: a card is charged for lines that may be refunded minutes later. With a real PSP a refund costs fees and takes days to reach the customer; we would not run production this way.
 - Bad: one order per line multiplies partner calls (more of Harbor's budget) and partner shipments.
 - Bad: a background charge lives in process memory; if the API restarts mid-charge, a housekeeping sweep asks the gateway for that payment id: a completed charge becomes Succeeded, one the gateway never received becomes Failed and the customer tries again with the same payment id, which the idempotency key makes safe.
-- At scale: a real PSP with authorize, one partial capture of the accepted lines and webhooks (refunds only for what fails after capture); partner orders batched per seller (a partner order already maps to order lines, so this stays local); an outbox with a broker (Wolverine on PostgreSQL, later RabbitMQ or Azure Service Bus) and `SKIP LOCKED` claims once jobs run on several instances.
+- At scale: a real PSP with authorize, one partial capture of the accepted lines and webhooks (refunds only for what fails after capture); partner orders batched per seller (a partner order already maps to order lines, so this stays local); an outbox with a broker (Wolverine on PostgreSQL, later RabbitMQ or Azure Service Bus). Jobs already claim rows with `SKIP LOCKED`, so several instances can share them.
 
 ## More information
 

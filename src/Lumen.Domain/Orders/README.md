@@ -86,6 +86,13 @@ it (every send was rejected or never reached it); when a send's outcome is unkno
 line needs an admin instead. An accepted one is never given up automatically, it needs an admin after 24 hours (BR-ORD-04). When the admin confirms or rejects that line, the partner
 order is closed in the same step (`PartnerOrderUpdates.ResolveByAdmin`), so polling stops.
 
+**Unknown outcomes (BR-ORD-04).** A send may have reached the partner when it timed out after sending, got a 5xx, the
+process stopped before the answer was saved, or Kestrel answered 400 to a resend after such a send or after it had
+issued a ticket. Such a line is never refunded automatically: it needs an admin, and the same reference is resent every
+5 minutes so a partner that comes back settles it. Sends that cannot have reached the partner: connection refused,
+name not resolved, open circuit, 429, 401. While a send is in flight, the admin's confirm or reject answers 409 (try
+again in a minute); a later partner answer that contradicts the admin's decision is reported on the partner status page.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Pending

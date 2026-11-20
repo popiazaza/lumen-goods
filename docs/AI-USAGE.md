@@ -11,14 +11,14 @@ person decided, how its output was checked, and where it was wrong.
 ## Process
 
 1. **Research**: multi-agent web research on the stack (versions and licences checked against NuGet/npm on the day), payments, partner integration, security, UX and documentation, with each claim checked against its source. The notes stayed outside the repo; their conclusions are the [ADRs](adr/README.md).
-2. **Plan**: a lean plan was chosen after an independent review found the first plan two to five times too big for the task. The [assumptions](ASSUMPTIONS.md) were agreed with the product owner up front instead of emailing questions.
-3. **Build in pull requests**: every change went through a PR with a short evidence-first description (tests, live transcripts, screenshots for UI changes), CI, and a **separate AI reviewer** that hadn't written the code. Its findings and the fixing commits are recorded as a comment on each PR.
+2. **Plan**: a lean plan was chosen after an independent review found the first plan two to five times too big for the task. The [assumptions](ASSUMPTIONS.md) were written down up front instead of emailing questions.
+3. **Build in pull requests**: every change went through a PR with a short evidence-first description (tests, live transcripts, screenshots for UI changes), CI, and a **separate AI reviewer** that hadn't written the code. On code PRs its findings and the fixing commits are recorded in a PR comment or the PR body.
 
 ## Decided by a person, not delegated
 
 | Decision | Where |
 |---|---|
-| Scope: lean plan, future features only as seams, not code | [ADR 0002](adr/0002-modular-monolith-in-one-api-host.md) |
+| Scope: lean plan, future features only as seams, not code | this page |
 | .NET 10 LTS and PostgreSQL 18 instead of the brand-new .NET 11 / PostgreSQL 19 | [ADR 0007](adr/0007-dotnet-10-lts-and-postgresql-18.md) |
 | No clarifying emails; the assumption list instead (US launch country, flat 8 % tax, …) | [ASSUMPTIONS.md](ASSUMPTIONS.md) |
 | Charge then refund; one partner order per line; server retries card 0059 once with the same payment | [ADR 0005](adr/0005-payments-charge-then-refund-one-partner-order-per-line.md) |
@@ -27,8 +27,8 @@ person decided, how its output was checked, and where it was wrong.
 ## How output was checked
 
 - **Tests** named and tagged by business rule, so `dotnet test --filter-trait "BR=BR-PAY-01"` shows the proof for a rule ([BUSINESS-RULES.md](BUSINESS-RULES.md)).
-- **Independent review** of every PR by a reviewer agent briefed with the spec, not with the author's conclusions.
-- **CI** on every PR: all .NET tests on PostgreSQL via Testcontainers, Angular lint/tests/build, and a `docker compose up` smoke test. Local git hooks run the fast tests before every push.
+- **Independent review** of each code PR by a reviewer agent briefed with the spec, not with the author's conclusions; the docs were reviewed together at the end.
+- **CI** on every PR that changes code: all .NET tests on PostgreSQL via Testcontainers, Angular lint/tests/build, and a `docker compose up` smoke test. Local git hooks run the fast tests before every push.
 - **Running it**: fresh-clone `docker compose up` runs, live request transcripts and desktop/mobile screenshots attached to the PRs.
 
 ## Where AI was wrong (caught before merge)
