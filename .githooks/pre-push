@@ -1,0 +1,22 @@
+#!/bin/sh
+# Fast local gate before pushing (about 1-2 minutes). CI runs the full suite on every pull request,
+# including the Docker-based integration tests and the docker compose smoke test.
+# Enable once per clone: git config core.hooksPath .githooks   (bypass in an emergency: git push --no-verify)
+set -e
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "pre-push: dotnet build"
+dotnet build LumenGoods.slnx -nologo -v quiet
+
+for project in tests/Lumen.UnitTests tests/HarborSupply.StandIn.Tests tests/KestrelOutfitters.StandIn.Tests; do
+  echo "pre-push: dotnet test $project"
+  dotnet test --project "$project" --no-build
+done
+
+if [ -d src/web/node_modules ]; then
+  echo "pre-push: web lint and tests"
+  (cd src/web && npm run lint --silent && npm test --silent)
+else
+  echo "pre-push: skipping web checks (run 'npm ci' in src/web to enable them)"
+fi
