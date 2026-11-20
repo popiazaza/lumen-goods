@@ -602,6 +602,9 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                     b.Property<int>("Attempts")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("ClaimedUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -623,9 +626,12 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                     b.Property<Guid>("OrderLineId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("OutcomeUnknown")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("PartnerOrderId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Reason")
                         .HasMaxLength(500)

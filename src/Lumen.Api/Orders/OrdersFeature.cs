@@ -26,6 +26,33 @@ public sealed class PartnerOrdersOptions : IValidatableObject
     [Range(typeof(TimeSpan), "00:05:00", "30.00:00:00")]
     public TimeSpan NeedsAttentionAfter { get; init; } = TimeSpan.FromHours(24);
 
+    /// <summary>The longest wait between two sends of a partner order that keeps failing (the waits double up to it).</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
+    public TimeSpan MaxRetryDelay { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>The longest wait between two polls of an accepted ticket that stays undecided (the waits grow up to it).</summary>
+    [Range(typeof(TimeSpan), "00:00:01", "06:00:00")]
+    public TimeSpan MaxPollInterval { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How long a claimed partner order is reserved for the job instance calling its partner. If that instance dies
+    /// mid-call, another one picks the order up after this; the resend reuses the same reference, so it is safe.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:30", "01:00:00")]
+    public TimeSpan ClaimTimeout { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Partner orders one run handles at most per partner; the rest wait for that partner's next run a few seconds later.</summary>
+    [Range(1, 10_000)]
+    public int BatchSize { get; init; } = 20;
+
+    /// <summary>
+    /// How long one run keeps claiming work for a partner. Each partner runs on its own, so a slow partner only delays
+    /// itself; this keeps even that partner's run short. Well under <see cref="ClaimTimeout"/>, so a partner order
+    /// claimed near the end of a run is answered long before another instance may take it over.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:01", "00:30:00")]
+    public TimeSpan RunBudget { get; init; } = TimeSpan.FromMinutes(1);
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (PollInterval >= NeedsAttentionAfter)
@@ -37,12 +64,23 @@ public sealed class PartnerOrdersOptions : IValidatableObject
         {
             yield return new ValidationResult("RetryDelay must be shorter than GiveUpAfter, or nothing is ever retried.", [nameof(RetryDelay)]);
         }
+
+        if (RunBudget * 2 > ClaimTimeout)
+        {
+            yield return new ValidationResult("RunBudget must be at most half of ClaimTimeout.", [nameof(RunBudget), nameof(ClaimTimeout)]);
+        }
+
+        if (MaxRetryDelay < RetryDelay || MaxPollInterval < PollInterval)
+        {
+            yield return new ValidationResult("MaxRetryDelay and MaxPollInterval must not be shorter than RetryDelay and PollInterval.",
+                [nameof(MaxRetryDelay), nameof(MaxPollInterval)]);
+        }
     }
 }
 
 /// <summary>
 /// Orders after Place order: the customer's order pages, partner orders (BR-ORD-01), refunds (BR-ORD-03), and the
-/// admin orders pages (BR-ORD-04). Wired once in Program.cs; the orders work fills in the endpoints and the jobs.
+/// admin orders pages (BR-ORD-04). Wired once in Program.cs.
 /// </summary>
 internal static class OrdersFeature
 {
@@ -52,6 +90,15 @@ internal static class OrdersFeature
             .Bind(configuration.GetSection(PartnerOrdersOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        services.AddPartnerOrderGateways();
+        services.AddSingleton<SellerDirectory>();
+        services.AddScoped<OrderDetailReader>();
+        services.AddScoped<PartnerOrderProcessor>();
+
+        // A singleton, so tests can call RunOnceAsync on the instance the host runs; started only when Jobs:Enabled.
+        services.AddSingleton<PartnerOrderJob>();
+        services.AddHostedService(sp => sp.GetRequiredService<PartnerOrderJob>());
         return services;
     }
 
@@ -62,7 +109,7 @@ internal static class OrdersFeature
     /// <item><c>GET /orders/{number}</c> → <see cref="OrderDetailDto"/></item>
     /// </list>
     /// </summary>
-    public static RouteGroupBuilder MapOrderEndpoints(this RouteGroupBuilder api) => api;
+    public static RouteGroupBuilder MapOrderEndpoints(this RouteGroupBuilder api) => api.MapCustomerOrders();
 
     /// <summary>
     /// Admin orders under /api/v1/admin (admin role):
@@ -75,5 +122,5 @@ internal static class OrdersFeature
     /// <item><c>POST /admin/orders/{number}/lines/{lineId}/resolve</c> <see cref="ResolveOrderLineRequest"/> → <see cref="AdminOrderDto"/></item>
     /// </list>
     /// </summary>
-    public static RouteGroupBuilder MapAdminOrderEndpoints(this RouteGroupBuilder api) => api;
+    public static RouteGroupBuilder MapAdminOrderEndpoints(this RouteGroupBuilder api) => api.MapAdminOrders();
 }
