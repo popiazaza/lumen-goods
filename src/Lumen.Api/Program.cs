@@ -1,10 +1,15 @@
+using Lumen.Api.Carts;
 using Lumen.Api.Catalog;
+using Lumen.Api.Checkout;
 using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Infrastructure.Json;
 using Lumen.Api.Infrastructure.Security;
+using Lumen.Api.Orders;
 using Lumen.Api.Partners;
+using Lumen.Api.Payments;
+using Lumen.Api.Wallets;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,6 +23,11 @@ builder.Services.AddLumenData(builder.Configuration);
 builder.Services.AddLumenIdentity(builder.Configuration);
 builder.Services.AddCatalog(builder.Configuration);
 builder.Services.AddPartners(builder.Configuration);
+builder.Services.AddCart(builder.Configuration);
+builder.Services.AddCheckout(builder.Configuration);
+builder.Services.AddPayments(builder.Configuration);
+builder.Services.AddOrders(builder.Configuration);
+builder.Services.AddWallet(builder.Configuration);
 builder.Services.AddLumenHealthChecks();
 builder.Services.AddReverseProxySupport();
 
@@ -34,6 +44,12 @@ var api = app.MapGroup("/api/v1").AddEndpointFilter<AntiforgeryValidationFilter>
 api.MapAuthEndpoints();
 api.MapCatalogEndpoints();
 api.MapPartnerAdminEndpoints();
+api.MapCartEndpoints();
+api.MapCheckoutEndpoints();
+api.MapPaymentEndpoints();
+api.MapOrderEndpoints();
+api.MapAdminOrderEndpoints();
+api.MapWalletEndpoints();
 
 app.MapMediaEndpoints();
 app.MapHealthChecks("/health");

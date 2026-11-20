@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using Lumen.Api.Carts;
 using Lumen.Api.Infrastructure.Security;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -15,6 +16,12 @@ public sealed record SessionResponse(bool IsAuthenticated, string? Email, IReadO
 public sealed record RegisterRequest([Required, EmailAddress, MaxLength(256)] string Email, [Required, MinLength(8), MaxLength(128)] string Password);
 
 public sealed record SignInRequest([Required, EmailAddress] string Email, [Required] string Password);
+
+/// <summary>
+/// What sign-in and registration hand over to other features, bound with [AsParameters] so the handlers stay short:
+/// the guest cart merge (BR-CART-01).
+/// </summary>
+internal sealed record AfterSignIn(ICartMergeService CartMerge);
 
 internal static class AuthEndpoints
 {
@@ -40,7 +47,8 @@ internal static class AuthEndpoints
     }
 
     private static async Task<Results<Ok<SessionResponse>, ValidationProblem>> Register(
-        RegisterRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn, IAntiforgery antiforgery)
+        RegisterRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn, IAntiforgery antiforgery,
+        [AsParameters] AfterSignIn afterSignIn)
     {
         var user = new AppUser { UserName = request.Email, Email = request.Email };
         var created = await users.CreateAsync(user, request.Password);
@@ -58,12 +66,14 @@ internal static class AuthEndpoints
             throw new InvalidOperationException($"Could not assign the customer role: {string.Join("; ", roleAdded.Errors.Select(e => e.Description))}");
         }
 
-        return TypedResults.Ok(await CompleteSignInAsync(http, user, signIn, users, antiforgery));
+        var session = await CompleteSignInAsync(http, user, signIn, users, antiforgery);
+        await afterSignIn.CartMerge.MergeGuestCartAsync(http, user.Id, http.RequestAborted);
+        return TypedResults.Ok(session);
     }
 
     private static async Task<Results<Ok<SessionResponse>, ProblemHttpResult>> SignIn(
         SignInRequest request, HttpContext http, UserManager<AppUser> users, SignInManager<AppUser> signIn,
-        IPasswordHasher<AppUser> hasher, IAntiforgery antiforgery)
+        IPasswordHasher<AppUser> hasher, IAntiforgery antiforgery, [AsParameters] AfterSignIn afterSignIn)
     {
         var user = await users.FindByEmailAsync(request.Email);
         if (user is null)
@@ -90,7 +100,9 @@ internal static class AuthEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Email or password is incorrect");
         }
 
-        return TypedResults.Ok(await CompleteSignInAsync(http, user, signIn, users, antiforgery));
+        var session = await CompleteSignInAsync(http, user, signIn, users, antiforgery);
+        await afterSignIn.CartMerge.MergeGuestCartAsync(http, user.Id, http.RequestAborted);
+        return TypedResults.Ok(session);
     }
 
     private static async Task<Ok<SessionResponse>> SignOut(HttpContext http, SignInManager<AppUser> signIn, IAntiforgery antiforgery)
