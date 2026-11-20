@@ -149,4 +149,11 @@ public static class PaymentProblemTypes
 
     /// <summary>409: the order cannot be paid any more: already paid, expired, or out of attempts.</summary>
     public const string OrderNotPayable = "urn:lumen:problem:order-not-payable";
+
+    /// <summary>
+    /// 409: the latest payment ended Failed and the gateway cannot tell yet whether it charged
+    /// (<see cref="PaymentRetryMode.SamePaymentOnly"/>): only a card request with that same card retries it; a wallet
+    /// request or another card is refused, so the customer is never charged twice.
+    /// </summary>
+    public const string SamePaymentOnly = "urn:lumen:problem:same-payment-only";
 }

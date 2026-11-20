@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using Lumen.Api.Carts;
@@ -36,11 +37,16 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
 
     public static readonly ShippingAddressDto Address = new("Ada Lovelace", "1200 NW Naito Pkwy", null, "Portland", "OR", "97209", "US");
 
+    private readonly ConcurrentBag<Guid> _shoppers = [];
+
     public FakeTimeProvider Clock { get; } = new(WholeSecond(DateTimeOffset.UtcNow));
 
     public StubHarbor Harbor { get; } = new();
 
     public StubKestrel Kestrel { get; } = new();
+
+    /// <summary>The API's gateway: the mock, with a switch to make its status lookup fail for chosen payments.</summary>
+    public TestGateway Gateway { get; } = new();
 
     public WebApplicationFactory<Program> App { get; private set; } = null!;
 
@@ -51,6 +57,9 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
         App = factory.WithWebHostBuilder(builder =>
         {
             builder.UseSetting("Jobs:Enabled", "false");
+
+            // The job tests' runs scan the whole shared database; one run must reach the rows a test is about.
+            builder.UseSetting("PaymentJobs:BatchSize", "1000");
 
             // Polly takes the fake clock from DI: a retry back-off on it would wait for a clock nobody moves, so the one
             // retry goes at once.
@@ -66,6 +75,12 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(Clock);
+                services.AddSingleton<MockPaymentGateway>();
+                services.AddSingleton<IPaymentGateway>(sp =>
+                {
+                    Gateway.Inner = sp.GetRequiredService<MockPaymentGateway>();
+                    return Gateway;
+                });
                 services.AddHttpClient(HarborCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Harbor);
                 services.AddHttpClient(KestrelCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Kestrel);
             });
@@ -77,7 +92,28 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await App.Services.GetRequiredService<DetachedPaymentRunner>().WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        await RemoveShoppersDataAsync();
         await App.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Removes the orders, payments, refunds, wallet entries and carts of this class's customers. Their order and cart
+    /// lines reference partner products, and the partner sync tests start by deleting every partner product.
+    /// </summary>
+    private async Task RemoveShoppersDataAsync()
+    {
+        var ids = _shoppers.ToList();
+        await using var scope = App.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LumenDbContext>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var orders = db.Orders.Where(o => ids.Contains(o.CustomerId)).Select(o => o.Id);
+        await db.WalletTransactions.Where(t => ids.Contains(t.CustomerId) && t.Kind != WalletTransactionKind.Seed).ExecuteDeleteAsync();
+        await db.Refunds.Where(r => orders.Contains(r.OrderId)).ExecuteDeleteAsync();
+        await db.PartnerOrders.Where(p => db.OrderLines.Any(l => l.Id == p.OrderLineId && orders.Contains(l.OrderId))).ExecuteDeleteAsync();
+        await db.Payments.Where(p => orders.Contains(p.OrderId)).ExecuteDeleteAsync();
+        await db.Orders.Where(o => ids.Contains(o.CustomerId)).ExecuteDeleteAsync();
+        await db.Carts.Where(c => c.CustomerId != null && ids.Contains(c.CustomerId.Value)).ExecuteDeleteAsync();
+        await transaction.CommitAsync();
     }
 
     /// <summary>A newly registered, signed-in customer ($500.00 wallet, empty cart).</summary>
@@ -89,6 +125,7 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
         (await session.PostAsJsonAsync("/api/v1/auth/register", new RegisterRequest(email, "Shopper!2026"))).EnsureSuccessStatusCode();
         await session.StartAsync();
         var id = await WithDbAsync(db => db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync(Ct));
+        _shoppers.Add(id);
         return new Shopper(this, session, id);
     }
 
@@ -163,9 +200,11 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
 
     public Task<Product> ProductAsync(Guid id) => WithDbAsync(db => db.Products.AsNoTracking().SingleAsync(p => p.Id == id, Ct));
 
-    public Task<Order> OrderAsync(string number) => WithDbAsync(db => db.Orders.AsNoTracking()
+    public Task<Order> OrderAsync(string number) => WithDbAsync(db => db.Orders.AsNoTracking().AsSplitQuery()
         .Include(o => o.Lines).ThenInclude(l => l.PartnerOrder)
+        .Include(o => o.Shipments)
         .Include(o => o.Payments)
+        .Include(o => o.Refunds)
         .SingleAsync(o => o.Number == number, Ct));
 
     public Task<List<MockGatewayCharge>> GatewayChargesAsync(Guid orderId) => WithDbAsync(db =>
@@ -210,6 +249,28 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
     }
 
     private static DateTimeOffset WholeSecond(DateTimeOffset value) => new(value.UtcTicks - value.UtcTicks % TimeSpan.TicksPerSecond, TimeSpan.Zero);
+}
+
+/// <summary>The mock gateway, except that <see cref="StatusUnavailable"/> payments get no answer to a status lookup.</summary>
+public sealed class TestGateway : IPaymentGateway
+{
+    public IPaymentGateway Inner { get; set; } = null!;
+
+    public ConcurrentBag<Guid> StatusUnavailable { get; } = [];
+
+    public Task<GatewayChargeResult> ChargeAsync(GatewayChargeRequest request, CancellationToken cancellationToken) =>
+        Inner.ChargeAsync(request, cancellationToken);
+
+    public Task<GatewayChargeResult> SubmitOneTimeCodeAsync(Guid paymentId, string code, CancellationToken cancellationToken) =>
+        Inner.SubmitOneTimeCodeAsync(paymentId, code, cancellationToken);
+
+    public Task<GatewayChargeResult> GetChargeAsync(Guid paymentId, CancellationToken cancellationToken) =>
+        StatusUnavailable.Contains(paymentId)
+            ? throw new HttpRequestException("Gateway status lookup unavailable (test).")
+            : Inner.GetChargeAsync(paymentId, cancellationToken);
+
+    public Task<GatewayRefundResult> RefundAsync(GatewayRefundRequest request, CancellationToken cancellationToken) =>
+        Inner.RefundAsync(request, cancellationToken);
 }
 
 /// <summary>A signed-in customer driving the checkout and payment API like the storefront does.</summary>
