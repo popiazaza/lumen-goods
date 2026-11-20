@@ -34,10 +34,21 @@ public sealed class OrderStatusDerivationTests
         var derived = OrderStatusDerivation.Derive(OrderStatus.Paid, lines);
 
         derived.Should().Be(expected);
-        if (derived != OrderStatus.Paid)
-        {
-            OrderTransitions.Order.CanMove(OrderStatus.Paid, derived).Should().BeTrue("the derived status must be reachable");
-        }
+        OrderTransitions.Order.MoveIfChanged(OrderStatus.Paid, derived).Should().Be(expected, "the documented call applies any derived status");
+    }
+
+    [Theory]
+    [Trait("BR", "BR-ORD-02")]
+    [InlineData(OrderStatus.Paid, OrderLineStatus.AwaitingPartner)]
+    [InlineData(OrderStatus.Completed, OrderLineStatus.Confirmed)]
+    [InlineData(OrderStatus.PartiallyRefunded, OrderLineStatus.Rejected, OrderLineStatus.Confirmed)]
+    [InlineData(OrderStatus.AwaitingPayment, OrderLineStatus.Pending)]
+    public void BR_ORD_02_re_deriving_an_unchanged_status_is_a_no_op(OrderStatus current, params OrderLineStatus[] lines)
+    {
+        var derived = OrderStatusDerivation.Derive(current, lines);
+
+        derived.Should().Be(current);
+        OrderTransitions.Order.MoveIfChanged(current, derived).Should().Be(current);
     }
 
     [Theory]

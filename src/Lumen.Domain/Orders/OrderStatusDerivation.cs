@@ -10,7 +10,8 @@ public static class OrderStatusDerivation
     /// The status the order should have now. Before payment (or once expired) the lines decide nothing and
     /// <paramref name="current"/> is returned. After payment: any line still open → Paid (shown as "Processing");
     /// otherwise all confirmed → Completed, all refunded → Refunded, a mix → PartiallyRefunded.
-    /// Callers apply a change with <c>OrderTransitions.Order.Move(current, derived)</c>.
+    /// Apply it with <c>order.Status = OrderTransitions.Order.MoveIfChanged(order.Status, derived)</c>: an unchanged
+    /// status (the usual case) is a no-op.
     /// </summary>
     public static OrderStatus Derive(OrderStatus current, IReadOnlyCollection<OrderLineStatus> lines)
     {

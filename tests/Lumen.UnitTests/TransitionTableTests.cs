@@ -67,6 +67,23 @@ public sealed class TransitionTableTests
             .Should().Throw<InvalidOperationException>().WithMessage("Light cannot move from Green to Red.");
 
     [Fact]
+    public void Move_to_the_same_status_throws_because_a_deliberate_change_must_change_something() =>
+        FluentActions.Invoking(() => Lights.Move(Light.Red, Light.Red))
+            .Should().Throw<InvalidOperationException>().WithMessage("Light cannot move from Red to Red.");
+
+    [Fact]
+    public void MoveIfChanged_is_a_no_op_for_the_same_status() =>
+        Lights.MoveIfChanged(Light.Amber, Light.Amber).Should().Be(Light.Amber);
+
+    [Fact]
+    public void MoveIfChanged_applies_a_listed_change_and_rejects_any_other()
+    {
+        Lights.MoveIfChanged(Light.Red, Light.Green).Should().Be(Light.Green);
+        FluentActions.Invoking(() => Lights.MoveIfChanged(Light.Green, Light.Red))
+            .Should().Throw<InvalidOperationException>().WithMessage("Light cannot move from Green to Red.");
+    }
+
+    [Fact]
     public void Next_states_and_final_states_come_from_the_table()
     {
         Lights.NextStates(Light.Red).Should().Equal(Light.Green, Light.Off);
