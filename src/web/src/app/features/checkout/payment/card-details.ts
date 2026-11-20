@@ -1,6 +1,6 @@
 import { Component, computed, input } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { ReactiveFormsModule } from '@angular/forms';
+import { ControlContainer, FormGroupDirective, ReactiveFormsModule } from '@angular/forms';
 import { MatError, MatFormField, MatHint, MatLabel, MatSuffix } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { merge, switchMap } from 'rxjs';
@@ -26,6 +26,9 @@ import type { Signal } from '@angular/core';
   imports: [ReactiveFormsModule, MatError, MatFormField, MatHint, MatInput, MatLabel, MatSuffix],
   templateUrl: './card-details.html',
   styleUrl: './card-details.scss',
+  // The fields join the page's own <form [formGroup]>, so submitting it shows their errors (Material reads
+  // the nearest form directive's submitted state); a second [formGroup] here would never be submitted.
+  viewProviders: [{ provide: ControlContainer, useExisting: FormGroupDirective }],
 })
 export class CardDetails {
   /**
