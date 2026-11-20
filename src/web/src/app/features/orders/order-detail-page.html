@@ -1,0 +1,112 @@
+<h1>Order {{ id() }}</h1>
+
+@if (errorStatus(); as status) {
+  @if (status === 404) {
+    <div class="state">
+      <mat-icon svgIcon="info" class="state-icon" />
+      <p>
+        <strong>We can’t find order {{ id() }}.</strong>
+      </p>
+      <p>Check the order number, or find the order in your order history.</p>
+      <a matButton="filled" routerLink="/orders">Your orders</a>
+    </div>
+  } @else if (status === 401) {
+    <div class="state">
+      <mat-icon svgIcon="lock" class="state-icon" />
+      <p><strong>Sign in to see this order.</strong></p>
+      <a matButton="filled" routerLink="/sign-in" [queryParams]="{ returnUrl: '/orders/' + id() }"
+        >Sign in</a
+      >
+    </div>
+  } @else {
+    <div class="state" role="alert">
+      <mat-icon svgIcon="error" class="state-icon" />
+      <p>We couldn’t load this order. Check your connection and try again.</p>
+      <button matButton="filled" type="button" (click)="order.reload()">
+        <mat-icon svgIcon="refresh" />
+        Retry
+      </button>
+    </div>
+  }
+} @else if (detail(); as o) {
+  <div class="overview">
+    <app-status-badge [status]="orderStatus(o)" />
+    <p>
+      Placed <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'medium' }}</time>
+    </p>
+  </div>
+
+  <p class="updating" role="status">
+    @if (waitingText()) {
+      <mat-icon svgIcon="schedule" />
+      <span>{{ waitingText() }}</span>
+    }
+  </p>
+
+  @if (rejectedCount() > 0) {
+    <div class="notice">
+      <mat-icon svgIcon="info" />
+      <p>
+        @if (rejectedCount() === 1) {
+          1 item couldn’t be supplied.
+        } @else {
+          {{ rejectedCount() }} items couldn’t be supplied.
+        }
+        You don’t pay for {{ rejectedCount() === 1 ? 'it' : 'them' }}: the refund goes back to how
+        you paid. The rest of your order goes ahead.
+      </p>
+    </div>
+  }
+
+  <div class="layout">
+    <section class="shipments" aria-labelledby="items-heading">
+      <h2 id="items-heading">Items</h2>
+      @for (shipment of o.shipments; track shipment.source) {
+        <mat-card appearance="outlined" class="shipment">
+          <div class="shipment-head">
+            <h3>{{ shipment.sellerName }}</h3>
+            <p class="shipping">
+              <mat-icon svgIcon="local_shipping" />
+              <span>
+                {{ shippingLabel(shipment.method) }},
+                @if (shipment.feeRefunded) {
+                  <s class="price">{{ shipment.fee | currency }}</s> (refunded)
+                } @else {
+                  <span class="price">{{ shipment.fee | currency }}</span>
+                }
+              </span>
+            </p>
+          </div>
+          <ul class="lines">
+            @for (line of shipment.lines; track line.id) {
+              <li class="line" [class.rejected]="line.status === 'rejected'">
+                <app-product-image class="thumb" [src]="line.imageUrl" />
+                <div class="line-main">
+                  <p class="name">{{ line.name }}</p>
+                  <p class="muted">{{ line.quantity }} × {{ line.unitPrice | currency }}</p>
+                  <app-status-badge [status]="lineStatus(line)" />
+                </div>
+                <p class="line-total price">
+                  @if (line.status === 'rejected') {
+                    <s
+                      ><span class="cdk-visually-hidden">Refunded: </span
+                      >{{ line.subtotal | currency }}</s
+                    >
+                  } @else {
+                    {{ line.subtotal | currency }}
+                  }
+                </p>
+              </li>
+            }
+          </ul>
+        </mat-card>
+      }
+    </section>
+
+    <app-order-summary-panel class="side" [order]="o" />
+  </div>
+
+  <p><a routerLink="/orders">Back to your orders</a></p>
+} @else {
+  <mat-progress-bar mode="indeterminate" aria-label="Loading the order" />
+}
