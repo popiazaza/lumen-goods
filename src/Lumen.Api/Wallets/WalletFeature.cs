@@ -39,8 +39,8 @@ internal static class WalletFeature
     /// <summary>
     /// Wallet endpoints under /api/v1 (signed-in customer):
     /// <list type="bullet">
-    /// <item><c>GET /wallet</c> → <see cref="WalletDto"/></item>
+    /// <item><c>GET /wallet</c> → <see cref="WalletDto"/>; 401 when not signed in; 404 for an account without a wallet (the admin)</item>
     /// </list>
     /// </summary>
-    public static RouteGroupBuilder MapWalletEndpoints(this RouteGroupBuilder api) => api;
+    public static RouteGroupBuilder MapWalletEndpoints(this RouteGroupBuilder api) => api.MapWalletRoutes();
 }
