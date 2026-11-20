@@ -2,7 +2,7 @@
   "name": "lumen-web",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "npm@11.20.0",
+  "packageManager": "npm@11.21.3",
   "engines": {
     "node": ">=26.13.0"
   },

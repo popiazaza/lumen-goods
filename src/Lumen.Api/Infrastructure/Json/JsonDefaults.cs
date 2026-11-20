@@ -8,6 +8,8 @@ namespace Lumen.Api.Infrastructure.Json;
 /// what clients actually receive. Nulls are always written: the product format relies on "quantity": null.
 /// Enums are written as snake_case strings ("awaiting_payment", "in_stock"), the same style as the spec's
 /// availability statuses, and read only as those strings (never as numbers), so a reordered enum cannot change the API.
+/// A body that names a property twice is refused (400), so a proxy or log that reads the first value and the API that
+/// would read the last can never disagree about, say, a quantity.
 /// </summary>
 public static class JsonDefaults
 {
@@ -15,6 +17,7 @@ public static class JsonDefaults
     {
         options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
+        options.AllowDuplicateProperties = false;
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower, allowIntegerValues: false));
     }
 

@@ -7,7 +7,10 @@ namespace Lumen.Api.Partners.Sync;
 /// adapter, a configuration section and one registration in <see cref="PartnersFeature"/>.
 /// </summary>
 /// <param name="Stock">Null when the catalogue carries stock (Harbor).</param>
-/// <param name="ImageHttpClientName">The client the image proxy uses (Harbor: its own share of the rate limit).</param>
+/// <param name="ImageHttpClientName">
+/// The client the image proxy uses: its own circuit breaker, so failing images cannot cut off sync, live checks and
+/// partner orders (Harbor: also its own share of the rate limit).
+/// </param>
 internal sealed record PartnerRegistration(
     string Code,
     string HttpClientName,
