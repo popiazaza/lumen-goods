@@ -49,6 +49,7 @@ internal sealed class PartnerSyncJob(
             var sync = scope.ServiceProvider.GetRequiredService<PartnerSyncService>();
             var state = await sync.GetStateAsync(partner.Code, cancellationToken);
             var refreshRequestedUtc = state.RefreshRequestedUtc;
+            var removalsConfirmedUtc = state.RemovalsConfirmedUtc;
             var nowUtc = clock.GetUtcNow();
             var fingerprint = MappingFingerprint(options);
 
@@ -57,7 +58,7 @@ internal sealed class PartnerSyncJob(
             if (runCatalogue)
             {
                 _lastCatalogueAttemptUtc = nowUtc;
-                catalogue = await sync.SyncCatalogueAsync(partner, full, cancellationToken);
+                catalogue = await sync.SyncCatalogueAsync(partner, full, cancellationToken, removalsConfirmed: full && removalsConfirmedUtc is not null);
                 if (full && catalogue.Succeeded)
                 {
                     _appliedMappingFingerprint = fingerprint;
@@ -72,11 +73,12 @@ internal sealed class PartnerSyncJob(
                 stock = await sync.RefreshStockAsync(partner, cancellationToken);
             }
 
-            if (refreshRequestedUtc is { } served)
+            // Cleared whatever the outcome: the outcome is on the admin page, and a failing partner must not be retried
+            // every few seconds. A removal confirmation is spent only by a full pass, the one that can apply it.
+            var servedConfirmation = runCatalogue && full ? removalsConfirmedUtc : null;
+            if (refreshRequestedUtc is not null || servedConfirmation is not null)
             {
-                // Cleared whatever the outcome: the outcome is on the admin page, and a failing partner must not be
-                // retried every few seconds.
-                await sync.ClearRefreshRequestAsync(partner.Code, served, cancellationToken);
+                await sync.ClearRefreshRequestAsync(partner.Code, refreshRequestedUtc, servedConfirmation, cancellationToken);
             }
 
             return new PartnerRunReport(catalogue, stock);

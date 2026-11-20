@@ -13,7 +13,9 @@ public enum CatalogueRunResult
 }
 
 /// <summary>What one catalogue run did (returned to the job and to tests).</summary>
-public sealed record CatalogueOutcome(CatalogueRunResult Result, int Inserted = 0, int Updated = 0, int Unlisted = 0, int Unchanged = 0, string? Error = null)
+/// <param name="HeldRemovals">Products missing from a full catalogue that the mass-deletion guard kept listed.</param>
+public sealed record CatalogueOutcome(
+    CatalogueRunResult Result, int Inserted = 0, int Updated = 0, int Unlisted = 0, int Unchanged = 0, int HeldRemovals = 0, string? Error = null)
 {
     public bool Succeeded => Result != CatalogueRunResult.Failed;
 
@@ -26,9 +28,10 @@ public sealed record StockOutcome(bool Succeeded, int Updated = 0, int Unchanged
 /// The partner-neutral sync engine: asks a partner's adapter for its catalogue or stock, then upserts the products by
 /// (Source, SourceProductId), writing a row only when its content hash changed, and keeps PartnerSyncState and the
 /// recent-errors list up to date.
-/// BR-SYNC-01: a partner failure never breaks the shop. Every failure is caught and recorded, and the products stay as
-/// they were (last good data). No database transaction is open while a partner is being called: the partner is read
-/// first, then the result is written in one SaveChanges.
+/// BR-SYNC-02: a partner failure never breaks the shop. Every failure is caught and recorded, and the products stay as
+/// they were (last good data); a full catalogue missing many products has its removals held back by the
+/// <see cref="MassDeletionGuard"/>. No database transaction is open while a partner is being called: the partner is
+/// read first, then the result is written in one SaveChanges.
 /// </summary>
 internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mapper, TimeProvider clock, ILogger<PartnerSyncService> logger)
 {
@@ -56,7 +59,9 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
         return await db.PartnerSyncStates.FirstAsync(s => s.Partner == partner, cancellationToken);
     }
 
-    public async Task<CatalogueOutcome> SyncCatalogueAsync(PartnerRegistration partner, bool full, CancellationToken cancellationToken)
+    /// <param name="removalsConfirmed">An admin confirmed the removals the mass-deletion guard is holding back.</param>
+    public async Task<CatalogueOutcome> SyncCatalogueAsync(
+        PartnerRegistration partner, bool full, CancellationToken cancellationToken, bool removalsConfirmed = false)
     {
         var state = await GetStateAsync(partner.Code, cancellationToken);
         var startedUtc = clock.GetUtcNow();
@@ -85,7 +90,7 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
         List<string> problems;
         try
         {
-            (outcome, problems) = await ApplyCatalogueAsync(partner, fetched, cancellationToken);
+            (outcome, problems) = await ApplyCatalogueAsync(partner, fetched, removalsConfirmed, cancellationToken);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -93,7 +98,8 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
             return await RecordCatalogueFailureAsync(partner, "catalogue", ex, cancellationToken);
         }
 
-        // The products are saved; only now does the watermark move, so a crash in between just repeats the pass.
+        // The products are saved; only now does the watermark move, so a crash in between just repeats the pass. Held
+        // removals do not stop it: the rest of the catalogue was applied, and the next full pass judges them again.
         var finishedUtc = clock.GetUtcNow();
         state.LastSuccessUtc = finishedUtc;
         state.LastError = null;
@@ -101,6 +107,18 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
         if (fetched.Kind == CatalogFetchKind.Complete)
         {
             state.LastFullSyncUtc = finishedUtc;
+            if (outcome.HeldRemovals > 0)
+            {
+                state.LastError = Truncate(outcome.Error!);
+
+                // Recorded when the number held changes, not again on every full pass while it stays the same.
+                if (state.HeldRemovals != outcome.HeldRemovals)
+                {
+                    AddError(partner.Code, "catalogue", null, outcome.Error!, finishedUtc);
+                }
+            }
+
+            state.HeldRemovals = outcome.HeldRemovals;
         }
 
         state.LiveProductCount = await CountListedAsync(partner.Code, cancellationToken);
@@ -179,28 +197,46 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
         return new StockOutcome(error is null, updated, unchanged, error);
     }
 
-    /// <summary>Clears "Refresh now" if it is still the request this run served (a newer click is kept).</summary>
-    public Task ClearRefreshRequestAsync(string partner, DateTimeOffset servedRequestUtc, CancellationToken cancellationToken) =>
-        db.PartnerSyncStates
-            .Where(s => s.Partner == partner && s.RefreshRequestedUtc == servedRequestUtc)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RefreshRequestedUtc, (DateTimeOffset?)null), cancellationToken);
+    /// <summary>
+    /// Clears "Refresh now" and a removal confirmation if they are still the ones this run served; a newer click is kept.
+    /// </summary>
+    public async Task ClearRefreshRequestAsync(
+        string partner, DateTimeOffset? servedRequestUtc, DateTimeOffset? servedConfirmationUtc, CancellationToken cancellationToken)
+    {
+        if (servedRequestUtc is { } request)
+        {
+            await db.PartnerSyncStates
+                .Where(s => s.Partner == partner && s.RefreshRequestedUtc == request)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RefreshRequestedUtc, (DateTimeOffset?)null), cancellationToken);
+        }
 
-    /// <summary>Marks a partner for an immediate full refresh; a pending request keeps its original time.</summary>
-    public async Task<PartnerSyncState> RequestRefreshAsync(string partner, CancellationToken cancellationToken)
+        if (servedConfirmationUtc is { } confirmation)
+        {
+            await db.PartnerSyncStates
+                .Where(s => s.Partner == partner && s.RemovalsConfirmedUtc == confirmation)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RemovalsConfirmedUtc, (DateTimeOffset?)null), cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Marks a partner for an immediate full refresh; a pending request keeps its original time. With
+    /// <paramref name="confirmRemovals"/> that refresh also applies the removals the mass-deletion guard holds back.
+    /// </summary>
+    public async Task<PartnerSyncState> RequestRefreshAsync(string partner, bool confirmRemovals, CancellationToken cancellationToken)
     {
         var nowUtc = clock.GetUtcNow();
-        await db.Database.ExecuteSqlAsync(
-            $"""
-             INSERT INTO "PartnerSyncStates" ("Partner", "LiveProductCount", "RefreshRequestedUtc") VALUES ({partner}, 0, {nowUtc})
-             ON CONFLICT ("Partner") DO UPDATE
-             SET "RefreshRequestedUtc" = COALESCE("PartnerSyncStates"."RefreshRequestedUtc", EXCLUDED."RefreshRequestedUtc")
-             """,
-            cancellationToken);
+        await GetStateAsync(partner, cancellationToken);
+        await db.PartnerSyncStates
+            .Where(s => s.Partner == partner)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.RefreshRequestedUtc, x => x.RefreshRequestedUtc ?? nowUtc)
+                .SetProperty(x => x.RemovalsConfirmedUtc, x => confirmRemovals ? nowUtc : x.RemovalsConfirmedUtc),
+                cancellationToken);
         return await db.PartnerSyncStates.AsNoTracking().FirstAsync(s => s.Partner == partner, cancellationToken);
     }
 
     private async Task<(CatalogueOutcome Outcome, List<string> Problems)> ApplyCatalogueAsync(
-        PartnerRegistration partner, CatalogFetchResult fetched, CancellationToken cancellationToken)
+        PartnerRegistration partner, CatalogFetchResult fetched, bool removalsConfirmed, CancellationToken cancellationToken)
     {
         var settings = partner.Options();
         var complete = fetched.Kind == CatalogFetchKind.Complete;
@@ -208,7 +244,6 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
             ? await db.Products.Where(p => p.Source == partner.Code).ToDictionaryAsync(p => p.SourceProductId, StringComparer.Ordinal, cancellationToken)
             : await LoadAsync(partner.Code, fetched.Products.Select(p => p.SourceProductId), cancellationToken);
 
-        // Plan everything first: nothing is changed unless the whole catalogue passes the guard.
         var problems = new List<string>(fetched.Problems);
         var plans = new List<(PartnerProductSnapshot Snapshot, Product? Current, ProductContent Content, List<string> Problems)>();
         foreach (var snapshot in fetched.Products)
@@ -221,16 +256,23 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
             }
         }
 
+        // Removals: listed products a complete catalogue no longer contains. The guard may hold them back; everything
+        // else (new, changed, inactive, unmapped products) is applied either way.
         var dropped = new List<Product>();
+        var heldCount = 0;
+        string? held = null;
         if (complete)
         {
             var inCatalogue = fetched.Products.Select(p => p.SourceProductId).ToHashSet(StringComparer.Ordinal);
             dropped = [.. existing.Values.Where(p => p.IsListed && !inCatalogue.Contains(p.SourceProductId))];
             var listedNow = existing.Values.Count(p => p.IsListed);
-            var wouldUnlist = dropped.Count + plans.Count(p => p.Current?.IsListed == true && !p.Content.IsListed);
-            if (MassDeletionGuard.Check(listedNow, wouldUnlist, fetched.Products.Count, settings.MaxUnlistFraction) is { } reason)
+            if (!removalsConfirmed
+                && MassDeletionGuard.Check(listedNow, dropped.Count, fetched.Products.Count, settings.MaxRemovalFraction, settings.MinRemovalsToHold) is { } reason)
             {
-                throw new PartnerDataException($"{settings.Name} catalogue not applied (mass-deletion guard): {reason}. The last good catalogue stays live.");
+                heldCount = dropped.Count;
+                held = $"{settings.Name}: {heldCount} removals held back by the mass-deletion guard ({reason}); those products stay listed. "
+                    + "The rest of the catalogue was applied. If the removals are real, confirm them with Refresh now and confirmRemovals=true.";
+                dropped = [];
             }
         }
 
@@ -277,7 +319,7 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        return (new CatalogueOutcome(CatalogueRunResult.Applied, inserted, updated, dropped.Count, unchanged), problems);
+        return (new CatalogueOutcome(CatalogueRunResult.Applied, inserted, updated, dropped.Count, unchanged, heldCount, held), problems);
     }
 
     /// <summary>

@@ -3,17 +3,21 @@ using System.Globalization;
 namespace Lumen.Api.Partners.Sync;
 
 /// <summary>
-/// BR-SYNC-01 (last good data kept): a full catalogue that is empty, or that would take more than
-/// <c>maxUnlistFraction</c> of the currently listed products out of the shop (dropped, inactive or unmapped), is not
-/// applied. A partner losing most of its catalogue at once is far more likely a broken feed than a business decision;
-/// the admin page shows the rejection, and the threshold is configuration.
+/// BR-SYNC-02 (last good data kept): when a full catalogue leaves out many listed products at once, those removals
+/// are held back (the products stay listed) while everything else in the catalogue is still applied. They are held
+/// when the catalogue is empty, or when they are at least <c>minRemovals</c> products AND more than
+/// <c>maxRemovalFraction</c> of the listed ones. A partner losing most of its catalogue at once is far more likely a
+/// broken feed than a business decision; small catalogues still shrink normally. An admin can confirm the removals
+/// ("Refresh now" with confirmRemovals). Products the partner marks inactive or moves to an unmapped category are
+/// explicit changes, not removals, and are always applied.
 /// </summary>
 public static class MassDeletionGuard
 {
-    /// <returns>Why the catalogue is rejected, or null when it may be applied.</returns>
-    public static string? Check(int listedNow, int wouldUnlist, int productsInCatalogue, double maxUnlistFraction)
+    /// <param name="removals">Listed products missing from the catalogue.</param>
+    /// <returns>Why the removals are held back, or null when they may be applied.</returns>
+    public static string? Check(int listedNow, int removals, int productsInCatalogue, double maxRemovalFraction, int minRemovals)
     {
-        if (listedNow == 0)
+        if (listedNow == 0 || removals == 0)
         {
             return null;
         }
@@ -23,17 +27,18 @@ public static class MassDeletionGuard
             return $"the catalogue is empty while {listedNow} products are listed";
         }
 
-        return (double)wouldUnlist / listedNow > maxUnlistFraction
+        return removals >= minRemovals && (double)removals / listedNow > maxRemovalFraction
             ? string.Create(CultureInfo.InvariantCulture,
-                $"it would take {wouldUnlist} of the {listedNow} listed products out of the shop (limit {maxUnlistFraction:0.##} of them)")
+                $"{removals} of the {listedNow} listed products are missing (limit: {maxRemovalFraction:0.##} of them once at least {minRemovals} are missing)")
             : null;
     }
 }
 
 /// <summary>
-/// BR-SYNC-01 (freshness): when each partner job does what. The intervals (configuration) keep every partner change
-/// visible within 15 minutes: Harbor incremental every 60 s plus a full pass every 15 min (the only way to see
-/// removals); Kestrel feed every 3 min and stock every 5 min.
+/// BR-SYNC-01 (freshness): when each partner job does what. The configured intervals keep every partner change visible
+/// within 15 minutes, counting the job's wake-up interval and the run itself (a unit test checks the shipped values):
+/// Harbor incremental every 60 s plus a full pass every 10 min (the only way to see removals); Kestrel feed every
+/// 3 min with an unconditional fetch every 9 min (a stuck Last-Modified cannot hide changes), stock every 5 min.
 /// </summary>
 public static class SyncSchedule
 {

@@ -72,8 +72,8 @@ public sealed class PartnerSyncTests(LumenApiFactory factory) : IAsyncLifetime
             LastUpdatedUtc = new DateTime(2026, 11, 1, 8, 0, 0, DateTimeKind.Utc),
         });
         tote.Images.Should().Equal(
-            new ImageDto($"http://shop.test/media/{tote.Id}/0", true),
-            new ImageDto($"http://shop.test/media/{tote.Id}/1", false));
+            new ImageDto(ProductMapping.ImageUrl("http://shop.test", harbor["HSC-1"].Id, 0, "http://harbor.test/media/HSC-1/front.png"), true),
+            new ImageDto(ProductMapping.ImageUrl("http://shop.test", harbor["HSC-1"].Id, 1, "http://harbor.test/media/HSC-1/side.png"), false));
         harbor["HSC-1"].Images[0].SourceUrl.Should().Be("http://harbor.test/media/HSC-1/front.png");
 
         harbor["HSC-3"].ToDto(policy, "").Should().BeEquivalentTo(new { Price = (PriceDto?)null, Sellable = false, Availability = new AvailabilityDto("in_stock", null) });
@@ -123,8 +123,7 @@ public sealed class PartnerSyncTests(LumenApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
-    [Trait("BR", "BR-SYNC-01")]
-    public async Task BR_SYNC_01_a_second_run_with_unchanged_data_writes_nothing()
+    public async Task A_second_run_with_unchanged_data_writes_nothing()
     {
         await SyncBothAsync();
         var before = await _app.RowVersionsAsync();
@@ -184,8 +183,8 @@ public sealed class PartnerSyncTests(LumenApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
-    [Trait("BR", "BR-SYNC-01")]
-    public async Task BR_SYNC_01_when_partners_are_down_the_last_good_products_stay_and_the_errors_are_recorded()
+    [Trait("BR", "BR-SYNC-02")]
+    public async Task BR_SYNC_02_when_partners_are_down_the_last_good_products_stay_and_the_errors_are_recorded()
     {
         await SyncBothAsync();
         var before = await _app.RowVersionsAsync();
@@ -212,34 +211,89 @@ public sealed class PartnerSyncTests(LumenApiFactory factory) : IAsyncLifetime
         (await _app.ErrorsAsync(Harbor)).Should().Contain(e => e.Operation == "catalogue" && e.StatusCode == 503);
     }
 
+    private static string[] TwelveTents(string price = "299,00") =>
+        [.. Enumerable.Range(1, 12).Select(i => FakeKestrel.Product($"T-{i:00}", "TENTS", price, nameEn: $"Tent {i}"))];
+
     [Fact]
-    [Trait("BR", "BR-SYNC-01")]
-    public async Task BR_SYNC_01_the_mass_deletion_guard_keeps_the_last_good_kestrel_catalogue()
+    [Trait("BR", "BR-SYNC-02")]
+    public async Task BR_SYNC_02_mass_removals_are_held_back_while_the_rest_of_the_feed_is_applied_until_an_admin_confirms()
+    {
+        _kestrel.SetFeed(TwelveTents());
+        foreach (var i in Enumerable.Range(1, 12))
+        {
+            _kestrel.Stock[$"T-{i:00}"] = 4;
+        }
+
+        await _app.Job(Kestrel).RunOnceAsync(Ct);
+
+        // The partner now lists one tent, at a new price, and a new product: 11 of 12 listed products are missing.
+        _kestrel.SetFeed(FakeKestrel.Product("T-01", "TENTS", "349,00", nameEn: "Tent 1"), FakeKestrel.Product("K-NEW", "LAMPS", "19,00", nameEn: "Lamp"));
+        _kestrel.LastModified = "Thu, 19 Nov 2026 09:00:00 GMT";
+        _kestrel.Stock["T-01"] = 1;
+        await _app.RequestRefreshAsync(Kestrel);
+        var held = await _app.Job(Kestrel).RunOnceAsync(Ct);
+
+        held.Catalogue.Should().BeEquivalentTo(new { Result = CatalogueRunResult.Applied, Inserted = 1, Updated = 1, Unlisted = 0, HeldRemovals = 11 });
+        held.Stock!.Succeeded.Should().BeTrue();
+        var products = await _app.ProductsAsync(Kestrel);
+        products["T-01"].Should().BeEquivalentTo(new { PriceUsd = 378.67m, Quantity = 1 }, "price and stock changes still arrive");
+        products["K-NEW"].IsListed.Should().BeTrue();
+        products.Values.Count(p => p.IsListed).Should().Be(13, "the 11 missing tents stay listed until confirmed");
+        var state = await _app.StateAsync(Kestrel);
+        state.Should().BeEquivalentTo(new { HeldRemovals = 11, Watermark = _kestrel.LastModified, LiveProductCount = 13 });
+        state.LastError.Should().Contain("11 removals held back").And.Contain("confirmRemovals=true");
+        (await _app.ErrorsAsync(Kestrel)).Should().ContainSingle(e => e.Message.Contains("held back"));
+
+        // Later runs are normal: the feed is not refetched and rejected over and over.
+        var next = await _app.WithSyncAsync((sync, partners) => sync.SyncCatalogueAsync(partners.Get(Kestrel), full: false, Ct));
+        next.Result.Should().Be(CatalogueRunResult.NotModified);
+
+        await _app.RequestRefreshAsync(Kestrel, confirmRemovals: true);
+        var confirmed = await _app.Job(Kestrel).RunOnceAsync(Ct);
+
+        confirmed.Catalogue.Should().BeEquivalentTo(new { Result = CatalogueRunResult.Applied, Unlisted = 11, HeldRemovals = 0 });
+        (await _app.ProductsAsync(Kestrel)).Values.Count(p => p.IsListed).Should().Be(2);
+        (await _app.StateAsync(Kestrel)).Should().BeEquivalentTo(new
+        {
+            HeldRemovals = 0, LiveProductCount = 2, LastError = (string?)null, RefreshRequestedUtc = (DateTimeOffset?)null, RemovalsConfirmedUtc = (DateTimeOffset?)null,
+        });
+    }
+
+    [Fact]
+    [Trait("BR", "BR-SYNC-02")]
+    public async Task BR_SYNC_02_an_empty_feed_never_empties_the_shop()
     {
         await SyncBothAsync();
-        var watermark = _kestrel.LastModified;
+        _kestrel.SetFeed();
+        _kestrel.LastModified = "Thu, 19 Nov 2026 09:00:00 GMT";
+
+        await _app.RequestRefreshAsync(Kestrel);
+        var run = await _app.Job(Kestrel).RunOnceAsync(Ct);
+
+        run.Catalogue.Should().BeEquivalentTo(new { Result = CatalogueRunResult.Applied, Unlisted = 0, HeldRemovals = 4 });
+        run.Catalogue!.Error.Should().Contain("empty");
+        (await _app.ProductsAsync(Kestrel)).Values.Count(p => p.IsListed).Should().Be(4);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-SYNC-02")]
+    public async Task BR_SYNC_02_a_small_catalogue_may_shrink_by_more_than_half()
+    {
+        await SyncBothAsync();
         _kestrel.SetFeed(FakeKestrel.Product("K-1", "JACKETS", "1.249,00", nameEn: "Expedition Parka"));
         _kestrel.LastModified = "Thu, 19 Nov 2026 09:00:00 GMT";
 
         await _app.RequestRefreshAsync(Kestrel);
-        var shrunk = await _app.Job(Kestrel).RunOnceAsync(Ct);
-        _kestrel.SetFeed();
-        await _app.RequestRefreshAsync(Kestrel);
-        var empty = await _app.Job(Kestrel).RunOnceAsync(Ct);
+        var run = await _app.Job(Kestrel).RunOnceAsync(Ct);
 
-        shrunk.Catalogue!.Result.Should().Be(CatalogueRunResult.Failed);
-        shrunk.Catalogue.Error.Should().Contain("mass-deletion guard").And.Contain("3 of the 4");
-        empty.Catalogue!.Result.Should().Be(CatalogueRunResult.Failed);
-        empty.Catalogue.Error.Should().Contain("empty");
-        (await _app.ProductsAsync(Kestrel)).Values.Count(p => p.IsListed).Should().Be(4);
-        var state = await _app.StateAsync(Kestrel);
-        state.Watermark.Should().Be(watermark, "a rejected feed must be judged again next time, not skipped by a 304");
-        state.LastError.Should().Contain("mass-deletion guard");
+        run.Catalogue.Should().BeEquivalentTo(new { Result = CatalogueRunResult.Applied, Unlisted = 3, HeldRemovals = 0 }, "3 removals is below the guard's minimum of 10");
+        (await _app.StateAsync(Kestrel)).Should().BeEquivalentTo(new { HeldRemovals = 0, LiveProductCount = 1, LastError = (string?)null });
     }
 
     [Fact]
     [Trait("BR", "BR-SYNC-01")]
-    public async Task BR_SYNC_01_products_missing_from_a_good_full_catalogue_leave_the_shop_but_stay_resolvable()
+    [Trait("BR", "BR-CAT-02")]
+    public async Task BR_SYNC_01_products_missing_from_a_good_full_catalogue_leave_the_shop_and_stop_being_sellable()
     {
         await SyncBothAsync();
         _kestrel.SetFeed(
@@ -260,8 +314,11 @@ public sealed class PartnerSyncTests(LumenApiFactory factory) : IAsyncLifetime
 
         kestrelRun.Catalogue.Should().BeEquivalentTo(new { Result = CatalogueRunResult.Applied, Unlisted = 1 });
         harborRun.Catalogue.Should().BeEquivalentTo(new { Result = CatalogueRunResult.Applied, Unlisted = 1 });
-        (await _app.ProductsAsync(Kestrel))["K-6"].IsListed.Should().BeFalse();
-        (await _app.ProductsAsync(Harbor))["HSC-4"].IsListed.Should().BeFalse();
+        var pack = (await _app.ProductsAsync(Kestrel))["K-6"];
+        pack.IsListed.Should().BeFalse();
+        pack.ToDto(new AvailabilityPolicy(), "").Should().BeEquivalentTo(new { Sellable = false, Price = new PriceDto(96.57m, "USD") },
+            "it still resolves by id with its last price, but cannot be bought");
+        (await _app.ProductsAsync(Harbor))["HSC-4"].Should().BeEquivalentTo(new { IsListed = false, IsSellable = false });
         (await _app.StateAsync(Kestrel)).LiveProductCount.Should().Be(3);
         (await _app.StateAsync(Harbor)).LiveProductCount.Should().Be(2);
     }

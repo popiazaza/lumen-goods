@@ -41,13 +41,18 @@ internal static class PartnersFeature
                 HarborCatalogSource.HttpClientName,
                 (pipeline, sp) => pipeline.AddRateLimiter(sp.GetRequiredService<HarborRateGate>().Limiter))
             .AddHttpMessageHandler<HarborKeyHandler>();
+        services.AddPartnerHttpClient<HarborOptions>(
+                HarborCatalogSource.ImageHttpClientName,
+                (pipeline, sp) => pipeline.AddRateLimiter(sp.GetRequiredService<HarborRateGate>().ImageLimiter))
+            .AddHttpMessageHandler<HarborKeyHandler>();
         services.AddSingleton<HarborCatalogSource>();
         services.AddPartner(
             ProductSources.Harbor,
             HarborCatalogSource.HttpClientName,
             sp => sp.GetRequiredService<HarborCatalogSource>(),
             stock: null,
-            sp => sp.GetRequiredService<IOptionsMonitor<HarborOptions>>().CurrentValue);
+            sp => sp.GetRequiredService<IOptionsMonitor<HarborOptions>>().CurrentValue,
+            imageHttpClientName: HarborCatalogSource.ImageHttpClientName);
 
         // Kestrel: XML feed (slow, flaky), CSV stock, Basic auth.
         services.AddTransient<KestrelBasicAuthHandler>();
@@ -60,7 +65,8 @@ internal static class PartnersFeature
             KestrelCatalogSource.HttpClientName,
             sp => sp.GetRequiredService<KestrelCatalogSource>(),
             sp => sp.GetRequiredService<KestrelStockSource>(),
-            sp => sp.GetRequiredService<IOptionsMonitor<KestrelOptions>>().CurrentValue);
+            sp => sp.GetRequiredService<IOptionsMonitor<KestrelOptions>>().CurrentValue,
+            imageHttpClientName: KestrelCatalogSource.HttpClientName);
 
         services.AddSingleton<PartnerImageCache>();
         services.AddSingleton<PartnerImageProxy>();
@@ -86,9 +92,10 @@ internal static class PartnersFeature
         string httpClientName,
         Func<IServiceProvider, IPartnerCatalogSource> catalog,
         Func<IServiceProvider, IPartnerStockSource>? stock,
-        Func<IServiceProvider, PartnerOptions> options)
+        Func<IServiceProvider, PartnerOptions> options,
+        string imageHttpClientName)
     {
-        services.AddSingleton(sp => new PartnerRegistration(code, httpClientName, catalog(sp), stock?.Invoke(sp), () => options(sp)));
+        services.AddSingleton(sp => new PartnerRegistration(code, httpClientName, catalog(sp), stock?.Invoke(sp), () => options(sp), imageHttpClientName));
         services.AddKeyedSingleton(code, (sp, _) => ActivatorUtilities.CreateInstance<PartnerSyncJob>(sp, sp.GetRequiredService<PartnerRegistry>().Get(code)));
 
         // Not AddHostedService: it de-duplicates by implementation type, which would keep only the first partner's job.

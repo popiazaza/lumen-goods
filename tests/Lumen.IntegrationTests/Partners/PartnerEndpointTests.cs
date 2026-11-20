@@ -27,7 +27,11 @@ public sealed class PartnerEndpointTests(LumenApiFactory factory) : IAsyncLifeti
     {
         Directory.CreateDirectory(Path.Combine(_webRoot, "own-media"));
         await File.WriteAllBytesAsync(Path.Combine(_webRoot, "own-media", "test-mug.png"), FakePartner.Png, Ct);
-        _app = PartnerTestHost.Create(factory, _harbor, _kestrel, b => b.UseSetting(WebHostDefaults.WebRootKey, _webRoot));
+        _app = PartnerTestHost.Create(factory, _harbor, _kestrel, b =>
+        {
+            b.UseSetting(WebHostDefaults.WebRootKey, _webRoot);
+            b.UseSetting("Partners:Kestrel:ImageOrigins:0", $"http://{FakeKestrel.CdnHost}");
+        });
         await _app.ResetPartnerDataAsync();
         PartnerTestHost.SeedDefaults(_harbor, _kestrel);
     }
@@ -52,10 +56,14 @@ public sealed class PartnerEndpointTests(LumenApiFactory factory) : IAsyncLifeti
         (await admin.PostAsJsonAsync("/api/v1/admin/partners/acme/refresh", new { })).StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         var accepted = await admin.PostAsJsonAsync("/api/v1/admin/partners/harbor/refresh", new { });
+        var confirming = await admin.PostAsJsonAsync("/api/v1/admin/partners/kestrel/refresh?confirmRemovals=true", new { });
 
         accepted.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var requested = (await _app.StateAsync("harbor")).RefreshRequestedUtc;
         requested.Should().NotBeNull();
+        (await _app.StateAsync("harbor")).RemovalsConfirmedUtc.Should().BeNull();
+        confirming.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        (await _app.StateAsync("kestrel")).RemovalsConfirmedUtc.Should().NotBeNull();
 
         var run = await _app.Job("harbor").RunOnceAsync(Ct);
         run.Catalogue.Should().NotBeNull("a requested refresh runs at once, whatever the schedule");
@@ -79,7 +87,8 @@ public sealed class PartnerEndpointTests(LumenApiFactory factory) : IAsyncLifeti
         foreach (var partner in partners)
         {
             partner.EnumerateObject().Select(p => p.Name).Should().Equal(
-                "partner", "name", "lastSuccessUtc", "lastAttemptUtc", "lastError", "liveProductCount", "refreshRequestedUtc", "recentErrors");
+                "partner", "name", "lastSuccessUtc", "lastAttemptUtc", "lastError", "liveProductCount", "refreshRequestedUtc", "heldRemovals",
+                "recentErrors");
         }
 
         var harbor = partners[0];
@@ -144,6 +153,32 @@ public sealed class PartnerEndpointTests(LumenApiFactory factory) : IAsyncLifeti
         lookalike.StatusCode.Should().Be(HttpStatusCode.NotFound);
         missing.StatusCode.Should().Be(HttpStatusCode.NotFound);
         _kestrel.Calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task An_image_on_a_configured_image_origin_is_fetched_without_partner_credentials()
+    {
+        var product = new Product
+        {
+            Source = ProductSources.Kestrel,
+            SourceProductId = "K-CDN",
+            Name = "CDN Lamp",
+            Category = ProductCategories.Home,
+            Images = [new ProductImage($"http://{FakeKestrel.CdnHost}/img/k-cdn_l.png", true)],
+            FirstSeenUtc = DateTimeOffset.UtcNow,
+            LastUpdatedUtc = DateTimeOffset.UtcNow,
+        };
+        await _app.WithDbAsync(async db =>
+        {
+            db.Products.Add(product);
+            return await db.SaveChangesAsync(Ct);
+        });
+
+        var response = await _app.CreateClient().GetAsync($"/media/{product.Id}/0", Ct);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsByteArrayAsync(Ct)).Should().Equal(FakePartner.Png);
+        _kestrel.Calls.Should().ContainSingle().Which.Should().Match<PartnerCall>(c => c.Uri.Host == FakeKestrel.CdnHost && c.Header("Authorization") == null);
     }
 
     [Fact]

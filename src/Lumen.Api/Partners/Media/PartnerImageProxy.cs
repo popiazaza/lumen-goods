@@ -21,9 +21,9 @@ public sealed record ImageResult(ImageOutcome Outcome, byte[]? Bytes = null, str
 
 /// <summary>
 /// Fetches partner images server-side, so the browser never calls a partner (partner images need the partner's
-/// credentials and live on hosts the browser cannot reach). Goes through the partner's named client, so the
-/// credentials and Harbor's shared rate limit apply. SSRF guard: only URLs on the partner's configured origin are
-/// fetched, and redirects are never followed. Successes are cached (size-limited); failures briefly, so a down
+/// credentials and live on hosts the browser cannot reach). Goes through the partner's image client, so the
+/// credentials and Harbor's image share of the rate limit apply. SSRF guard: only URLs on the partner's own origin or
+/// its configured ImageOrigins are fetched, and redirects are never followed. Successes are cached (size-limited); failures briefly, so a down
 /// partner costs one request per image per minute rather than one per page view.
 /// </summary>
 internal sealed class PartnerImageProxy(
@@ -44,14 +44,17 @@ internal sealed class PartnerImageProxy(
 
     public async Task<ImageResult> GetAsync(string source, string sourceUrl, CancellationToken cancellationToken)
     {
-        if (registry.Find(source) is not { } partner || partner.Options().BaseUri is not { } origin)
+        if (registry.Find(source) is not { } partner || !partner.Options().IsConfigured)
         {
             return NotFound;
         }
 
-        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var url) || !PartnerUrls.IsSameOrigin(url, origin))
+        // SSRF guard: only the partner's own origin and the image origins configured for it. Credentials still go to
+        // the BaseUrl origin only (OriginBoundCredentialsHandler).
+        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var url)
+            || !partner.Options().AllowedImageOrigins().Any(origin => PartnerUrls.IsSameOrigin(url, origin)))
         {
-            logger.LogWarning("Refused to fetch {Partner} image outside the partner's origin: {Url}", partner.Code, sourceUrl);
+            logger.LogWarning("Refused to fetch {Partner} image outside its allowed origins: {Url}", partner.Code, sourceUrl);
             return NotFound;
         }
 
@@ -104,7 +107,7 @@ internal sealed class PartnerImageProxy(
 
     private async Task<ImageResult> FetchAsync(PartnerRegistration partner, Uri url, long maxBytes, CancellationToken cancellationToken)
     {
-        var client = httpClients.CreateClient(partner.HttpClientName);
+        var client = httpClients.CreateClient(partner.ImageHttpClientName);
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         using var response = await client.SendToPartnerAsync(request, HttpCompletionOption.ResponseHeadersRead, partner.Code, cancellationToken);
         if (response.StatusCode != HttpStatusCode.OK)

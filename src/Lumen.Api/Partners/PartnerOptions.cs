@@ -34,9 +34,22 @@ public abstract class PartnerOptions : IValidatableObject
     /// </summary>
     public TimeSpan StockInterval { get; set; } = TimeSpan.FromMinutes(5);
 
-    /// <summary>BR-SYNC-01 mass-deletion guard: a full catalogue that would unlist more than this share of the listed products is rejected.</summary>
+    /// <summary>
+    /// BR-SYNC-02 mass-deletion guard: removals from a full catalogue are held back (the rest is applied) when they are
+    /// at least <see cref="MinRemovalsToHold"/> products AND more than this share of the listed ones.
+    /// </summary>
     [Range(0.01, 1.0)]
-    public double MaxUnlistFraction { get; set; } = 0.5;
+    public double MaxRemovalFraction { get; set; } = 0.5;
+
+    /// <summary>BR-SYNC-02: below this many removals the guard never holds, so a small catalogue can shrink normally.</summary>
+    [Range(1, 1_000_000)]
+    public int MinRemovalsToHold { get; set; } = 10;
+
+    /// <summary>
+    /// Extra origins (scheme://host[:port]) partner images may be fetched from, e.g. a partner CDN. The BaseUrl origin is
+    /// always allowed and is the only one that receives the partner's credentials.
+    /// </summary>
+    public List<string> ImageOrigins { get; set; } = [];
 
     public PartnerResilienceOptions Resilience { get; set; } = new();
 
@@ -44,6 +57,10 @@ public abstract class PartnerOptions : IValidatableObject
     public Uri? BaseUri => PartnerUrls.ParseBaseUrl(BaseUrl);
 
     public bool IsConfigured => BaseUri is not null;
+
+    /// <summary>Origins partner images may come from: the BaseUrl origin plus <see cref="ImageOrigins"/>.</summary>
+    public IReadOnlyList<Uri> AllowedImageOrigins() =>
+        [.. new[] { BaseUri }.Concat(ImageOrigins.Select(PartnerUrls.ParseBaseUrl)).OfType<Uri>()];
 
     public virtual IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
@@ -60,6 +77,11 @@ public abstract class PartnerOptions : IValidatableObject
                     $"CategoryMap maps '{code}' to '{category}', which is not one of: {string.Join(", ", ProductCategories.All)}.",
                     [nameof(CategoryMap)]);
             }
+        }
+
+        foreach (var origin in ImageOrigins.Where(o => PartnerUrls.ParseBaseUrl(o) is null))
+        {
+            yield return new ValidationResult($"ImageOrigins entry '{origin}' must be an absolute http or https URL.", [nameof(ImageOrigins)]);
         }
 
         if (CatalogueInterval <= TimeSpan.Zero || FullSyncInterval <= TimeSpan.Zero || StockInterval <= TimeSpan.Zero)

@@ -7,11 +7,15 @@ public sealed class HarborOptions : PartnerOptions
 {
     public const string SectionName = "Partners:Harbor";
 
+    /// <summary>Harbor's published limit: 60 requests per minute per key, whatever they are for.</summary>
+    public const int ContractRequestsPerMinute = 60;
+
     public HarborOptions()
     {
         Name = "Harbor Supply Co.";
         CatalogueInterval = TimeSpan.FromSeconds(60);
-        FullSyncInterval = TimeSpan.FromMinutes(15);
+        // BR-SYNC-01: removals only show in a full pass; 10 min + a 60 s tick + the run stays inside 15 min.
+        FullSyncInterval = TimeSpan.FromMinutes(10);
         Resilience = new PartnerResilienceOptions { AttemptTimeout = TimeSpan.FromSeconds(10), TotalTimeout = TimeSpan.FromSeconds(90) };
     }
 
@@ -51,24 +55,46 @@ public sealed class HarborOptions : PartnerOptions
             yield return new ValidationResult("WatermarkOverlap must not be negative.", [nameof(WatermarkOverlap)]);
         }
 
-        if (RateLimit.RequestsPerMinute is < 1 or > 6000 || RateLimit.Burst < 1 || RateLimit.QueueLimit < 0)
+        if (RateLimit.RequestsPerMinute < 1 || RateLimit.Burst < 1 || RateLimit.ImageRequestsPerMinute < 1 || RateLimit.ImageBurst < 1
+            || RateLimit.QueueLimit < 0 || RateLimit.ImageQueueLimit < 0)
         {
-            yield return new ValidationResult("RateLimit: RequestsPerMinute 1 to 6000, Burst at least 1, QueueLimit not negative.", [nameof(RateLimit)]);
+            yield return new ValidationResult("RateLimit: rates and bursts must be at least 1 and queue limits not negative.", [nameof(RateLimit)]);
+        }
+
+        if (RateLimit.WorstCasePerMinute > ContractRequestsPerMinute)
+        {
+            yield return new ValidationResult(
+                $"RateLimit: Burst + RequestsPerMinute + ImageBurst + ImageRequestsPerMinute is {RateLimit.WorstCasePerMinute}, "
+                + $"more than Harbor's {ContractRequestsPerMinute} requests per minute.",
+                [nameof(RateLimit)]);
         }
     }
 }
 
 /// <summary>
-/// Client-side token bucket shared by every Harbor call in this process (catalogue, images, later orders). Harbor
-/// allows 60 requests per minute per key; Burst + RequestsPerMinute must stay at or below that so no 60-second window,
-/// however it is aligned, sees more than 60 requests: 10 + 50 = 60.
+/// Client-side token buckets for Harbor's one budget of 60 requests per minute per key, split in two so images can never
+/// starve the catalogue sync or (later) order calls: those share the main bucket (40/min, burst 5); image fetches have
+/// their own, smaller bucket (10/min, burst 5) and simply wait longer during a burst of uncached images. A token bucket
+/// lets at most burst + rate through in any 60-second window, however it is aligned, so the two together stay at
+/// (5 + 40) + (5 + 10) = 60. Validation refuses settings that would exceed Harbor's limit.
 /// </summary>
 public sealed class HarborRateLimitOptions
 {
-    public int RequestsPerMinute { get; set; } = 50;
+    /// <summary>Catalogue sync and order calls.</summary>
+    public int RequestsPerMinute { get; set; } = 40;
 
-    public int Burst { get; set; } = 10;
+    public int Burst { get; set; } = 5;
 
-    /// <summary>Requests waiting for a token; beyond this a call fails fast instead of queueing.</summary>
+    /// <summary>Requests waiting for a main-bucket token; beyond this a call fails fast instead of queueing.</summary>
     public int QueueLimit { get; set; } = 1000;
+
+    /// <summary>Partner image fetches (the image proxy).</summary>
+    public int ImageRequestsPerMinute { get; set; } = 10;
+
+    public int ImageBurst { get; set; } = 5;
+
+    public int ImageQueueLimit { get; set; } = 500;
+
+    /// <summary>The most requests both buckets together can let through in any 60-second window.</summary>
+    public int WorstCasePerMinute => Burst + RequestsPerMinute + ImageBurst + ImageRequestsPerMinute;
 }

@@ -16,7 +16,8 @@ namespace Lumen.Api.Partners.Harbor;
 /// - nothing is assumed about item order, page fullness (an empty page that is not the last is fine) or duplicates
 ///   (the latest copy of an item in a pass wins);
 /// - incremental passes send <c>updated_since</c> = newest updated_at seen in earlier passes minus an overlap, in
-///   the "Z" form, on every page; the watermark only moves after a complete pass (the engine stores it on success).
+///   the "Z" form, on every page; the watermark only moves after a complete pass (the engine stores it on success),
+///   and a full pass resets it to the newest updated_at that pass saw.
 /// </summary>
 internal sealed class HarborCatalogSource(
     IHttpClientFactory httpClients,
@@ -25,6 +26,9 @@ internal sealed class HarborCatalogSource(
     DescriptionSanitizer sanitizer) : IPartnerCatalogSource
 {
     public const string HttpClientName = "partner-harbor";
+
+    /// <summary>Same key and pipeline, but drawing on the smaller image bucket of <see cref="HarborRateGate"/>.</summary>
+    public const string ImageHttpClientName = "partner-harbor-images";
 
     public string Partner => ProductSources.Harbor;
 
@@ -37,8 +41,11 @@ internal sealed class HarborCatalogSource(
         var context = new PartnerMappingContext(baseUri, new CategoryMap(settings.CategoryMap), partners.CurrentValue.EffectiveSynonyms(), sanitizer);
         var client = httpClients.CreateClient(HttpClientName);
 
-        var newestSeen = HarborWatermark.Parse(request.Watermark);
-        var updatedSince = request.Full ? null : newestSeen - settings.WatermarkOverlap;
+        // An incremental pass keeps the old watermark when it sees nothing newer. A full pass sets it from its own items
+        // only, so an item once seen with a future updated_at, or a partner whose data was reset, cannot pin it.
+        var previous = HarborWatermark.Parse(request.Watermark);
+        var updatedSince = request.Full ? null : previous - settings.WatermarkOverlap;
+        var newestSeen = request.Full ? null : previous;
 
         var items = new Dictionary<string, PartnerProductSnapshot>(StringComparer.Ordinal);
         var problems = new List<string>();

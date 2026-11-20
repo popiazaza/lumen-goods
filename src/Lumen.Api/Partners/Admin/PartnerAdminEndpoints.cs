@@ -9,6 +9,10 @@ namespace Lumen.Api.Partners.Admin;
 /// <summary>One partner on the admin "Partner status" page.</summary>
 /// <param name="LiveProductCount">Products of this partner currently shown in the shop.</param>
 /// <param name="RefreshRequestedUtc">Set while a "Refresh now" is waiting or running.</param>
+/// <param name="HeldRemovals">
+/// Products missing from the partner's last full catalogue that the mass-deletion guard keeps listed until an admin
+/// confirms them (refresh with confirmRemovals=true). 0 when nothing is held.
+/// </param>
 public sealed record PartnerStatusResponse(
     string Partner,
     string Name,
@@ -17,12 +21,13 @@ public sealed record PartnerStatusResponse(
     string? LastError,
     int LiveProductCount,
     DateTime? RefreshRequestedUtc,
+    int HeldRemovals,
     IReadOnlyList<PartnerErrorResponse> RecentErrors);
 
 /// <param name="Operation">catalogue, stock or data.</param>
 public sealed record PartnerErrorResponse(DateTime OccurredUtc, string Operation, int? StatusCode, string Message);
 
-public sealed record PartnerRefreshResponse(string Partner, DateTime? RefreshRequestedUtc);
+public sealed record PartnerRefreshResponse(string Partner, DateTime? RefreshRequestedUtc, bool RemovalsConfirmed);
 
 internal static class PartnerAdminEndpoints
 {
@@ -35,7 +40,12 @@ internal static class PartnerAdminEndpoints
             .RequireAuthorization(Policies.Admin);
 
         partners.MapGet("", ListPartners).WithSummary("Catalogue sync status of every partner");
-        partners.MapPost("/{partner}/refresh", RequestRefresh).WithSummary("Refresh a partner's catalogue now (runs in the background)");
+        partners.MapPost("/{partner}/refresh", RequestRefresh)
+            .WithSummary("Refresh a partner's catalogue now (runs in the background)")
+            .WithDescription(
+                "Runs a full catalogue pass within a few seconds (Harbor: every page; Kestrel: unconditional feed plus all stock). "
+                + "With ?confirmRemovals=true that pass also removes the products the mass-deletion guard is holding back "
+                + "(heldRemovals on the partner status), after an admin has checked they really left the partner's catalogue.");
         return api;
     }
 
@@ -67,6 +77,7 @@ internal static class PartnerAdminEndpoints
                 LastError: state?.LastError,
                 LiveProductCount: state?.LiveProductCount ?? 0,
                 RefreshRequestedUtc: state?.RefreshRequestedUtc?.UtcDateTime,
+                HeldRemovals: state?.HeldRemovals ?? 0,
                 RecentErrors: [.. errors.Select(e => new PartnerErrorResponse(e.OccurredUtc.UtcDateTime, e.Operation, e.StatusCode, e.Message))]));
         }
 
@@ -74,7 +85,7 @@ internal static class PartnerAdminEndpoints
     }
 
     private static async Task<Results<Accepted<PartnerRefreshResponse>, ProblemHttpResult>> RequestRefresh(
-        string partner, PartnerRegistry registry, PartnerSyncService sync, CancellationToken cancellationToken)
+        string partner, PartnerRegistry registry, PartnerSyncService sync, CancellationToken cancellationToken, bool confirmRemovals = false)
     {
         if (registry.Find(partner) is not { } registration)
         {
@@ -82,7 +93,9 @@ internal static class PartnerAdminEndpoints
         }
 
         // The partner's job picks the request up within a few seconds (Jobs:PollInterval).
-        var state = await sync.RequestRefreshAsync(registration.Code, cancellationToken);
-        return TypedResults.Accepted("/api/v1/admin/partners", new PartnerRefreshResponse(registration.Code, state.RefreshRequestedUtc?.UtcDateTime));
+        var state = await sync.RequestRefreshAsync(registration.Code, confirmRemovals, cancellationToken);
+        return TypedResults.Accepted(
+            "/api/v1/admin/partners",
+            new PartnerRefreshResponse(registration.Code, state.RefreshRequestedUtc?.UtcDateTime, state.RemovalsConfirmedUtc is not null));
     }
 }

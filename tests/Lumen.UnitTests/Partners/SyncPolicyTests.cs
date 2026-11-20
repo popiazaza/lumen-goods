@@ -1,5 +1,6 @@
 using Lumen.Api.Catalog;
 using Lumen.Api.Partners;
+using Microsoft.Extensions.Configuration;
 using Lumen.Api.Partners.Harbor;
 using Lumen.Api.Partners.Kestrel;
 using Lumen.Api.Partners.Ports;
@@ -15,22 +16,64 @@ public sealed class SyncPolicyTests
     private static readonly DateTimeOffset Now = new(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
 
     [Theory]
-    [Trait("BR", "BR-SYNC-01")]
-    [InlineData(40, 0, 0, true)]
+    [Trait("BR", "BR-SYNC-02")]
     [InlineData(40, 21, 19, true)]
+    [InlineData(12, 10, 2, true)]
+    [InlineData(4, 4, 0, true)]
     [InlineData(40, 20, 20, false)]
-    [InlineData(40, 3, 37, false)]
+    [InlineData(100, 11, 89, false)]
+    [InlineData(4, 3, 1, false)]
+    [InlineData(9, 9, 1, false)]
+    [InlineData(40, 0, 40, false)]
     [InlineData(0, 0, 0, false)]
-    [InlineData(3, 2, 1, true)]
-    public void BR_SYNC_01_a_catalogue_that_is_empty_or_would_unlist_more_than_half_is_rejected(
-        int listedNow, int wouldUnlist, int productsInCatalogue, bool rejected)
+    public void BR_SYNC_02_removals_are_held_back_when_the_catalogue_is_empty_or_at_least_10_and_more_than_half_go(
+        int listedNow, int removals, int productsInCatalogue, bool held)
     {
-        (MassDeletionGuard.Check(listedNow, wouldUnlist, productsInCatalogue, 0.5) is not null).Should().Be(rejected);
+        (MassDeletionGuard.Check(listedNow, removals, productsInCatalogue, maxRemovalFraction: 0.5, minRemovals: 10) is not null).Should().Be(held);
     }
 
     [Fact]
     [Trait("BR", "BR-SYNC-01")]
-    public void BR_SYNC_01_harbor_runs_incrementally_every_minute_and_fully_every_15_minutes()
+    public void BR_SYNC_01_the_shipped_intervals_show_every_partner_change_within_15_minutes()
+    {
+        var shipped = new ConfigurationBuilder().AddJsonFile(Path.Combine(RepoRoot(), "src", "Lumen.Api", "appsettings.json")).Build();
+        var harbor = shipped.GetSection(HarborOptions.SectionName).Get<HarborOptions>()!;
+        var kestrel = shipped.GetSection(KestrelOptions.SectionName).Get<KestrelOptions>()!;
+        var tick = shipped.GetSection(JobsOptions.SectionName).Get<JobsOptions>()!.PollInterval;
+
+        // A healthy run takes seconds; a minute per run is generous. Slower runs mean a partner outage (BR-SYNC-02).
+        // Two runs count: the one that just missed the change and the one that picks it up.
+        var runs = 2 * TimeSpan.FromMinutes(1);
+        var budget = TimeSpan.FromMinutes(15);
+
+        // A change: the next incremental pass. A removal: only a full pass sees it, decided at the next due run.
+        (harbor.CatalogueInterval + tick + runs).Should().BeLessThan(budget);
+        (harbor.FullSyncInterval + harbor.CatalogueInterval + tick + runs).Should().BeLessThan(budget);
+
+        // A feed change with a Last-Modified that never moves: only the unconditional fetch sees it. Stock: the stock
+        // interval, possibly after a feed run in the same tick.
+        (kestrel.FullSyncInterval + kestrel.CatalogueInterval + tick + runs).Should().BeLessThan(budget);
+        (kestrel.StockInterval + tick + runs).Should().BeLessThan(budget);
+        harbor.FullSyncInterval.Should().BeLessThanOrEqualTo(TimeSpan.FromMinutes(12));
+        kestrel.FullSyncInterval.Should().BeLessThanOrEqualTo(TimeSpan.FromMinutes(15));
+    }
+
+    private static string RepoRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "LumenGoods.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("Could not find the repository root (LumenGoods.slnx).");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-SYNC-01")]
+    public void BR_SYNC_01_harbor_runs_incrementally_every_minute_and_fully_every_10_minutes()
     {
         var options = new HarborOptions();
         var state = new PartnerSyncState
@@ -46,7 +89,7 @@ public sealed class SyncPolicyTests
         state.LastAttemptUtc = Now.AddSeconds(-60);
         SyncSchedule.Catalogue(state, Now, options, false, Now.AddSeconds(-60)).Should().Be((true, false));
 
-        state.LastFullSyncUtc = Now.AddMinutes(-15);
+        state.LastFullSyncUtc = Now.AddMinutes(-10);
         SyncSchedule.Catalogue(state, Now, options, false, Now.AddSeconds(-60)).Should().Be((true, true));
     }
 
@@ -65,7 +108,8 @@ public sealed class SyncPolicyTests
     }
 
     [Fact]
-    public void Kestrel_stock_is_read_after_a_feed_change_and_every_five_minutes_but_not_retried_every_tick()
+    [Trait("BR", "BR-SYNC-01")]
+    public void BR_SYNC_01_kestrel_stock_is_read_after_a_feed_change_and_every_five_minutes_but_not_retried_every_tick()
     {
         var options = new KestrelOptions();
         var state = new PartnerSyncState { Partner = "kestrel", StockRefreshedUtc = Now.AddMinutes(-2) };

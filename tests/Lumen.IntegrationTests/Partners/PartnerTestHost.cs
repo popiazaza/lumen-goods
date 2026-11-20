@@ -47,6 +47,7 @@ internal static class PartnerTestHost
             builder.ConfigureTestServices(services =>
             {
                 services.AddHttpClient(HarborCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
+                services.AddHttpClient(HarborCatalogSource.ImageHttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
                 services.AddHttpClient(KestrelCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => kestrel);
             });
             configure?.Invoke(builder);
@@ -76,8 +77,8 @@ internal static class PartnerTestHost
     public static Task<List<PartnerSyncError>> ErrorsAsync(this WebApplicationFactory<Program> app, string partner) =>
         app.WithDbAsync(db => db.PartnerSyncErrors.AsNoTracking().Where(e => e.Partner == partner).OrderByDescending(e => e.OccurredUtc).ToListAsync());
 
-    public static Task RequestRefreshAsync(this WebApplicationFactory<Program> app, string partner) =>
-        app.WithSyncAsync((sync, _) => sync.RequestRefreshAsync(partner, CancellationToken.None));
+    public static Task RequestRefreshAsync(this WebApplicationFactory<Program> app, string partner, bool confirmRemovals = false) =>
+        app.WithSyncAsync((sync, _) => sync.RequestRefreshAsync(partner, confirmRemovals, CancellationToken.None));
 
     /// <summary>Row versions (xmin) and change times of every partner product: equal before and after means nothing was written.</summary>
     public static Task<Dictionary<Guid, (uint Version, DateTimeOffset LastUpdatedUtc)>> RowVersionsAsync(this WebApplicationFactory<Program> app) =>

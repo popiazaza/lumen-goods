@@ -145,11 +145,15 @@ public sealed class FakeHarbor : FakePartner
         new(status) { Content = new StringContent("{\"error\":{\"code\":\"" + code + "\",\"message\":\"fake\"}}", Encoding.UTF8, "application/json") };
 }
 
-/// <summary>A Kestrel implementation written from the contract: feed with Last-Modified/304, CSV stock, pictures.</summary>
+/// <summary>
+/// A Kestrel implementation written from the contract: feed with Last-Modified/304, CSV stock, pictures. Pictures on
+/// <see cref="CdnHost"/> play a partner CDN: public, no credentials expected.
+/// </summary>
 public sealed class FakeKestrel : FakePartner
 {
     public const string User = "it-user";
     public const string Password = "it-secret";
+    public const string CdnHost = "cdn.kestrel.test";
 
     public string FeedXml { get; set; } = "";
 
@@ -182,6 +186,11 @@ public sealed class FakeKestrel : FakePartner
 
     protected override HttpResponseMessage Answer(PartnerCall call)
     {
+        if (call.Uri.Host == CdnHost)
+        {
+            return call.Uri.AbsolutePath.StartsWith("/img/", StringComparison.Ordinal) ? Image() : Status(HttpStatusCode.NotFound);
+        }
+
         var expected = "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{User}:{Password}"));
         if (call.Header("Authorization") != expected)
         {

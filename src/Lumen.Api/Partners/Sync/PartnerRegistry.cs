@@ -7,12 +7,14 @@ namespace Lumen.Api.Partners.Sync;
 /// adapter, a configuration section and one registration in <see cref="PartnersFeature"/>.
 /// </summary>
 /// <param name="Stock">Null when the catalogue carries stock (Harbor).</param>
+/// <param name="ImageHttpClientName">The client the image proxy uses (Harbor: its own share of the rate limit).</param>
 internal sealed record PartnerRegistration(
     string Code,
     string HttpClientName,
     IPartnerCatalogSource Catalog,
     IPartnerStockSource? Stock,
-    Func<PartnerOptions> Options);
+    Func<PartnerOptions> Options,
+    string ImageHttpClientName);
 
 internal sealed class PartnerRegistry(IEnumerable<PartnerRegistration> registrations)
 {

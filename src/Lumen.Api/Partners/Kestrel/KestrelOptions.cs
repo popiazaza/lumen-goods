@@ -18,9 +18,9 @@ public sealed class KestrelOptions : PartnerOptions
         Name = "Kestrel Outfitters";
         CatalogueInterval = TimeSpan.FromMinutes(3);
 
-        // Every 200 is the whole catalogue anyway; this forces one unconditional fetch per hour in case a
-        // Last-Modified ever gets stuck.
-        FullSyncInterval = TimeSpan.FromHours(1);
+        // Every 200 is the whole catalogue anyway; this forces an unconditional fetch every third run, so a
+        // Last-Modified that gets stuck cannot hide a change for longer than 9 min + a 3 min tick + the run (BR-SYNC-01).
+        FullSyncInterval = TimeSpan.FromMinutes(9);
 
         // The feed takes 2 to 4 s and fails about 1 in 10 times with 503: an attempt gets well over 4 s, and three
         // retries make a run fail only about once in 10,000.

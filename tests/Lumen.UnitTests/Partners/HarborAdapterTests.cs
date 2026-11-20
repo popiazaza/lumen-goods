@@ -5,6 +5,7 @@ using Lumen.Api.Partners.Harbor;
 using Lumen.Api.Partners.Ports;
 using Lumen.Domain.Catalog;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using static Lumen.UnitTests.Partners.PartnerTestKit;
 
 namespace Lumen.UnitTests.Partners;
@@ -94,6 +95,22 @@ public sealed class HarborAdapterTests
     }
 
     [Fact]
+    [Trait("BR", "BR-SYNC-01")]
+    public async Task BR_SYNC_01_a_full_pass_sets_the_watermark_from_its_own_items_so_a_future_date_cannot_pin_it()
+    {
+        var harbor = new StubPartner(_ => Page(null,
+            Item("HSC-1", tweak: i => i["updated_at"] = "2026-11-20T10:30:00Z"),
+            Item("HSC-2", tweak: i => i["updated_at"] = "2026-11-19T08:00:00Z")));
+
+        var full = await FetchAsync(harbor, full: true, watermark: "2099-01-01T00:00:00.0000000Z");
+        var incrementalWithNothingNewer = await FetchAsync(new StubPartner(_ => Page(null)), full: false, watermark: "2026-11-20T10:30:00.0000000Z");
+
+        full.Watermark.Should().Be("2026-11-20T10:30:00.0000000Z");
+        harbor.Requests.Should().ContainSingle().Which.Query.ContainsKey("updated_since").Should().BeFalse();
+        incrementalWithNothingNewer.Watermark.Should().Be("2026-11-20T10:30:00.0000000Z", "an empty incremental pass keeps the watermark");
+    }
+
+    [Fact]
     public async Task A_repeated_cursor_abandons_the_pass_instead_of_looping()
     {
         var harbor = new StubPartner(_ => Page("same", Item("HSC-1")));
@@ -105,8 +122,8 @@ public sealed class HarborAdapterTests
     }
 
     [Fact]
-    [Trait("BR", "BR-SYNC-01")]
-    public async Task BR_SYNC_01_a_429_waits_for_Retry_After_and_then_succeeds()
+    [Trait("BR", "BR-SYNC-02")]
+    public async Task BR_SYNC_02_a_429_waits_for_Retry_After_and_then_succeeds()
     {
         var calls = 0;
         var harbor = new StubPartner(_ =>
@@ -234,6 +251,34 @@ public sealed class HarborAdapterTests
             Item("HSC-1", tweak: i => i["summary"] = "Fish & chips <img src=x onerror=alert(1)>"))));
 
         Single(result, "HSC-1").Description.Should().Be("Fish &amp; chips");
+    }
+
+    [Fact]
+    public async Task Image_fetches_draw_on_their_own_smaller_share_so_they_cannot_starve_the_sync()
+    {
+        var harbor = new StubPartner(_ => StubPartner.Status(HttpStatusCode.OK));
+        await using var services = Services(harbor: harbor);
+        var gate = services.GetRequiredService<HarborRateGate>();
+        using var images = services.GetRequiredService<IHttpClientFactory>().CreateClient(HarborCatalogSource.ImageHttpClientName);
+
+        for (var i = 0; i < 5; i++)
+        {
+            (await images.GetAsync($"http://harbor.test/media/HSC-{i}/front.png", Ct)).Dispose();
+        }
+
+        gate.ImageLimiter.GetStatistics()!.CurrentAvailablePermits.Should().Be(0, "the image burst is spent");
+        gate.Limiter.GetStatistics()!.CurrentAvailablePermits.Should().Be(5, "sync and order calls keep their whole burst");
+        harbor.Requests.Should().HaveCount(5).And.AllSatisfy(r => r.Header(HarborKeyHandler.HeaderName).Should().Be(HarborKey));
+    }
+
+    [Fact]
+    public void Rate_limits_that_together_exceed_Harbor_60_requests_per_minute_are_refused_at_start()
+    {
+        using var services = Services(overrides: new() { ["Partners:Harbor:RateLimit:ImageRequestsPerMinute"] = "20" });
+
+        var act = () => services.GetRequiredService<IOptions<HarborOptions>>().Value;
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*more than Harbor's 60 requests per minute*");
     }
 
     [Fact]

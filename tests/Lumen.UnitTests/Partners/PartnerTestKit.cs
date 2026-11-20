@@ -110,6 +110,7 @@ internal static class PartnerTestKit
         if (harbor is not null)
         {
             services.AddHttpClient(HarborCatalogSource.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
+            services.AddHttpClient(HarborCatalogSource.ImageHttpClientName).ConfigurePrimaryHttpMessageHandler(() => harbor);
         }
 
         if (kestrel is not null)
