@@ -1,12 +1,16 @@
 using System.Net;
 using Lumen.Api.Orders;
+using Lumen.Api.Partners;
 using Lumen.Api.Payments;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Payments;
 using Lumen.IntegrationTests.Catalog;
 using Lumen.IntegrationTests.Checkout;
+using Lumen.IntegrationTests.Orders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Lumen.IntegrationTests.Payments;
 
@@ -200,6 +204,68 @@ public sealed class PaymentWindowJobTests(CheckoutHost host) : IClassFixture<Che
         (await host.ProductAsync(mugId)).Reserved.Should().Be(0);
     }
 
+    [Fact]
+    [Trait("BR", "BR-STOCK-01")]
+    [Trait("BR", "BR-PAY-05")]
+    public async Task BR_STOCK_01_failed_payments_the_gateway_cannot_settle_never_stop_other_orders_expiring_or_payments_closing()
+    {
+        await RunJobAsync(); // whatever earlier tests left due is handled first, so only this test's rows are due below
+
+        // A gateway status outage: more Failed payments than one batch, all older than anything else, that the gateway
+        // cannot settle, so they stay due on every run (their orders are not expired: they may have charged).
+        var batch = new PaymentJobsOptions().BatchSize;
+        var shopper = await host.NewShopperAsync();
+        var product = await host.OwnProductAsync();
+        var longAgo = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var unsettled = new List<Guid>();
+        Payment errored = null!;
+        await host.WithDbAsync(async db =>
+        {
+            for (var i = 0; i < batch + 5; i++)
+            {
+                var order = OrderingTestData.NewOrder(shopper.Id, product.Id);
+                (order.CreatedUtc, order.HoldExpiresUtc, order.FailedPaymentAttempts) = (longAgo, longAgo.AddMinutes(15), 1);
+                var payment = OrderingTestData.NewPayment(order.Id, PaymentStatus.Failed);
+                (payment.CreatedUtc, payment.StatusChangedUtc, payment.AutomaticRetryUsed) = (longAgo, longAgo.AddMinutes(1), true);
+                db.AddRange(order, payment);
+                host.Gateway.StatusUnavailable.Add(payment.Id);
+                unsettled.Add(order.Id);
+            }
+
+            // Behind them in the sweep: a gateway error whose automatic retry never ran; closing it needs no gateway call.
+            var claimed = OrderingTestData.NewOrder(shopper.Id, product.Id);
+            (claimed.Status, claimed.CreatedUtc, claimed.HoldExpiresUtc) = (OrderStatus.PaymentProcessing, longAgo, longAgo.AddMinutes(15));
+            errored = OrderingTestData.NewPayment(claimed.Id, PaymentStatus.Error);
+            (errored.CreatedUtc, errored.StatusChangedUtc) = (longAgo, longAgo.AddMinutes(2));
+            db.AddRange(claimed, errored);
+            return await db.SaveChangesAsync(Ct);
+        });
+
+        // And an ordinary unpaid order whose 15-minute hold ends now.
+        var (_, due, mugId) = await OrderAsync(quantity: 2);
+        host.Clock.Advance(TimeSpan.FromMinutes(15));
+
+        using var job = new PaymentWindowJob(
+            host.App.Services.GetRequiredService<IServiceScopeFactory>(),
+            host.App.Services.GetRequiredService<PaymentWindowPolicy>(),
+            host.App.Services.GetRequiredService<IOptionsMonitor<PaymentOptions>>(),
+            new FixedOptions<PaymentJobsOptions>(new PaymentJobsOptions()),
+            host.App.Services.GetRequiredService<IOptionsMonitor<JobsOptions>>(),
+            host.Clock,
+            NullLogger<PaymentWindowJob>.Instance);
+        await job.RunOnceAsync(Ct);
+
+        (await host.OrderAsync(due.Number)).Status.Should().Be(OrderStatus.Expired);
+        (await host.ProductAsync(mugId)).Reserved.Should().Be(0, "the expired order's stock is available again");
+        (await host.WithDbAsync(db => db.Orders.CountAsync(o => unsettled.Contains(o.Id) && o.Status == OrderStatus.AwaitingPayment, Ct)))
+            .Should().Be(unsettled.Count, "an order is not expired while its failed payment may have charged");
+
+        // The first run's batch was all unsettleable payments; the next run continues after them instead of retrying them.
+        await job.RunOnceAsync(Ct);
+        (await host.WithDbAsync(db => db.Payments.AsNoTracking().SingleAsync(p => p.Id == errored.Id, Ct))).Status
+            .Should().Be(PaymentStatus.Failed, "the error behind them is closed on the second run");
+    }
+
     /// <summary>
     /// A card payment left as a crash or a gateway outage leaves it: the order claimed (or, for Failed, back to awaiting
     /// payment with the attempt counted), and the gateway's own record when it got the charge.
@@ -233,5 +299,14 @@ public sealed class PaymentWindowJobTests(CheckoutHost host) : IClassFixture<Che
             return await db.SaveChangesAsync(Ct);
         });
         return payment;
+    }
+
+    private sealed class FixedOptions<T>(T value) : IOptionsMonitor<T>
+    {
+        public T CurrentValue => value;
+
+        public T Get(string? name) => value;
+
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
     }
 }

@@ -22,8 +22,11 @@ public sealed record PaymentWindowReport(int PaymentsChecked, int OrdersExpired)
 /// <item>expires orders awaiting payment whose hold is over or whose attempts are used up, when no payment is in
 /// progress, releasing their reserved stock. A slow card still running when the hold ends keeps the order.</item>
 /// </list>
-/// Each payment and order is handled in its own scope and transaction, so one bad row never stops the rest. Tests
-/// switch the loop off (<c>Jobs:Enabled=false</c>) and call <see cref="RunOnceAsync"/>.
+/// Each payment and order is handled in its own scope and transaction, so one bad row never stops the rest. Payments
+/// the gateway cannot answer for stay due, so the payment sweep pages through the due set with a cursor instead of
+/// always taking the oldest batch: a gateway status outage over more payments than one batch then only slows the sweep
+/// down, and never stops it from reaching the payments behind them. Tests switch the loop off
+/// (<c>Jobs:Enabled=false</c>) and call <see cref="RunOnceAsync"/>.
 /// </summary>
 internal sealed class PaymentWindowJob(
     IServiceScopeFactory scopes,
@@ -36,6 +39,12 @@ internal sealed class PaymentWindowJob(
 {
     private readonly SemaphoreSlim _running = new(1, 1);
 
+    /// <summary>
+    /// Where the next payment sweep starts: after the last payment of a full batch, or from the oldest when the last
+    /// sweep reached the end. Only read and written under <see cref="_running"/>; a restart simply starts from the oldest.
+    /// </summary>
+    private (DateTimeOffset StatusChangedUtc, Guid Id)? _sweepCursor;
+
     public async Task<PaymentWindowReport> RunOnceAsync(CancellationToken cancellationToken)
     {
         await _running.WaitAsync(cancellationToken);
@@ -47,27 +56,40 @@ internal sealed class PaymentWindowJob(
             var retryOver = now - payments.CurrentValue.AutomaticRetryWindow;
             var stuck = now - (payments.CurrentValue.SlowCardDelay + options.CurrentValue.StaleChargeGrace);
 
-            List<Guid> due;
+            List<(Guid Id, DateTimeOffset StatusChangedUtc)> due;
             await using (var scope = scopes.CreateAsyncScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<LumenDbContext>();
 
                 // Served by the (Status, StatusChangedUtc) index. A running payment holds its order in PaymentProcessing;
                 // a Failed one leaves it awaiting payment until the gateway settles it.
-                due = await db.Payments.AsNoTracking()
+                var query = db.Payments.AsNoTracking()
                     .Where(p => p.Method == PaymentMethod.Card
                         && ((db.Orders.Any(o => o.Id == p.OrderId && o.Status == OrderStatus.PaymentProcessing)
                                 && ((p.Status == PaymentStatus.RequiresAction && p.StatusChangedUtc <= codeExpired)
                                     || (p.Status == PaymentStatus.Error && (p.AutomaticRetryUsed || p.StatusChangedUtc <= retryOver))
                                     || ((p.Status == PaymentStatus.Created || p.Status == PaymentStatus.Processing) && p.StatusChangedUtc <= stuck)))
-                            || (p.Status == PaymentStatus.Failed && db.Orders.Any(o => o.Id == p.OrderId && o.Status == OrderStatus.AwaitingPayment))))
-                    .OrderBy(p => p.StatusChangedUtc)
-                    .Select(p => p.Id)
+                            || (p.Status == PaymentStatus.Failed && db.Orders.Any(o => o.Id == p.OrderId && o.Status == OrderStatus.AwaitingPayment))));
+                if (_sweepCursor is (var afterChanged, var afterId))
+                {
+                    // Row comparison (StatusChangedUtc, Id) > cursor, matching the sweep's order.
+                    query = query.Where(p => EF.Functions.GreaterThan(
+                        ValueTuple.Create(p.StatusChangedUtc, p.Id), ValueTuple.Create(afterChanged, afterId)));
+                }
+
+                due = (await query
+                    .OrderBy(p => p.StatusChangedUtc).ThenBy(p => p.Id)
+                    .Select(p => new { p.Id, p.StatusChangedUtc })
                     .Take(batch)
-                    .ToListAsync(cancellationToken);
+                    .ToListAsync(cancellationToken))
+                    .ConvertAll(p => (p.Id, p.StatusChangedUtc));
             }
 
-            foreach (var paymentId in due)
+            // A full batch may have more behind it: continue after it next time. A short one reached the end, so the next
+            // sweep starts again from the oldest, which also picks up payments that became due behind the cursor.
+            _sweepCursor = due.Count == batch ? (due[^1].StatusChangedUtc, due[^1].Id) : null;
+
+            foreach (var (paymentId, _) in due)
             {
                 await InScopeAsync(services => services.GetRequiredService<PaymentHousekeeping>().SettleIfDueAsync(paymentId, cancellationToken),
                     "settling payment", paymentId, cancellationToken);
@@ -78,8 +100,15 @@ internal sealed class PaymentWindowJob(
             {
                 var db = scope.ServiceProvider.GetRequiredService<LumenDbContext>();
                 var maxAttempts = window.MaxAttempts;
+
+                // An order whose latest payment is Failed is not expired until the gateway settles that payment
+                // (ExpireIfDueAsync), so it is left out here: otherwise such orders, oldest first, could fill every batch
+                // during a gateway status outage and no other order would ever expire. At most one payment per order is
+                // not final (IX_Payments_OrderId_NotFinal) and Failed is not final, so a Failed payment is always the
+                // order's latest.
                 expiring = await db.Orders.AsNoTracking()
-                    .Where(o => o.Status == OrderStatus.AwaitingPayment && (o.HoldExpiresUtc <= now || o.FailedPaymentAttempts >= maxAttempts))
+                    .Where(o => o.Status == OrderStatus.AwaitingPayment && (o.HoldExpiresUtc <= now || o.FailedPaymentAttempts >= maxAttempts)
+                        && !db.Payments.Any(p => p.OrderId == o.Id && p.Status == PaymentStatus.Failed))
                     .OrderBy(o => o.HoldExpiresUtc)
                     .Select(o => o.Id)
                     .Take(batch)
