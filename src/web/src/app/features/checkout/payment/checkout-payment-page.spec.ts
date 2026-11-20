@@ -182,6 +182,27 @@ describe('CheckoutPaymentPage', () => {
     });
   });
 
+  it('says why and switches to the card when the chosen wallet no longer covers the total', async () => {
+    await open(null);
+    host().querySelector<HTMLInputElement>('mat-radio-button[value="wallet"] input')?.click();
+    await settle();
+    // The balance is read again (as after a wallet decline) and is now too low.
+    (fixture.componentInstance as unknown as { wallet: { reload(): void } }).wallet.reload();
+    await settle();
+    http.expectOne('/api/v1/wallet').flush(aWallet(10));
+    await settle();
+
+    await pay();
+
+    http.expectNone(`${ORDER_URL}/payments`);
+    expect(text('.outcome-title')).toBe('The wallet can’t pay this order');
+    expect(text('.outcome .outcome-title + p')).toBe(
+      'Your wallet balance doesn’t cover the order total, so pay by card.',
+    );
+    expect(document.activeElement).toBe(host().querySelector('.outcome'));
+    expect(host().querySelector('#card-number')).toBeTruthy();
+  });
+
   describe('card form', () => {
     it('spaces the number as typed, names the brand and checks Luhn before sending', async () => {
       await open(null);
@@ -737,7 +758,24 @@ describe('CheckoutPaymentPage', () => {
       await settle();
 
       expect(text('.field-error')).toBe('Enter the code.');
-      expect(input('one-time-code')).toBeTruthy();
+      expect(input('one-time-code').getAttribute('aria-describedby')?.split(' ')[0]).toBe(
+        'code-error',
+      );
+    });
+
+    it('focuses the outcome when Try again after expiry finds the code step still open', async () => {
+      vi.setSystemTime(Date.parse('2026-11-20T08:00:00Z'));
+      await open(needsCode());
+      await settle(5 * 60_000);
+
+      host().querySelector<HTMLButtonElement>('.state .banner.error button')?.click();
+      await settle();
+      // The server has not closed the code yet.
+      http.expectOne(CURRENT_URL).flush(needsCode({ needsOneTimeCode: false }));
+      await settle();
+
+      expect(text('.outcome-title')).toBe('The code has expired');
+      expect(document.activeElement).toBe(host().querySelector('.outcome'));
     });
 
     it('declines a wrong code and lets the shopper pay again', async () => {

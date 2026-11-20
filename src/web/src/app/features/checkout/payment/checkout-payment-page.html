@@ -127,7 +127,7 @@
               inputmode="numeric"
               autocomplete="one-time-code"
               formControlName="code"
-              [attr.aria-describedby]="testCode() ? 'code-test code-timer' : 'code-timer'"
+              [attr.aria-describedby]="codeDescribedBy()"
               [attr.aria-invalid]="codeError() ? true : null"
               required
             />
@@ -136,7 +136,7 @@
             }
           </mat-form-field>
           @if (codeError()) {
-            <p class="field-error" role="alert">
+            <p id="code-error" class="field-error" role="alert">
               <mat-icon svgIcon="error" aria-hidden="true" />
               {{ codeError() }}
             </p>

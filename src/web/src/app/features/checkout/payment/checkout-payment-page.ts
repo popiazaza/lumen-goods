@@ -339,6 +339,12 @@ export class CheckoutPaymentPage {
     }),
   });
   protected readonly codeError = signal('');
+  /** The error first, so a screen reader reads why the code was refused when the field has focus. */
+  protected readonly codeDescribedBy = computed(() =>
+    [this.codeError() ? 'code-error' : '', this.testCode() ? 'code-test' : '', 'code-timer']
+      .filter(Boolean)
+      .join(' '),
+  );
   private announcedWarning = false;
   private announcedExpiry = false;
 
@@ -611,6 +617,10 @@ export class CheckoutPaymentPage {
     let request: PayRequest;
     if (method === 'wallet') {
       if (!this.walletUsable()) {
+        // The wallet was chosen, then stopped covering the total (its balance was read again
+        // after a decline, or only the same card may continue a failed payment). Say why and
+        // offer the card rather than ignore the click.
+        this.walletUnusable();
         return;
       }
       request = { method: 'wallet', card: null };
@@ -652,6 +662,20 @@ export class CheckoutPaymentPage {
         next: (payment) => this.show(payment),
         error: (error: unknown) => this.payFailed(number, error),
       });
+  }
+
+  private walletUnusable(): void {
+    let detail: string;
+    if (this.samePaymentOnly()) {
+      detail = 'Only the same card payment can be tried again, so pay with that card.';
+    } else if (this.walletBalance() === null) {
+      detail = 'We couldn’t load your wallet balance, so pay by card.';
+    } else {
+      detail = 'Your wallet balance doesn’t cover the order total, so pay by card.';
+    }
+    this.method.setValue('card');
+    this.outcome.set({ title: 'The wallet can’t pay this order', detail });
+    this.focusOutcome();
   }
 
   /** Focuses the form again after a decline; everything typed is still there. */
@@ -815,7 +839,9 @@ export class CheckoutPaymentPage {
         if (payment && payment.status !== 'requires_action') {
           this.show(payment);
         } else {
+          // The code step that had focus is gone: start reading at the outcome above the form.
           this.enter('choose');
+          this.focusOutcome();
         }
       });
   }
