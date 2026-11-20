@@ -53,6 +53,7 @@ export function aPartner(overrides: Partial<PartnerStatus> = {}): PartnerStatus 
     lastError: null,
     liveProductCount: 214,
     refreshRequestedUtc: null,
+    heldRemovals: 0,
     recentErrors: [],
     ...overrides,
   };

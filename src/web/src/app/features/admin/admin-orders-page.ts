@@ -22,8 +22,12 @@ import {
   MatTable,
 } from '@angular/material/table';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { AdminOrderSummary, AdminOrdersApi } from '../../core/api/admin-orders.api';
-import { ORDER_STATUSES } from '../../core/api/order.models';
+import {
+  ADMIN_ORDER_STATUS_FILTERS,
+  AdminOrderStatusFilter,
+  AdminOrderSummary,
+  AdminOrdersApi,
+} from '../../core/api/admin-orders.api';
 import { PagedResult } from '../../core/api/paged-result';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
 import { registerOrderIcons } from '../orders/order-icons';
@@ -40,6 +44,12 @@ import {
 } from './admin-list-query';
 
 const NEEDS_ATTENTION: StatusView = { tone: 'warning', icon: 'warning', text: 'Needs attention' };
+
+const STATUS_FILTER_LABELS: Readonly<Record<AdminOrderStatusFilter, string>> = {
+  ...ADMIN_ORDER_STATUS_LABELS,
+  // Not an order status: orders with a line waiting for an admin decision (BR-ORD-04).
+  needs_attention: 'Needs attention',
+};
 
 /** Admin: every order, filtered by status and placed date, paged; the URL holds the view. */
 @Component({
@@ -107,9 +117,9 @@ export class AdminOrdersPage {
   );
   protected readonly hasFilters = computed(() => hasOrderFilters(this.query()));
 
-  protected readonly statusOptions = ORDER_STATUSES.map((value) => ({
+  protected readonly statusOptions = ADMIN_ORDER_STATUS_FILTERS.map((value) => ({
     value,
-    label: ADMIN_ORDER_STATUS_LABELS[value],
+    label: STATUS_FILTER_LABELS[value],
   }));
   protected readonly pageSizes = [...ADMIN_PAGE_SIZES];
   protected readonly columns = ['number', 'placed', 'customer', 'sellers', 'total', 'status'];
@@ -124,7 +134,7 @@ export class AdminOrdersPage {
   }
 
   protected setStatuses(values: readonly string[]): void {
-    const statuses = ORDER_STATUSES.filter((status) => values.includes(status));
+    const statuses = ADMIN_ORDER_STATUS_FILTERS.filter((status) => values.includes(status));
     this.navigate(withFilters(this.query(), { statuses }), 'manual');
   }
 

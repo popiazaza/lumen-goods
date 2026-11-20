@@ -1,5 +1,8 @@
 import { ParamMap, Params } from '@angular/router';
-import { ORDER_STATUSES, OrderStatus } from '../../core/api/order.models';
+import {
+  ADMIN_ORDER_STATUS_FILTERS,
+  AdminOrderStatusFilter,
+} from '../../core/api/admin-orders.api';
 import { ProductStatusFilter } from '../../core/api/admin-products.api';
 import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
 
@@ -12,10 +15,10 @@ export const ADMIN_DEFAULT_PAGE_SIZE = 24;
 
 export interface AdminOrdersQuery {
   /** Any of these (`status` repeated in the URL); empty means every status. */
-  statuses: OrderStatus[];
-  /** `YYYY-MM-DD`: placed on or after this day. */
+  statuses: AdminOrderStatusFilter[];
+  /** `YYYY-MM-DD` in the admin's time zone: placed on or after this day. */
   from: string | null;
-  /** `YYYY-MM-DD`: placed on or before this day. */
+  /** `YYYY-MM-DD` in the admin's time zone: placed on or before this day. */
   to: string | null;
   page: number;
   pageSize: number;
@@ -31,7 +34,7 @@ export interface AdminProductsQuery {
 
 export function parseAdminOrdersQuery(params: ParamMap): AdminOrdersQuery {
   return {
-    statuses: pickMany(params.getAll('status'), ORDER_STATUSES),
+    statuses: pickMany(params.getAll('status'), ADMIN_ORDER_STATUS_FILTERS),
     from: parseDay(params.get('from')),
     to: parseDay(params.get('to')),
     ...parsePaging(params),

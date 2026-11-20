@@ -219,6 +219,7 @@ export function aPartnerOrder(overrides: Partial<PartnerOrder> = {}): PartnerOrd
     acceptedUtc: '2026-11-20T08:01:16Z',
     decidedUtc: null,
     needsAttention: false,
+    outcomeUnknown: false,
     ...overrides,
   };
 }

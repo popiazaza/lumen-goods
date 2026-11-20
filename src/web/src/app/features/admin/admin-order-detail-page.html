@@ -49,9 +49,9 @@
           >{{ attentionCount() === 1 ? '1 line needs' : attentionCount() + ' lines need' }} your
           decision.</strong
         >
-        The partner accepted it but has not confirmed or rejected it for a long time, so Lumen does
-        not refund it on its own (BR-ORD-04). Confirm it if you know it will be supplied, or reject
-        it to refund the customer.
+        The partner has not confirmed or rejected it for a long time, or Lumen never learned
+        whether the partner took it, so Lumen does not refund it on its own (BR-ORD-04). Confirm it
+        if you know it will be supplied, or reject it to refund the customer.
       </p>
     </div>
   }
@@ -229,6 +229,16 @@
                     </div>
                   }
                 </dl>
+                @if (partnerOrder.outcomeUnknown) {
+                  <p class="last-error">
+                    <mat-icon svgIcon="warning" />
+                    <span
+                      ><strong>Outcome unknown:</strong> a send may have reached
+                      {{ partnerOrder.sellerName }} without an answer, so it may hold this order.
+                      Check with {{ partnerOrder.sellerName }} before rejecting the line.</span
+                    >
+                  </p>
+                }
                 @if (partnerOrder.lastError) {
                   <p class="last-error">
                     <mat-icon svgIcon="error" />
@@ -271,7 +281,7 @@
       </mat-card>
     </div>
 
-    <app-order-summary-panel [order]="o" />
+    <app-order-summary-panel [order]="o" [admin]="true" />
   </div>
 
   <p><a routerLink="/admin/orders">Back to all orders</a></p>

@@ -8,8 +8,12 @@ import {
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { provideRouter } from '@angular/router';
-import { AdminOrder } from '../../core/api/admin-orders.api';
-import { OrderDetailDto } from '../../core/api/order.models';
+import {
+  AdminOrder,
+  LINE_NOT_AWAITING_DECISION_PROBLEM,
+  PARTNER_CALL_IN_PROGRESS_PROBLEM,
+} from '../../core/api/admin-orders.api';
+import { OrderDetailDto, RefundStatus } from '../../core/api/order.models';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import {
   SOCKS_LINE,
@@ -41,13 +45,18 @@ function needingAttention(): AdminOrder {
   });
 }
 
-/** What the API answers after the admin rejected the Kestrel line: refunded, fee included. */
-function rejected(): AdminOrder {
+/**
+ * What the API answers after the admin rejected the Kestrel line: refunded, fee included. The
+ * refund is `pending` right after the decision and `succeeded` once the refund job paid it back.
+ */
+function rejected(refundStatus: RefundStatus = 'pending'): AdminOrder {
   const before = needingAttention();
+  const paidBack = refundStatus === 'succeeded';
   const order: OrderDetailDto = {
     ...before.order,
     status: 'partially_refunded',
-    statusText: 'Partially refunded',
+    statusText: paidBack ? 'Partially refunded' : 'Partial refund pending',
+    isUpdating: refundStatus === 'pending',
     shipments: [
       before.order.shipments[0],
       {
@@ -57,7 +66,7 @@ function rejected(): AdminOrder {
           {
             ...SOCKS_LINE,
             status: 'rejected',
-            statusText: 'Not supplied, refunded $22.51',
+            statusText: paidBack ? 'Not supplied, refunded $22.51' : 'Not supplied, refund pending',
             refundedAmount: 17.52,
           },
         ],
@@ -68,12 +77,12 @@ function rejected(): AdminOrder {
       {
         id: 'refund-1',
         amount: 22.51,
-        status: 'pending',
+        status: refundStatus,
         reason: 'Rejected by an admin: Kestrel support says it is lost',
         lineIds: [SOCKS_LINE.id],
         shippingAmount: 4.99,
         createdUtc: '2026-11-21T09:00:00Z',
-        completedUtc: null,
+        completedUtc: paidBack ? '2026-11-21T09:00:05Z' : null,
       },
     ],
   };
@@ -234,11 +243,12 @@ describe('AdminOrderDetailPage', () => {
   });
 
   it('shows refunds with their status, the lines and the shipping fee they pay back', async () => {
-    await load(rejected());
+    await load(rejected('failed'));
 
     const refunds = host().querySelector('app-order-summary-panel .refunds') as HTMLElement;
     expect(text(refunds, '.amount')).toBe('$22.51');
-    expect(text(refunds, 'app-status-badge')).toBe('Pending');
+    // The admin sees what the customer does not: this attempt failed and is being retried.
+    expect(text(refunds, 'app-status-badge')).toBe('Failed, will retry');
     expect(texts(refunds, '.breakdown dt')).toEqual(['Merino Trail Socks', 'Shipping fee']);
     expect(texts(refunds, '.breakdown dd')).toEqual(['$17.52', '$4.99']);
     expect(text(section('Partner orders'), 'app-status-badge')).toBe('Closed by an admin');
@@ -257,8 +267,15 @@ describe('AdminOrderDetailPage', () => {
       note: 'Kestrel support says it is lost',
     });
     post.flush(rejected());
-    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(texts(section('Lines'), 'tbody app-status-badge')).toEqual([
+      'Confirmed',
+      'Not supplied, refund pending',
+    ]);
 
+    // The refund is on its way: the page reads the order again until it is paid back.
+    await vi.waitFor(() => http.expectOne(URL).flush(rejected('succeeded')));
+    await fixture.whenStable();
     expect(texts(section('Lines'), 'tbody app-status-badge')).toEqual([
       'Confirmed',
       'Not supplied, refunded $22.51',
@@ -288,29 +305,102 @@ describe('AdminOrderDetailPage', () => {
 
     const post = await decide('Confirm', '');
     expect(post.request.body).toEqual({ decision: 'confirm', note: null });
-    post.flush(anAdminOrder());
+    // The API's answer: the line is confirmed and its partner order closed; nothing left to wait for.
+    const before = needingAttention();
+    post.flush({
+      ...before,
+      order: {
+        ...before.order,
+        shipments: [
+          before.order.shipments[0],
+          {
+            ...before.order.shipments[1],
+            lines: [
+              { ...SOCKS_LINE, status: 'confirmed', statusText: 'Confirmed by Kestrel Outfitters' },
+            ],
+          },
+        ],
+      },
+      partnerOrders: [aPartnerOrder({ status: 'closed_by_admin', nextAttemptUtc: null })],
+    });
     await fixture.whenStable();
     expect(texts(section('Lines'), 'tbody app-status-badge')[1]).toBe(
-      'Awaiting Kestrel Outfitters',
+      'Confirmed by Kestrel Outfitters',
     );
+    // Nothing can change on its own any more, so the page does not read the order again.
+    http.expectNone(URL);
   });
 
   it('reloads the order when the line no longer needs attention (409)', async () => {
     await load(needingAttention());
 
     (await decide('Confirm', '')).flush(
-      { title: 'Conflict', detail: 'Line 2 does not need attention.' },
+      {
+        type: LINE_NOT_AWAITING_DECISION_PROBLEM,
+        title: 'This line does not need a decision',
+        detail: 'Line 2 is not delayed (any more); only a delayed line can be resolved.',
+      },
       { status: 409, statusText: 'Conflict' },
     );
-    await vi.waitFor(() => http.expectOne(URL).flush(rejected()));
+    await vi.waitFor(() => http.expectOne(URL).flush(rejected('succeeded')));
     await fixture.whenStable();
 
     expect(text(host(), '.action-error')).toBe(
-      'Couldn’t save the decision for Merino Trail Socks: Line 2 does not need attention.',
+      'Couldn’t save the decision for Merino Trail Socks: Line 2 is not delayed (any more); only a delayed line can be resolved.',
     );
     expect(texts(section('Lines'), 'tbody app-status-badge')[1]).toBe(
       'Not supplied, refunded $22.51',
     );
+  });
+
+  it('asks to try again in a minute while a call to the partner is in flight (409)', async () => {
+    await load(needingAttention());
+
+    (await decide('Reject', '')).flush(
+      {
+        type: PARTNER_CALL_IN_PROGRESS_PROBLEM,
+        title: 'A call to the partner is in progress',
+        detail: 'A send to Kestrel Outfitters for this line is in progress; try again in a minute.',
+      },
+      { status: 409, statusText: 'Conflict' },
+    );
+    await fixture.whenStable();
+
+    const message =
+      'Couldn’t save the decision for Merino Trail Socks: Lumen is talking to Kestrel Outfitters about this item right now. Try again in a minute.';
+    expect(text(host(), '.action-error')).toBe(message);
+    expect(announcer.announce).toHaveBeenCalledWith(message, 'assertive');
+    // Nothing changed on the server, so the line still waits and can be decided again.
+    http.expectNone(URL);
+    expect(button('Reject line 2, Merino Trail Socks')?.disabled).toBe(false);
+  });
+
+  it('warns when a partner may hold the order without Lumen knowing (outcome unknown)', async () => {
+    const order = needingAttention();
+    await load({
+      ...order,
+      partnerOrders: [
+        aPartnerOrder({
+          status: 'submitted',
+          needsAttention: true,
+          outcomeUnknown: true,
+          acceptedUtc: null,
+          nextAttemptUtc: null,
+          lastError: 'Timed out after 5 s',
+        }),
+      ],
+    });
+
+    const partner = section('Partner orders');
+    expect(text(partner, 'app-status-badge')).toBe('Needs attention: outcome unknown');
+    expect(text(partner, '.last-error')).toContain('Outcome unknown:');
+    expect(text(partner, '.last-error')).toContain('Check with Kestrel Outfitters before rejecting');
+
+    button('Reject line 2, Merino Trail Socks')?.click();
+    await fixture.whenStable();
+    expect(text(dialog(), '.message')).toContain('Check with Kestrel Outfitters first.');
+    (dialog()?.querySelector('button.cancel') as HTMLButtonElement).click();
+    await fixture.whenStable();
   });
 
   it('says plainly when there is no such order', async () => {

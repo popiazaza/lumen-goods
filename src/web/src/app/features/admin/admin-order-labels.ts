@@ -31,7 +31,11 @@ const PARTNER_ORDERS: Readonly<Record<PartnerOrder['status'], StatusView>> = {
 /** A partner order that needs an admin says so first, whatever its stored status. */
 export function partnerOrderView(order: PartnerOrder): StatusView {
   if (order.needsAttention) {
-    return { tone: 'warning', icon: 'warning', text: 'Needs attention' };
+    return {
+      tone: 'warning',
+      icon: 'warning',
+      text: order.outcomeUnknown ? 'Needs attention: outcome unknown' : 'Needs attention',
+    };
   }
   return (
     PARTNER_ORDERS[order.status] ?? { tone: 'neutral', icon: 'info', text: humanise(order.status) }

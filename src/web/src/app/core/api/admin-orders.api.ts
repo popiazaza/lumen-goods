@@ -2,10 +2,28 @@ import { HttpClient } from '@angular/common/http';
 import { Service, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from './api-base-url';
-import { OrderDetailDto, OrderStatus, PaymentMethod } from './order.models';
+import { ORDER_STATUSES, OrderDetailDto, OrderStatus, PaymentMethod } from './order.models';
 import { PagedResult, toQueryParams } from './paged-result';
 
-// Contract: Lumen.Api/Orders/AdminOrderContracts.cs (admin role; 401 signed out, 403 without it).
+// Contract: Lumen.Api/Orders/AdminOrderContracts.cs and AdminOrderEndpoints.cs (admin role; 401
+// signed out, 403 without it).
+
+/** 409 from resolve: the line was decided meanwhile, or never needed a decision. Reload. */
+export const LINE_NOT_AWAITING_DECISION_PROBLEM = 'urn:lumen:problem:line-not-awaiting-decision';
+
+/**
+ * 409 from resolve: a send to (or poll of) the partner for this line is on its way, and a
+ * decision now could cross its answer (BR-ORD-04). Nothing changed; try again in a minute.
+ */
+export const PARTNER_CALL_IN_PROGRESS_PROBLEM = 'urn:lumen:problem:partner-call-in-progress';
+
+/** The list's `status` filter: an order status, or orders with a line waiting for a decision. */
+export type AdminOrderStatusFilter = OrderStatus | 'needs_attention';
+
+export const ADMIN_ORDER_STATUS_FILTERS: readonly AdminOrderStatusFilter[] = [
+  ...ORDER_STATUSES,
+  'needs_attention',
+];
 
 /** One row of the admin orders list, newest first. */
 export interface AdminOrderSummary {
@@ -68,6 +86,11 @@ export interface PartnerOrder {
   acceptedUtc: string | null;
   decidedUtc: string | null;
   needsAttention: boolean;
+  /**
+   * A send may have reached the partner without Lumen learning the result (BR-ORD-04): the partner
+   * may hold the order, so it is not refunded on its own. Check with the partner before rejecting.
+   */
+  outcomeUnknown: boolean;
 }
 
 /** `GET /admin/orders/{number}`: the customer's view plus what only the admin sees. */
@@ -84,9 +107,10 @@ export type LineDecision = 'confirm' | 'reject';
 
 export interface AdminOrderFilter {
   /** Any of these; none means every status. */
-  statuses?: readonly OrderStatus[];
-  /** `YYYY-MM-DD`, when the order was placed. */
+  statuses?: readonly AdminOrderStatusFilter[];
+  /** `YYYY-MM-DD` in the admin's time zone: placed on or after this day. */
   from?: string | null;
+  /** `YYYY-MM-DD` in the admin's time zone: placed on or before this day. */
   to?: string | null;
   page?: number;
   pageSize?: number;
@@ -98,13 +122,19 @@ export class AdminOrdersApi {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = inject(API_BASE_URL);
 
-  /** Newest first. An invalid filter answers 400 with ProblemDetails. */
+  /**
+   * Newest first. An invalid filter answers 400 with ProblemDetails.
+   *
+   * The API reads a bare `YYYY-MM-DD` as a UTC day, but the page shows when orders were placed in
+   * the admin's own time; so the days go out as the instants of local midnight (`from` inclusive,
+   * `to` the next midnight, exclusive), which the API also accepts.
+   */
   list(filter: AdminOrderFilter): Observable<PagedResult<AdminOrderSummary>> {
     return this.http.get<PagedResult<AdminOrderSummary>>(`${this.baseUrl}/admin/orders`, {
       params: toQueryParams({
         status: filter.statuses ?? [],
-        from: filter.from,
-        to: filter.to,
+        from: localMidnightUtc(filter.from, 0),
+        to: localMidnightUtc(filter.to, 1),
         page: filter.page,
         pageSize: filter.pageSize,
       }),
@@ -118,7 +148,9 @@ export class AdminOrdersApi {
 
   /**
    * Confirms or rejects a line that needs attention; a rejected line is refunded (BR-ORD-03).
-   * Answers with the updated order; 409 when the line no longer needs attention.
+   * Answers with the updated order. 409 `LINE_NOT_AWAITING_DECISION_PROBLEM` when the line no
+   * longer needs a decision, `PARTNER_CALL_IN_PROGRESS_PROBLEM` while a partner call for it is on
+   * its way; 400 for a note over 500 characters.
    */
   resolveLine(
     number: string,
@@ -131,4 +163,17 @@ export class AdminOrdersApi {
       { decision, note: note?.trim() || null },
     );
   }
+}
+
+/**
+ * `YYYY-MM-DD` plus `addDays`, at local midnight, as a UTC ISO instant ("2026-11-19T17:00:00.000Z"
+ * for 2026-11-20 in UTC+7); `null` for no day.
+ */
+function localMidnightUtc(day: string | null | undefined, addDays: number): string | null {
+  const parts = day?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!parts) {
+    return null;
+  }
+  const [, year, month, date] = parts.map(Number);
+  return new Date(year, month - 1, date + addDays).toISOString();
 }

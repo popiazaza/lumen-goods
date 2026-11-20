@@ -40,17 +40,30 @@ describe('Order and admin API services', () => {
     const api = TestBed.inject(AdminOrdersApi);
     api
       .list({
-        statuses: ['awaiting_payment', 'partially_refunded'],
+        statuses: ['awaiting_payment', 'partially_refunded', 'needs_attention'],
         from: '2026-11-01',
         to: null,
         page: 2,
         pageSize: 24,
       })
       .subscribe();
-    expect(http.expectOne(() => true).request.urlWithParams).toBe(
-      '/api/v1/admin/orders?status=awaiting_payment&status=partially_refunded&from=2026-11-01' +
-        '&page=2&pageSize=24',
-    );
+    // The API reads a bare date as a UTC day; the admin means their own, so local midnight goes.
+    const fromInstant = new Date(2026, 10, 1).toISOString();
+    const params = http.expectOne((r) => r.url === '/api/v1/admin/orders').request.params;
+    expect(params.keys()).toEqual(['status', 'from', 'page', 'pageSize']);
+    expect(params.getAll('status')).toEqual([
+      'awaiting_payment',
+      'partially_refunded',
+      'needs_attention',
+    ]);
+    expect(params.get('from')).toBe(fromInstant);
+    expect([params.get('page'), params.get('pageSize')]).toEqual(['2', '24']);
+
+    api.list({ from: '2026-11-01', to: '2026-11-01' }).subscribe();
+    const day = http.expectOne(() => true).request.params;
+    expect(day.get('from')).toBe(fromInstant);
+    // `to` is exclusive on the API, so the whole last day is the next local midnight.
+    expect(day.get('to')).toBe(new Date(2026, 10, 2).toISOString());
 
     api.list({}).subscribe();
     expect(http.expectOne('/api/v1/admin/orders').request.params.keys()).toEqual([]);

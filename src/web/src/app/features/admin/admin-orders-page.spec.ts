@@ -22,6 +22,12 @@ import { AdminOrdersPage } from './admin-orders-page';
 @Component({ template: '<h1>Order</h1>' })
 class StubOrderPage {}
 
+/** The instant the page sends for local midnight of a day (`YYYY-MM-DD` plus `addDays`). */
+function localMidnight(day: string, addDays = 0): string {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Date(year, month - 1, date + addDays).toISOString();
+}
+
 const PAID = anAdminOrderSummary();
 const ATTENTION = anAdminOrderSummary({
   number: 'LG-9QW3E7RT',
@@ -88,16 +94,19 @@ describe('AdminOrdersPage', () => {
 
   it('asks the API for exactly what the URL says and shows it in the filters', async () => {
     const request = await open(
-      '/admin/orders?status=refunded&status=paid&status=bogus&from=2026-11-01&to=2026-11-20&page=2',
+      '/admin/orders?status=needs_attention&status=refunded&status=paid&status=bogus' +
+        '&from=2026-11-01&to=2026-11-20&page=2',
     );
 
-    // Unknown statuses are dropped; the rest go in a canonical order.
-    expect(request.request.urlWithParams).toBe(
-      '/api/v1/admin/orders?status=paid&status=refunded&from=2026-11-01&to=2026-11-20' +
-        '&page=2&pageSize=24',
-    );
+    // Unknown statuses are dropped; the rest go in a canonical order. The days are the admin's
+    // own: from local midnight, to the next local midnight after the last day (exclusive).
+    const params = request.request.params;
+    expect(params.getAll('status')).toEqual(['paid', 'refunded', 'needs_attention']);
+    expect(params.get('from')).toBe(localMidnight('2026-11-01'));
+    expect(params.get('to')).toBe(localMidnight('2026-11-20', 1));
+    expect([params.get('page'), params.get('pageSize')]).toEqual(['2', '24']);
     const status = await loader.getHarness(MatSelectHarness);
-    expect(await status.getValueText()).toBe('Paid, in progress, Refunded');
+    expect(await status.getValueText()).toBe('Paid, in progress, Refunded, Needs attention');
     expect(dateInput('from').value).toBe('2026-11-01');
     expect(dateInput('to').value).toBe('2026-11-20');
   });
@@ -136,7 +145,7 @@ describe('AdminOrdersPage', () => {
     dateInput('to').dispatchEvent(new Event('change'));
     const request = await respond(aPagedResult([PAID]));
     expect(router.url).toBe('/admin/orders?from=2026-11-01&to=2026-11-15');
-    expect(request.request.params.get('to')).toBe('2026-11-15');
+    expect(request.request.params.get('to')).toBe(localMidnight('2026-11-15', 1));
     // The browser's own picker keeps the range the right way round.
     expect(dateInput('from').max).toBe('2026-11-15');
     expect(dateInput('to').min).toBe('2026-11-01');

@@ -3,9 +3,11 @@ import { Service, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { API_BASE_URL } from './api-base-url';
 
+// Contract: Lumen.Api/Partners/Admin/PartnerAdminEndpoints.cs.
+
 export interface PartnerSyncError {
   occurredUtc: string;
-  /** What Lumen was doing, e.g. "catalog", "stock". */
+  /** What Lumen was doing: "catalogue", "stock" or "data". */
   operation: string;
   /** The partner's HTTP status, or `null` for timeouts and network failures. */
   statusCode: number | null;
@@ -20,8 +22,13 @@ export interface PartnerStatus {
   lastAttemptUtc: string | null;
   lastError: string | null;
   liveProductCount: number;
-  /** Set when an admin asked for a refresh that has not run yet. */
+  /** Set while an admin's "Refresh now" is waiting or running. */
   refreshRequestedUtc: string | null;
+  /**
+   * Products missing from the partner's last full catalogue that the mass-removal guard keeps
+   * listed until an admin confirms them; 0 when nothing is held.
+   */
+  heldRemovals: number;
   recentErrors: PartnerSyncError[];
 }
 
