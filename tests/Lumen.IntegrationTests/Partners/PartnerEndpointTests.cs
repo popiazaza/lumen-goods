@@ -11,7 +11,7 @@ namespace Lumen.IntegrationTests.Partners;
 
 /// <summary>The admin partner endpoints and the image proxy.</summary>
 [Collection(PartnerSyncCollection.Name)]
-public sealed class PartnerEndpointTests(LumenApiFactory factory) : IAsyncLifetime
+public sealed class PartnerEndpointTests(PartnerDatabase database) : IAsyncLifetime
 {
     private const string AdminEmail = "admin@lumengoods.test";
     private const string AdminPassword = "Admin!2026";
@@ -27,7 +27,7 @@ public sealed class PartnerEndpointTests(LumenApiFactory factory) : IAsyncLifeti
     {
         Directory.CreateDirectory(Path.Combine(_webRoot, "own-media"));
         await File.WriteAllBytesAsync(Path.Combine(_webRoot, "own-media", "test-mug.png"), FakePartner.Png, Ct);
-        _app = PartnerTestHost.Create(factory, _harbor, _kestrel, b =>
+        _app = PartnerTestHost.Create(database, _harbor, _kestrel, b =>
         {
             b.UseSetting(WebHostDefaults.WebRootKey, _webRoot);
             b.UseSetting("Partners:Kestrel:ImageOrigins:0", $"http://{FakeKestrel.CdnHost}");
