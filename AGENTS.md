@@ -37,6 +37,7 @@ Step-by-step procedures for recurring changes, in the open Agent Skills format (
 | [`add-partner-shop`](.agents/skills/add-partner-shop/SKILL.md) | Onboard a third partner: adapters behind the ports, registration, configuration, tests |
 | [`add-business-rule`](.agents/skills/add-business-rule/SKILL.md) | Add or change a rule with its ID, one home in code, tagged tests and its row in `docs/BUSINESS-RULES.md` |
 | [`demo-scenarios`](.agents/skills/demo-scenarios/SKILL.md) | Run the stack and force partner changes, rejections and every test card on demand |
+| [`verify-change`](.agents/skills/verify-change/SKILL.md) | Check a change against the hard rules, tests, migrations, docs and PR evidence before pushing |
 
 ## Stack (pinned)
 
