@@ -119,6 +119,25 @@ describe('ProductDetailPage', () => {
     });
   });
 
+  it('dates a partner’s price and stock by Lumen’s last check, not the partner’s own edit', async () => {
+    await open(
+      aProduct({ lastUpdatedUtc: '2026-10-02T09:00:00Z', lastCheckedUtc: '2026-11-20T12:00:00Z' })
+    );
+
+    expect(text('.updated')).toMatch(
+      /^Lumen last checked this price and stock with Harbor Supply Co\. on Nov 20, 2026, \d/u
+    );
+    expect(host().querySelector(':scope .updated time')?.getAttribute('datetime')).toBe(
+      '2026-11-20T12:00:00Z'
+    );
+  });
+
+  it('gives no as-of date for Lumen’s own products, whose price and stock are live', async () => {
+    await open(aProduct({ id: 'lumen-1', source: 'lumen', lastCheckedUtc: null }));
+
+    expect(host().querySelector('.updated')).toBeNull();
+  });
+
   it('renders an HTML description through Angular’s sanitiser, and plain text as text', async () => {
     vi.spyOn(console, 'warn').mockReturnValue(undefined);
     await open(
