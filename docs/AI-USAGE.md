@@ -13,6 +13,7 @@ person decided, how its output was checked, and where it was wrong.
 1. **Research**: multi-agent web research on the stack (versions and licences checked against NuGet/npm on the day), payments, partner integration, security, UX and documentation, with each claim checked against its source. The notes stayed outside the repo; their conclusions are the [ADRs](adr/README.md).
 2. **Plan**: a lean plan was chosen after an independent review found the first plan two to five times too big for the task. The [assumptions](ASSUMPTIONS.md) were written down up front instead of emailing questions.
 3. **Build in pull requests**: every change went through a PR with a short evidence-first description (tests, live transcripts, screenshots for UI changes), CI, and a **separate AI reviewer** that hadn't written the code. On code PRs its findings and the fixing commits are recorded in a PR comment or the PR body.
+4. **Final review round**: five independent reviews of the finished app: a security audit, .NET best practices, latest versions and unused features, an interviewer-panel rubric, and a "standout candidate" review. Each finding was judged do, skip (with the reason) or owner's call; the owner chose to add OpenTelemetry and Ultracite, and not to split the two largest units this late. The fixes landed as PRs #23–#29, followed by a review of the round's merged changes.
 
 ## Decided by a person, not delegated
 
@@ -51,6 +52,13 @@ person decided, how its output was checked, and where it was wrong.
 | Going back from Payment to Review and placing the order again created a second order holding the same stock | reviewer | `efdfb22` |
 | Customers saw the partner's internal code in a refund reason (`OUT_OF_STOCK:K-7735`) | screenshots for the PR | `3b2afb9` |
 | The payment diagram in the orders README did not render (a second colon in a label), and three docs disagreed with the code | writing DESIGN.md | `7e633df` |
+| Anyone could lock any account, the admin included, with 5 wrong passwords, and concurrent wrong passwords slipped past the lockout | security audit (final review round) | `5f2fec1` |
+| One free account could keep own stock out of sale by placing unpaid orders | security audit | `5662ff0` (BR-CHK-03) |
+| An API restart signed everyone out and broke the next form submission (Data Protection keys were not persisted) | "standout candidate" review | `96d1b8b` |
+| A repeated checkout key that met the unpaid-order limit got 409 instead of its own order | reviewer of the round's merged changes | `9307308` |
+| Telemetry gauges queried the database on every metric collect, with no time limit | reviewer of the round's merged changes | `e39fff5` |
+| The one-time-code hint overlapped its countdown at phone width | screenshots for a PR | `db69aed` |
+| Three Ultracite autofixes would have changed meaning (one broke the build, two weakened test assertions) | author check of the autofix diff | not applied |
 | An XML comment containing a double hyphen broke every project's build | running the documented test command | fixed before commit |
 
 ## Guardrails
