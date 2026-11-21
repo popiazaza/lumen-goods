@@ -13,7 +13,8 @@ interface AdminSection {
 export const ADMIN_SECTIONS: readonly AdminSection[] = [
   { path: '/admin/products', label: 'Products' },
   { path: '/admin/orders', label: 'Orders' },
-  { path: '/admin/partners', label: 'Partner status' },
+  // Short, so the three tabs fit a 390 px phone without paging arrows.
+  { path: '/admin/partners', label: 'Partners' },
 ];
 
 /**

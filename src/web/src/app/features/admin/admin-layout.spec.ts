@@ -49,7 +49,7 @@ describe('AdminLayout', () => {
     const labels = await Promise.all(links.map((link) => link.getLabel()));
     const anchors = [...(harness.routeNativeElement as HTMLElement).querySelectorAll('a')];
 
-    expect(labels).toStrictEqual(['Products', 'Orders', 'Partner status']);
+    expect(labels).toStrictEqual(['Products', 'Orders', 'Partners']);
     expect(anchors.map((anchor) => anchor.getAttribute('href'))).toStrictEqual([
       '/admin/products',
       '/admin/orders',
@@ -69,9 +69,9 @@ describe('AdminLayout', () => {
     await expect(activeLabel()).resolves.toBe('Products');
 
     const bar = await tabs();
-    await bar.clickLink({ label: 'Partner status' });
+    await bar.clickLink({ label: 'Partners' });
 
     expect(TestBed.inject(Router).url).toBe('/admin/partners');
-    await expect(activeLabel()).resolves.toBe('Partner status');
+    await expect(activeLabel()).resolves.toBe('Partners');
   });
 });

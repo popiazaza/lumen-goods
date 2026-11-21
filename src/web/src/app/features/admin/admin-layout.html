@@ -1,4 +1,11 @@
-<nav mat-tab-nav-bar class="sections" aria-label="Admin sections" [tabPanel]="panel">
+<nav
+  mat-tab-nav-bar
+  class="sections"
+  aria-label="Admin sections"
+  mat-stretch-tabs="false"
+  mat-align-tabs="start"
+  [tabPanel]="panel"
+>
   @for (section of sections; track section.path) {
     <a
       #active="routerLinkActive"
