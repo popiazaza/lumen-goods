@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Title } from '@angular/platform-browser';
+import { By, Title } from '@angular/platform-browser';
 import {
   Route,
   Router,
@@ -18,6 +18,7 @@ import { provideAppIcons } from './core/icons/app-icons';
 import { PageTitleStrategy } from './core/routing/page-title-strategy';
 import { RegisterPage } from './features/account/register-page';
 import { SignInPage } from './features/account/sign-in-page';
+import { AdminLayout } from './features/admin/admin-layout';
 import { AdminOrderDetailPage } from './features/admin/admin-order-detail-page';
 import { AdminOrdersPage } from './features/admin/admin-orders-page';
 import { AdminPartnersPage } from './features/admin/admin-partners-page';
@@ -137,9 +138,13 @@ describe('app routes', () => {
     await session;
     const harness = await RouterTestingHarness.create();
 
-    // Fails unless the route's `loadComponent` activated exactly this page.
-    await harness.navigateByUrl(url, page);
+    await harness.navigateByUrl(url);
+    const rendered = harness.fixture.debugElement;
 
+    // Fails unless the route's `loadComponent` activated exactly this page; admin pages sit in the
+    // admin frame with its section tabs.
+    expect(rendered.query(By.directive(page))).not.toBeNull();
+    expect(rendered.query(By.directive(AdminLayout)) !== null).toBe(url.startsWith('/admin'));
     expect(TestBed.inject(Router).url).toBe(finalUrl);
     expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(heading);
     expect(TestBed.inject(Title).getTitle()).toBe(`${title} — Lumen Goods`);
