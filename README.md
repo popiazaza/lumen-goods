@@ -167,6 +167,29 @@ cd src/web && npm ci && npm start
 
 Once per clone, `git config core.hooksPath .githooks` adds the Conventional Commit check and fast pre-push tests.
 
+## Libraries and why
+
+| Library | Why |
+|---|---|
+| ASP.NET Core minimal APIs | One route group per feature with `TypedResults`, so the OpenAPI document comes from the handlers; no controller layer to maintain |
+| EF Core with Npgsql | Migrations, LINQ and change tracking for the ordinary work, plain SQL where it matters (the conditional stock `UPDATE`); Npgsql is the standard PostgreSQL driver and EF Core provider |
+| ASP.NET Identity | Password hashing, lockout and the session cookie from the framework, not hand-rolled ([ADR 0008](docs/adr/0008-same-origin-cookie-auth-with-xsrf-validation.md)) |
+| HtmlSanitizer | Partner descriptions are untrusted HTML; an allow-list over a real HTML parser, not regular expressions |
+| CsvHelper | Kestrel's `;`-separated stock CSV, read by header name with invariant number parsing |
+| Microsoft.Extensions.Http.Resilience | Polly v8 pipelines per partner client (timeouts, retries that honour `Retry-After`, circuit breaker), all from configuration |
+| Scalar | The API reference at `/api/docs`, over the OpenAPI document ASP.NET Core 10 generates itself |
+| OpenTelemetry | Vendor-neutral traces, metrics and logs over OTLP: the Aspire dashboard locally, any backend in production |
+| Angular with Angular Material | Router, typed forms and an HTTP client with XSRF support in one framework; Material gives accessible components and an M3 theme |
+| Ultracite (ESLint, Prettier, Stylelint) | One maintained preset for linting and formatting, template accessibility rules included, instead of hand-tuned configs |
+| xUnit v3 with Microsoft.Testing.Platform | Current xUnit; dynamic skip lets the end-to-end tests skip without a stack; `dotnet test` on the new test platform (`global.json`) |
+| AwesomeAssertions | Readable assertions; the Apache 2.0 fork of FluentAssertions, which needs a paid licence for commercial use from v8 |
+| Testcontainers | Integration tests on real PostgreSQL 18, so constraints, row locks and races behave as in production |
+| CsCheck | Property-based tests: the money rules hold for thousands of random carts, not only the worked examples |
+
+Licences mattered: every library above is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
+PostgreSQL licence). MediatR, AutoMapper, MassTransit and FluentAssertions are left out because they moved to
+commercial licences; handlers and mapping are written by hand.
+
 ## Exact versions
 
 | Component | Version |
