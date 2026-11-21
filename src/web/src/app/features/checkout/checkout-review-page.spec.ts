@@ -63,6 +63,7 @@ describe('CheckoutReviewPage', () => {
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (selector: string) =>
     host().querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
+  const methodText = () => text('.summary-list div:nth-child(2) dd');
   const placeButton = () =>
     host().querySelector<HTMLButtonElement>('button.place') as HTMLButtonElement;
 
@@ -115,6 +116,30 @@ describe('CheckoutReviewPage', () => {
       [...host().querySelectorAll(':scope section.group h3')].map((h) => h.textContent?.trim())
     ).toStrictEqual(['Sold by Lumen Goods', 'Sold by Kestrel Outfitters']);
     expect(text('.review-total')).toBe('$67.46');
+  });
+
+  it('words the shipping method from the shipments, naming only the shops in the cart', async () => {
+    const preview = aPreview();
+    const [own, kestrel] = preview.shipments;
+    if (!(own && kestrel)) {
+      throw new Error('aPreview has a Lumen and a Kestrel shipment');
+    }
+    await open(aPreview({ shipments: [{ ...own, method: 'express' }, kestrel] }));
+
+    expect(methodText()).toBe('Express for Lumen Goods; Standard for Kestrel Outfitters');
+
+    fixture.destroy();
+    store.setShippingMethod('standard');
+    fixture = TestBed.createComponent(CheckoutReviewPage);
+    fixture.detectChanges();
+    await vi.waitFor(() =>
+      http
+        .expectOne('/api/v1/checkout/preview?shippingMethod=standard')
+        .flush(aPreview({ shipments: [kestrel, { ...kestrel, sellerName: 'Harbor Supply Co.' }] }))
+    );
+    await fixture.whenStable();
+
+    expect(methodText()).toBe('Standard for Kestrel Outfitters and Harbor Supply Co.');
   });
 
   it('places exactly what was reviewed with the checkout key, then opens payment', async () => {
