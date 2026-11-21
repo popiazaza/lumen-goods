@@ -111,6 +111,14 @@ export class OrderConfirmationPage {
   });
 
   /**
+   * The card issuer asked for a one-time code (`requires_action`): nothing happens until the
+   * customer enters it, so the page says so rather than "Confirming your payment".
+   */
+  protected readonly awaitingCode = computed(
+    () => this.confirming() && this.order()?.payment?.status === 'requires_action'
+  );
+
+  /**
    * One `<h1>` for every state, so the focus the router puts on it survives the load. It says
    * "confirmed" only once the API says the order is paid, never while loading or after an error.
    */
@@ -121,6 +129,9 @@ export class OrderConfirmationPage {
     }
     if (this.isPaid()) {
       return `Order ${order.number} confirmed`;
+    }
+    if (this.awaitingCode()) {
+      return `Order ${order.number} is waiting for your one-time code`;
     }
     if (this.confirming()) {
       return `Confirming payment for order ${order.number}`;
