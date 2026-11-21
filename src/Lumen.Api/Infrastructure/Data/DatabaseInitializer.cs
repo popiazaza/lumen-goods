@@ -3,6 +3,8 @@ using Lumen.Api.Identity;
 using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -28,6 +30,16 @@ internal static class DatabaseInitializer
         {
             try
             {
+                // Npgsql's migrator reads the history table before EF creates it, and on an empty database EF logs that
+                // failed SELECT as an Error, although the provider expects and handles it. Creating the table first (the
+                // idempotent CREATE TABLE IF NOT EXISTS that MigrateAsync runs next anyway) keeps first starts free of
+                // that false error, while real SQL errors are still logged. Skipped when the database itself does not
+                // exist yet: MigrateAsync creates it.
+                if (await db.Database.CanConnectAsync(cancellationToken))
+                {
+                    await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync(cancellationToken);
+                }
+
                 await db.Database.MigrateAsync(cancellationToken);
                 break;
             }

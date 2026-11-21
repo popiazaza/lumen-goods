@@ -54,4 +54,7 @@ public sealed class LumenApiFactory : WebApplicationFactory<Program>, IAsyncLife
     }
 
     public ApiSession CreateSession() => new(CreateClient());
+
+    /// <summary>The PostgreSQL container's server, for tests that need a database of their own on it.</summary>
+    public string DatabaseConnectionString => _database.GetConnectionString();
 }

@@ -34,7 +34,9 @@ services:
       context: .
       dockerfile: src/Lumen.Api/Dockerfile
     environment:
-      ConnectionStrings__Lumen: Host=db;Database=lumen;Username=lumen;Password=${POSTGRES_PASSWORD:-lumen-dev-password}
+      # Npgsql tries GSS (Kerberos) encryption first by default, which needs libgssapi_krb5; the runtime image lacks it
+      # ("Cannot load library libgssapi_krb5.so.2" at start), and this database uses password authentication anyway.
+      ConnectionStrings__Lumen: Host=db;Database=lumen;Username=lumen;Password=${POSTGRES_PASSWORD:-lumen-dev-password};GSS Encryption Mode=Disable
       # nginx forwards the browser's Host, and only serves these two (DNS rebinding); the healthcheck below sends localhost.
       AllowedHosts: "localhost;127.0.0.1"
       # X-Forwarded-For is believed from the web (nginx) container only, at its fixed address below. A request from any
