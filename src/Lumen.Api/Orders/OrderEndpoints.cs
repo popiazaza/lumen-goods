@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Lumen.Api.Catalog;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Domain.Orders;
+using Lumen.Domain.Payments;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +30,8 @@ internal static class OrderEndpoints
     }
 
     private static async Task<Results<Ok<PagedResult<OrderSummaryDto>>, ValidationProblem, UnauthorizedHttpResult>> ListOrders(
-        ClaimsPrincipal user, LumenDbContext db, SellerDirectory sellers, CancellationToken cancellationToken, string? page = null, string? pageSize = null)
+        ClaimsPrincipal user, LumenDbContext db, SellerDirectory sellers, TimeProvider clock, CancellationToken cancellationToken,
+        string? page = null, string? pageSize = null)
     {
         if (CustomerId(user) is not { } customerId)
         {
@@ -44,6 +46,7 @@ internal static class OrderEndpoints
         }
 
         var query = db.Orders.AsNoTracking().Where(o => o.CustomerId == customerId);
+        var now = clock.GetUtcNow();
         var total = await query.CountAsync(cancellationToken);
         var rows = await query
             .OrderByDescending(o => o.CreatedUtc).ThenByDescending(o => o.Id)
@@ -58,12 +61,14 @@ internal static class OrderEndpoints
                 ItemCount = o.Lines.Sum(l => l.Quantity),
                 Sources = o.Shipments.Select(s => s.Source).ToList(),
                 RefundPending = o.Refunds.Any(r => r.Status != RefundStatus.Succeeded),
+                // At most one payment of an order is not final, so a RequiresAction one is the current payment.
+                AwaitingCode = o.Payments.Any(p => p.Status == PaymentStatus.RequiresAction && p.OneTimeCodeExpiresUtc > now),
             })
             .ToListAsync(cancellationToken);
 
         var items = rows
             .Select(r => new OrderSummaryDto(
-                r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending), r.CreatedUtc.UtcDateTime, r.Total, r.RefundedTotal, r.ItemCount,
+                r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending, r.AwaitingCode), r.CreatedUtc.UtcDateTime, r.Total, r.RefundedTotal, r.ItemCount,
                 sellers.Names(r.Sources)))
             .ToList();
         return TypedResults.Ok(PagedResult<OrderSummaryDto>.Create(items, paging, total));

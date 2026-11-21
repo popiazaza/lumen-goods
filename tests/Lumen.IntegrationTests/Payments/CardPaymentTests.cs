@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Lumen.Api.Catalog;
 using Lumen.Api.Orders;
 using Lumen.Api.Payments;
 using Lumen.Domain.Catalog;
@@ -238,6 +239,27 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
         var expired = await response.ReadAsync<PaymentStatusDto>();
         (expired.Status, expired.DeclineMessage, expired.NeedsOneTimeCode).Should().Be((PaymentStatus.Expired, "The code has expired", false));
         (expired.OrderStatus, expired.AttemptsLeft, expired.RetryMode).Should().Be((OrderStatus.AwaitingPayment, 4, PaymentRetryMode.AnyMethod));
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-02")]
+    [Trait("BR", "BR-PAY-03")]
+    public async Task BR_ORD_02_an_order_waiting_for_its_one_time_code_says_so_in_the_list_and_on_its_page()
+    {
+        var (shopper, order) = await OrderAsync();
+        await shopper.PayByCardAndWaitAsync(order.Number, "4242000000000034");
+
+        var history = await (await shopper.Session.GetAsync("/api/v1/orders")).ReadAsync<PagedResult<OrderSummaryDto>>();
+        var detail = await (await shopper.Session.GetAsync($"/api/v1/orders/{order.Number}")).ReadAsync<OrderDetailDto>();
+
+        history.Items.Single(o => o.Number == order.Number).StatusText.Should().Be("Waiting for your one-time code");
+        (detail.Status, detail.StatusText).Should().Be((OrderStatus.PaymentProcessing, "Waiting for your one-time code"));
+        detail.Payment!.Status.Should().Be(PaymentStatus.RequiresAction);
+
+        // Once the code has run out, nothing waits for the customer any more.
+        host.Clock.Advance(TimeSpan.FromSeconds(5 * 60 + 1));
+        var afterExpiry = await (await shopper.Session.GetAsync("/api/v1/orders")).ReadAsync<PagedResult<OrderSummaryDto>>();
+        afterExpiry.Items.Single(o => o.Number == order.Number).StatusText.Should().NotBe("Waiting for your one-time code");
     }
 
     [Fact]
