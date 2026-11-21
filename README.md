@@ -135,7 +135,7 @@ a new customer, so the seeded customer's cart and wallet stay as you left them. 
 are skipped; CI runs them in the compose job.
 
 ```bash
-LUMEN_E2E_URL=http://localhost:8080 dotnet test --project tests/Lumen.EndToEndTests
+dotnet test --project tests/Lumen.EndToEndTests -e LUMEN_E2E_URL=http://localhost:8080   # bash and PowerShell alike
 ```
 
 What each suite proves (the integration tests run the real API on PostgreSQL 18): [DESIGN.md §6](DESIGN.md#6-crosscutting-concepts).
@@ -148,6 +148,10 @@ OpenTelemetry traces, metrics and logs can go to a local Aspire dashboard. Nothi
 
 ```bash
 OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889 docker compose --profile observability up --build
+```
+
+```powershell
+$env:OTEL_EXPORTER_OTLP_ENDPOINT='http://aspire-dashboard:18889'; docker compose --profile observability up --build
 ```
 
 Open http://localhost:18888, pay with card 4242 0000 0000 0059, and open the `POST /api/v1/orders/{number}/payments`
@@ -166,6 +170,12 @@ docker compose -f docker-compose.yml -f compose.dev.yaml stop api        # frees
 Partners__Harbor__BaseUrl=http://127.0.0.1:8081 Partners__Kestrel__BaseUrl=http://127.0.0.1:8082 dotnet watch --project src/Lumen.Api
 # third terminal: http://localhost:4200 proxies /api and /media to 127.0.0.1:5080
 cd src/web && npm ci && npm start
+```
+
+The second terminal in PowerShell:
+
+```powershell
+$env:Partners__Harbor__BaseUrl='http://127.0.0.1:8081'; $env:Partners__Kestrel__BaseUrl='http://127.0.0.1:8082'; dotnet watch --project src/Lumen.Api
 ```
 
 Once per clone, `git config core.hooksPath .githooks` adds the Conventional Commit check and fast pre-push tests.
