@@ -1,5 +1,6 @@
 using System.Net;
 using Lumen.Api.Catalog;
+using Lumen.Api.Partners;
 using Lumen.Domain.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -308,6 +309,30 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
 
         list.Should().NotContain("kestrel:8080").And.NotContain("partner-only");
         detail.Images.Should().ContainSingle().Which.Url.Should().Be(ProductMapping.ImageUrl("http://localhost", partner.Id, 0, partner.Images[0].SourceUrl));
+    }
+
+    [Fact]
+    public async Task A_partner_product_says_when_lumen_last_checked_it_not_when_the_partner_last_edited_it()
+    {
+        var m = NewMarker();
+        // A partner code of its own, so the sync state this test writes is not shared with the partner sync tests.
+        var source = $"t{Guid.NewGuid():N}"[..16];
+        var catalogueRead = BaseTime.AddDays(19);
+        var partner = Partner(source, $"{m} Lantern", firstSeen: BaseTime);
+        var own = Own($"{m} Mug");
+        await factory.InsertAsync(partner, own);
+        await factory.WithDbAsync(async db =>
+        {
+            db.PartnerSyncStates.Add(new PartnerSyncState { Partner = source, LastSuccessUtc = catalogueRead });
+            await db.SaveChangesAsync(Ct);
+        });
+
+        var detail = await (await _client.GetAsync($"/api/v1/products/{partner.Id}", Ct)).ReadAsync<ProductDto>();
+        var listed = (await ListAsync($"q={m}")).Items.ToDictionary(p => p.Name);
+
+        (detail.LastUpdatedUtc, detail.LastCheckedUtc).Should().Be((BaseTime.UtcDateTime, catalogueRead.UtcDateTime));
+        listed[$"{m} Lantern"].LastCheckedUtc.Should().Be(catalogueRead.UtcDateTime);
+        listed[$"{m} Mug"].LastCheckedUtc.Should().BeNull("Lumen's own price and stock are live");
     }
 
     [Fact]

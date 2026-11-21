@@ -10,6 +10,12 @@ namespace Lumen.Api.Catalog;
 /// <summary>
 /// The storefront product format from the spec: the only product shape the storefront ever sees, whatever the source.
 /// </summary>
+/// <param name="LastUpdatedUtc">When the product last changed (for a partner product, the partner's own change time when it gives one).</param>
+/// <param name="LastCheckedUtc">
+/// Lumen's addition to the spec format: when Lumen last confirmed this partner product's price and stock with the partner
+/// (<see cref="ProductMapping.LastChecked"/>), which is what the product page's "as of" means. Null for Lumen's own
+/// products, whose price and stock are live.
+/// </param>
 public sealed record ProductDto(
     string Id,
     string Source,
@@ -23,7 +29,8 @@ public sealed record ProductDto(
     AvailabilityDto Availability,
     bool Sellable,
     // DateTime of kind Utc serialises with a "Z" suffix, as in the spec sample; DateTimeOffset would write "+00:00".
-    DateTime LastUpdatedUtc);
+    DateTime LastUpdatedUtc,
+    DateTime? LastCheckedUtc = null);
 
 /// <summary><see cref="Currency"/> is always USD; <see cref="Amount"/> always has exactly two decimals.</summary>
 public sealed record PriceDto([property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Amount, string Currency);
@@ -34,9 +41,31 @@ public sealed record ImageDto(string Url, bool IsPrimary);
 /// <param name="Quantity">Null when the exact number is not known.</param>
 public sealed record AvailabilityDto(string Status, int? Quantity);
 
+/// <summary>When a partner's data was last read successfully (its <c>PartnerSyncState</c>).</summary>
+/// <param name="CatalogueUtc">The last successful catalogue run; a "nothing changed since" answer counts.</param>
+/// <param name="StockUtc">The last complete stock refresh, for a partner with a separate stock feed (Kestrel); else null.</param>
+public sealed record PartnerCheck(DateTimeOffset? CatalogueUtc, DateTimeOffset? StockUtc);
+
 public static class ProductMapping
 {
-    public static ProductDto ToDto(this Product product, AvailabilityPolicy policy, string mediaBaseUrl)
+    /// <summary>
+    /// When Lumen last confirmed a partner product's price and stock: the partner's last successful catalogue run, or its
+    /// last complete stock refresh if that is older (both must be current), or a later write to the product itself (a
+    /// stock change, or Place order's live check). Not the partner's own edit date, which says nothing about how fresh
+    /// Lumen's copy is. Null for Lumen's own products and for a partner never read.
+    /// </summary>
+    public static DateTimeOffset? LastChecked(Product product, PartnerCheck? partner)
+    {
+        if (product.Source == ProductSources.Lumen || partner?.CatalogueUtc is not { } catalogue)
+        {
+            return null;
+        }
+
+        var synced = partner.StockUtc is { } stock && stock < catalogue ? stock : catalogue;
+        return product.LastUpdatedUtc > synced ? product.LastUpdatedUtc : synced;
+    }
+
+    public static ProductDto ToDto(this Product product, AvailabilityPolicy policy, string mediaBaseUrl, DateTimeOffset? lastCheckedUtc = null)
     {
         var availability = policy.Describe(product.AvailableQuantity, product.StatusWhenQuantityUnknown);
         return new ProductDto(
@@ -51,7 +80,8 @@ public static class ProductMapping
             Attributes: product.Attributes,
             Availability: new AvailabilityDto(ToWire(availability.Status), availability.Quantity),
             Sellable: product.IsSellable,
-            LastUpdatedUtc: product.LastUpdatedUtc.UtcDateTime);
+            LastUpdatedUtc: product.LastUpdatedUtc.UtcDateTime,
+            LastCheckedUtc: lastCheckedUtc?.UtcDateTime);
     }
 
     /// <summary>
