@@ -90,7 +90,8 @@
         }
       </div>
       @if (!unsettled()) {
-        <p class="muted" aria-hidden="true">Waiting {{ waitedSeconds() }} s</p>
+        <!-- The heading already says it; a counter read out every second would drown the page. -->
+        <p class="muted waited" aria-hidden="true">{{ waitText() }}</p>
       }
       <button matButton="filled" type="button" disabled>Pay</button>
     </section>
@@ -112,8 +113,13 @@
           <mat-icon svgIcon="schedule" aria-hidden="true" />
           <div>
             <p><strong>The code has expired.</strong> You have not been charged.</p>
-            <button matButton="filled" type="button" (click)="codeExpiredTryAgain()">
-              Try again
+            <button
+              matButton="filled"
+              type="button"
+              [attr.aria-disabled]="restartingCode()"
+              (click)="codeExpiredTryAgain()"
+            >
+              {{ restartingCode() ? 'Starting again…' : 'Try again' }}
             </button>
           </div>
         </div>
@@ -139,9 +145,11 @@
             <strong>{{ outcome.title }}</strong>
           </p>
           <p>{{ outcome.detail }}</p>
-          <button matButton="outlined" type="button" class="try-again" (click)="tryAgain()">
-            Try again
-          </button>
+          @if (!outcome.hidesTryAgain) {
+            <button matButton="outlined" type="button" class="try-again" (click)="tryAgain()">
+              Try again
+            </button>
+          }
         </div>
       </div>
     }
@@ -199,10 +207,7 @@
           }
         </button>
       </div>
-      <p class="muted">
-        Card payments usually take a few seconds but can take up to 20. You pay exactly the order
-        total.
-      </p>
+      <p class="muted pay-note">{{ payNote() }}</p>
     </form>
   }
 

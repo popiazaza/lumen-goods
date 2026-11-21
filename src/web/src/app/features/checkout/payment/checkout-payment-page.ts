@@ -145,6 +145,10 @@ The last attempt's outcome, shown above the form (and kept until the next attemp
 interface Outcome {
   title: string;
   detail: string;
+  /**
+  The shopper already chose Try again (the expired code's), so the banner only reports.
+  */
+  hidesTryAgain?: boolean;
 }
 
 /**
@@ -233,6 +237,11 @@ export class CheckoutPaymentPage {
   private announcedExpiry = false;
 
   /**
+   * The wait began with this page's own Pay, so the counter is the real time since the charge started. After a refresh or another tab's payment the status says nothing about when it started, so the page says "Still confirming…" instead of counting from 0.
+   */
+  private readonly waitCounted = signal(false);
+
+  /**
   `?order=` (bound by the router); otherwise the order this checkout placed.
   */
   readonly order = input<string>();
@@ -313,6 +322,15 @@ export class CheckoutPaymentPage {
     Math.max(0, Math.floor((this.now() - this.waitingSince()) / 1000))
   );
 
+  protected readonly waitText = computed(() =>
+    this.waitCounted() ? `Waiting ${this.waitedSeconds()} s` : 'Still confirming…'
+  );
+
+  /**
+  The expired code's Try again is reading the payment: one click starts one new attempt.
+  */
+  protected readonly restartingCode = signal(false);
+
   protected readonly slow = computed(
     () => this.now() - this.waitingSince() >= SLOW_PAYMENT_NOTICE_MS
   );
@@ -361,6 +379,15 @@ export class CheckoutPaymentPage {
   protected readonly chosenMethod = toSignal(this.method.valueChanges, {
     initialValue: this.method.value,
   });
+
+  /**
+  The card's timing is not the wallet's: the wallet pays at once.
+  */
+  protected readonly payNote = computed(() =>
+    this.chosenMethod() === 'card'
+      ? 'Card payments usually take a few seconds but can take up to 20. You pay exactly the order total.'
+      : 'You pay exactly the order total.'
+  );
 
   protected readonly cardForm: CardForm = new FormGroup({
     number: new FormControl('', {
@@ -592,6 +619,7 @@ export class CheckoutPaymentPage {
     this.phase.set(phase);
     if (phase === 'processing' && previous !== 'processing') {
       this.waitingSince.set(Date.now());
+      this.waitCounted.set(false);
     }
     // A new state replaces the content: start reading at its heading (not on the first load).
     if (previous !== phase && previous !== 'loading' && phase !== 'choose') {
@@ -854,7 +882,11 @@ export class CheckoutPaymentPage {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
-        next: (payment) => this.show(payment),
+        next: (payment) => {
+          this.show(payment);
+          // Pay started this charge just now: the wait can be counted.
+          this.waitCounted.set(this.phase() === 'processing');
+        },
         error: (error: unknown) => this.payFailed(number, error),
       });
   }
@@ -923,23 +955,33 @@ export class CheckoutPaymentPage {
   After the code ran out: back to the form; the next attempt sends a new code.
   */
   protected codeExpiredTryAgain(): void {
-    this.outcome.set({
-      title: 'The code has expired',
-      detail: 'You have not been charged. Pay again and we will send a new code.',
-    });
+    if (this.restartingCode()) {
+      return;
+    }
+    this.restartingCode.set(true);
     this.payments
       .current(this.orderNumber())
       .pipe(
         catchError(() => of(null)),
+        finalize(() => this.restartingCode.set(false)),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((payment) => {
         if (payment && payment.status !== 'requires_action') {
           this.show(payment);
         } else {
+          this.outcome.set({
+            title: 'The code has expired',
+            detail: 'You have not been charged. Pay again and we will send a new code.',
+          });
           // The code step that had focus is gone: start reading at the outcome above the form.
           this.enter('choose');
           this.focusOutcome();
+        }
+        // This click was the Try again: the form is open, so the banner above it only reports.
+        const outcome = this.phase() === 'choose' ? this.outcome() : null;
+        if (outcome) {
+          this.outcome.set({ ...outcome, hidesTryAgain: true });
         }
       });
   }
