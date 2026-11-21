@@ -1,4 +1,6 @@
+import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { Component, Injector, afterNextRender, inject, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   FormControl,
   FormGroup,
@@ -10,6 +12,9 @@ import { MatButton } from '@angular/material/button';
 import { MatError, MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
+import { EMPTY, catchError, filter, map, switchMap } from 'rxjs';
+import { ShippingAddress } from '../../core/api/order.models';
+import { OrdersApi } from '../../core/api/orders.api';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { ErrorSummary, FormProblem } from '../../shared/forms/error-summary';
 import { CheckoutSteps } from './checkout-steps';
@@ -74,6 +79,8 @@ Checkout step 1 (`/checkout/address`): where to ship, US only.
 })
 export class CheckoutAddressPage {
   private readonly store = inject(CheckoutStore);
+  private readonly orders = inject(OrdersApi);
+  private readonly announcer = inject(LiveAnnouncer);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly summary = viewChild(ErrorSummary);
@@ -90,19 +97,55 @@ export class CheckoutAddressPage {
     postalCode: text('postalCode', true, zipValidator),
   });
 
+  /**
+  The form was filled in from the customer's last order (not from this checkout).
+  */
+  protected readonly prefilled = signal(false);
+  protected readonly prefilledText =
+    'We filled in the address from your last order. Change anything that’s different.';
+
   constructor() {
     // Back from a later step (or a refresh) shows what was entered.
     const saved = this.store.address();
     if (saved) {
-      this.form.setValue({
-        name: saved.name,
-        line1: saved.line1,
-        line2: saved.line2 ?? '',
-        city: saved.city,
-        region: saved.region,
-        postalCode: saved.postalCode,
-      });
+      this.fill(saved);
+    } else {
+      this.prefillFromLastOrder();
     }
+  }
+
+  private fill(address: ShippingAddress): void {
+    this.form.setValue({
+      name: address.name,
+      line1: address.line1,
+      line2: address.line2 ?? '',
+      city: address.city,
+      region: address.region,
+      postalCode: address.postalCode,
+    });
+  }
+
+  /**
+   * A new checkout starts from where the customer's most recent order went, so they don't retype it. Only the form is filled: the store gets the address on Continue, as when typed. Nothing happens if they have no orders, the read fails, or they started typing first.
+   */
+  private prefillFromLastOrder(): void {
+    this.orders
+      .list(1, 1)
+      .pipe(
+        map((page) => page.items[0]?.number),
+        filter((number): number is string => !!number),
+        switchMap((number) => this.orders.get(number)),
+        catchError(() => EMPTY),
+        takeUntilDestroyed()
+      )
+      .subscribe((order) => {
+        if (this.store.address() || this.form.dirty || order.shippingAddress.country !== 'US') {
+          return;
+        }
+        this.fill(order.shippingAddress);
+        this.prefilled.set(true);
+        void this.announcer.announce(this.prefilledText, 'polite');
+      });
   }
 
   protected errorFor(field: AddressField): string {
