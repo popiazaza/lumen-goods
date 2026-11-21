@@ -173,6 +173,41 @@ describe('Checkout address and shipping steps', () => {
       expect(url()).toBe('/checkout/review');
     });
 
+    it('saves Express as soon as it is picked, so Back to address and Continue keep it', async () => {
+      await harness.navigateByUrl('/checkout/shipping');
+      http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview());
+      await harness.fixture.whenStable();
+      const expressOption = () =>
+        TestbedHarnessEnvironment.loader(harness.fixture).getHarness(
+          MatRadioButtonHarness.with({ label: /Express/u })
+        );
+      const pricedForExpress = () =>
+        http
+          .expectOne('/api/v1/checkout/preview?shippingMethod=express')
+          .flush(aPreview({ shippingMethod: 'express', shipping: 17.98, total: 75.46 }));
+
+      const express = await expressOption();
+      void express.check();
+      await vi.waitFor(pricedForExpress);
+      await harness.fixture.whenStable();
+
+      expect(store.shippingMethod()).toBe('express');
+
+      host().querySelector<HTMLAnchorElement>('a[href="/checkout/address"]')?.click();
+      await harness.fixture.whenStable();
+
+      expect(url()).toBe('/checkout/address');
+
+      host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+      await vi.waitFor(pricedForExpress);
+      await harness.fixture.whenStable();
+      const again = await expressOption();
+
+      expect(url()).toBe('/checkout/shipping');
+      await expect(again.isChecked()).resolves.toBeTruthy();
+      expect(store.shippingMethod()).toBe('express');
+    });
+
     it('has no choice to make when every item comes from a partner', async () => {
       const partnerOnly = aPreview();
       await harness.navigateByUrl('/checkout/shipping');
