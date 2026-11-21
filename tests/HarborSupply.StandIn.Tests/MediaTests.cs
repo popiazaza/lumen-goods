@@ -41,10 +41,46 @@ public sealed class MediaTests(HarborFactory factory) : IClassFixture<HarborFact
         var other = await client.GetByteArrayAsync("/media/HSC-20011/front.png", Ct);
 
         var (width, height, pixels) = DecodeRgb(front);
-        width.Should().BeGreaterThan(100);
+        (width, height).Should().Be((480, 480));
         pixels.Length.Should().Be(height * (1 + width * 3), "one filter byte plus RGB per pixel on every row");
         front.Should().NotEqual(side);
         front.Should().NotEqual(other);
+    }
+
+    [Fact]
+    public async Task Two_products_of_one_department_get_visibly_different_pictures()
+    {
+        using var client = factory.CreateKeyedClient();
+
+        var tote = Silhouette(DecodeRgb(await client.GetByteArrayAsync("/media/HSC-10021/front.png", Ct)));
+        var daypack = Silhouette(DecodeRgb(await client.GetByteArrayAsync("/media/HSC-10022/front.png", Ct)));
+
+        // Same colour family, so the shapes must differ: a tint alone would leave every tile of a page looking alike.
+        var differing = tote.Zip(daypack).Count(p => p.First != p.Second);
+        differing.Should().BeGreaterThan(tote.Length / 20, "the motif's shape, position or size differs between products");
+    }
+
+    /// <summary>
+    /// Which pixels belong to the drawing rather than the background, taking the left edge of each row as that row's
+    /// background (the motif never reaches it, and the background shades from top to bottom).
+    /// </summary>
+    private static bool[] Silhouette((int Width, int Height, byte[] Pixels) image)
+    {
+        var (width, height, pixels) = image;
+        var stride = 1 + (width * 3);
+        var mask = new bool[width * height];
+        for (var y = 0; y < height; y++)
+        {
+            var edge = (y * stride) + 1;
+            for (var x = 0; x < width; x++)
+            {
+                var i = edge + (x * 3);
+                var difference = Math.Abs(pixels[i] - pixels[edge]) + Math.Abs(pixels[i + 1] - pixels[edge + 1]) + Math.Abs(pixels[i + 2] - pixels[edge + 2]);
+                mask[(y * width) + x] = difference > 90;
+            }
+        }
+
+        return mask;
     }
 
     [Fact]

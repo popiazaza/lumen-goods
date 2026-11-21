@@ -52,7 +52,8 @@ Everything listens on `127.0.0.1` only.
 | Harbor Supply Co. sandbox | http://localhost:8081 | header `X-Harbor-Key: harbor-dev-key-123` |
 | Kestrel Outfitters sandbox | http://localhost:8082 | HTTP Basic `lumen` / `kestrel-secret` |
 
-Ports: `WEB_PORT`, `HARBOR_PORT`, `KESTREL_PORT` (see `.env.example`). Reset all data: `docker compose down --volumes`.
+Ports: `WEB_PORT`, `HARBOR_PORT`, `KESTREL_PORT`; if a VPN already uses the network `172.16.87.0/24`, set
+`LUMEN_NETWORK_PREFIX` (all in `.env.example`). Reset all data: `docker compose down --volumes`.
 
 ### Seeded accounts
 
@@ -96,8 +97,9 @@ Any name, a future expiry and any 3-digit CVC.
 
    That line becomes "Not supplied, refunded $X" (the line and its tax, plus the shipment fee if nothing else ships
    from that shop); the rest of the order goes ahead.
-6. **Admin**: orders with payment events and partner orders, a "needs attention" filter, own products (price and
-   stock), and partner sync status with *Refresh now*.
+6. **Admin** (sign in as the admin): http://localhost:8080/admin/orders lists orders with payment events and partner
+   orders and a "needs attention" filter; http://localhost:8080/admin/products edits own products' price and stock;
+   http://localhost:8080/admin/partners shows partner sync status with *Refresh now*.
 
 More scenarios (price changes, removed products, Harbor): the [demo-scenarios skill](.agents/skills/demo-scenarios/SKILL.md).
 
@@ -127,12 +129,13 @@ dotnet test --solution LumenGoods.slnx --filter-trait "BR=BR-PAY-05"  # the test
 cd src/web && npm ci && npm test                                    # Angular unit tests
 ```
 
-End to end, against a running stack (`docker compose up --build -d --wait`): the seeded customer buys from all three
-sellers with card 0059 and the order completes; a wallet payment lowers the balance by exactly the total. Without
-`LUMEN_E2E_URL` these tests are skipped; CI runs them in the compose job.
+End to end, against a running stack (`docker compose up --build -d --wait`): a customer buys from all three sellers
+with card 0059 and the order completes; a wallet payment lowers the balance by exactly the total. Each run registers
+a new customer, so the seeded customer's cart and wallet stay as you left them. Without `LUMEN_E2E_URL` these tests
+are skipped; CI runs them in the compose job.
 
 ```bash
-LUMEN_E2E_URL=http://localhost:8080 dotnet test --project tests/Lumen.EndToEndTests
+dotnet test --project tests/Lumen.EndToEndTests -e LUMEN_E2E_URL=http://localhost:8080   # bash and PowerShell alike
 ```
 
 What each suite proves (the integration tests run the real API on PostgreSQL 18): [DESIGN.md §6](DESIGN.md#6-crosscutting-concepts).
@@ -145,6 +148,10 @@ OpenTelemetry traces, metrics and logs can go to a local Aspire dashboard. Nothi
 
 ```bash
 OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889 docker compose --profile observability up --build
+```
+
+```powershell
+$env:OTEL_EXPORTER_OTLP_ENDPOINT='http://aspire-dashboard:18889'; docker compose --profile observability up --build
 ```
 
 Open http://localhost:18888, pay with card 4242 0000 0000 0059, and open the `POST /api/v1/orders/{number}/payments`
@@ -165,7 +172,36 @@ Partners__Harbor__BaseUrl=http://127.0.0.1:8081 Partners__Kestrel__BaseUrl=http:
 cd src/web && npm ci && npm start
 ```
 
+The second terminal in PowerShell:
+
+```powershell
+$env:Partners__Harbor__BaseUrl='http://127.0.0.1:8081'; $env:Partners__Kestrel__BaseUrl='http://127.0.0.1:8082'; dotnet watch --project src/Lumen.Api
+```
+
 Once per clone, `git config core.hooksPath .githooks` adds the Conventional Commit check and fast pre-push tests.
+
+## Libraries and why
+
+| Library | Why |
+|---|---|
+| ASP.NET Core minimal APIs | One route group per feature with `TypedResults`, so the OpenAPI document comes from the handlers; no controller layer to maintain |
+| EF Core with Npgsql | Migrations, LINQ and change tracking for the ordinary work, plain SQL where it matters (the conditional stock `UPDATE`); Npgsql is the standard PostgreSQL driver and EF Core provider |
+| ASP.NET Identity | Password hashing, lockout and the session cookie from the framework, not hand-rolled ([ADR 0008](docs/adr/0008-same-origin-cookie-auth-with-xsrf-validation.md)) |
+| HtmlSanitizer | Partner descriptions are untrusted HTML; an allow-list over a real HTML parser, not regular expressions |
+| CsvHelper | Kestrel's `;`-separated stock CSV, read by header name with invariant number parsing |
+| Microsoft.Extensions.Http.Resilience | Polly v8 pipelines per partner client (timeouts, retries that honour `Retry-After`, circuit breaker), all from configuration |
+| Scalar | The API reference at `/api/docs`, over the OpenAPI document ASP.NET Core 10 generates itself |
+| OpenTelemetry | Vendor-neutral traces, metrics and logs over OTLP: the Aspire dashboard locally, any backend in production |
+| Angular with Angular Material | Router, typed forms and an HTTP client with XSRF support in one framework; Material gives accessible components and an M3 theme |
+| Ultracite (ESLint, Prettier, Stylelint) | One maintained preset for linting and formatting, template accessibility rules included, instead of hand-tuned configs |
+| xUnit v3 with Microsoft.Testing.Platform | Current xUnit; dynamic skip lets the end-to-end tests skip without a stack; `dotnet test` on the new test platform (`global.json`) |
+| AwesomeAssertions | Readable assertions; the Apache 2.0 fork of FluentAssertions, which needs a paid licence for commercial use from v8 |
+| Testcontainers | Integration tests on real PostgreSQL 18, so constraints, row locks and races behave as in production |
+| CsCheck | Property-based tests: the money rules hold for thousands of random carts, not only the worked examples |
+
+Licences mattered: every library above is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
+PostgreSQL licence). MediatR, AutoMapper, MassTransit and FluentAssertions are left out because they moved to
+commercial licences; handlers and mapping are written by hand.
 
 ## Exact versions
 
