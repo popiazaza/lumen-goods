@@ -40,8 +40,8 @@ internal abstract record PlaceOrderOutcome
 /// Place order: the step where what the customer reviewed becomes an order they can pay.
 /// - BR-PAY-01 (a): idempotent by checkout key for this customer. A repeat (double click, retry after a timeout)
 ///   returns the first order; of two concurrent repeats the unique key lets one create it, and the other (refused by
-///   the index, out of stock because the first reserved it, or finding it after the BR-CHK-03 lock) answers with that
-///   same order (ADR 0004: the unique key is the guarantee).
+///   the index, out of stock because the first reserved it, at the BR-CHK-03 limit the first just reached, or finding it
+///   after the BR-CHK-03 lock) answers with that same order (ADR 0004: the unique key is the guarantee).
 /// - BR-CART-03 / BR-CHK-02: lines that cannot be supplied as they are stop the order: from Lumen's data first, then
 ///   a live check of every partner line (one 5 s budget), before any database transaction. What the live check
 ///   learns (price, stock, not sold any more) is written to the product rows first, so the 409's new total, the cart,
@@ -90,7 +90,11 @@ internal sealed class PlaceOrderService(
         // BR-CHK-03: refused before any partner call; CreateAsync checks again under the customer's lock.
         if (await CountUnpaidAsync(customerId, cancellationToken) >= _maxUnpaid)
         {
-            return new PlaceOrderOutcome.TooManyUnpaidOrders(_maxUnpaid);
+            // BR-PAY-01 (a): a concurrent repeat with the same key may have committed its order, the one that reached the
+            // limit, between the lookup above and the count. Answer with that order.
+            return await FindOrderAsync(customerId, checkoutKey, cancellationToken) is { } placedMeanwhile
+                ? new PlaceOrderOutcome.AlreadyPlaced(placedMeanwhile)
+                : new PlaceOrderOutcome.TooManyUnpaidOrders(_maxUnpaid);
         }
 
         var lines = await cart.LoadAsync(customerId, cancellationToken);
@@ -462,11 +466,19 @@ internal sealed class PlaceOrderService(
         return order;
     }
 
-    /// <summary>BR-CHK-03: the customer's orders that hold stock and wait for (or are taking) a payment.</summary>
-    private Task<int> CountUnpaidAsync(Guid customerId, CancellationToken cancellationToken) =>
-        db.Orders.CountAsync(
-            o => o.CustomerId == customerId && (o.Status == OrderStatus.AwaitingPayment || o.Status == OrderStatus.PaymentProcessing),
+    /// <summary>
+    /// BR-CHK-03: the customer's orders that can still be paid or are taking a payment. One awaiting payment counts only
+    /// while its hold lasts: after that it cannot be paid, even while the payment window job has not expired it yet (for
+    /// example while it waits for the gateway to settle a failed payment). A payment in progress always counts.
+    /// </summary>
+    private Task<int> CountUnpaidAsync(Guid customerId, CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        return db.Orders.CountAsync(
+            o => o.CustomerId == customerId
+                && ((o.Status == OrderStatus.AwaitingPayment && o.HoldExpiresUtc > now) || o.Status == OrderStatus.PaymentProcessing),
             cancellationToken);
+    }
 
     /// <summary>
     /// Locks the customer's account row until the transaction ends. NO KEY UPDATE, so inserts that only reference the

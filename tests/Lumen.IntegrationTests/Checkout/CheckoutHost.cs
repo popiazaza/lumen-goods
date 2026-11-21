@@ -52,6 +52,8 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
 
     public OrderClaimHook Claims { get; } = new();
 
+    public QueryHook Queries { get; } = new();
+
     public WebApplicationFactory<Program> App { get; private set; } = null!;
 
     public static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -79,7 +81,7 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(Clock);
-                services.ConfigureDbContext<LumenDbContext>(options => options.AddInterceptors(Claims));
+                services.ConfigureDbContext<LumenDbContext>(options => options.AddInterceptors(Claims, Queries));
                 services.AddSingleton<MockPaymentGateway>();
                 services.AddSingleton<IPaymentGateway>(sp =>
                 {
@@ -322,6 +324,36 @@ public sealed class OrderClaimHook : DbCommandInterceptor
 
         return result;
     }
+}
+
+/// <summary>
+/// Runs a step just before the API's next query whose SQL matches, with that query's cancellation token: to commit
+/// another writer's change exactly between two reads of one request, or to make the database hang. Registered on every
+/// <see cref="LumenDbContext"/> of the host; does nothing unless armed.
+/// </summary>
+public sealed class QueryHook : DbCommandInterceptor
+{
+    private Armed? _next;
+
+    /// <summary>Unpaid-order counts (BR-CHK-03).</summary>
+    public static bool IsUnpaidCount(string sql) =>
+        sql.StartsWith("SELECT count(*)::int", StringComparison.Ordinal) && sql.Contains("FROM \"Orders\"", StringComparison.Ordinal);
+
+    public void BeforeNext(Func<string, bool> matches, Func<CancellationToken, Task> step) => _next = new Armed(matches, step);
+
+    public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+    {
+        if (Volatile.Read(ref _next) is { } armed && armed.Matches(command.CommandText)
+            && ReferenceEquals(Interlocked.CompareExchange(ref _next, null, armed), armed))
+        {
+            await armed.Step(cancellationToken);
+        }
+
+        return result;
+    }
+
+    private sealed record Armed(Func<string, bool> Matches, Func<CancellationToken, Task> Step);
 }
 
 /// <summary>A signed-in customer driving the checkout and payment API like the storefront does.</summary>

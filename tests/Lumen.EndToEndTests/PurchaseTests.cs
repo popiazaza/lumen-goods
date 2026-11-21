@@ -7,16 +7,10 @@ namespace Lumen.EndToEndTests;
 /// <summary>
 /// Whole purchases on a running stack (docker compose, or any deployment), over HTTP only: the real API, database,
 /// background jobs, payment mock and partner stand-ins. Both tests use the seeded customer's cart, so they live in one
-/// class and run one after the other.
+/// class and run one after the other, sharing one signed-in session per account (<see cref="SignedInAccounts"/>).
 /// </summary>
-public sealed class PurchaseTests
+public sealed class PurchaseTests(SignedInAccounts accounts) : IClassFixture<SignedInAccounts>
 {
-    // The demo accounts the stack seeds (Seed section of src/Lumen.Api/appsettings.json).
-    private const string CustomerEmail = "customer@lumengoods.test";
-    private const string CustomerPassword = "Customer!2026";
-    private const string AdminEmail = "admin@lumengoods.test";
-    private const string AdminPassword = "Admin!2026";
-
     private static readonly object Address = new
     {
         name = "Ada Lovelace", line1 = "1200 NW Naito Pkwy", line2 = (string?)null, city = "Portland", region = "OR", postalCode = "97209", country = "US",
@@ -28,8 +22,7 @@ public sealed class PurchaseTests
     public async Task BR_ORD_01_one_cart_from_all_three_sellers_paid_once_by_card_completes_with_every_line_confirmed()
     {
         var test = Stopwatch.StartNew();
-        using var customer = await StackClient.StartAsync();
-        await customer.SignInAsync(CustomerEmail, CustomerPassword);
+        var customer = await accounts.CustomerAsync();
         await customer.EmptyCartAsync();
 
         // The partner sync runs at start-up; a Kestrel item is sellable once its stock file has been read as well.
@@ -76,8 +69,7 @@ public sealed class PurchaseTests
         final["totals"]!["netPaid"]!.GetValue<decimal>().Should().Be(total, "nothing was refunded");
 
         // Exactly one payment: the admin's view of the order lists every payment event with its payment id.
-        using var admin = await StackClient.StartAsync();
-        await admin.SignInAsync(AdminEmail, AdminPassword);
+        var admin = await accounts.AdminAsync();
         var adminOrder = await admin.GetAsync($"admin/orders/{number}");
         var events = adminOrder["paymentEvents"]!.AsArray().Select(e => e!).ToList();
         events.Select(e => e["paymentId"]!.GetValue<string>()).Distinct().Should().Equal(final["payment"]!["paymentId"]!.GetValue<string>());
@@ -90,8 +82,7 @@ public sealed class PurchaseTests
     [Trait("BR", "BR-PAY-06")]
     public async Task BR_PAY_06_an_order_paid_from_the_wallet_lowers_the_balance_by_exactly_its_total()
     {
-        using var customer = await StackClient.StartAsync();
-        await customer.SignInAsync(CustomerEmail, CustomerPassword);
+        var customer = await accounts.CustomerAsync();
         await customer.EmptyCartAsync();
         var own = await StackClient.EventuallyAsync(() => InStockAsync(customer, "lumen"), TimeSpan.FromSeconds(90), "a sellable Lumen product");
         var before = (await customer.GetAsync("wallet"))["balance"]!.GetValue<decimal>();

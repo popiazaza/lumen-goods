@@ -22,8 +22,9 @@ public sealed class CheckoutOptions
     public TimeSpan PartnerCheckTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// BR-CHK-03: how many unpaid orders (awaiting payment, or with a payment in progress) one customer may hold. Each
-    /// reserves own stock for its hold, so without a cap one account could empty the shelf by placing orders it never pays.
+    /// BR-CHK-03: how many unpaid orders (awaiting payment within their hold, or with a payment in progress) one customer
+    /// may hold. Each reserves own stock for its hold, so without a cap one account could empty the shelf by placing
+    /// orders it never pays.
     /// </summary>
     [Range(1, 100)]
     public int MaxUnpaidOrdersPerCustomer { get; init; } = 3;

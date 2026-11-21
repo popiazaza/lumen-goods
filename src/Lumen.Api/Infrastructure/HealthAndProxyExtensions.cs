@@ -1,8 +1,11 @@
+using System.ComponentModel.DataAnnotations;
+using System.Net;
 using Lumen.Api.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 
 namespace Lumen.Api.Infrastructure;
 
@@ -41,18 +44,24 @@ internal static class HealthAndProxyExtensions
     });
 
     /// <summary>
-    /// Browsers reach the API through the nginx container; the API publishes no host port. Forwarded headers
-    /// are trusted only from private (RFC 1918) addresses, which is where Docker networks live. In production
-    /// this list should be narrowed to the ingress proxy's range.
+    /// Browsers reach the API through the nginx container, which overwrites X-Forwarded-For with the client's address.
+    /// Forwarded headers are believed only from <see cref="TrustedProxyOptions.KnownProxies"/> (docker compose: nginx's
+    /// fixed address) and loopback. Any other peer, such as another container on the network or a call to the port the
+    /// dev override publishes, is taken as it arrives, so it cannot choose its own per-IP rate limit.
     /// </summary>
-    public static IServiceCollection AddReverseProxySupport(this IServiceCollection services)
+    public static IServiceCollection AddReverseProxySupport(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<ForwardedHeadersOptions>(options =>
+        services.AddOptions<TrustedProxyOptions>()
+            .Bind(configuration.GetSection(TrustedProxyOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddOptions<ForwardedHeadersOptions>().Configure<IOptions<TrustedProxyOptions>>((options, proxies) =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("10.0.0.0/8"));
-            options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("172.16.0.0/12"));
-            options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse("192.168.0.0/16"));
+            foreach (var proxy in proxies.Value.KnownProxies)
+            {
+                options.KnownProxies.Add(IPAddress.Parse(proxy));
+            }
         });
         return services;
     }
@@ -64,4 +73,20 @@ internal static class HealthAndProxyExtensions
                 ? HealthCheckResult.Healthy()
                 : HealthCheckResult.Unhealthy("Cannot connect to the database.");
     }
+}
+
+/// <summary>The reverse proxies whose forwarded headers the API believes (section <c>ForwardedHeaders</c>).</summary>
+public sealed class TrustedProxyOptions : IValidatableObject
+{
+    public const string SectionName = "ForwardedHeaders";
+
+    /// <summary>
+    /// The proxies' own IP addresses (docker compose: the nginx container's). Empty: only loopback is believed, and the
+    /// in-process test server, which has no peer address, is not affected.
+    /// </summary>
+    public List<string> KnownProxies { get; init; } = [];
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext) =>
+        KnownProxies.Where(proxy => !IPAddress.TryParse(proxy, out _))
+            .Select(proxy => new ValidationResult($"KnownProxies: '{proxy}' is not an IP address.", [nameof(KnownProxies)]));
 }

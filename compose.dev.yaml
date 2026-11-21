@@ -5,7 +5,9 @@
 services:
   api:
     ports:
-      # The port `dotnet run` uses (launchSettings.json), so the web proxy needs no change when you swap.
+      # The port `dotnet run` uses (launchSettings.json), so the web proxy needs no change when you swap. Calls to it
+      # arrive from the network's gateway, not from nginx, so the per-IP limits see that address (X-Forwarded-For is
+      # ignored): all dev traffic shares one sign-in limit.
       - "127.0.0.1:5080:8080"
     environment:
       # ng serve forwards Host: localhost:4200, and a direct call to the published port sends 127.0.0.1.
