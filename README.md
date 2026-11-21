@@ -96,8 +96,9 @@ Any name, a future expiry and any 3-digit CVC.
 
    That line becomes "Not supplied, refunded $X" (the line and its tax, plus the shipment fee if nothing else ships
    from that shop); the rest of the order goes ahead.
-6. **Admin**: orders with payment events and partner orders, a "needs attention" filter, own products (price and
-   stock), and partner sync status with *Refresh now*.
+6. **Admin** (sign in as the admin): http://localhost:8080/admin/orders lists orders with payment events and partner
+   orders and a "needs attention" filter; http://localhost:8080/admin/products edits own products' price and stock;
+   http://localhost:8080/admin/partners shows partner sync status with *Refresh now*.
 
 More scenarios (price changes, removed products, Harbor): the [demo-scenarios skill](.agents/skills/demo-scenarios/SKILL.md).
 
