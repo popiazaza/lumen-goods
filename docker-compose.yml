@@ -2,7 +2,8 @@
 # Storefront: http://localhost:8080  (API docs: http://localhost:8080/api/docs)
 # Partner sandboxes for inspection: Harbor http://localhost:8081, Kestrel http://localhost:8082
 # Published ports bind to 127.0.0.1 only: the demo accounts have published passwords.
-name: lumen-goods
+# The compose project name is the folder's name, so two checkouts don't share containers or volumes (a second one
+# running at the same time needs its own ports and LUMEN_NETWORK_PREFIX, see .env.example).
 
 x-tcp-healthcheck: &tcp-healthcheck
   # The .NET runtime images have bash but no curl; a TCP connect proves Kestrel (the web server) is listening.
@@ -38,7 +39,7 @@ services:
       AllowedHosts: "localhost;127.0.0.1"
       # X-Forwarded-For is believed from the web (nginx) container only, at its fixed address below. A request from any
       # other peer is rate limited by that peer's own address, whatever X-Forwarded-For it sends.
-      ForwardedHeaders__KnownProxies__0: 172.16.87.10
+      ForwardedHeaders__KnownProxies__0: ${LUMEN_NETWORK_PREFIX:-172.16.87}.10
       # Plain HTTP on localhost; production behind TLS keeps the default (Always).
       Auth__CookieSecurePolicy: SameAsRequest
       # Keys for the session cookie and XSRF tokens, on a volume: sign-ins survive a restart or a rebuilt container.
@@ -81,7 +82,7 @@ services:
     networks:
       default:
         # The one address the API takes X-Forwarded-For from (ForwardedHeaders__KnownProxies__0 above).
-        ipv4_address: 172.16.87.10
+        ipv4_address: ${LUMEN_NETWORK_PREFIX:-172.16.87}.10
     ports:
       - "127.0.0.1:${WEB_PORT:-8080}:8080"
     depends_on:
@@ -130,10 +131,11 @@ networks:
     ipam:
       config:
         # Fixed so nginx can have a fixed address. Outside Docker's default address pools (172.17-31.x, 192.168.x), so
-        # no other compose project is given it; if your network uses it, change the subnet and both addresses above.
+        # no other compose project is given it. If a VPN or another checkout uses it, set LUMEN_NETWORK_PREFIX (the first
+        # three numbers of a free /24, see .env.example): subnet, nginx's address and the API's trusted proxy all follow.
         # The other containers get addresses from ip_range only, so none can take nginx's before it starts.
-        - subnet: 172.16.87.0/24
-          ip_range: 172.16.87.128/25
+        - subnet: ${LUMEN_NETWORK_PREFIX:-172.16.87}.0/24
+          ip_range: ${LUMEN_NETWORK_PREFIX:-172.16.87}.128/25
 
 volumes:
   db-data:

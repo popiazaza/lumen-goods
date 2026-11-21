@@ -52,7 +52,8 @@ Everything listens on `127.0.0.1` only.
 | Harbor Supply Co. sandbox | http://localhost:8081 | header `X-Harbor-Key: harbor-dev-key-123` |
 | Kestrel Outfitters sandbox | http://localhost:8082 | HTTP Basic `lumen` / `kestrel-secret` |
 
-Ports: `WEB_PORT`, `HARBOR_PORT`, `KESTREL_PORT` (see `.env.example`). Reset all data: `docker compose down --volumes`.
+Ports: `WEB_PORT`, `HARBOR_PORT`, `KESTREL_PORT`; if a VPN already uses the network `172.16.87.0/24`, set
+`LUMEN_NETWORK_PREFIX` (all in `.env.example`). Reset all data: `docker compose down --volumes`.
 
 ### Seeded accounts
 
