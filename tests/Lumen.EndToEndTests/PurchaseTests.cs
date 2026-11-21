@@ -6,8 +6,9 @@ namespace Lumen.EndToEndTests;
 
 /// <summary>
 /// Whole purchases on a running stack (docker compose, or any deployment), over HTTP only: the real API, database,
-/// background jobs, payment mock and partner stand-ins. Both tests use the seeded customer's cart, so they live in one
-/// class and run one after the other, sharing one signed-in session per account (<see cref="SignedInAccounts"/>).
+/// background jobs, payment mock and partner stand-ins. Both tests use the cart of one customer registered for the run,
+/// so they live in one class and run one after the other, sharing one signed-in session per account
+/// (<see cref="SignedInAccounts"/>).
 /// </summary>
 public sealed class PurchaseTests(SignedInAccounts accounts) : IClassFixture<SignedInAccounts>
 {

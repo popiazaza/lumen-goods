@@ -129,9 +129,10 @@ dotnet test --solution LumenGoods.slnx --filter-trait "BR=BR-PAY-05"  # the test
 cd src/web && npm ci && npm test                                    # Angular unit tests
 ```
 
-End to end, against a running stack (`docker compose up --build -d --wait`): the seeded customer buys from all three
-sellers with card 0059 and the order completes; a wallet payment lowers the balance by exactly the total. Without
-`LUMEN_E2E_URL` these tests are skipped; CI runs them in the compose job.
+End to end, against a running stack (`docker compose up --build -d --wait`): a customer buys from all three sellers
+with card 0059 and the order completes; a wallet payment lowers the balance by exactly the total. Each run registers
+a new customer, so the seeded customer's cart and wallet stay as you left them. Without `LUMEN_E2E_URL` these tests
+are skipped; CI runs them in the compose job.
 
 ```bash
 LUMEN_E2E_URL=http://localhost:8080 dotnet test --project tests/Lumen.EndToEndTests

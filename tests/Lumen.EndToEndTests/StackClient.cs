@@ -46,6 +46,9 @@ public sealed class StackClient : IDisposable
 
     public Task<JsonNode> SignInAsync(string email, string password) => PostAsync("auth/sign-in", new { email, password });
 
+    /// <summary>Creates a customer account and signs it in, as the storefront's register page does.</summary>
+    public Task<JsonNode> RegisterAsync(string email, string password) => PostAsync("auth/register", new { email, password });
+
     public Task<JsonNode> GetAsync(string path) => SendAsync(HttpMethod.Get, path, null, HttpStatusCode.OK);
 
     public Task<JsonNode> PostAsync(string path, object body, HttpStatusCode expected = HttpStatusCode.OK) =>
