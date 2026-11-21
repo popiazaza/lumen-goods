@@ -1,9 +1,11 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from '../../app.routes';
+import { AdminLayout } from '../../features/admin/admin-layout';
 import { AdminOrdersPage } from '../../features/admin/admin-orders-page';
 import { NotFoundPage } from '../../features/not-found/not-found-page';
 import { ADMIN_SESSION, CUSTOMER_SESSION } from '../../testing/fixtures';
@@ -44,9 +46,10 @@ describe('adminGuard', () => {
   it('opens the admin pages for an admin', async () => {
     const harness = await start(ADMIN_SESSION);
 
-    await harness.navigateByUrl('/admin/orders', AdminOrdersPage);
+    await harness.navigateByUrl('/admin/orders', AdminLayout);
 
     expect(url()).toBe('/admin/orders');
+    expect(harness.fixture.debugElement.query(By.directive(AdminOrdersPage))).not.toBeNull();
   });
 
   it('sends a signed-out visitor to sign in, coming back to the same page and query', async () => {
