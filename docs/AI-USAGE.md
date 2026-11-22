@@ -60,6 +60,7 @@ person decided, how its output was checked, and where it was wrong.
 | The one-time-code hint overlapped its countdown at phone width | screenshots for a PR | `db69aed` |
 | Three Ultracite autofixes would have changed meaning (one broke the build, two weakened test assertions) | author check of the autofix diff | not applied |
 | An XML comment containing a double hyphen broke every project's build | running the documented test command | fixed before commit |
+| nginx opened a new connection to the API for every request, so above about 450 requests/s it ran out of local ports and answered 502 (in main until then) | the k6 load test | `4aeac0f` |
 
 ## Guardrails
 
