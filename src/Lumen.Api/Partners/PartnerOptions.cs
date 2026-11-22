@@ -209,9 +209,16 @@ public sealed class MediaOptions
     public TimeSpan ResponseTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
-    /// Longest one partner image fetch may take, waiting for a Harbor rate-limit token included. It outlives a browser
-    /// that gave up, so the image is cached for the next view.
+    /// Longest one partner image fetch may take. It outlives a browser that gave up, so the image is cached for the next view.
     /// </summary>
     [Range(typeof(TimeSpan), "00:00:01", "00:30:00")]
     public TimeSpan MaxFetchDuration { get; set; } = TimeSpan.FromSeconds(90);
+
+    /// <summary>
+    /// Longest a browser's image request waits for a token from the partner's image rate limit (Harbor's) before it gets
+    /// a 503 with Retry-After, with nothing fetched and nothing cached. Short on purpose: a browser opens about 6
+    /// connections per host, so image requests queued for tokens would hold up the page's API calls.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "00:00:10")]
+    public TimeSpan RateLimitWait { get; set; } = TimeSpan.FromSeconds(1);
 }

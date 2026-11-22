@@ -1,3 +1,4 @@
+using System.Globalization;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Domain.Catalog;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -60,6 +61,15 @@ internal static class MediaEndpoints
                 return TypedResults.File(image.Bytes!, image.ContentType);
             case ImageOutcome.NotFound:
                 return NotFound(http);
+            case ImageOutcome.Throttled:
+                // Lumen's share of the partner's rate limit is spent for now: answer at once rather than hold one of the
+                // browser's few connections. The storefront shows a placeholder and the image on a later view.
+                http.Response.Headers.CacheControl = "no-store";
+                http.Response.Headers.RetryAfter = RetryAfterSeconds(image.RetryAfter);
+                return TypedResults.Problem(
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    title: "Image not available yet",
+                    detail: "Partner images are fetched at the partner's allowed rate. Try again shortly.");
             default:
                 http.Response.Headers.CacheControl = "no-store";
                 return TypedResults.Problem(
@@ -88,6 +98,10 @@ internal static class MediaEndpoints
         SetCacheHeaders(http);
         return TypedResults.Stream(file.CreateReadStream(), contentType, lastModified: file.LastModified);
     }
+
+    /// <summary>Whole seconds, rounded up, at least 1 (RFC 9110 delay-seconds).</summary>
+    private static string RetryAfterSeconds(TimeSpan? retryAfter) =>
+        Math.Max(1, (long)Math.Ceiling((retryAfter ?? TimeSpan.Zero).TotalSeconds)).ToString(CultureInfo.InvariantCulture);
 
     private static void SetCacheHeaders(HttpContext http)
     {

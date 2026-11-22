@@ -9,6 +9,7 @@ using Lumen.Domain.Catalog;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Polly;
+using Polly.RateLimiting;
 
 namespace Lumen.Api.Partners;
 
@@ -43,7 +44,10 @@ internal static class PartnersFeature
             .AddHttpMessageHandler<HarborKeyHandler>();
         services.AddPartnerHttpClient<HarborOptions>(
                 HarborCatalogSource.ImageHttpClientName,
-                (pipeline, sp) => pipeline.AddRateLimiter(sp.GetRequiredService<HarborRateGate>().ImageLimiter))
+                (pipeline, sp) => pipeline.AddRateLimiter(new RateLimiterStrategyOptions
+                {
+                    RateLimiter = sp.GetRequiredService<HarborRateGate>().AcquireImageTokenAsync,
+                }))
             .AddHttpMessageHandler<HarborKeyHandler>();
         services.AddSingleton<HarborCatalogSource>();
         services.AddPartner(

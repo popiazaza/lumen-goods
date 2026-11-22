@@ -1,11 +1,14 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using Lumen.Api.Catalog;
+using Lumen.Api.Partners.Media;
 using Lumen.Domain.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lumen.IntegrationTests.Partners;
 
@@ -123,6 +126,39 @@ public sealed class PartnerEndpointTests(PartnerDatabase database) : IAsyncLifet
         again.StatusCode.Should().Be(HttpStatusCode.OK);
         _harbor.Calls.Should().ContainSingle("the second request is served from the cache")
             .Which.Should().Match<PartnerCall>(c => c.Uri.AbsoluteUri == "http://harbor.test/media/HSC-1/side.png" && c.Header("X-Harbor-Key") == FakeHarbor.Key);
+    }
+
+    [Fact]
+    public async Task An_image_with_no_rate_limit_token_in_time_gets_a_503_at_once_and_nothing_is_cached()
+    {
+        // One image token a minute, spent on the first image, so the second finds none for the rest of the test.
+        await using var app = _app.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Partners:Harbor:RateLimit:ImageBurst", "1");
+            b.UseSetting("Partners:Harbor:RateLimit:ImageRequestsPerMinute", "1");
+            b.UseSetting("Partners:Media:RateLimitWait", "00:00:00.200");
+            // A fetch queued for a token used to hold the browser until this ran out.
+            b.UseSetting("Partners:Media:ResponseTimeout", "00:01:00");
+        });
+        await app.Job("harbor").RunOnceAsync(Ct);
+        var tote = (await app.ProductsAsync(ProductSources.Harbor))["HSC-1"];
+        var browser = app.CreateClient();
+        (await browser.GetAsync($"/media/{tote.Id}/0", Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        _harbor.ClearCalls();
+
+        var clock = Stopwatch.StartNew();
+        var throttled = await browser.GetAsync($"/media/{tote.Id}/1", Ct);
+        var elapsed = clock.Elapsed;
+        var again = await browser.GetAsync($"/media/{tote.Id}/1", Ct);
+
+        throttled.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        throttled.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        throttled.Headers.CacheControl!.NoStore.Should().BeTrue();
+        throttled.Headers.RetryAfter!.Delta.Should().BeGreaterThan(TimeSpan.Zero);
+        elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5), "the request waits RateLimitWait (0.2 s) for a token, not ResponseTimeout (60 s)");
+        again.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, "a throttled answer is not cached like a partner failure (502)");
+        _harbor.Calls.Should().BeEmpty("without a token nothing is sent to Harbor");
+        app.Services.GetRequiredService<PartnerImageCache>().Get("http://harbor.test/media/HSC-1/side.png").Should().BeNull();
     }
 
     [Fact]

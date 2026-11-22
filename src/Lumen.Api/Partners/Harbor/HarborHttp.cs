@@ -1,5 +1,8 @@
 using System.Threading.RateLimiting;
+using Lumen.Api.Partners.Media;
 using Microsoft.Extensions.Options;
+using Polly;
+using Polly.RateLimiting;
 
 namespace Lumen.Api.Partners.Harbor;
 
@@ -9,9 +12,12 @@ namespace Lumen.Api.Partners.Harbor;
 /// </summary>
 internal sealed class HarborRateGate : IDisposable
 {
-    public HarborRateGate(IOptions<HarborOptions> options)
+    private readonly TimeProvider _time;
+
+    public HarborRateGate(IOptions<HarborOptions> options, TimeProvider time)
     {
         var settings = options.Value.RateLimit;
+        _time = time;
         Limiter = Create(settings.RequestsPerMinute, settings.Burst, settings.QueueLimit);
         ImageLimiter = Create(settings.ImageRequestsPerMinute, settings.ImageBurst, settings.ImageQueueLimit);
     }
@@ -21,6 +27,33 @@ internal sealed class HarborRateGate : IDisposable
 
     /// <summary>Image fetches only.</summary>
     public TokenBucketRateLimiter ImageLimiter { get; }
+
+    /// <summary>
+    /// How the image client's pipeline takes an <see cref="ImageLimiter"/> token, on every attempt (retries included).
+    /// A request carrying an <see cref="ImageTokenPolicy"/> (the image proxy's) waits at most its MaxWait; a token that
+    /// does not come in time gives a rejected lease with the limiter's Retry-After estimate, and the request is not sent.
+    /// </summary>
+    public async ValueTask<RateLimitLease> AcquireImageTokenAsync(RateLimiterArguments args)
+    {
+        var cancellationToken = args.Context.CancellationToken;
+        var request = args.Context.GetRequestMessage();
+        if (request is null || !request.Options.TryGetValue(ImageTokenPolicy.Key, out var policy))
+        {
+            return await ImageLimiter.AcquireAsync(1, cancellationToken);
+        }
+
+        using var timeout = new CancellationTokenSource(policy.MaxWait, _time);
+        using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        try
+        {
+            return await ImageLimiter.AcquireAsync(1, wait.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Out of time. One last try, which, when there is still no token, fails with the limiter's own Retry-After.
+            return ImageLimiter.AttemptAcquire();
+        }
+    }
 
     public void Dispose()
     {

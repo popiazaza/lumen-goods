@@ -26,6 +26,19 @@ public sealed class PartnerOptionsValidationTests
         act.Should().Throw<OptionsValidationException>().WithMessage($"*{key[(key.LastIndexOf(':') + 1)..]}*");
     }
 
+    [Theory]
+    [InlineData("-00:00:01")]
+    [InlineData("00:00:11")]
+    public void An_image_rate_limit_wait_outside_0_to_10_seconds_is_refused_at_start(string value)
+    {
+        // Longer would let queued image requests hold the browser's few connections again.
+        using var services = Services(overrides: new() { ["Partners:Media:RateLimitWait"] = value });
+
+        var act = () => services.GetRequiredService<IStartupValidator>().Validate();
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*RateLimitWait*");
+    }
+
     [Fact]
     public void The_default_settings_pass_start_up_validation()
     {
