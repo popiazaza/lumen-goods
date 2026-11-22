@@ -208,6 +208,19 @@ describe('CheckoutPaymentPage', () => {
       expect(text('.state p')).toBe(`We couldn’t find order ${ORDER} in your account.`);
     });
 
+    it('mentions how long card payments take only while the card is chosen', async () => {
+      await open(null);
+
+      expect(text('.pay-note')).toBe(
+        'Card payments usually take a few seconds but can take up to 20. You pay exactly the order total.'
+      );
+
+      walletInput().click();
+      await settle();
+
+      expect(text('.pay-note')).toBe('You pay exactly the order total.');
+    });
+
     it('pays from the wallet without card details', async () => {
       await open(null);
       walletInput().click();
@@ -399,13 +412,19 @@ describe('CheckoutPaymentPage', () => {
       http.expectOne(`${ORDER_URL}/payments`).flush(aPaymentStatus({ status: 'processing' }));
       await settle();
 
-      expect(text('#processing-heading')).toBe('Confirming your payment…');
+      expect({
+        heading: text('#processing-heading'),
+        waited: text('.waited'),
+      }).toStrictEqual({ heading: 'Confirming your payment…', waited: 'Waiting 0 s' });
       expect(text('.processing [role="status"] p')).toBe(
         'This can take up to 20 seconds. Keep this page open; refreshing it won’t charge you twice.'
       );
       expect(host().querySelector('#pay-button')).toBeNull();
 
       await poll(aPaymentStatus({ status: 'processing' }));
+
+      expect(text('.waited')).toBe('Waiting 1 s');
+
       await poll(aPaymentStatus({ status: 'error' }));
       await poll(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
       http.expectOne('/api/v1/cart').flush(aCart([]));
@@ -424,6 +443,8 @@ describe('CheckoutPaymentPage', () => {
 
       expect(text('#processing-heading')).toBe('Confirming your payment…');
       expect(host().querySelector('#card-number')).toBeNull();
+      // The status has no start time, so a count from this page load would be wrong.
+      expect(text('.waited')).toBe('Still confirming…');
 
       await poll(aPaymentStatus({ status: 'succeeded', orderStatus: 'paid' }));
       http.expectOne('/api/v1/cart').flush(aCart([]));
@@ -538,6 +559,7 @@ describe('CheckoutPaymentPage', () => {
         'A payment is already in progress. We’re showing it here; you won’t be charged twice.'
       );
       expect(text('#processing-heading')).toBe('Confirming your payment…');
+      expect(text('.waited')).toBe('Still confirming…');
 
       await poll(aPaymentStatus({ status: 'processing' }));
     });
@@ -789,8 +811,13 @@ describe('CheckoutPaymentPage', () => {
 
       expect({
         title: text('.outcome-title'),
+        tryAgain: host().querySelector(':scope .outcome button'),
         cardField: host().querySelector('#card-number'),
-      }).toStrictEqual({ title: 'The code has expired', cardField: expect.any(HTMLInputElement) });
+      }).toStrictEqual({
+        title: 'The code has expired',
+        tryAgain: null,
+        cardField: expect.any(HTMLInputElement),
+      });
     });
 
     it('sends a pasted code without spaces and goes to the confirmation when approved', async () => {
@@ -838,13 +865,25 @@ describe('CheckoutPaymentPage', () => {
       await open(needsCode());
       await settle(5 * 60_000);
 
-      host().querySelector<HTMLButtonElement>(':scope .state .banner.error button')?.click();
+      const tryAgain = () =>
+        host().querySelector<HTMLButtonElement>(':scope .state .banner.error button');
+      tryAgain()?.click();
+      await settle();
+
+      expect({
+        label: tryAgain()?.textContent?.trim(),
+        disabled: tryAgain()?.getAttribute('aria-disabled'),
+      }).toStrictEqual({ label: 'Starting again…', disabled: 'true' });
+
+      // A second click while the first is under way reads nothing more (one request below).
+      tryAgain()?.click();
       await settle();
       // The server has not closed the code yet.
       http.expectOne(CURRENT_URL).flush(needsCode({ needsOneTimeCode: false }));
       await settle();
 
       expect(text('.outcome-title')).toBe('The code has expired');
+      expect(host().querySelector(':scope .outcome button')).toBeNull();
       expect(document.activeElement).toBe(host().querySelector('.outcome'));
     });
 

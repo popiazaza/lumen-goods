@@ -74,7 +74,14 @@ export interface ProductDto {
   attributes: Record<string, string>;
   availability: ProductAvailability;
   sellable: boolean;
+  /**
+  When the product last changed; for a partner product, often the partner's own edit date.
+  */
   lastUpdatedUtc: string;
+  /**
+  When Lumen last confirmed a partner product's price and stock with the partner; `null` for Lumen's own (live) products.
+  */
+  lastCheckedUtc: string | null;
 }
 
 export interface ProductPage {

@@ -43,7 +43,7 @@ public sealed class ProductDtoTests
 
         json.EnumerateObject().Select(p => p.Name).Should().Equal(
             "id", "source", "sourceProductId", "name", "description", "category", "price", "images", "attributes",
-            "availability", "sellable", "lastUpdatedUtc");
+            "availability", "sellable", "lastUpdatedUtc", "lastCheckedUtc");
     }
 
     [Fact]
@@ -142,5 +142,50 @@ public sealed class ProductDtoTests
         product.LastUpdatedUtc = DateTimeOffset.Parse("2026-11-01T06:00:00+01:00");
 
         Serialize(product).GetProperty("lastUpdatedUtc").GetString().Should().Be("2026-11-01T05:00:00Z");
+    }
+
+    private static readonly DateTimeOffset Catalogue = DateTimeOffset.Parse("2026-11-20T08:00:00Z");
+
+    [Fact]
+    public void Last_checked_is_when_lumen_last_read_the_partner_not_the_partners_own_edit_date()
+    {
+        var product = PartnerProduct();
+        product.Source = ProductSources.Harbor;
+
+        var checkedUtc = ProductMapping.LastChecked(product, new PartnerCheck(Catalogue, StockUtc: null));
+        var json = JsonSerializer.SerializeToElement(product.ToDto(Policy, "http://localhost:8080", checkedUtc), WebJson);
+
+        json.GetProperty("lastCheckedUtc").GetString().Should().Be("2026-11-20T08:00:00Z");
+        json.GetProperty("lastUpdatedUtc").GetString().Should().Be("2026-11-01T05:00:00Z", "the partner's own date is still reported as such");
+    }
+
+    [Fact]
+    public void Last_checked_waits_for_the_older_of_catalogue_and_stock_for_a_partner_with_a_stock_feed()
+    {
+        var stock = Catalogue.AddMinutes(-40);
+
+        ProductMapping.LastChecked(PartnerProduct(), new PartnerCheck(Catalogue, stock)).Should().Be(stock);
+        ProductMapping.LastChecked(PartnerProduct(), new PartnerCheck(Catalogue, Catalogue.AddMinutes(5))).Should().Be(Catalogue);
+    }
+
+    [Fact]
+    public void Last_checked_counts_a_later_write_to_the_product_itself()
+    {
+        var product = PartnerProduct();
+        product.LastUpdatedUtc = Catalogue.AddMinutes(3);
+
+        ProductMapping.LastChecked(product, new PartnerCheck(Catalogue, null)).Should().Be(Catalogue.AddMinutes(3));
+    }
+
+    [Fact]
+    public void Own_products_and_partners_never_read_have_no_last_checked_time()
+    {
+        var own = PartnerProduct();
+        own.Source = ProductSources.Lumen;
+
+        ProductMapping.LastChecked(own, new PartnerCheck(Catalogue, null)).Should().BeNull();
+        ProductMapping.LastChecked(PartnerProduct(), null).Should().BeNull();
+        ProductMapping.LastChecked(PartnerProduct(), new PartnerCheck(null, Catalogue)).Should().BeNull();
+        Serialize(own).GetProperty("lastCheckedUtc").ValueKind.Should().Be(JsonValueKind.Null);
     }
 }

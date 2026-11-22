@@ -11,6 +11,7 @@ import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { US_ADDRESS, aPreview } from '../../testing/fixtures';
 import { itemAt } from '../../testing/items';
+import { aPagedResult, anOrderDetail, anOrderSummary } from '../../testing/order-fixtures';
 import { CheckoutAddressPage } from './checkout-address-page';
 import { CheckoutShippingPage } from './checkout-shipping-page';
 
@@ -18,6 +19,11 @@ import { CheckoutShippingPage } from './checkout-shipping-page';
 class StubPage {}
 
 const url = () => TestBed.inject(Router).url;
+
+/**
+The address step's read of the customer's most recent order, to fill in an empty form.
+*/
+const LAST_ORDER_URL = '/api/v1/orders?page=1&pageSize=1';
 
 describe('Checkout address and shipping steps', () => {
   let harness: RouterTestingHarness;
@@ -60,9 +66,12 @@ describe('Checkout address and shipping steps', () => {
     sessionStorage.clear();
   });
 
+  const noPastOrders = (): void => http.expectOne(LAST_ORDER_URL).flush(aPagedResult([]));
+
   describe('address', () => {
     it('uses autofill tokens for every field', async () => {
       await harness.navigateByUrl('/checkout/address');
+      noPastOrders();
 
       expect(
         ['name', 'line1', 'line2', 'city', 'region', 'postalCode'].map((name) =>
@@ -80,6 +89,7 @@ describe('Checkout address and shipping steps', () => {
 
     it('checks required fields, the state and the ZIP format, listing problems above the form', async () => {
       await harness.navigateByUrl('/checkout/address');
+      noPastOrders();
       type('address-name', 'Ada Lovelace');
       type('address-postalCode', '9720');
 
@@ -102,6 +112,7 @@ describe('Checkout address and shipping steps', () => {
 
     it('saves the address and moves on; coming back shows it again', async () => {
       await harness.navigateByUrl('/checkout/address');
+      noPastOrders();
       type('address-name', ' Ada Lovelace ');
       type('address-line1', '1200 NW Naito Pkwy');
       type('address-city', 'Portland');
@@ -122,6 +133,80 @@ describe('Checkout address and shipping steps', () => {
 
       expect(field('address-name').value).toBe('Ada Lovelace');
       expect(field('address-region').value).toBe('OR');
+    });
+  });
+
+  describe('address from the last order', () => {
+    const lastAddress = {
+      ...US_ADDRESS,
+      name: 'Grace Hopper',
+      line2: 'Apt 4',
+      region: 'WA',
+      postalCode: '98101',
+    };
+
+    it('fills in an empty form from the most recent order, which the customer can still edit', async () => {
+      await harness.navigateByUrl('/checkout/address');
+      http.expectOne(LAST_ORDER_URL).flush(aPagedResult([anOrderSummary({ number: 'LG-LAST1' })]));
+      await vi.waitFor(() =>
+        http
+          .expectOne('/api/v1/orders/LG-LAST1')
+          .flush(anOrderDetail({ number: 'LG-LAST1', shippingAddress: lastAddress }))
+      );
+      await harness.fixture.whenStable();
+
+      expect(
+        ['name', 'line1', 'line2', 'city', 'region', 'postalCode'].map(
+          (name) => field(`address-${name}`).value
+        )
+      ).toStrictEqual(['Grace Hopper', '1200 NW Naito Pkwy', 'Apt 4', 'Portland', 'WA', '98101']);
+      expect(text('.prefill-note')).toBe(
+        'We filled in the address from your last order. Change anything that’s different.'
+      );
+      expect(store.address()).toBeNull();
+
+      type('address-name', 'Grace B. Hopper');
+      host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+      await vi.waitFor(() =>
+        http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview())
+      );
+      await harness.fixture.whenStable();
+
+      expect(store.address()).toStrictEqual({ ...lastAddress, name: 'Grace B. Hopper' });
+    });
+
+    it('stays empty and quiet when there is no order or the read fails', async () => {
+      await harness.navigateByUrl('/checkout/address');
+      http
+        .expectOne(LAST_ORDER_URL)
+        .flush(null, { status: 500, statusText: 'Internal Server Error' });
+      await harness.fixture.whenStable();
+
+      expect(field('address-name').value).toBe('');
+      expect(host().querySelector('.prefill-note, [role="alert"]')).toBeNull();
+    });
+
+    it('never replaces an address the checkout already has, nor what the customer started typing', async () => {
+      store.setAddress(US_ADDRESS);
+      await harness.navigateByUrl('/checkout/address');
+
+      // No read at all (`http.verify`): the checkout's own address wins.
+      expect(field('address-name').value).toBe('Ada Lovelace');
+
+      store.reset();
+      await harness.navigateByUrl('/cart');
+      await harness.navigateByUrl('/checkout/address');
+      type('address-name', 'Typed first');
+      http.expectOne(LAST_ORDER_URL).flush(aPagedResult([anOrderSummary({ number: 'LG-LAST1' })]));
+      await vi.waitFor(() =>
+        http
+          .expectOne('/api/v1/orders/LG-LAST1')
+          .flush(anOrderDetail({ number: 'LG-LAST1', shippingAddress: lastAddress }))
+      );
+      await harness.fixture.whenStable();
+
+      expect(field('address-name').value).toBe('Typed first');
+      expect(field('address-city').value).toBe('');
     });
   });
 
@@ -171,6 +256,41 @@ describe('Checkout address and shipping steps', () => {
 
       expect(store.shippingMethod()).toBe('express');
       expect(url()).toBe('/checkout/review');
+    });
+
+    it('saves Express as soon as it is picked, so Back to address and Continue keep it', async () => {
+      await harness.navigateByUrl('/checkout/shipping');
+      http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview());
+      await harness.fixture.whenStable();
+      const expressOption = () =>
+        TestbedHarnessEnvironment.loader(harness.fixture).getHarness(
+          MatRadioButtonHarness.with({ label: /Express/u })
+        );
+      const pricedForExpress = () =>
+        http
+          .expectOne('/api/v1/checkout/preview?shippingMethod=express')
+          .flush(aPreview({ shippingMethod: 'express', shipping: 17.98, total: 75.46 }));
+
+      const express = await expressOption();
+      void express.check();
+      await vi.waitFor(pricedForExpress);
+      await harness.fixture.whenStable();
+
+      expect(store.shippingMethod()).toBe('express');
+
+      host().querySelector<HTMLAnchorElement>('a[href="/checkout/address"]')?.click();
+      await harness.fixture.whenStable();
+
+      expect(url()).toBe('/checkout/address');
+
+      host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+      await vi.waitFor(pricedForExpress);
+      await harness.fixture.whenStable();
+      const again = await expressOption();
+
+      expect(url()).toBe('/checkout/shipping');
+      await expect(again.isChecked()).resolves.toBeTruthy();
+      expect(store.shippingMethod()).toBe('express');
     });
 
     it('has no choice to make when every item comes from a partner', async () => {

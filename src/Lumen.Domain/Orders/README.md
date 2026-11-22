@@ -41,7 +41,7 @@ What the customer sees:
 
 | Stored status | Customer sees |
 |---|---|
-| AwaitingPayment, PaymentProcessing | Awaiting payment / Confirming your payment |
+| AwaitingPayment, PaymentProcessing | Awaiting payment / Confirming your payment (Waiting for your one-time code while the card issuer waits for it) |
 | Paid | Processing (some lines still wait for a partner) |
 | Completed | Completed |
 | PartiallyRefunded | Partially refunded (refunds listed per line) |

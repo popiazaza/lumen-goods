@@ -30,6 +30,20 @@
         Each shop ships its items separately. You can follow every item on your order page.
       </p>
     </section>
+  } @else if (awaitingCode()) {
+    <div class="confirming" role="status">
+      <mat-icon svgIcon="lock" aria-hidden="true" />
+      <div>
+        <p><strong>Waiting for your one-time code</strong></p>
+        <p>
+          Your card issuer asked for a one-time code to approve this payment. Enter it on the
+          payment page; this page updates on its own.
+        </p>
+      </div>
+    </div>
+    <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
+      >Enter the code</a
+    >
   } @else if (confirming()) {
     <div class="confirming" role="status">
       <mat-icon svgIcon="schedule" aria-hidden="true" />

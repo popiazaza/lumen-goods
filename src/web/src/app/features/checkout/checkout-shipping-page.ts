@@ -1,6 +1,6 @@
 import { CurrencyPipe } from '@angular/common';
 import { Component, computed, effect, inject, linkedSignal, untracked } from '@angular/core';
-import { rxResource, toSignal } from '@angular/core/rxjs-interop';
+import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
@@ -83,6 +83,12 @@ export class CheckoutShippingPage {
 
   constructor() {
     this.chosen = toSignal(this.method.valueChanges, { initialValue: this.method.value });
+    // Saved as soon as it changes, not only on Continue, so Back to address and returning keeps
+    // the choice (WCAG 3.3.7). The store compares the whole review when the key is used, so a
+    // changed method still gets a new checkout key at Place order.
+    this.method.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((method) => this.store.setShippingMethod(method));
     // Express was chosen earlier but the cart no longer holds Lumen's own items: the API refuses
     // to price Express for it (422) rather than answering without the option, so fall back to
     // Standard, the only method such a cart has.

@@ -47,8 +47,10 @@ internal static class StorefrontCatalogEndpoints
             : [];
 
         var baseUrl = request.PublicBaseUrl(options.Value);
+        var checks = await db.PartnerSyncStates.AsNoTracking()
+            .ToDictionaryAsync(s => s.Partner, s => new PartnerCheck(s.LastSuccessUtc, s.StockRefreshedUtc), StringComparer.Ordinal, cancellationToken);
         return TypedResults.Ok(PagedResult<ProductDto>.Create(
-            [.. page.Select(p => p.ToDto(policy, baseUrl))], paging, totalCount));
+            [.. page.Select(p => p.ToDto(policy, baseUrl, ProductMapping.LastChecked(p, checks.GetValueOrDefault(p.Source))))], paging, totalCount));
     }
 
     /// <summary>BR-CAT-02: resolves unlisted products too, so carts, bookmarks and order history keep working.</summary>
@@ -64,10 +66,17 @@ internal static class StorefrontCatalogEndpoints
             ? await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == productId, cancellationToken)
             : null;
 
-        return product is null
-            ? TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: "Product not found",
-                detail: $"There is no product with id '{id}'.")
-            : TypedResults.Ok(product.ToDto(policy, request.PublicBaseUrl(options.Value)));
+        if (product is null)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: "Product not found",
+                detail: $"There is no product with id '{id}'.");
+        }
+
+        var check = await db.PartnerSyncStates.AsNoTracking()
+            .Where(s => s.Partner == product.Source)
+            .Select(s => new PartnerCheck(s.LastSuccessUtc, s.StockRefreshedUtc))
+            .FirstOrDefaultAsync(cancellationToken);
+        return TypedResults.Ok(product.ToDto(policy, request.PublicBaseUrl(options.Value), ProductMapping.LastChecked(product, check)));
     }
 
     private static Ok<IReadOnlyList<SellerDto>> ListSellers(IOptions<CatalogOptions> options) =>

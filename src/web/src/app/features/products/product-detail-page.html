@@ -118,12 +118,13 @@
           <a routerLink="/cart">View cart</a>
         </p>
       }
-      <p class="updated">
-        Price and stock as of
-        <time [attr.datetime]="product.lastUpdatedUtc">{{
-          product.lastUpdatedUtc | date: 'medium'
-        }}</time>
-      </p>
+      <!-- Lumen's own price and stock are live; a partner's are as fresh as Lumen's last check. -->
+      @if (product.lastCheckedUtc; as checkedUtc) {
+        <p class="updated">
+          Lumen last checked this price and stock with {{ sellerName() }} on
+          <time [attr.datetime]="checkedUtc">{{ checkedUtc | date: 'medium' }}</time>
+        </p>
+      }
     </div>
 
     <div class="details">

@@ -270,6 +270,37 @@ describe('OrderConfirmationPage', () => {
     expect(text('h1')).toBe('Order LG-7K3M9QX2 confirmed');
   });
 
+  it('says the order waits for the customer’s one-time code, and links to where it goes', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    fixture = TestBed.createComponent(OrderConfirmationPage);
+    fixture.componentRef.setInput('id', 'LG-7K3M9QX2');
+    fixture.detectChanges();
+    http.expectOne(ORDER_URL).flush(
+      anOrder({
+        status: 'payment_processing',
+        statusText: 'Waiting for your one-time code',
+        canPay: false,
+        isUpdating: true,
+        payment: aCardPayment({ status: 'requires_action', cardLast4: '0034', completedUtc: null }),
+      })
+    );
+    fixture.detectChanges();
+
+    expect({
+      heading: text('h1'),
+      status: text('.confirming p'),
+      link: host().querySelector('a[href^="/checkout/payment"]')?.getAttribute('href'),
+    }).toStrictEqual({
+      heading: 'Order LG-7K3M9QX2 is waiting for your one-time code',
+      status: 'Waiting for your one-time code',
+      link: '/checkout/payment?order=LG-7K3M9QX2',
+    });
+    expect(host().textContent).not.toContain('Confirming your payment');
+
+    await vi.advanceTimersByTimeAsync(CONFIRMATION_POLL_MS);
+    http.expectOne(ORDER_URL).flush(aPaidOrder({ isUpdating: false }));
+  });
+
   it('keeps refreshing a failed payment the card provider has yet to settle', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     fixture = TestBed.createComponent(OrderConfirmationPage);

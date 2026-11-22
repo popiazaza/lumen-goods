@@ -25,7 +25,7 @@ import {
   reviewedLines,
   withNewPrices,
 } from '../../core/api/checkout.api';
-import { SHIPPING_METHOD_NAMES } from '../../core/api/order.models';
+import { SHIPPING_METHOD_NAMES, ShippingMethod } from '../../core/api/order.models';
 import {
   httpStatusOf,
   problemMessage,
@@ -45,6 +45,11 @@ const REVIEW_AGAIN_KINDS: ReadonlySet<CheckoutChangeKind> = /* @__PURE__ */ new 
   'quantity_changed',
   'price_changed',
 ]);
+
+/**
+"Harbor Supply Co. and Kestrel Outfitters".
+*/
+const SELLER_LIST = /* @__PURE__ */ new Intl.ListFormat('en-US', { type: 'conjunction' });
 
 /**
  * Checkout step 3 (`/checkout/review`): the server's preview of the order, then Place order.
@@ -81,6 +86,28 @@ export class CheckoutReviewPage {
   protected readonly method = computed(() => this.store.shippingMethod() ?? 'standard');
 
   protected readonly methodName = computed(() => SHIPPING_METHOD_NAMES[this.method()]);
+
+  /**
+   * Each method with the shops whose shipment uses it, from the preview ("Express for Lumen Goods; Standard for Kestrel Outfitters"), so a cart without Lumen items is never told about them. Just the chosen method until the preview is in.
+   */
+  protected readonly methodText = computed(() => {
+    const shipments = this.loaded()?.shipments ?? [];
+    if (shipments.length === 0) {
+      return this.methodName();
+    }
+    const sellers = new Map<ShippingMethod, string[]>();
+    for (const shipment of shipments) {
+      const names = sellers.get(shipment.method);
+      if (names) {
+        names.push(shipment.sellerName);
+      } else {
+        sellers.set(shipment.method, [shipment.sellerName]);
+      }
+    }
+    return [...sellers]
+      .map(([method, names]) => `${SHIPPING_METHOD_NAMES[method]} for ${SELLER_LIST.format(names)}`)
+      .join('; ');
+  });
 
   protected readonly addressText = computed(() => {
     const address = this.address();

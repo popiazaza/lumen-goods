@@ -35,6 +35,7 @@ export const aProduct = (overrides: Partial<ProductDto> = {}): ProductDto => ({
   availability: { status: 'in_stock', quantity: 12 },
   sellable: true,
   lastUpdatedUtc: LAST_SYNC_UTC,
+  lastCheckedUtc: LAST_SYNC_UTC,
   ...overrides,
 });
 

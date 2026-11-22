@@ -66,7 +66,8 @@ New registrations start with a $500.00 wallet.
 
 ### Test cards
 
-Any name, a future expiry and any 3-digit CVC.
+Any name, a future expiry and any 3-digit CVC. After a decline, pay the same order again with another card or the
+wallet: a customer can hold at most 3 unpaid orders at a time (BR-CHK-03), and each unpaid order is released after 15 minutes.
 
 | Card | Result |
 |---|---|

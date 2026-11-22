@@ -14,10 +14,14 @@ public static class OrderStatusText
     /// A refund of the order is recorded but not paid back yet (the refund job sends it within seconds; a failed one is
     /// retried): a refunded order says so until the money is back.
     /// </param>
-    public static string ForOrder(OrderStatus status, bool refundPending = false) => status switch
+    /// <param name="awaitingOneTimeCode">
+    /// The current payment waits for the customer's one-time code (RequiresAction, code not expired): nothing is being
+    /// confirmed until they enter it, so the order says what it waits for.
+    /// </param>
+    public static string ForOrder(OrderStatus status, bool refundPending = false, bool awaitingOneTimeCode = false) => status switch
     {
         OrderStatus.AwaitingPayment => "Awaiting payment",
-        OrderStatus.PaymentProcessing => "Confirming your payment",
+        OrderStatus.PaymentProcessing => awaitingOneTimeCode ? "Waiting for your one-time code" : "Confirming your payment",
         OrderStatus.Paid => "Processing",
         OrderStatus.Completed => "Completed",
         OrderStatus.PartiallyRefunded => refundPending ? "Partial refund pending" : "Partially refunded",

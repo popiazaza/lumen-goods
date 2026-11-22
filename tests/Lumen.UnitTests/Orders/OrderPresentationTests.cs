@@ -50,6 +50,14 @@ public sealed class OrderPresentationTests
         OrderStatusText.ForOrder(status).Should().Be(expected);
 
     [Theory]
+    [InlineData(OrderStatus.PaymentProcessing, "Waiting for your one-time code")]
+    [InlineData(OrderStatus.AwaitingPayment, "Awaiting payment")]
+    [InlineData(OrderStatus.Paid, "Processing")]
+    [Trait("BR", "BR-ORD-02")]
+    public void BR_ORD_02_a_payment_waiting_for_its_one_time_code_says_so_instead_of_confirming(OrderStatus status, string expected) =>
+        OrderStatusText.ForOrder(status, awaitingOneTimeCode: true).Should().Be(expected);
+
+    [Theory]
     [InlineData(OrderStatus.PartiallyRefunded, "Partial refund pending")]
     [InlineData(OrderStatus.Refunded, "Refund pending")]
     [InlineData(OrderStatus.Paid, "Processing")]

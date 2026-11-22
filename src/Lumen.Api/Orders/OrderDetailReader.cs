@@ -156,11 +156,12 @@ internal static class OrderDetailMapping
         var paid = order.PaidUtc is not null
                    || order.Status is OrderStatus.Paid or OrderStatus.Completed or OrderStatus.PartiallyRefunded or OrderStatus.Refunded;
         var payment = order.Payments.OrderByDescending(p => p.CreatedUtc).ThenByDescending(p => p.AttemptNumber).FirstOrDefault();
+        var awaitingCode = payment is { Status: PaymentStatus.RequiresAction } && payment.OneTimeCodeExpiresUtc > now;
 
         return new OrderDetailDto(
             order.Number,
             order.Status,
-            OrderStatusText.ForOrder(order.Status, refundPending),
+            OrderStatusText.ForOrder(order.Status, refundPending, awaitingCode),
             order.CreatedUtc.UtcDateTime,
             order.PaidUtc?.UtcDateTime,
             order.HoldExpiresUtc.UtcDateTime,
