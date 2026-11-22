@@ -1,0 +1,8 @@
+# Caps the API container's CPU, to measure what one API instance of a given size serves (DESIGN.md §8 sizes the
+# Azure plan from it). Only the API is capped; nginx, PostgreSQL and k6 keep the rest of the machine.
+#   API_CPUS=2 docker compose -f docker-compose.yml -f tests/load/api-cpus.yaml up -d --wait api
+#   docker compose run --rm -e RATE=1500 k6
+#   docker compose up -d --wait api      # back to no cap
+services:
+  api:
+    cpus: ${API_CPUS:-2}

@@ -15,7 +15,7 @@ in one cart, with one payment and one order. Four deliverables in one repo:
 | `src/web` | The storefront and admin (Angular) |
 | `src/StandIns/HarborSupply.StandIn` | Stand-in for Harbor Supply Co.'s JSON REST API |
 | `src/StandIns/KestrelOutfitters.StandIn` | Stand-in for Kestrel Outfitters' XML feed, CSV stock and async XML ordering API |
-| `tests/` | xUnit v3 test projects, one per source project area |
+| `tests/` | xUnit v3 test projects, one per source project area; `tests/load` is the k6 load test |
 | `docs/` | ADRs, business rules, AI usage |
 
 ## Commands
@@ -26,6 +26,7 @@ dotnet build LumenGoods.slnx                                        # build all 
 dotnet test --solution LumenGoods.slnx                              # all .NET tests (integration tests need Docker running)
 dotnet test --solution LumenGoods.slnx --filter-trait "BR=BR-PAY-01"  # tests for one business rule
 cd src/web && npm test                                              # Angular unit tests
+docker compose run --rm -e RATE=1000 k6                             # load test of catalogue reads (stack running)
 ```
 
 ## Skills
