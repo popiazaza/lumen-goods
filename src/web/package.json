@@ -13,8 +13,10 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test --watch=false",
     "test:watch": "ng test",
-    "lint": "ultracite check",
-    "fix": "ultracite fix"
+    "lint": "ultracite check && tsc -p e2e",
+    "fix": "ultracite fix",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@angular/cdk": "22.3.0",
@@ -36,6 +38,8 @@
     "@angular/cli": "22.3.0",
     "@angular/compiler-cli": "22.3.0",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
+    "@types/node": "26.6.6",
     "@typescript-eslint/eslint-plugin": "8.73.0",
     "@typescript-eslint/parser": "8.73.0",
     "@vitest/eslint-plugin": "1.6.28",
@@ -49,6 +53,7 @@
     "eslint-plugin-import-x": "4.18.1",
     "eslint-plugin-jsdoc": "65.5.0",
     "eslint-plugin-n": "18.5.0",
+    "eslint-plugin-playwright": "2.12.2",
     "eslint-plugin-promise": "7.3.0",
     "eslint-plugin-sonarjs": "4.2.2",
     "eslint-plugin-unicorn": "80.0.0",

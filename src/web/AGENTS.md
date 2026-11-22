@@ -8,8 +8,11 @@ Angular 22.3 storefront and admin for Lumen Goods. The root `AGENTS.md` applies;
 npm start        # ng serve on :4200; /api and /media proxy to Lumen.Api on :5080 (proxy.conf.json)
 npm run build    # production build -> dist/lumen-web/browser
 npm test         # Vitest, runs once (npm run test:watch to watch)
-npm run lint     # ultracite check: ESLint (Ultracite + angular-eslint, incl. template a11y), Prettier, Stylelint
+npm run lint     # ultracite check: ESLint (Ultracite + angular-eslint, incl. template a11y), Prettier, Stylelint; tsc -p e2e
 npm run fix      # ultracite fix: formats and applies the safe autofixes
+npm run e2e      # Playwright browser tests against the running compose stack (E2E_BASE_URL, default http://localhost:8080)
+npx playwright test --grep @BR-CHK-01   # one business rule's browser tests
+npx playwright show-report              # last run's HTML report; traces open from it (or npx playwright show-trace <zip>)
 docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to http://api:8080
 ```
 
@@ -69,6 +72,7 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 
 - Vitest via `ng test`, `*.spec.ts` next to the code. Prefer Material harnesses and `RouterTestingHarness` to DOM internals.
 - Mock the API with `provideHttpClientTesting()` and `HttpTestingController`. A pending request keeps the app unstable, so `fixture.whenStable()` (and harness actions, which call it) wait for it: flush first, or wait for the URL/request with `vi.waitFor`.
+- Browser tests: Playwright in `e2e/` (`playwright.config.ts` here), against the real stack, few and flow-shaped. Import `test` and `expect` from `e2e/support/test.ts`; tag each test with its rule IDs (`{ tag: ['@BR-PAY-03'] }`) and `@phone` if it also runs on the Pixel 7 project. Locate by role and label (`getByRole`, `getByLabel`), never CSS; wait with web-first assertions, never fixed sleeps. Specs share one customer per run (`e2e/.auth/`), so they run one at a time and pay every order they place (BR-CHK-03 allows 3 unpaid).
 
 The generic guidance below comes from `ultracite init`; where it differs, the rules above win.
 
