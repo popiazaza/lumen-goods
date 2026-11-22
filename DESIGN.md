@@ -281,7 +281,7 @@ In two years: 150,000 visitors an hour (1.5 M in a sale hour), 100,000 orders a 
 |---|---|---|---|
 | API | One replica | Web replicas plus a jobs deployment (`Jobs:Enabled=false` on web); shared limiter, sync lease and key ring | A second replica |
 | Catalogue | PostgreSQL, `OFFSET` paging | CDN cache of 30 to 60 s, read replicas, keyset paging | p95 over ~200 ms |
-| Search | `ILIKE` | `pg_trgm`, then Azure AI Search | ~100,000 products |
+| Search | `ILIKE` with `pg_trgm` indexes | A document read model for the catalogue (MongoDB, or Azure AI Search) fed by the sync engine; orders and stock stay in PostgreSQL ([0009](docs/adr/0009-postgresql-for-orders-and-stock-where-mongodb-fits.md)) | ~100,000 products, or category-specific attribute filters |
 | Images | In-memory cache | Blob storage and a CDN | A second replica |
 | Own stock | Conditional `UPDATE` per row | Split stock rows for hot products; a waiting room for sales | Lock waits |
 | Jobs | Rows as the queue, `SKIP LOCKED` | An outbox feeding Service Bus | Lag over 1 min |

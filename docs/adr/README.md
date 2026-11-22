@@ -12,3 +12,4 @@ Why Lumen Goods is built the way it is, one decision per file ([how and why we k
 | [0006](0006-money-fx-tax-and-shipping.md) | Money, FX, tax and shipping: `decimal`, half away from zero, flat tax per line, shipping per seller | Accepted |
 | [0007](0007-dotnet-10-lts-and-postgresql-18.md) | Versions: .NET 10 LTS and PostgreSQL 18, not .NET 11 and PostgreSQL 19 yet | Accepted |
 | [0008](0008-same-origin-cookie-auth-with-xsrf-validation.md) | Same-origin cookie auth with explicit XSRF validation | Accepted |
+| [0009](0009-postgresql-for-orders-and-stock-where-mongodb-fits.md) | Data store: PostgreSQL for orders, payments and stock; MongoDB for the catalogue's read side at scale | Accepted |
