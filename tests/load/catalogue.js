@@ -9,6 +9,7 @@
 // Against a running stack (docker compose up --build -d --wait):
 //   docker compose run --rm k6                                 # 300 requests/s for 1 minute
 //   docker compose run --rm -e RATE=1000 -e DURATION=2m k6     # another rate or length
+//   docker compose run --rm -e BASE_URL=https://<staging host> -e RATE=400 k6   # a deployed instance (DESIGN §8)
 //
 // Every iteration is one request, so RATE is requests per second. A run fails (exit code 99) when p95 goes over
 // 200 ms (DESIGN §7's trigger for scaling the catalogue), more than 1 % of requests fail, or more than 0.1 % could
@@ -17,13 +18,15 @@
 import { check, fail } from 'k6';
 import http from 'k6/http';
 
-const BASE_URL = __ENV.BASE_URL || 'http://web:8080';
+const COMPOSE_URL = 'http://web:8080';
+const BASE_URL = __ENV.BASE_URL || COMPOSE_URL;
 const RATE = Number(__ENV.RATE || 300);
 const DURATION = __ENV.DURATION || '1m';
 
 // nginx answers only for localhost and 127.0.0.1 (its DNS rebinding guard), and so does the API (AllowedHosts),
-// so a request to the compose name "web" must still say it is for localhost.
-const HEADERS = { Host: __ENV.HOST_HEADER || 'localhost', Accept: 'application/json', 'Accept-Encoding': 'gzip' };
+// so a request to the compose name "web" must still say it is for localhost. Any other BASE_URL keeps its own Host.
+const HOST = __ENV.HOST_HEADER || (BASE_URL === COMPOSE_URL ? 'localhost' : '');
+const HEADERS = { Accept: 'application/json', 'Accept-Encoding': 'gzip', ...(HOST ? { Host: HOST } : {}) };
 
 const CATEGORIES = ['apparel', 'footwear', 'bags', 'home', 'outdoor', 'accessories'];
 const SORTS = ['newest', 'price_asc', 'price_desc', 'name_asc'];
