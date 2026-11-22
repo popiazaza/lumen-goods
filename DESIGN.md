@@ -279,7 +279,7 @@ Each rule's ID is in its code comment and its tests' names and traits, for examp
 
 In two years: 150,000 visitors an hour (1.5 M in a sale hour), 100,000 orders a day, over 1 M products, over 50 partners. At 8 page views per visit and 3 calls per page, that is about 1,000 API requests/s at a normal peak and 10,000/s in a sale hour, 90 % of them catalogue reads. Orders reach 2.8/s at a normal peak and 27.8/s in a sale hour (about 420 row writes/s, within one PostgreSQL primary).
 
-**Measured** with the load test ([`tests/load`](tests/load/catalogue.js): catalogue reads through nginx, 2026-11-23). One machine ran everything, the stack, PostgreSQL and k6: an Intel Core i5-13500 (20 threads) with 32 GB, Docker given all 20, and the 96 seeded products.
+**Measured** with the load test ([`tests/load`](tests/load/catalogue.js): catalogue reads through nginx, 2026-11-23). One machine ran everything, the stack, PostgreSQL and k6: an Intel Core i5-13500 (20 threads) with 32 GB, Docker given all 20, and the 96 seeded products. CPU is from `docker stats`, sampled halfway through each one-minute run.
 
 | Requests/s sent | Served | p95 | Errors | CPUs used: API, PostgreSQL |
 |---|---|---|---|---|
@@ -288,7 +288,8 @@ In two years: 150,000 visitors an hour (1.5 M in a sale hour), 100,000 orders a 
 | 3,000 | 2,990 | 12.5 ms | 0 | 5.4, 5.5 |
 | 4,000 | 3,611 | 1.2 s | 0 | 7.6, 6.6 (machine full) |
 
-- The API capped at 1, 2 and 4 CPUs ([`api-cpus.yaml`](tests/load/api-cpus.yaml)) served about 800, 1,900 and 3,100 requests/s before its CPU was full. p95 stays in milliseconds up to that point, then jumps to seconds (1 CPU at 850/s: 1.5 s). Size by CPU, not by latency.
+- The API capped at 1, 2 and 4 CPUs ([`api-cpus.yaml`](tests/load/api-cpus.yaml)) served about 800, 1,900 and 3,100 requests/s before its CPU was full: 775 to 950 per CPU. Uncapped it did 555 to 625 per CPU, probably because .NET's server GC and thread pool size themselves to all 20 threads. §8 sizes on the lower figure.
+- p95 stays in milliseconds until the CPU is full, then jumps to seconds (1 CPU at 850/s: 1.5 s). Size by CPU, not by latency.
 - PostgreSQL needs about as much CPU as the API: 0.9 to 1.8 ms per request, rising with load. A list request runs three queries (count, page, partner check times); caching the check times and Npgsql's auto-prepare are the cheap levers.
 - The first run found nginx opening a new connection to the API for every request, failing above about 450/s (fixed in `4aeac0f`).
 - Limits: with 96 products the queries are cheap; at 1 M products the catalogue query is what the "p95 over 200 ms" trigger watches. Writes (cart, checkout, payment: 10 % of calls) are not in the mix.
@@ -326,31 +327,33 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 | Storage | Blob Storage | Shared Data Protection keys, product images |
 | Stand-ins | Their own Container Apps | Test environments only |
 
-**Sizing on App Service Premium v4.** Premium v4 runs on AMD EPYC 9004 (Genoa) at up to 3.7 GHz, and a plan scales out to 30 instances ([Premium v4](https://learn.microsoft.com/azure/app-service/app-service-configure-premium-v4-tier), [limits](https://learn.microsoft.com/azure/azure-resource-manager/management/azure-subscription-service-limits#app-service-limits)). From §7's measurement of about 800 catalogue requests/s per test-machine CPU, with two assumptions:
+**Sizing on App Service Premium v4.** Premium v4 runs on Dadsv6 virtual machines ([announcement](https://techcommunity.microsoft.com/blog/appsonazureblog/announcing-general-availability-of-premium-v4-for-azure-app-service/4446204)), whose AMD EPYC 9004 (Genoa) processors boost to 3.7 GHz ([Dadsv6](https://learn.microsoft.com/azure/virtual-machines/sizes/general-purpose/dadsv6-series)). A plan scales out to 30 instances ([limits](https://learn.microsoft.com/azure/azure-resource-manager/management/azure-subscription-service-limits#app-service-limits)). The sizing starts from §7's lower figure, about 600 catalogue requests/s per test-machine CPU, with two assumptions:
 
 - One Azure vCPU does half the work of one test-machine CPU, which boosts to 4.8 GHz, while a vCPU may be one hyperthread.
 - Instances run at 60 % CPU at peak, leaving room for bursts and for losing one instance.
 
-That is about 240 requests/s per vCPU. Prices are Linux, East US, pay-as-you-go, compute only (Azure Retail Prices API, 2026-11-23).
+That is about 180 requests/s per vCPU. Prices are Linux, East US, pay-as-you-go, compute only (Azure Retail Prices API, 2026-11-23).
 
 | Size | vCPU, RAM | Plan for | Price |
 |---|---|---|---|
-| P0v4 | 1, 4 GB | 240 req/s | $0.073/h ($53/month) |
-| P1v4 | 2, 8 GB | 480 req/s | $0.146/h ($107/month) |
-| P2v4 | 4, 16 GB | 960 req/s | $0.292/h ($213/month) |
-| P3v4 | 8, 32 GB | 1,920 req/s | $0.584/h ($426/month) |
+| P0v4 | 1, 4 GB | 180 req/s | $0.073/h ($53/month) |
+| P1v4 | 2, 8 GB | 360 req/s | $0.146/h ($107/month) |
+| P2v4 | 4, 16 GB | 720 req/s | $0.292/h ($213/month) |
+| P3v4 | 8, 32 GB | 1,440 req/s | $0.584/h ($426/month) |
 
-| Load reaching the API | API | PostgreSQL Flexible Server, General Purpose |
+| Load reaching the API | API | PostgreSQL Flexible Server, General Purpose (a floor) |
 |---|---|---|
-| Normal peak, 1,000 req/s | 3 × P1v4, one per zone ($320/month); two still carry the peak | 8 vCores (about $520/month; HA doubles it) |
-| Sale hour, 10,000 req/s | 6 × P3v4 ($3.50/h while scaled out) | about 48 vCores: past where one primary makes sense |
-| Normal peak, catalogue cached 60 s at Front Door (80 % hits): 280 req/s | 2 to 3 × P1v4, for availability rather than load | 2 vCores (about $130/month) |
-| Sale hour, cached: 2,800 req/s | 3 × P2v4 or 6 × P1v4 ($0.88/h) | 16 vCores, raised before the sale |
+| Normal peak, 1,000 req/s | Today: one P3v4 at about 40 % CPU ($426/month). After the §7 split: 3 × P1v4, one per zone ($320/month), and two carry the peak at about 83 % CPU | 8 vCores (about $520/month; HA doubles it) |
+| Sale hour, 10,000 req/s | 7 × P3v4 after the split ($4.09/h while scaled out) | about 48 vCores: past where one primary makes sense |
+| Normal peak, catalogue cached 60 s at Front Door (80 % hits): 280 req/s | One P1v4 by load; 2 to 3 after the split, for availability | 2 vCores (about $130/month) |
+| Sale hour, cached: 2,800 req/s | 4 × P2v4 or 8 × P1v4 ($1.17/h) | 16 vCores, raised before the sale |
 
-- **Start with 3 × P1v4** and autoscale on CPU. More than one instance needs the §7 API split first (jobs on one deployment, shared limiter and key ring, images in Blob Storage). Until then one P2v4 carries 960 requests/s at 60 % CPU: close to the normal peak, with no instance to spare.
-- **Make the catalogue cacheable before the first sale.** Anonymous catalogue GETs would send `Cache-Control: public, max-age=60` instead of `no-store`. Caching takes the sale hour from about 48 PostgreSQL vCores to 16, and the API from 6 × P3v4 to 3 × P2v4.
+PostgreSQL vCores come from about 1.4 ms of CPU per request (§7): requests/s × 1.4 ms × 2 ÷ 0.6, about 4.7 vCores per 1,000 requests/s, rounded up to a Flexible Server size. They are a floor. With 96 products, counting the filtered set on every list request is cheap; at 1 M products that count dominates until the catalogue moves to keyset paging or a search read model (§7, [0009](docs/adr/0009-postgresql-for-orders-and-stock-where-mongodb-fits.md)). Writes, 10 % of calls, are costed as reads.
+
+- **One instance today.** The code runs a single API instance ([0002][adr2]: rate limiters, the sync lock and the image cache live in the process). One P3v4 carries the normal peak at about 40 % CPU; a P2v4 would run at about 83 %. More instances need the §7 split first (jobs on one deployment, shared limiter and key ring, images in Blob Storage). After that: 3 × P1v4, with autoscale on CPU.
+- **Make the catalogue cacheable before the first sale.** Anonymous catalogue GETs would send `Cache-Control: public, max-age=60` instead of `no-store`. Caching takes the sale hour from about 48 PostgreSQL vCores to 16, and the API from 7 × P3v4 to 4 × P2v4.
 - **Scale out before a planned sale**, not during it: autoscale reacts in minutes.
-- **Replace the half-a-CPU assumption with a measurement.** Run the same k6 script against one P1v4 in a staging slot for an hour (about $0.15).
+- **Replace the half-a-CPU assumption with a measurement.** Run the same k6 script (`BASE_URL`) for an hour against a throwaway one-instance P1v4 plan (about $0.15). A deployment slot would not do: it shares production's instances.
 
 
 ## 9. Where to change X
