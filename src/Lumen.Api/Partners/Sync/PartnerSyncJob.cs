@@ -1,4 +1,5 @@
 using Lumen.Api.Partners.Mapping;
+using Lumen.Api.Partners.Media;
 using Microsoft.Extensions.Options;
 
 namespace Lumen.Api.Partners.Sync;
@@ -19,6 +20,7 @@ internal sealed class PartnerSyncJob(
     PartnerRegistration partner,
     IServiceScopeFactory scopes,
     CurrencyConverter currency,
+    PartnerImageWarmer imageWarmer,
     IOptionsMonitor<PartnersOptions> partners,
     IOptionsMonitor<JobsOptions> jobs,
     TimeProvider clock,
@@ -31,6 +33,7 @@ internal sealed class PartnerSyncJob(
     private string? _appliedMappingFingerprint;
     private DateTimeOffset? _lastCatalogueAttemptUtc;
     private DateTimeOffset? _lastStockAttemptUtc;
+    private Task _imageWarming = Task.CompletedTask;
 
     public string Partner => partner.Code;
 
@@ -112,7 +115,12 @@ internal sealed class PartnerSyncJob(
             {
                 try
                 {
-                    await RunOnceAsync(stoppingToken);
+                    var report = await RunOnceAsync(stoppingToken);
+                    if (report.Catalogue?.Succeeded == true && _imageWarming.IsCompleted)
+                    {
+                        // In the background: at the image rate it outlasts the next sync, which then leaves it running.
+                        _imageWarming = Task.Run(() => imageWarmer.WarmAsync(partner.Code, stoppingToken), CancellationToken.None);
+                    }
                 }
                 catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
                 {

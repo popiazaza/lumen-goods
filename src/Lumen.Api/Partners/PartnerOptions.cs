@@ -221,4 +221,11 @@ public sealed class MediaOptions
     /// </summary>
     [Range(typeof(TimeSpan), "00:00:00", "00:00:10")]
     public TimeSpan RateLimitWait { get; set; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// After a successful catalogue sync, the primary images of this many listed products of the partner (newest first, the
+    /// catalogue's default order) are fetched into the cache in the background, with spare rate-limit tokens only. 0: off.
+    /// </summary>
+    [Range(0, 10_000)]
+    public int WarmImageCount { get; set; } = 200;
 }

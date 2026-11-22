@@ -76,6 +76,7 @@ internal static class PartnersFeature
 
         services.AddSingleton<PartnerImageCache>();
         services.AddSingleton<PartnerImageProxy>();
+        services.AddSingleton<PartnerImageWarmer>();
         return services;
     }
 

@@ -13,11 +13,15 @@ namespace Lumen.Api.Partners.Harbor;
 internal sealed class HarborRateGate : IDisposable
 {
     private readonly TimeProvider _time;
+    private readonly int _imageBurst;
+    private readonly TimeSpan _imagePeriod;
 
     public HarborRateGate(IOptions<HarborOptions> options, TimeProvider time)
     {
         var settings = options.Value.RateLimit;
         _time = time;
+        _imageBurst = settings.ImageBurst;
+        _imagePeriod = TimeSpan.FromMinutes(1) / settings.ImageRequestsPerMinute;
         Limiter = Create(settings.RequestsPerMinute, settings.Burst, settings.QueueLimit);
         ImageLimiter = Create(settings.ImageRequestsPerMinute, settings.ImageBurst, settings.ImageQueueLimit);
     }
@@ -32,6 +36,7 @@ internal sealed class HarborRateGate : IDisposable
     /// How the image client's pipeline takes an <see cref="ImageLimiter"/> token, on every attempt (retries included).
     /// A request carrying an <see cref="ImageTokenPolicy"/> (the image proxy's) waits at most its MaxWait; a token that
     /// does not come in time gives a rejected lease with the limiter's Retry-After estimate, and the request is not sent.
+    /// A warm-up request (SpareOnly) never waits and takes a token only from a full bucket, so browsers keep the burst.
     /// </summary>
     public async ValueTask<RateLimitLease> AcquireImageTokenAsync(RateLimiterArguments args)
     {
@@ -40,6 +45,11 @@ internal sealed class HarborRateGate : IDisposable
         if (request is null || !request.Options.TryGetValue(ImageTokenPolicy.Key, out var policy))
         {
             return await ImageLimiter.AcquireAsync(1, cancellationToken);
+        }
+
+        if (policy.SpareOnly)
+        {
+            return ImageLimiter.GetStatistics()?.CurrentAvailablePermits >= _imageBurst ? ImageLimiter.AttemptAcquire() : new NoSpareToken(_imagePeriod);
         }
 
         using var timeout = new CancellationTokenSource(policy.MaxWait, _time);
@@ -59,6 +69,20 @@ internal sealed class HarborRateGate : IDisposable
     {
         Limiter.Dispose();
         ImageLimiter.Dispose();
+    }
+
+    /// <summary>A refused lease that says when to look again: after one more token, the bucket may be full.</summary>
+    private sealed class NoSpareToken(TimeSpan retryAfter) : RateLimitLease
+    {
+        public override bool IsAcquired => false;
+
+        public override IEnumerable<string> MetadataNames => [MetadataName.RetryAfter.Name];
+
+        public override bool TryGetMetadata(string metadataName, out object? metadata)
+        {
+            metadata = metadataName == MetadataName.RetryAfter.Name ? retryAfter : null;
+            return metadata is not null;
+        }
     }
 
     private static TokenBucketRateLimiter Create(int perMinute, int burst, int queueLimit) => new(new TokenBucketRateLimiterOptions

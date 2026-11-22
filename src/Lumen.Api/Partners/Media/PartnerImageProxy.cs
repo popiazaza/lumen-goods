@@ -29,9 +29,9 @@ public sealed record ImageResult(ImageOutcome Outcome, byte[]? Bytes = null, str
 
 /// <summary>
 /// Set by the image proxy on each partner image request, for a rate-limited image client (Harbor's) to read: how long the
-/// request may wait for a rate-limit token before it is given up unsent.
+/// request may wait for a rate-limit token before it is given up unsent, or (warming) whether it may only use a spare one.
 /// </summary>
-internal sealed record ImageTokenPolicy(TimeSpan MaxWait)
+internal sealed record ImageTokenPolicy(TimeSpan MaxWait, bool SpareOnly = false)
 {
     public static readonly HttpRequestOptionsKey<ImageTokenPolicy> Key = new(nameof(ImageTokenPolicy));
 }
@@ -64,17 +64,8 @@ internal sealed class PartnerImageProxy(
 
     public async Task<ImageResult> GetAsync(string source, string sourceUrl, CancellationToken cancellationToken)
     {
-        if (registry.Find(source) is not { } partner || !partner.Options().IsConfigured)
+        if (Resolve(source, sourceUrl) is not var (partner, url))
         {
-            return NotFound;
-        }
-
-        // SSRF guard: only the partner's own origin and the image origins configured for it. Credentials still go to
-        // the BaseUrl origin only (OriginBoundCredentialsHandler).
-        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var url)
-            || !partner.Options().AllowedImageOrigins().Any(origin => PartnerUrls.IsSameOrigin(url, origin)))
-        {
-            logger.LogWarning("Refused to fetch {Partner} image outside its allowed origins: {Url}", partner.Code, sourceUrl);
             return NotFound;
         }
 
@@ -84,7 +75,7 @@ internal sealed class PartnerImageProxy(
             return cached;
         }
 
-        var fetch = _inFlight.GetOrAdd(key, _ => new Lazy<Task<ImageResult>>(() => FetchAndCacheAsync(partner, url, key)));
+        var fetch = _inFlight.GetOrAdd(key, _ => new Lazy<Task<ImageResult>>(() => FetchAndCacheAsync(partner, url, key, spareOnly: false)));
         try
         {
             return await fetch.Value.WaitAsync(options.CurrentValue.ResponseTimeout, time, cancellationToken);
@@ -97,7 +88,42 @@ internal sealed class PartnerImageProxy(
         }
     }
 
-    private async Task<ImageResult> FetchAndCacheAsync(PartnerRegistration partner, Uri url, string key)
+    /// <summary>
+    /// Fetches an image into the cache before a browser asks (<see cref="PartnerImageWarmer"/>), unless it is cached or
+    /// being fetched already: null then. Takes only a spare rate-limit token and never waits; Throttled means try later.
+    /// </summary>
+    public async Task<ImageResult?> WarmAsync(string source, string sourceUrl, CancellationToken cancellationToken)
+    {
+        if (Resolve(source, sourceUrl) is not var (partner, url) || cache.Get(url.AbsoluteUri) is not null || _inFlight.ContainsKey(url.AbsoluteUri))
+        {
+            return null;
+        }
+
+        var key = url.AbsoluteUri;
+        var fetch = _inFlight.GetOrAdd(key, _ => new Lazy<Task<ImageResult>>(() => FetchAndCacheAsync(partner, url, key, spareOnly: true)));
+        return await fetch.Value.WaitAsync(cancellationToken);
+    }
+
+    private (PartnerRegistration Partner, Uri Url)? Resolve(string source, string sourceUrl)
+    {
+        if (registry.Find(source) is not { } partner || !partner.Options().IsConfigured)
+        {
+            return null;
+        }
+
+        // SSRF guard: only the partner's own origin and the image origins configured for it. Credentials still go to
+        // the BaseUrl origin only (OriginBoundCredentialsHandler).
+        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var url)
+            || !partner.Options().AllowedImageOrigins().Any(origin => PartnerUrls.IsSameOrigin(url, origin)))
+        {
+            logger.LogWarning("Refused to fetch {Partner} image outside its allowed origins: {Url}", partner.Code, sourceUrl);
+            return null;
+        }
+
+        return (partner, url);
+    }
+
+    private async Task<ImageResult> FetchAndCacheAsync(PartnerRegistration partner, Uri url, string key, bool spareOnly)
     {
         var settings = options.CurrentValue;
         try
@@ -107,7 +133,7 @@ internal sealed class PartnerImageProxy(
             {
                 // Not tied to one browser request: other requests may be waiting for the same image.
                 using var timeout = new CancellationTokenSource(settings.MaxFetchDuration, time);
-                result = await FetchAsync(partner, url, settings, timeout.Token);
+                result = await FetchAsync(partner, url, settings, spareOnly, timeout.Token);
             }
             catch (Ports.PartnerException ex) when (ex.InnerException is RateLimiterRejectedException rejected)
             {
@@ -130,12 +156,13 @@ internal sealed class PartnerImageProxy(
         }
     }
 
-    private async Task<ImageResult> FetchAsync(PartnerRegistration partner, Uri url, MediaOptions settings, CancellationToken cancellationToken)
+    private async Task<ImageResult> FetchAsync(
+        PartnerRegistration partner, Uri url, MediaOptions settings, bool spareOnly, CancellationToken cancellationToken)
     {
         var maxBytes = settings.MaxImageBytes;
         var client = httpClients.CreateClient(partner.ImageHttpClientName);
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Options.Set(ImageTokenPolicy.Key, new ImageTokenPolicy(settings.RateLimitWait));
+        request.Options.Set(ImageTokenPolicy.Key, new ImageTokenPolicy(settings.RateLimitWait, spareOnly));
         using var response = await client.SendToPartnerAsync(request, HttpCompletionOption.ResponseHeadersRead, partner.Code, cancellationToken);
         if (response.StatusCode != HttpStatusCode.OK)
         {
