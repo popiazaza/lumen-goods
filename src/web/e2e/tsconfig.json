@@ -1,0 +1,10 @@
+/* Type-checks the Playwright specs and config (`npm run lint` runs `tsc -p e2e`). Playwright itself
+   only strips types, and the app and unit-test builds never see these files. */
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts", "../playwright.config.ts"]
+}

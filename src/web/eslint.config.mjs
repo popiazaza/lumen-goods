@@ -1,16 +1,31 @@
 import angular from 'ultracite/eslint/angular';
 import core from 'ultracite/eslint/core';
+import playwright from 'ultracite/eslint/playwright';
 import vitest from 'ultracite/eslint/vitest';
 
 // Project settings on top of Ultracite. Each rule changed here says why: either this project's
-// own convention (the selector prefix) or a preset rule that conflicts with Angular itself.
+// own convention (the selector prefix) or a preset rule that conflicts with Angular, Playwright
+// or the tooling itself.
 export default [
   ...core,
   ...angular,
-  ...vitest,
+  // Both test presets match every `*.spec.ts`: Vitest owns the unit tests under src/, Playwright
+  // the browser tests and their helpers under e2e/.
+  ...vitest.map((config) => ({ ...config, files: ['src/**/*.spec.ts'] })),
+  ...playwright.map((config) => ({ ...config, files: ['e2e/**/*.ts'] })),
   {
-    // Angular's build cache holds generated JavaScript.
-    ignores: ['.angular/**'],
+    files: ['eslint.config.mjs'],
+    rules: {
+      // Narrowing a preset to its folder with map() above is configuration, not a side effect.
+      'unicorn/no-top-level-side-effects': [
+        'error',
+        { allow: { 'ultracite/eslint/playwright': ['map'], 'ultracite/eslint/vitest': ['map'] } },
+      ],
+    },
+  },
+  {
+    // Angular's build cache holds generated JavaScript; Playwright writes its reports and traces.
+    ignores: ['.angular/**', 'playwright-report/**', 'test-results/**'],
   },
   {
     files: ['**/*.ts'],
@@ -71,6 +86,8 @@ export default [
               'withComponentInputBinding',
               'withInMemoryScrolling',
             ],
+            // A Playwright fixture declaration (e2e/support).
+            '@playwright/test': ['test.extend'],
             './checkout-step.guard': ['checkoutStepGuard'],
             './core/icons/app-icons': ['provideAppIcons'],
             './core/routing/route-heading-focus': ['provideRouteHeadingFocus'],
@@ -89,7 +106,7 @@ export default [
     },
   },
   {
-    files: ['**/*.spec.ts'],
+    files: ['src/**/*.spec.ts'],
     rules: {
       // Angular's unit-test builder runs `*.spec.ts`, and `ng generate` names specs that way.
       'vitest/consistent-test-filename': ['error', { pattern: '.*[.]spec[.]ts$' }],
@@ -103,6 +120,32 @@ export default [
         'error',
         { assertFunctionNames: ['expect*', '*.expectOne', '*.expectNone'] },
       ],
+      // With @playwright/test installed, sonarjs reads Vitest's global expect as Playwright's and
+      // reports `toBe(67.46)`. Amounts arrive from the API as JSON numbers and are compared with
+      // the same literal, so exact equality is the check.
+      'sonarjs/no-floating-point-equality': 'off',
+    },
+  },
+  {
+    files: ['e2e/**/*.ts'],
+    rules: {
+      // As in the unit specs, shared checks are helpers named expect* (expectConfirmed).
+      'playwright/expect-expect': ['error', { assertFunctionPatterns: ['^expect'] }],
+      'playwright/prefer-ending-with-an-expect': ['error', { assertFunctionPatterns: ['^expect'] }],
+      // A browser test follows one purchase across several pages and checks each step. Five is a
+      // unit-test budget; splitting the flow would place and pay the same order again.
+      'playwright/max-expects': ['error', { max: 12 }],
+      // The price-change test needs Docker access to the stack and skips itself, with that reason,
+      // when E2E_COMPOSE is not set.
+      'playwright/no-skipped-test': ['error', { allowConditional: true }],
+    },
+  },
+  {
+    files: ['e2e/**/*.setup.ts'],
+    rules: {
+      // A setup test ends by saving the signed-in state for the specs, as Playwright's own
+      // authentication guide does.
+      'playwright/prefer-ending-with-an-expect': 'off',
     },
   },
 ];

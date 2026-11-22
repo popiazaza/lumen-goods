@@ -7,3 +7,9 @@ coverage
 npm-debug.log
 Dockerfile
 .dockerignore
+# Browser tests run against the stack, not inside the image
+e2e
+playwright.config.ts
+playwright-report
+test-results
+blob-report
