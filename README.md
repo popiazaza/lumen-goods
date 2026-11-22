@@ -186,6 +186,7 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | Library | Why |
 |---|---|
 | ASP.NET Core minimal APIs | One route group per feature with `TypedResults`, so the OpenAPI document comes from the handlers; no controller layer to maintain |
+| PostgreSQL 18 | A real database, not the JSON files the brief allows: unique indexes, check constraints, conditional updates and row locks make "never charged twice" and "never oversold" database rules. MongoDB was weighed; it fits the catalogue's read side at scale, not the money ([ADR 0009](docs/adr/0009-postgresql-for-orders-and-stock-where-mongodb-fits.md)) |
 | EF Core with Npgsql | Migrations, LINQ and change tracking for the ordinary work, plain SQL where it matters (the conditional stock `UPDATE`); Npgsql is the standard PostgreSQL driver and EF Core provider |
 | ASP.NET Identity | Password hashing, lockout and the session cookie from the framework, not hand-rolled ([ADR 0008](docs/adr/0008-same-origin-cookie-auth-with-xsrf-validation.md)) |
 | HtmlSanitizer | Partner descriptions are untrusted HTML; an allow-list over a real HTML parser, not regular expressions |
