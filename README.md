@@ -139,6 +139,15 @@ are skipped; CI runs them in the compose job.
 dotnet test --project tests/Lumen.EndToEndTests -e LUMEN_E2E_URL=http://localhost:8080   # bash and PowerShell alike
 ```
 
+Browser tests ([Playwright](src/web/e2e), Chromium at desktop and phone width) drive the same stack through the UI:
+catalogue state in the URL, a checkout across three shops, the one-time code, a declined card then the wallet, a price
+change at Place order, and the admin pages. They also register their own customer. The price-change test edits Harbor
+with `docker compose exec`, so it runs only when `E2E_COMPOSE=1` is set, as in CI.
+
+```bash
+cd src/web && npx playwright install chromium && npm run e2e   # http://localhost:8080 unless E2E_BASE_URL is set
+```
+
 What each suite proves (the integration tests run the real API on PostgreSQL 18): [DESIGN.md §6](DESIGN.md#6-crosscutting-concepts).
 CI runs them all plus a `docker compose up` smoke test on every pull request that changes code. Outside Docker you
 need .NET SDK 10.0.404 (`global.json`), Node.js 26.13 or later, and Docker running.

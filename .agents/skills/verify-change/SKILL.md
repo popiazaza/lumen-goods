@@ -59,6 +59,7 @@ docker compose up --build
 ```
 
 - [ ] The changed flow works through the UI at http://localhost:8080. The `demo-scenarios` skill shows how to force partner changes and every test card.
+- [ ] For a UI change, run the browser tests against the stack: `cd src/web && E2E_COMPOSE=1 npm run e2e` (bash).
 - [ ] For a UI change, take screenshots at desktop (1280 px) and mobile (390 px) width.
 
 ## 6. Pull request

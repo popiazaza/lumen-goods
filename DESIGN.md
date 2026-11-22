@@ -269,6 +269,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 | Integration | `tests/Lumen.IntegrationTests` | API on Testcontainers PostgreSQL 18.7: constraints, races, auth, jobs with fake partners and clock |
 | Conformance | `tests/*.StandIn.Tests` | stand-ins' raw status codes, headers and bodies against the contracts |
 | Angular | `src/web` (`npm test`, `npm run lint`) | components, URL state, cart state |
+| Browser end to end | `src/web/e2e` (`npm run e2e`, Playwright) | the compose stack through the UI in Chromium, desktop and phone: catalogue URL state, a three-shop checkout, test cards, a price change at Place order, admin pages |
 | CI | `.github/workflows/ci.yml` | all of the above, then a `docker compose up --wait` smoke test |
 
 Each rule's ID is in its code comment and its tests' names and traits, for example `BR_MONEY_01_...` with `[Trait("BR", "BR-MONEY-01")]`. `dotnet test --filter-trait "BR=BR-MONEY-01"` runs one rule, and [BUSINESS-RULES.md][rules] links each rule's tests. Time comes from `TimeProvider`, so no test sleeps.
