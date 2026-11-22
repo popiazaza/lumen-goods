@@ -204,7 +204,7 @@ public sealed class MediaOptions
     [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
     public TimeSpan FailureCacheDuration { get; set; } = TimeSpan.FromMinutes(1);
 
-    /// <summary>Longest a browser waits for a partner image before it gets a 502 (and shows a placeholder).</summary>
+    /// <summary>Longest a browser waits for a slow partner's image before it gets a 502 (and shows a placeholder).</summary>
     [Range(typeof(TimeSpan), "00:00:01", "00:05:00")]
     public TimeSpan ResponseTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
