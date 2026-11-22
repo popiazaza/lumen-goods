@@ -103,7 +103,7 @@ internal static class PartnerHttpClients
         }
         catch (Polly.RateLimiting.RateLimiterRejectedException ex)
         {
-            throw new PartnerException($"{what} not attempted: the client-side rate limit queue is full.", null, ex);
+            throw new PartnerException($"{what} not attempted: no client-side rate-limit token (queue full or the wait ran out).", null, ex);
         }
         catch (HttpRequestException ex)
         {

@@ -74,7 +74,8 @@ public sealed class HarborOptions : PartnerOptions
 /// <summary>
 /// Client-side token buckets for Harbor's one budget of 60 requests per minute per key, split in two so images can never
 /// starve the catalogue sync or (later) order calls: those share the main bucket (40/min, burst 5); image fetches have
-/// their own, smaller bucket (10/min, burst 5) and simply wait longer during a burst of uncached images. A token bucket
+/// their own, smaller bucket (10/min, burst 5); during a burst of uncached images a browser's request waits at most
+/// Partners:Media:RateLimitWait for a token and otherwise gets a 503, and warming takes only spare tokens. A token bucket
 /// lets at most burst + rate through in any 60-second window, however it is aligned, so the two together stay at
 /// (5 + 40) + (5 + 10) = 60. Validation refuses settings that would exceed Harbor's limit.
 /// </summary>

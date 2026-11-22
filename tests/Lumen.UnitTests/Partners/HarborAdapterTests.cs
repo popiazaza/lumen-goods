@@ -2,10 +2,14 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.Json.Nodes;
 using Lumen.Api.Partners.Harbor;
+using Lumen.Api.Partners.Media;
 using Lumen.Api.Partners.Ports;
 using Lumen.Domain.Catalog;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly.RateLimiting;
+using Polly.Telemetry;
 using static Lumen.UnitTests.Partners.PartnerTestKit;
 
 namespace Lumen.UnitTests.Partners;
@@ -272,6 +276,35 @@ public sealed class HarborAdapterTests
     }
 
     [Fact]
+    public async Task An_image_request_without_a_token_within_its_wait_is_not_sent_and_not_logged_as_an_error()
+    {
+        var harbor = new StubPartner(_ => StubPartner.Status(HttpStatusCode.OK));
+        await using var services = Services(harbor: harbor, overrides: new()
+        {
+            ["Partners:Harbor:RateLimit:ImageBurst"] = "1",
+            ["Partners:Harbor:RateLimit:ImageRequestsPerMinute"] = "1",
+        });
+        var logs = new LogLevels();
+        services.GetRequiredService<ILoggerFactory>().AddProvider(logs);
+        using var images = services.GetRequiredService<IHttpClientFactory>().CreateClient(HarborCatalogSource.ImageHttpClientName);
+        (await images.GetAsync("http://harbor.test/media/HSC-1/front.png", Ct)).Dispose();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "http://harbor.test/media/HSC-2/front.png");
+        request.Options.Set(ImageTokenPolicy.Key, new ImageTokenPolicy(TimeSpan.Zero));
+
+        var act = () => images.SendAsync(request, Ct);
+
+        (await act.Should().ThrowAsync<RateLimiterRejectedException>()).Which.RetryAfter.Should().BeGreaterThan(TimeSpan.Zero);
+        harbor.Requests.Should().ContainSingle("the second image had no token and was not sent");
+        logs.Levels.Should().NotContain(level => level >= LogLevel.Warning, "a refused image token is flow control, not a failure");
+        var severity = services.GetRequiredService<IOptions<TelemetryOptions>>().Value.SeverityProvider!;
+        severity(new SeverityProviderArguments(
+                new ResilienceTelemetrySource($"{HarborCatalogSource.HttpClientName}-{HarborCatalogSource.HttpClientName}-pipeline", null, "RateLimiter"),
+                new ResilienceEvent(ResilienceEventSeverity.Error, "OnRateLimiterRejected"),
+                Polly.ResilienceContextPool.Shared.Get(Ct)))
+            .Should().Be(ResilienceEventSeverity.Error, "a full sync and order queue is still an error");
+    }
+
+    [Fact]
     public void Rate_limits_that_together_exceed_Harbor_60_requests_per_minute_are_refused_at_start()
     {
         using var services = Services(overrides: new() { ["Partners:Harbor:RateLimit:ImageRequestsPerMinute"] = "20" });
@@ -297,5 +330,40 @@ public sealed class HarborAdapterTests
         inner.Requests[0].Header(HarborKeyHandler.HeaderName).Should().Be(HarborKey);
         inner.Requests[1].Header(HarborKeyHandler.HeaderName).Should().BeNull("another port is another origin");
         inner.Requests[2].Header(HarborKeyHandler.HeaderName).Should().BeNull();
+    }
+}
+
+/// <summary>The levels of everything logged, for tests that care only how loud a component is.</summary>
+internal sealed class LogLevels : ILoggerProvider, ILogger
+{
+    private readonly List<LogLevel> _levels = [];
+
+    public IReadOnlyList<LogLevel> Levels
+    {
+        get
+        {
+            lock (_levels)
+            {
+                return [.. _levels];
+            }
+        }
+    }
+
+    public ILogger CreateLogger(string categoryName) => this;
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        lock (_levels)
+        {
+            _levels.Add(logLevel);
+        }
+    }
+
+    public void Dispose()
+    {
     }
 }

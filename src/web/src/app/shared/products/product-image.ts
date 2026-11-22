@@ -4,7 +4,9 @@ import { MatIcon } from '@angular/material/icon';
 
 /**
  * A product image in a fixed square, with a neutral placeholder when there is no image or it
- * fails to load (A-20), so the grid never shifts or shows a broken-image icon.
+ * fails to load (A-20), so the grid never shifts or shows a broken-image icon. A partner image
+ * can fail for a moment (the proxy answers 503 while Harbor's image budget is spent); a later
+ * view creates a new component, which tries the image again.
  */
 @Component({
   selector: 'app-product-image',

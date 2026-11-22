@@ -9,6 +9,8 @@ using Lumen.Domain.Catalog;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Polly;
+using Polly.RateLimiting;
+using Polly.Telemetry;
 
 namespace Lumen.Api.Partners;
 
@@ -43,8 +45,23 @@ internal static class PartnersFeature
             .AddHttpMessageHandler<HarborKeyHandler>();
         services.AddPartnerHttpClient<HarborOptions>(
                 HarborCatalogSource.ImageHttpClientName,
-                (pipeline, sp) => pipeline.AddRateLimiter(sp.GetRequiredService<HarborRateGate>().ImageLimiter))
+                (pipeline, sp) => pipeline.AddRateLimiter(new RateLimiterStrategyOptions
+                {
+                    RateLimiter = sp.GetRequiredService<HarborRateGate>().AcquireImageTokenAsync,
+                }))
             .AddHttpMessageHandler<HarborKeyHandler>();
+
+        // A refused image token is flow control, not a failure: a browser gets a 503 and warming tries later. Polly would
+        // log each one as an error; it stays countable in Polly's resilience event metric.
+        services.Configure<TelemetryOptions>(options =>
+        {
+            var inner = options.SeverityProvider;
+            options.SeverityProvider = args =>
+                args.Event.EventName == "OnRateLimiterRejected"
+                && args.Source.PipelineName?.StartsWith(HarborCatalogSource.ImageHttpClientName, StringComparison.Ordinal) == true
+                    ? ResilienceEventSeverity.Debug
+                    : inner?.Invoke(args) ?? args.Event.Severity;
+        });
         services.AddSingleton<HarborCatalogSource>();
         services.AddPartner(
             ProductSources.Harbor,
@@ -72,6 +89,7 @@ internal static class PartnersFeature
 
         services.AddSingleton<PartnerImageCache>();
         services.AddSingleton<PartnerImageProxy>();
+        services.AddSingleton<PartnerImageWarmer>();
         return services;
     }
 

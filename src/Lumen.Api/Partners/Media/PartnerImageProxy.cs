@@ -3,6 +3,7 @@ using System.Net;
 using Lumen.Api.Partners.Sync;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using Polly.RateLimiting;
 
 namespace Lumen.Api.Partners.Media;
 
@@ -15,16 +16,34 @@ public enum ImageOutcome
 
     /// <summary>The partner did not deliver a usable image (down, error, not an image, too large).</summary>
     PartnerFailed,
+
+    /// <summary>
+    /// The partner's image rate limit (Harbor's) had no token within <see cref="MediaOptions.RateLimitWait"/>, so the partner
+    /// was not asked. Never cached: nothing is known about the image, and the next request may find a token.
+    /// </summary>
+    Throttled,
 }
 
-public sealed record ImageResult(ImageOutcome Outcome, byte[]? Bytes = null, string? ContentType = null);
+/// <param name="RetryAfter">For <see cref="ImageOutcome.Throttled"/>: when a token is expected, if the limiter said.</param>
+public sealed record ImageResult(ImageOutcome Outcome, byte[]? Bytes = null, string? ContentType = null, TimeSpan? RetryAfter = null);
+
+/// <summary>
+/// Set by the image proxy on each partner image request, for a rate-limited image client (Harbor's) to read: how long the
+/// request may wait for a rate-limit token before it is given up unsent, or (warming) whether it may only use a spare one.
+/// </summary>
+internal sealed record ImageTokenPolicy(TimeSpan MaxWait, bool SpareOnly = false)
+{
+    public static readonly HttpRequestOptionsKey<ImageTokenPolicy> Key = new(nameof(ImageTokenPolicy));
+}
 
 /// <summary>
 /// Fetches partner images server-side, so the browser never calls a partner (partner images need the partner's
 /// credentials and live on hosts the browser cannot reach). Goes through the partner's image client, so the
 /// credentials and Harbor's image share of the rate limit apply. SSRF guard: only URLs on the partner's own origin or
 /// its configured ImageOrigins are fetched, and redirects are never followed. Successes are cached (size-limited); failures briefly, so a down
-/// partner costs one request per image per minute rather than one per page view.
+/// partner costs one request per image per minute rather than one per page view. A fetch waits only briefly for a
+/// rate-limit token (<see cref="MediaOptions.RateLimitWait"/>) and is otherwise not sent, so queued image requests never
+/// hold a browser's few connections; that answer is not cached.
 /// </summary>
 internal sealed class PartnerImageProxy(
     PartnerRegistry registry,
@@ -45,17 +64,8 @@ internal sealed class PartnerImageProxy(
 
     public async Task<ImageResult> GetAsync(string source, string sourceUrl, CancellationToken cancellationToken)
     {
-        if (registry.Find(source) is not { } partner || !partner.Options().IsConfigured)
+        if (Resolve(source, sourceUrl) is not var (partner, url))
         {
-            return NotFound;
-        }
-
-        // SSRF guard: only the partner's own origin and the image origins configured for it. Credentials still go to
-        // the BaseUrl origin only (OriginBoundCredentialsHandler).
-        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var url)
-            || !partner.Options().AllowedImageOrigins().Any(origin => PartnerUrls.IsSameOrigin(url, origin)))
-        {
-            logger.LogWarning("Refused to fetch {Partner} image outside its allowed origins: {Url}", partner.Code, sourceUrl);
             return NotFound;
         }
 
@@ -65,20 +75,55 @@ internal sealed class PartnerImageProxy(
             return cached;
         }
 
-        var fetch = _inFlight.GetOrAdd(key, _ => new Lazy<Task<ImageResult>>(() => FetchAndCacheAsync(partner, url, key)));
+        var fetch = _inFlight.GetOrAdd(key, _ => new Lazy<Task<ImageResult>>(() => FetchAndCacheAsync(partner, url, key, spareOnly: false)));
         try
         {
             return await fetch.Value.WaitAsync(options.CurrentValue.ResponseTimeout, time, cancellationToken);
         }
         catch (TimeoutException)
         {
-            // Typically a burst of Harbor images queued behind the shared rate limit. The fetch carries on and caches
-            // the image, so the browser shows a placeholder now and the image on the next view.
+            // A slow partner. The fetch carries on and caches the image, so the browser shows a placeholder now and the
+            // image on the next view.
             return Failed;
         }
     }
 
-    private async Task<ImageResult> FetchAndCacheAsync(PartnerRegistration partner, Uri url, string key)
+    /// <summary>
+    /// Fetches an image into the cache before a browser asks (<see cref="PartnerImageWarmer"/>), unless it is cached or
+    /// being fetched already: null then. Takes only a spare rate-limit token and never waits; Throttled means try later.
+    /// </summary>
+    public async Task<ImageResult?> WarmAsync(string source, string sourceUrl, CancellationToken cancellationToken)
+    {
+        if (Resolve(source, sourceUrl) is not var (partner, url) || cache.Get(url.AbsoluteUri) is not null || _inFlight.ContainsKey(url.AbsoluteUri))
+        {
+            return null;
+        }
+
+        var key = url.AbsoluteUri;
+        var fetch = _inFlight.GetOrAdd(key, _ => new Lazy<Task<ImageResult>>(() => FetchAndCacheAsync(partner, url, key, spareOnly: true)));
+        return await fetch.Value.WaitAsync(cancellationToken);
+    }
+
+    private (PartnerRegistration Partner, Uri Url)? Resolve(string source, string sourceUrl)
+    {
+        if (registry.Find(source) is not { } partner || !partner.Options().IsConfigured)
+        {
+            return null;
+        }
+
+        // SSRF guard: only the partner's own origin and the image origins configured for it. Credentials still go to
+        // the BaseUrl origin only (OriginBoundCredentialsHandler).
+        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var url)
+            || !partner.Options().AllowedImageOrigins().Any(origin => PartnerUrls.IsSameOrigin(url, origin)))
+        {
+            logger.LogWarning("Refused to fetch {Partner} image outside its allowed origins: {Url}", partner.Code, sourceUrl);
+            return null;
+        }
+
+        return (partner, url);
+    }
+
+    private async Task<ImageResult> FetchAndCacheAsync(PartnerRegistration partner, Uri url, string key, bool spareOnly)
     {
         var settings = options.CurrentValue;
         try
@@ -88,7 +133,12 @@ internal sealed class PartnerImageProxy(
             {
                 // Not tied to one browser request: other requests may be waiting for the same image.
                 using var timeout = new CancellationTokenSource(settings.MaxFetchDuration, time);
-                result = await FetchAsync(partner, url, settings.MaxImageBytes, timeout.Token);
+                result = await FetchAsync(partner, url, settings, spareOnly, timeout.Token);
+            }
+            catch (Ports.PartnerException ex) when (ex.InnerException is RateLimiterRejectedException rejected)
+            {
+                // Lumen's own share of the partner's rate limit said no and the partner was never asked: not cached.
+                return new ImageResult(ImageOutcome.Throttled, RetryAfter: rejected.RetryAfter);
             }
             catch (Exception ex) when (ex is Ports.PartnerException or OperationCanceledException or HttpRequestException or IOException)
             {
@@ -106,10 +156,13 @@ internal sealed class PartnerImageProxy(
         }
     }
 
-    private async Task<ImageResult> FetchAsync(PartnerRegistration partner, Uri url, long maxBytes, CancellationToken cancellationToken)
+    private async Task<ImageResult> FetchAsync(
+        PartnerRegistration partner, Uri url, MediaOptions settings, bool spareOnly, CancellationToken cancellationToken)
     {
+        var maxBytes = settings.MaxImageBytes;
         var client = httpClients.CreateClient(partner.ImageHttpClientName);
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Options.Set(ImageTokenPolicy.Key, new ImageTokenPolicy(settings.RateLimitWait, spareOnly));
         using var response = await client.SendToPartnerAsync(request, HttpCompletionOption.ResponseHeadersRead, partner.Code, cancellationToken);
         if (response.StatusCode != HttpStatusCode.OK)
         {

@@ -1,11 +1,15 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using Lumen.Api.Catalog;
+using Lumen.Api.Partners.Harbor;
+using Lumen.Api.Partners.Media;
 using Lumen.Domain.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lumen.IntegrationTests.Partners;
 
@@ -123,6 +127,71 @@ public sealed class PartnerEndpointTests(PartnerDatabase database) : IAsyncLifet
         again.StatusCode.Should().Be(HttpStatusCode.OK);
         _harbor.Calls.Should().ContainSingle("the second request is served from the cache")
             .Which.Should().Match<PartnerCall>(c => c.Uri.AbsoluteUri == "http://harbor.test/media/HSC-1/side.png" && c.Header("X-Harbor-Key") == FakeHarbor.Key);
+    }
+
+    [Fact]
+    public async Task An_image_with_no_rate_limit_token_in_time_gets_a_503_at_once_and_nothing_is_cached()
+    {
+        // One image token a minute, spent on the first image, so the second finds none for the rest of the test.
+        await using var app = _app.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Partners:Harbor:RateLimit:ImageBurst", "1");
+            b.UseSetting("Partners:Harbor:RateLimit:ImageRequestsPerMinute", "1");
+            b.UseSetting("Partners:Media:RateLimitWait", "00:00:00.200");
+            // A fetch queued for a token used to hold the browser until this ran out.
+            b.UseSetting("Partners:Media:ResponseTimeout", "00:01:00");
+        });
+        await app.Job("harbor").RunOnceAsync(Ct);
+        var tote = (await app.ProductsAsync(ProductSources.Harbor))["HSC-1"];
+        var browser = app.CreateClient();
+        (await browser.GetAsync($"/media/{tote.Id}/0", Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        _harbor.ClearCalls();
+
+        var clock = Stopwatch.StartNew();
+        var throttled = await browser.GetAsync($"/media/{tote.Id}/1", Ct);
+        var elapsed = clock.Elapsed;
+        var again = await browser.GetAsync($"/media/{tote.Id}/1", Ct);
+
+        throttled.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        throttled.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        throttled.Headers.CacheControl!.NoStore.Should().BeTrue();
+        throttled.Headers.RetryAfter!.Delta.Should().BeGreaterThan(TimeSpan.Zero);
+        elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5), "the request waits RateLimitWait (0.2 s) for a token, not ResponseTimeout (60 s)");
+        again.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable, "a throttled answer is not cached like a partner failure (502)");
+        _harbor.Calls.Should().BeEmpty("without a token nothing is sent to Harbor");
+        app.Services.GetRequiredService<PartnerImageCache>().Get("http://harbor.test/media/HSC-1/side.png").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task After_a_sync_primary_images_are_cached_ahead_of_browsers_with_spare_tokens_only()
+    {
+        // One new image token a minute, so the bucket cannot refill during the test.
+        await using var app = _app.WithWebHostBuilder(b =>
+        {
+            b.UseSetting("Partners:Harbor:RateLimit:ImageRequestsPerMinute", "1");
+            b.UseSetting("Partners:Media:WarmImageCount", "1");
+        });
+        await app.Job("harbor").RunOnceAsync(Ct);
+        var products = (await app.ProductsAsync(ProductSources.Harbor)).Values.Where(p => p.IsListed).ToList();
+        _harbor.ClearCalls();
+
+        await app.Services.GetRequiredService<PartnerImageWarmer>().WarmAsync(ProductSources.Harbor, Ct);
+
+        var warmed = _harbor.Calls.Should().ContainSingle().Which.Uri.AbsoluteUri;
+        warmed.Should().EndWith("/front.png", "the primary image is the one a catalogue card shows");
+        app.Services.GetRequiredService<HarborRateGate>().ImageLimiter.GetStatistics()!.CurrentAvailablePermits
+            .Should().Be(4, "warming took one token from the full burst of 5");
+
+        var other = products.First(p => p.Images[0].SourceUrl != warmed).Images[0].SourceUrl;
+        var spare = await app.Services.GetRequiredService<PartnerImageProxy>().WarmAsync(ProductSources.Harbor, other, Ct);
+        spare!.Outcome.Should().Be(ImageOutcome.Throttled, "a bucket that is not full has no token to spare for warming");
+        spare.RetryAfter.Should().BeGreaterThan(TimeSpan.Zero);
+        _harbor.Calls.Should().ContainSingle("warming never queues for a token");
+
+        _harbor.ClearCalls();
+        var product = products.Single(p => p.Images[0].SourceUrl == warmed);
+        (await app.CreateClient().GetAsync($"/media/{product.Id}/0", Ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        _harbor.Calls.Should().BeEmpty("the browser is served from the warmed cache");
     }
 
     [Fact]
