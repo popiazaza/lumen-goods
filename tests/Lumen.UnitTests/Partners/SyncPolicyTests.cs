@@ -1,3 +1,4 @@
+using System.Globalization;
 using Lumen.Api.Catalog;
 using Lumen.Api.Partners;
 using Microsoft.Extensions.Configuration;
@@ -145,20 +146,20 @@ public sealed class SyncPolicyTests
 
     [Theory]
     [Trait("BR", "BR-CAT-02")]
-    [InlineData("1.0850", 921_658.98, "EUR", 999_999.99)]
-    [InlineData("1.0850", 921_659.00, "EUR", null)] // 1,000,000.02 USD
-    [InlineData("2", 9_999_999.99, "EUR", null)] // within the partner's own cap, but 19,999,999.98 USD
-    [InlineData("1.0850", 999_999.99, "USD", 999_999.99)]
-    [InlineData("1.0850", 1_000_000.00, "USD", null)]
+    [InlineData("1.0850", "921658.98", "EUR", "999999.99")]
+    [InlineData("1.0850", "921659.00", "EUR", null)] // 1,000,000.02 USD
+    [InlineData("2", "9999999.99", "EUR", null)] // within the partner's own cap, but 19,999,999.98 USD
+    [InlineData("1.0850", "999999.99", "USD", "999999.99")]
+    [InlineData("1.0850", "1000000.00", "USD", null)]
     public void BR_CAT_02_a_partner_price_above_999_999_99_usd_once_converted_is_a_data_error_and_not_sellable(
-        string eurToUsd, double price, string currency, double? usd)
+        string eurToUsd, string price, string currency, string? usd)
     {
         var problems = new List<string>();
 
-        var content = Mapper(eurToUsd).ToContent(Snapshot(price: (decimal)price, currency: currency), null, problems)!;
+        var content = Mapper(eurToUsd).ToContent(Snapshot(price: decimal.Parse(price, CultureInfo.InvariantCulture), currency: currency), null, problems)!;
 
         // An order of 50 lines of 10 at a higher price could not be saved (PriceLimits.MaxUnitPriceUsd).
-        content.PriceUsd.Should().Be((decimal?)usd);
+        content.PriceUsd.Should().Be(usd is null ? null : decimal.Parse(usd, CultureInfo.InvariantCulture));
         if (usd is null)
         {
             content.SourcePrice.Should().BeNull();

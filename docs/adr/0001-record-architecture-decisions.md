@@ -7,7 +7,7 @@ Accepted, 2026-11-20
 ## Context
 
 Lumen Goods is built on several parallel branches, much of it with AI agents, and the repository is read by people who were not there when the decisions were made.
-The reasons behind the structure (why one host, why charge then refund, why .NET 10) are not visible in the code, and they are the first questions a reviewer or a new developer asks.
+The reasons behind the structure (why one host, why charge then refund, why these versions) are not visible in the code, and they are the first questions a reviewer or a new developer asks.
 They need to live next to the code, change through pull requests, and be short enough that people actually read them.
 
 ## Considered options

@@ -16,20 +16,20 @@ public sealed class TrustedProxyOptionsTests
     [Theory]
     [InlineData("nginx")]
     [InlineData("172.16.87.0/24")]
-    public void A_known_proxy_that_is_not_an_ip_address_is_refused_at_start(string proxy)
+    public async Task A_known_proxy_that_is_not_an_ip_address_is_refused_at_start(string proxy)
     {
         using var services = Services(proxy);
 
-        var act = () => services.GetRequiredService<IStartupValidator>().Validate();
+        var act = () => services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(TestContext.Current.CancellationToken);
 
-        act.Should().Throw<OptionsValidationException>().WithMessage("*KnownProxies*");
+        (await act.Should().ThrowAsync<OptionsValidationException>()).WithMessage("*KnownProxies*");
     }
 
     [Fact]
-    public void Only_the_known_proxies_and_loopback_are_believed()
+    public async Task Only_the_known_proxies_and_loopback_are_believed()
     {
         using var services = Services("172.16.87.10");
-        services.GetRequiredService<IStartupValidator>().Validate();
+        await services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(TestContext.Current.CancellationToken);
 
         var options = services.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
 

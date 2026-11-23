@@ -1,6 +1,6 @@
 # Build context: the repository root.
 #   docker build -f src/StandIns/HarborSupply.StandIn/Dockerfile -t harbor-standin:dev .
-FROM mcr.microsoft.com/dotnet/sdk:10.0.404 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 WORKDIR /repo
 
 # Restore first, from project files only, so the restore layer is cached across source edits.
@@ -11,7 +11,7 @@ RUN dotnet restore src/StandIns/HarborSupply.StandIn/HarborSupply.StandIn.csproj
 COPY src/StandIns/HarborSupply.StandIn/ src/StandIns/HarborSupply.StandIn/
 RUN dotnet publish src/StandIns/HarborSupply.StandIn/HarborSupply.StandIn.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.15 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS runtime
 WORKDIR /app
 
 # The SQLite file lives here; mount a volume on it to keep data across container re-creation.

@@ -8,6 +8,7 @@ using Lumen.Api.Wallets;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Validation;
 
 namespace Lumen.Api.Identity;
 
@@ -33,8 +34,10 @@ public sealed record SignInRequest([Required, EmailAddress] string Email, [Requi
 /// What sign-in and registration hand over to other features, bound with [AsParameters] so the handlers stay short:
 /// the guest cart merge (BR-CART-01) and, at registration, the new customer's wallet (BR-PAY-06). Both are best effort:
 /// the account and the session already exist, so a failure is logged and retried later (the guest cart merges at the
-/// next sign-in, the wallet opens on first use) instead of failing a sign-in that has already happened.
+/// next sign-in, the wallet opens on first use) instead of failing a sign-in that has already happened. Services, not
+/// input, so request validation skips it.
 /// </summary>
+[SkipValidation]
 internal sealed record AfterSignIn(ICartMergeService CartMerge, WalletService Wallets, ILogger<AfterSignIn> Logger)
 {
     public async Task MergeGuestCartAsync(HttpContext http, Guid customerId)
