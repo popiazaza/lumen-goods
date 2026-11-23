@@ -164,6 +164,32 @@ public sealed class PartnerAvailabilityCheckTests
         request.Header("Authorization").Should().StartWith("Basic ");
     }
 
+    [Theory]
+    [Trait("BR", "BR-CHK-02")]
+    [InlineData("K-7731;many;", null)]
+    [InlineData("K-7731;-4;", 0)]
+    public async Task BR_CHK_02_kestrel_units_that_cannot_be_read_or_are_negative_are_never_sold(string row, int? available)
+    {
+        var kestrel = new StubPartner(_ => StubPartner.Text($"ref;units;restock_date\r\n{row}\r\n", "text/csv"));
+
+        var result = await CheckKestrelAsync(kestrel, 1);
+
+        (result.Outcome, result.AvailableQuantity).Should().Be((PartnerLineCheckOutcome.Unavailable, available));
+    }
+
+    [Theory]
+    [Trait("BR", "BR-CHK-02")]
+    [InlineData("")]
+    [InlineData("K-7731;5;\r\n")]
+    [InlineData("sku;qty\r\nK-7731;5\r\n")]
+    public async Task BR_CHK_02_a_kestrel_stock_csv_without_its_header_makes_the_line_unreachable_never_ok(string csv)
+    {
+        // Unreachable is what checkout shows as "Temporarily unavailable" (PlaceOrderTests).
+        var result = await CheckKestrelAsync(new StubPartner(_ => StubPartner.Text(csv, "text/csv")), 1);
+
+        result.Outcome.Should().Be(PartnerLineCheckOutcome.Unreachable);
+    }
+
     [Fact]
     [Trait("BR", "BR-CHK-02")]
     public async Task BR_CHK_02_kestrel_down_makes_its_lines_unreachable()

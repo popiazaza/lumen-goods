@@ -126,6 +126,38 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
     }
 
     [Fact]
+    [Trait("BR", "BR-PAY-02")]
+    public async Task BR_PAY_02_no_full_card_number_or_cvc_reaches_the_logs()
+    {
+        const string Cvc = "739";
+        var (shopper, order) = await OrderAsync();
+        var (otherShopper, otherOrder) = await OrderAsync();
+        var logsBefore = host.Logs.Records.Count;
+
+        var paid = await shopper.PayByCardAsync(order.Number, "4111 1111 1111 1111", Cvc);
+        var refused = await otherShopper.PayByCardAsync(otherOrder.Number, "4111 1111 1111 1112", Cvc);
+        await host.ChargesFinishedAsync();
+
+        var payment = await AcceptedAsync(paid);
+        (await shopper.PaymentAsync(order.Number)).Status.Should().Be(PaymentStatus.Succeeded);
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest, "a Luhn failure is a validation error");
+        var logs = host.Logs.Records.Skip(logsBefore).ToList();
+        logs.Should().Contain(r => r.Contains($"charge {payment.PaymentId}", StringComparison.Ordinal),
+            "the charge was logged, so the capture saw the payment");
+        foreach (var secret in new[] { "4111111111111111", "4111 1111 1111 1111", "411111111111", "4111111111111112", "4111 1111 1111 1112" })
+        {
+            logs.Should().NotContain(r => r.Contains(secret, StringComparison.Ordinal), $"no log record carries the card number ({secret})");
+        }
+
+        // Timing logs (request and SQL durations such as "elapsed=739") can hold any 3-digit number and never carry
+        // a request body, so the CVC check reads every other category.
+        string[] timing = ["Microsoft.AspNetCore.Hosting", "Microsoft.EntityFrameworkCore", "System.Net.Http"];
+        logs.Where(r => !timing.Any(category => r.Contains($" {category}", StringComparison.Ordinal)))
+            .Should().NotContain(r => System.Text.RegularExpressions.Regex.IsMatch(r, $@"(?<![0-9A-Za-z]){Cvc}(?![0-9A-Za-z])"),
+                "no log record carries the CVC");
+    }
+
+    [Fact]
     [Trait("BR", "BR-CHK-01")]
     public async Task BR_CHK_01_the_gateway_is_charged_the_order_total_never_an_amount_from_the_client()
     {
@@ -206,6 +238,36 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
         again.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await again.ReadJsonAsync()).GetProperty("type").GetString().Should().Be(PaymentProblemTypes.OrderNotPayable);
         (await host.OrderAsync(order.Number)).Payments.Should().ContainSingle();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_another_customer_cannot_pay_read_or_complete_a_payment_of_my_order()
+    {
+        var (owner, order) = await OrderAsync();
+        var other = await host.NewShopperAsync();
+        var otherBalance = await other.WalletBalanceAsync();
+
+        // Nothing started yet: paying it by wallet or card, or reading its payment, is 404 as for an unknown number.
+        (await other.PayByWalletAsync(order.Number)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await other.PayByCardAsync(order.Number, "4111111111111111")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await other.Session.GetAsync($"/api/v1/orders/{order.Number}/payments/current")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        await host.ChargesFinishedAsync();
+        var untouched = await host.OrderAsync(order.Number);
+        (untouched.Status, untouched.Payments.Count, untouched.FailedPaymentAttempts).Should().Be((OrderStatus.AwaitingPayment, 0, 0));
+        (await host.GatewayChargesAsync(untouched.Id)).Should().BeEmpty();
+        (await other.WalletBalanceAsync()).Should().Be(otherBalance);
+
+        // The owner's payment waits for a one-time code: the other customer can neither read it nor complete it.
+        var waiting = await owner.PayByCardAndWaitAsync(order.Number, "4242000000000034");
+        waiting.Status.Should().Be(PaymentStatus.RequiresAction);
+        (await other.Session.GetAsync($"/api/v1/orders/{order.Number}/payments/current")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await other.SubmitCodeAsync(order.Number, "123456")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var stillWaiting = await owner.PaymentAsync(order.Number);
+        (stillWaiting.PaymentId, stillWaiting.Status, stillWaiting.NeedsOneTimeCode).Should().Be((waiting.PaymentId, PaymentStatus.RequiresAction, true));
+        (await host.OrderAsync(order.Number)).Payments.Should().ContainSingle();
+        (await other.WalletBalanceAsync()).Should().Be(otherBalance);
     }
 
     [Fact]

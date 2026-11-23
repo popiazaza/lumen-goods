@@ -79,13 +79,21 @@ internal sealed class KestrelStockSource(IHttpClientFactory httpClients, IOption
 /// <summary>The /stock CSV, parsed by header name.</summary>
 internal static class KestrelStockCsv
 {
+    // Units are whole numbers with an optional ASCII minus. Parsed with an explicit NumberFormatInfo, never a culture
+    // (InvariantGlobalization is on, and a culture's rules can change), like KestrelPrice.
+    private static readonly NumberFormatInfo UnitsFormat = NumberFormatInfo.ReadOnly(new()
+    {
+        NegativeSign = "-",
+        PositiveSign = "+",
+    });
+
     private static readonly CsvReaderOptions Options = new()
     {
         Separator = ';',
         HasHeader = true,
         SkipEmptyLines = true,
         TrimWhitespace = true,
-        FormatProvider = CultureInfo.InvariantCulture,
+        FormatProvider = UnitsFormat,
     };
 
     public static Dictionary<string, StockLevel> Parse(string text, List<string> problems)
@@ -114,7 +122,7 @@ internal static class KestrelStockCsv
             }
 
             var units = csv.GetString(unitsColumn)?.Trim();
-            if (int.TryParse(units, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var quantity))
+            if (int.TryParse(units, NumberStyles.AllowLeadingSign, UnitsFormat, out var quantity))
             {
                 if (quantity < 0)
                 {

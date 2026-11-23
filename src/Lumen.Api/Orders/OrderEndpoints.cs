@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Lumen.Api.Catalog;
+using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Payments;
@@ -33,7 +34,7 @@ internal static class OrderEndpoints
         ClaimsPrincipal user, LumenDbContext db, SellerDirectory sellers, PaymentWindowPolicy paymentWindow, TimeProvider clock,
         CancellationToken cancellationToken, string? page = null, string? pageSize = null)
     {
-        if (CustomerId(user) is not { } customerId)
+        if (user.CustomerId() is not { } customerId)
         {
             return TypedResults.Unauthorized();
         }
@@ -84,7 +85,7 @@ internal static class OrderEndpoints
         string number, ClaimsPrincipal user, HttpRequest request, OrderDetailReader reader, IOptions<CatalogOptions> catalog,
         CancellationToken cancellationToken)
     {
-        if (CustomerId(user) is not { } customerId)
+        if (user.CustomerId() is not { } customerId)
         {
             return TypedResults.Unauthorized();
         }
@@ -95,10 +96,6 @@ internal static class OrderEndpoints
             : await reader.ForCustomerAsync(normalised, customerId, request.PublicBaseUrl(catalog.Value), cancellationToken);
         return order is null ? NotFound() : TypedResults.Ok(order);
     }
-
-    /// <summary>The signed-in user's id (Identity puts it in the NameIdentifier claim).</summary>
-    public static Guid? CustomerId(ClaimsPrincipal user) =>
-        Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 
     /// <summary>Upper-cased and checked (<see cref="OrderNumberGenerator.IsWellFormed"/>); null for anything that cannot be an order number.</summary>
     public static string? NormaliseNumber(string? number)

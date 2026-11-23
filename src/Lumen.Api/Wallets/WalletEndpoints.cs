@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -21,18 +20,17 @@ internal static class WalletEndpoints
         return api;
     }
 
-    private static async Task<Results<Ok<WalletDto>, ProblemHttpResult>> GetWallet(
+    private static async Task<Results<Ok<WalletDto>, ProblemHttpResult, UnauthorizedHttpResult>> GetWallet(
         ClaimsPrincipal user,
         LumenDbContext db,
         WalletService wallets,
         IOptions<WalletOptions> options,
-        IOptions<IdentityOptions> identity,
         CancellationToken cancellationToken)
     {
         // The wallet is always the caller's own, from the session; no customer id is ever taken from the request.
-        if (!Guid.TryParse(user.FindFirstValue(identity.Value.ClaimsIdentity.UserIdClaimType), out var customerId))
+        if (user.CustomerId() is not { } customerId)
         {
-            return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Sign in to see your wallet");
+            return TypedResults.Unauthorized();
         }
 
         // BR-PAY-06: every customer has a wallet, opened on first use if registration could not open it. The customer

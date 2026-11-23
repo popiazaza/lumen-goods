@@ -1,4 +1,5 @@
 using Lumen.Api.Catalog;
+using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Api.Orders;
 using Lumen.Domain.Pricing;

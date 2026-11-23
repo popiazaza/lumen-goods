@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Claims;
 using System.Text.Json;
 using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
@@ -161,8 +162,8 @@ internal static class AdminOrderEndpoints
     /// waited for, never overwritten; a conflict that still slips through is a 409, never a 500.
     /// </summary>
     private static async Task<Results<Ok<AdminOrderDto>, NotFound<ProblemDetails>, ValidationProblem, ProblemHttpResult>> ResolveLine(
-        string number, Guid lineId, ResolveOrderLineRequest body, LumenDbContext db, OrderDetailReader reader, SellerDirectory sellers,
-        TimeProvider clock, HttpRequest request, IOptions<CatalogOptions> catalog, CancellationToken cancellationToken)
+        string number, Guid lineId, ResolveOrderLineRequest body, ClaimsPrincipal user, LumenDbContext db, OrderDetailReader reader,
+        SellerDirectory sellers, TimeProvider clock, HttpRequest request, IOptions<CatalogOptions> catalog, CancellationToken cancellationToken)
     {
         if (body.Decision is not { } resolution || !Enum.IsDefined(resolution))
         {
@@ -177,6 +178,11 @@ internal static class AdminOrderEndpoints
 
         var note = string.IsNullOrWhiteSpace(body.Note) ? null : body.Note.Trim();
         var because = note is null ? "" : $": {note}";
+
+        // Which admin decided is part of every reason it writes, so the order's history says who to ask. The customer
+        // never sees it: a refund's customer-facing reason stops before the bracket (OrderDetailMapping.CustomerReason),
+        // and line and partner order reasons are admin-only.
+        var admin = $"admin {user.SignedInAs()}";
 
         try
         {
@@ -228,23 +234,23 @@ internal static class AdminOrderEndpoints
             if (decision == OrderLineStatus.Rejected)
             {
                 var paymentId = await LineRejection.SucceededPaymentIdAsync(db, order.Id, cancellationToken);
-                if (LineRejection.Reject(order, line, paymentId, $"Not supplied by {seller} (rejected by an admin{because})", now) is { } refund)
+                if (LineRejection.Reject(order, line, paymentId, $"Not supplied by {seller} (rejected by {admin}{because})", now) is { } refund)
                 {
                     db.Refunds.Add(refund);
                 }
 
-                line.StatusReason = LineRejection.Truncate($"Rejected by an admin{because}");
+                line.StatusReason = LineRejection.Truncate($"Rejected by {admin}{because}");
             }
             else
             {
                 line.Status = OrderTransitions.Line.Move(line.Status, OrderLineStatus.Confirmed);
-                line.StatusReason = LineRejection.Truncate($"Confirmed by an admin{because}");
+                line.StatusReason = LineRejection.Truncate($"Confirmed by {admin}{because}");
             }
 
             partnerOrder.Status = partnerOrderAfter;
             partnerOrder.DecidedUtc = now;
             partnerOrder.NextAttemptUtc = null;
-            partnerOrder.Reason = LineRejection.Truncate($"Closed by an admin, line {(decision == OrderLineStatus.Confirmed ? "confirmed" : "rejected")}{because}");
+            partnerOrder.Reason = LineRejection.Truncate($"Closed by {admin}, line {(decision == OrderLineStatus.Confirmed ? "confirmed" : "rejected")}{because}");
             LineRejection.DeriveOrderStatus(order);
 
             await db.SaveChangesAsync(cancellationToken);

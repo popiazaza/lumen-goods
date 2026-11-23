@@ -142,6 +142,37 @@ public sealed class RefundJobTests(CheckoutHost host) : IClassFixture<CheckoutHo
     }
 
     [Fact]
+    [Trait("BR", "BR-PAY-06")]
+    [Trait("BR", "BR-ORD-03")]
+    public async Task BR_PAY_06_a_wallet_refund_already_credited_but_not_recorded_is_marked_succeeded_without_a_second_credit()
+    {
+        var (shopper, order) = await PaidOrderAsync(byWallet: true);
+        var paidBalance = await shopper.WalletBalanceAsync();
+        var refund = await RecordKestrelRefundAsync(order);
+
+        // An earlier run credited the wallet, and its success was lost (the refund row still says Pending).
+        await host.WithDbAsync(async db =>
+        {
+            await db.Wallets.Where(w => w.CustomerId == shopper.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(w => w.Balance, w => w.Balance + RefundAmount), Ct);
+            db.WalletTransactions.Add(new WalletTransaction
+            {
+                CustomerId = shopper.Id, Amount = RefundAmount, BalanceAfter = paidBalance + RefundAmount, Kind = WalletTransactionKind.Refund,
+                OrderId = order.Id, RefundId = refund.Id, CreatedUtc = host.Clock.GetUtcNow(),
+            });
+            return await db.SaveChangesAsync(Ct);
+        });
+
+        await RunJobAsync();
+
+        var done = await RefundAsync(refund.Id);
+        (done.Status, done.NextAttemptUtc).Should().Be((RefundStatus.Succeeded, (DateTimeOffset?)null), "the credit exists, so the refund is final");
+        (await shopper.WalletBalanceAsync()).Should().Be(paidBalance + RefundAmount, "the wallet is credited once");
+        (await host.WithDbAsync(db => db.WalletTransactions.CountAsync(t => t.RefundId == refund.Id, Ct))).Should().Be(1);
+        (await host.EventsAsync(refund.PaymentId)).Should().ContainSingle(e => e.Type == PaymentEventType.Refunded);
+    }
+
+    [Fact]
     [Trait("BR", "BR-ORD-03")]
     public async Task BR_ORD_03_a_refused_card_refund_is_retried_later_with_the_same_refund_id()
     {

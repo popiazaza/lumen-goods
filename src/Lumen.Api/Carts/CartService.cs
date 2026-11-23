@@ -1,7 +1,6 @@
-using System.Security.Claims;
+using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Domain.Catalog;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -62,7 +61,6 @@ internal sealed class CartService(
     AvailabilityPolicy policy,
     TimeProvider time,
     IOptions<CartOptions> options,
-    IOptions<IdentityOptions> identity,
     ILogger<CartService> logger)
 {
     /// <summary>
@@ -300,8 +298,7 @@ internal sealed class CartService(
             return new CartOwner(null, GuestCartCookie.Read(http));
         }
 
-        var userId = http.User.FindFirstValue(identity.Value.ClaimsIdentity.UserIdClaimType);
-        return Guid.TryParse(userId, out var customerId)
+        return http.User.CustomerId() is { } customerId
             ? new CartOwner(customerId, null)
             : throw new InvalidOperationException("The signed-in principal has no user id claim.");
     }

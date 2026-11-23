@@ -22,7 +22,7 @@ internal static class PartnersFeature
 {
     public static IServiceCollection AddPartners(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOptions<PartnersOptions>().Bind(configuration.GetSection(PartnersOptions.SectionName));
+        services.AddOptions<PartnersOptions>().Bind(configuration.GetSection(PartnersOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<FxOptions>().Bind(configuration.GetSection(FxOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<JobsOptions>().Bind(configuration.GetSection(JobsOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();
         services.AddOptions<MediaOptions>().Bind(configuration.GetSection(MediaOptions.SectionName)).ValidateDataAnnotations().ValidateOnStart();

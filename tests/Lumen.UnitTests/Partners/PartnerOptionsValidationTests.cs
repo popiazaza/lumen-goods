@@ -39,6 +39,20 @@ public sealed class PartnerOptionsValidationTests
         act.Should().Throw<OptionsValidationException>().WithMessage("*RateLimitWait*");
     }
 
+    [Theory]
+    [InlineData("Partners:AttributeKeySynonyms:fill power", "fillPower")]
+    [InlineData("Partners:AttributeKeySynonyms:colour", "Color")]
+    [InlineData("Partners:AttributeKeySynonyms:colour", "colour shade")]
+    [InlineData("Partners:AttributeKeySynonyms:colour", "")]
+    public void An_attribute_key_synonym_that_is_not_lower_camel_case_on_both_sides_is_refused_at_start(string key, string value)
+    {
+        using var services = Services(overrides: new() { [key] = value });
+
+        var act = () => services.GetRequiredService<IStartupValidator>().Validate();
+
+        act.Should().Throw<OptionsValidationException>().WithMessage("*AttributeKeySynonyms*");
+    }
+
     [Fact]
     public void The_default_settings_pass_start_up_validation()
     {

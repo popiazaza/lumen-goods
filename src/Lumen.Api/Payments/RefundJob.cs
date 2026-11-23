@@ -213,12 +213,19 @@ internal sealed class RefundExecutor(
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException
         {
-            // IX_WalletTransactions_RefundId_Refund: this refund was already credited; never credit it twice.
+            SqlState: PostgresErrorCodes.UniqueViolation,
+            ConstraintName: "IX_WalletTransactions_RefundId_Refund",
+        })
+        {
+            // A wallet transaction for this refund already exists. This code credits the wallet and records the
+            // success in one transaction, so it cannot leave that state itself; the check is a safeguard against data
+            // written any other way. Never credit twice, but do record the success: the money is with the customer,
+            // and a refund left Pending would be retried into this same violation on every run.
             await transaction.RollbackAsync(CancellationToken.None);
-            logger.LogWarning("Refund {Refund} was already credited to the wallet", refundId);
-            return (await db.Refunds.AsNoTracking().SingleAsync(r => r.Id == refundId, cancellationToken)).Status;
+            logger.LogWarning("Refund {Refund} was already credited to the wallet; recording it as succeeded", refundId);
+            return await CompleteAsync(refundId, payment, succeeded: true, error: null, cancellationToken);
         }
 
         metrics.RefundFinished(PaymentMethod.Wallet, RefundStatus.Succeeded);
@@ -242,7 +249,7 @@ internal sealed class RefundExecutor(
         metrics.RefundFinished(payment.Method, refund.Status);
         if (succeeded)
         {
-            logger.LogInformation("Refund {Refund}: {Amount} USD refunded to the card", refundId, refund.Amount);
+            logger.LogInformation("Refund {Refund}: {Amount} USD refunded ({Method})", refundId, refund.Amount, payment.Method);
         }
         else
         {

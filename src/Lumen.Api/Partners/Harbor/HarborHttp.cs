@@ -7,8 +7,9 @@ using Polly.RateLimiting;
 namespace Lumen.Api.Partners.Harbor;
 
 /// <summary>
-/// The two token buckets every Harbor request in this process draws from: one for the catalogue sync and orders, a
-/// smaller one for images (see <see cref="HarborRateLimitOptions"/>).
+/// The two token buckets every Harbor request in this process draws from: one for the catalogue sync, orders and the
+/// checkout live checks (BR-CHK-02, which go through the same named client, so a busy sync can delay a checkout's item
+/// reads), and a smaller one for images (see <see cref="HarborRateLimitOptions"/>).
 /// </summary>
 internal sealed class HarborRateGate : IDisposable
 {
@@ -26,7 +27,7 @@ internal sealed class HarborRateGate : IDisposable
         ImageLimiter = Create(settings.ImageRequestsPerMinute, settings.ImageBurst, settings.ImageQueueLimit);
     }
 
-    /// <summary>Catalogue sync and order calls.</summary>
+    /// <summary>Catalogue sync, order calls and checkout live checks.</summary>
     public TokenBucketRateLimiter Limiter { get; }
 
     /// <summary>Image fetches only.</summary>

@@ -1,4 +1,4 @@
-using Lumen.Api.Checkout;
+using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Domain.Orders;

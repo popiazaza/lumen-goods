@@ -283,6 +283,44 @@ public sealed class KestrelAdapterTests
             .Should().Be(new Availability(AvailabilityStatus.OutOfStock, null));
     }
 
+    [Theory]
+    [Trait("BR", "BR-CAT-01")]
+    [InlineData("twelve", null)]
+    [InlineData("1.5", null)]
+    [InlineData("1,5", null)]
+    [InlineData("", null)]
+    [InlineData("-3", 0)]
+    public async Task BR_CAT_01_units_that_are_not_a_whole_number_or_negative_are_never_in_stock_and_are_recorded(string units, int? quantity)
+    {
+        var kestrel = new StubPartner(_ => StubPartner.Text($"ref;units;restock_date\r\nK-1;{units};\r\n", "text/csv"));
+        await using var services = Services(kestrel: kestrel);
+
+        var result = await services.GetRequiredService<KestrelStockSource>().FetchStockAsync(["K-1"], Ct);
+
+        result.Levels["K-1"].Quantity.Should().Be(quantity);
+        new AvailabilityPolicy().Describe(result.Levels["K-1"].Quantity, result.Levels["K-1"].StatusWhenQuantityUnknown).Status
+            .Should().Be(AvailabilityStatus.OutOfStock);
+        result.Problems.Should().ContainSingle().Which.Should().Contain("K-1");
+    }
+
+    [Theory]
+    [Trait("BR", "BR-CAT-01")]
+    [InlineData("")]
+    [InlineData("\r\n")]
+    [InlineData("K-1;5;\r\n")]
+    [InlineData("reference;stock\r\nK-1;5\r\n")]
+    public async Task BR_CAT_01_a_stock_csv_without_a_ref_units_header_is_refused_and_reads_no_stock(string csv)
+    {
+        var kestrel = new StubPartner(_ => StubPartner.Text(csv, "text/csv"));
+        await using var services = Services(kestrel: kestrel);
+
+        var act = () => services.GetRequiredService<KestrelStockSource>().FetchStockAsync(["K-1"], Ct);
+
+        // The only chunk failed, so the whole read fails and the sync keeps the stock as last read.
+        (await act.Should().ThrowAsync<PartnerException>().WithMessage("Kestrel stock could not be read: Kestrel stock CSV*"))
+            .WithInnerException<PartnerDataException>();
+    }
+
     [Fact]
     public async Task Failing_images_open_only_the_image_breaker_so_feed_stock_and_orders_keep_going()
     {
