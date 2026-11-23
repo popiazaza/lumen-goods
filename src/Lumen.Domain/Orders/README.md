@@ -24,7 +24,7 @@ After payment the status follows the lines (`OrderStatusDerivation.Derive`, BR-O
 stateDiagram-v2
     [*] --> AwaitingPayment
     AwaitingPayment --> PaymentProcessing: payment started (atomic claim)
-    AwaitingPayment --> Expired: hold over, no payment in progress
+    AwaitingPayment --> Expired: hold over, no payment in progress or Failed
     PaymentProcessing --> Paid: payment succeeded
     PaymentProcessing --> AwaitingPayment: payment failed, can retry
     PaymentProcessing --> Expired: payment failed, no attempts or hold left
