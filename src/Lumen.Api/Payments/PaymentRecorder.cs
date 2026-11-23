@@ -168,9 +168,12 @@ internal sealed class PaymentRecorder(
                 payment.Status = PaymentTransitions.Payment.Move(payment.Status, PaymentStatus.RequiresAction);
                 payment.StatusChangedUtc = issued;
                 payment.OneTimeCodeIssuedUtc = issued;
-                payment.OneTimeCodeExpiresUtc = result.OneTimeCodeExpiresUtc ?? codes.ExpiresAt(issued);
+                var expires = result.OneTimeCodeExpiresUtc ?? codes.ExpiresAt(issued);
+                payment.OneTimeCodeExpiresUtc = expires;
+                // A length, not a clock time: the admin page shows the event's own time in the viewer's time zone.
+                // Counted from that time (now), not from when the gateway issued the code, so the two add up.
                 await writer.AddEventAsync(payment, PaymentEventType.OneTimeCodeRequested, now, null,
-                    $"One-time code issued; it expires at {payment.OneTimeCodeExpiresUtc:yyyy-MM-dd HH:mm:ss} UTC", cancellationToken);
+                    $"One-time code issued; valid for {Validity(expires - now)}", cancellationToken);
                 return true;
 
             case GatewayChargeStatus.Error or GatewayChargeStatus.NotFound when payment.Status == PaymentStatus.Processing:
@@ -232,5 +235,18 @@ internal sealed class PaymentRecorder(
                 logger.LogDebug("Payment {Payment} changed concurrently; re-reading it", paymentId);
             }
         }
+    }
+
+    /// <summary>"5 minutes", "4 minutes 20 seconds", "1 second"; a window already past reads "0 seconds".</summary>
+    internal static string Validity(TimeSpan validity)
+    {
+        var seconds = Math.Max(0, (long)Math.Round(validity.TotalSeconds, MidpointRounding.AwayFromZero));
+        static string Unit(long n, string unit) => n == 1 ? $"1 {unit}" : $"{n} {unit}s";
+        return (seconds / 60, seconds % 60) switch
+        {
+            (0, var s) => Unit(s, "second"),
+            (var m, 0) => Unit(m, "minute"),
+            (var m, var s) => $"{Unit(m, "minute")} {Unit(s, "second")}",
+        };
     }
 }

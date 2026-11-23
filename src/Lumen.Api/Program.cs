@@ -5,6 +5,7 @@ using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Infrastructure.Json;
+using Lumen.Api.Infrastructure.OpenApi;
 using Lumen.Api.Infrastructure.RateLimiting;
 using Lumen.Api.Infrastructure.Security;
 using Lumen.Api.Infrastructure.Telemetry;
@@ -21,7 +22,7 @@ builder.Services.AddLumenTelemetry(builder.Configuration);
 builder.Services.AddProblemDetails();
 builder.Services.ConfigureHttpJsonOptions(options => JsonDefaults.Configure(options.SerializerOptions));
 builder.Services.AddValidation();
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddDocumentTransformer<XmlDocTextTransformer>());
 builder.Services.AddLumenData(builder.Configuration);
 builder.Services.AddLumenIdentity(builder.Configuration);
 builder.Services.AddCatalog(builder.Configuration);
@@ -65,7 +66,10 @@ app.MapLumenHealthChecks();
 if (app.Configuration.GetValue("Docs:Enabled", app.Environment.IsDevelopment()))
 {
     app.MapOpenApi("/api/openapi/{documentName}.json");
-    app.MapScalarApiReference("/api/docs", options => options.WithOpenApiRoutePattern("/api/openapi/{documentName}.json"));
+    // No default fonts: Scalar would fetch them from its CDN, which the CSP (font-src 'self') blocks; system fonts it is.
+    app.MapScalarApiReference("/api/docs", options => options
+        .WithOpenApiRoutePattern("/api/openapi/{documentName}.json")
+        .DisableDefaultFonts());
 }
 
 await app.Services.InitializeDatabaseAsync(app.Lifetime.ApplicationStopping);

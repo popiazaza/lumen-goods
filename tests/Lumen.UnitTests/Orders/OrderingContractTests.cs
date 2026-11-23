@@ -44,7 +44,7 @@ public sealed class OrderingContractTests
                 At),
         ],
         ItemCount: 4,
-        new CartTotalsDto(219.6m, 4.99m, 17.568m, 242.158m),
+        new CartTotalsDto(4, 219.6m, 4.99m, 17.568m, 242.158m),
         CanCheckout: false);
 
     [Fact]

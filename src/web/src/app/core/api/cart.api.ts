@@ -82,6 +82,10 @@ export interface CartLineDto {
 Estimated with Standard shipping per seller; checkout prices the real order.
 */
 export interface CartTotals {
+  /**
+  Units the subtotal covers: lines that can't be ordered are left out, unlike the cart's `itemCount`.
+  */
+  itemCount: number;
   subtotal: number;
   shipping: number;
   tax: number;
@@ -98,7 +102,7 @@ export interface CartTotals {
 export interface CartDto {
   lines: CartLineDto[];
   /**
-  Sum of the line quantities (the header badge).
+  Sum of all the line quantities (the header badge, A-46); the summary uses `totals.itemCount`.
   */
   itemCount: number;
   totals: CartTotals;
@@ -116,7 +120,7 @@ export interface CartDto {
 export const EMPTY_CART: CartDto = {
   lines: [],
   itemCount: 0,
-  totals: { subtotal: 0, shipping: 0, tax: 0, total: 0, isEstimate: true },
+  totals: { itemCount: 0, subtotal: 0, shipping: 0, tax: 0, total: 0, isEstimate: true },
   canCheckout: false,
   maxLines: 50,
 };

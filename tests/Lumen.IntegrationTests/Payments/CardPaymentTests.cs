@@ -217,6 +217,8 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
         (payment.Status, payment.NeedsOneTimeCode, payment.TestOneTimeCode).Should().Be((PaymentStatus.RequiresAction, true, "123456"));
         payment.OneTimeCodeExpiresUtc.Should().Be(host.Clock.GetUtcNow().AddMinutes(5).UtcDateTime);
         payment.ServerTimeUtc.Should().Be(host.Clock.GetUtcNow().UtcDateTime);
+        (await host.EventsAsync(payment.PaymentId)).Should().ContainSingle(e => e.Type == PaymentEventType.OneTimeCodeRequested)
+            .Which.Detail.Should().Be("One-time code issued; valid for 5 minutes", "the event has its own time, shown in local time");
 
         host.Clock.Advance(TimeSpan.FromSeconds(4 * 60 + 59));
         var response = await shopper.SubmitCodeAsync(order.Number, "123456");

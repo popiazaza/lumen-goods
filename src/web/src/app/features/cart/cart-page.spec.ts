@@ -289,6 +289,20 @@ describe('CartPage', () => {
     expect(host().querySelector('.banner-error')).toBeNull();
   });
 
+  it('counts only the items the subtotal covers and names the lines left out', async () => {
+    const goneTen = {
+      ...GONE_TOTE,
+      quantity: 10,
+      product: { ...GONE_TOTE.product, name: 'Cotton Market Tote' },
+    };
+    await open(aCart([LUMEN_MUG, goneTen], { canCheckout: false, itemCount: 12 }));
+
+    expect(text(host(), '.totals dt')).toBe('Subtotal (2 items)');
+    expect(text(host(), '.summary p.muted')).toContain(
+      'Not included, as it can’t be ordered: Cotton Market Tote.'
+    );
+  });
+
   it('blocks checkout with the reason while a line cannot be bought', async () => {
     await open(aCart([LUMEN_MUG, GONE_TOTE], { canCheckout: false }));
     const checkout = host().querySelector<HTMLButtonElement>(
@@ -373,7 +387,14 @@ describe('CartPage', () => {
 
     request.flush(
       aCart([{ ...KESTREL_SOCKS, quantity: 2, notices: LUMEN_MUG.notices }], {
-        totals: { subtotal: 34.62, shipping: 4.99, tax: 2.77, total: 42.38, isEstimate: true },
+        totals: {
+          itemCount: 2,
+          subtotal: 34.62,
+          shipping: 4.99,
+          tax: 2.77,
+          total: 42.38,
+          isEstimate: true,
+        },
       })
     );
     await fixture.whenStable();

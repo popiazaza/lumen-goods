@@ -225,7 +225,11 @@
       <aside class="summary" aria-labelledby="summary-title">
         <h2 id="summary-title">Order summary</h2>
         <dl class="totals">
-          <dt>Subtotal ({{ cart.itemCount === 1 ? '1 item' : `${cart.itemCount} items` }})</dt>
+          <dt>
+            Subtotal ({{
+              cart.totals.itemCount === 1 ? '1 item' : `${cart.totals.itemCount} items`
+            }})
+          </dt>
           <dd>{{ cart.totals.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
           <dt>{{ cart.totals.isEstimate ? 'Estimated shipping' : 'Shipping' }}</dt>
           <dd>{{ cart.totals.shipping | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
@@ -238,8 +242,8 @@
         </dl>
         <p class="muted">
           Standard shipping per shop. You choose shipping and see the final total before you pay.
-          @if (hasUnavailable()) {
-            Items that can’t be ordered are not included.
+          @if (excludedNote(); as note) {
+            {{ note }}
           }
         </p>
 
