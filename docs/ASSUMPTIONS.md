@@ -82,7 +82,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-51 | **Single launch country: US.** The spec never names a country; inferred from USD-only prices, "sales tax", the sample addresses (Portland, OR, US) and "more countries" being a planned feature. The country is a config value; addresses use US rules (the form offers the 50 states + DC; the API also accepts PR, GU, VI, AS and MP; 5-digit or ZIP+4) |
 | A-52 | Admin can't hard-delete own products (orders reference them); deactivate/reactivate only. Stock edits are rejected if they'd drop below what's already reserved |
 | A-53 | "Refresh now" runs a sync immediately in the background; a second click while running shows "running" |
-| A-54 | "Live products" = visible in the shop; "recent errors" = last 50 sync/order errors |
+| A-54 | "Live products" = visible in the shop; "recent errors" = sync and order errors: the last 50 are kept per partner, the API returns the newest 10, and the page shows 5 until "Show all" |
 | A-55 | `docker compose up --build` includes the front-end build, migrations and seeding; no manual steps. Plain HTTP on `localhost` |
 | A-56 | **Deviation from "latest stable versions"**, see [ADR 0007](adr/0007-dotnet-10-lts-and-postgresql-18.md): **.NET 10 LTS** and **PostgreSQL 18.7** on purpose: .NET 11 is GA but its PostgreSQL provider is not stable yet; adopting a brand-new major before its ecosystem catches up is a risk not worth taking for a production launch. PostgreSQL 19 was released on 2026-11-19, the day before the build started; 18.7 is its newest proven line |
 | A-57 | English-only UI |
