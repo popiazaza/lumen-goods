@@ -53,7 +53,7 @@ public static class OrderTransitions
         new(PartnerOrderStatus.Pending, PartnerOrderStatus.GivenUp, "not accepted within 30 min"),
         new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Confirmed, "Harbor created the order"),
         new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Accepted, "Kestrel ticket RECEIVED"),
-        new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Rejected, "Harbor 409 or 422"),
+        new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Rejected, "Harbor 400, 409 or 422, Kestrel 400"),
         new(PartnerOrderStatus.Submitted, PartnerOrderStatus.GivenUp, "not accepted within 30 min"),
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.Confirmed, "Kestrel CONFIRMED"),
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.Rejected, "Kestrel REJECTED"),

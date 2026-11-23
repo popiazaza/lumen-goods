@@ -164,7 +164,7 @@ sequenceDiagram
         OJ->>P: POST with the same reference<br/>every time, or poll the ticket
         alt Harbor 201 or 200, Kestrel CONFIRMED
             OJ->>DB: line Confirmed
-        else Harbor 409/422, REJECTED, or never reached it in 30 min
+        else Harbor 400/409/422, Kestrel 400 or REJECTED, or never reached it in 30 min
             OJ->>DB: line Rejected and<br/>Refund Pending
             RJ->>G: refund, key = refund id<br/>(wallet: credit instead)
             RJ->>DB: Refund Succeeded
