@@ -46,7 +46,9 @@ docker compose up --build
 ```
 
 The first build takes a few minutes; later starts take seconds. Migrations and seed data run at start-up.
-Everything listens on `127.0.0.1` only.
+Everything listens on `127.0.0.1` only. After a start, some Harbor pictures show a placeholder for the first few
+minutes: Lumen fetches them within its share of Harbor's rate limit (10 a minute), main images first, and caches them
+in memory (DESIGN §6).
 
 | What | URL | Credentials |
 |---|---|---|
