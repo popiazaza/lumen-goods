@@ -95,7 +95,10 @@ public sealed record ShippingOptionDto(
 /// order (BR-PAY-01); after a 409 nothing used the key, so the re-confirmed request may send it again.
 /// </summary>
 /// <param name="CheckoutKey">A random id the checkout page creates once and sends with every Place order attempt.</param>
-/// <param name="Lines">Every reviewed line (<see cref="CheckoutPreviewDto.Shipments"/>' lines, flattened).</param>
+/// <param name="Lines">
+/// Every reviewed line (<see cref="CheckoutPreviewDto.Shipments"/>' lines, flattened); at most <see cref="MaxLines"/>
+/// (50), else a 400 keyed <c>lines</c>.
+/// </param>
 /// <param name="ExpectedTotal">
 /// The total the customer reviewed (<see cref="CheckoutPreviewDto.Total"/>). Required: a missing total is a 400 keyed
 /// <c>expectedTotal</c>, never read as 0.00. Nullable only so that a missing value can be told apart; the endpoint
@@ -116,7 +119,14 @@ public sealed record PlaceOrderRequest(
     [Required, MinLength(1)] IReadOnlyList<PlaceOrderLineDto>? Lines,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal? ExpectedTotal,
     [Required] ShippingAddressDto? ShippingAddress,
-    ShippingMethod ShippingMethod = ShippingMethod.Standard);
+    ShippingMethod ShippingMethod = ShippingMethod.Standard)
+{
+    /// <summary>
+    /// The most lines one order may have: as many as the largest cart (<see cref="CartOptions.MaxLinesCeiling"/>). It
+    /// bounds an order's total, which the own-product price cap relies on (OwnProductValidation.MaxPrice).
+    /// </summary>
+    public const int MaxLines = CartOptions.MaxLinesCeiling;
+}
 
 /// <summary>One reviewed line, as <see cref="CheckoutLineDto"/> showed it.</summary>
 /// <param name="UnitPrice">The USD unit price the customer saw.</param>

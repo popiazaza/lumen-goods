@@ -4,6 +4,7 @@ using Lumen.Api.Checkout;
 using Lumen.Api.Orders;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Pricing;
+using Lumen.IntegrationTests.Carts;
 using Lumen.IntegrationTests.Catalog;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -574,6 +575,22 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         ];
 
         responses.Select(r => r.StatusCode).Should().AllBeEquivalentTo(HttpStatusCode.BadRequest);
+        (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Place_order_with_more_than_50_lines_is_a_validation_error_naming_lines()
+    {
+        var shopper = await host.NewShopperAsync();
+        await shopper.AddToCartAsync(await host.OwnProductAsync(), 1);
+        var lines = Enumerable.Range(0, PlaceOrderRequest.MaxLines + 1).Select(_ => new PlaceOrderLineDto(Guid.NewGuid(), 1, 10.00m)).ToList();
+
+        var response = await shopper.PlaceAsync(new PlaceOrderRequest(Guid.NewGuid(), lines, 100.00m, CheckoutHost.Address));
+
+        var problem = await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest);
+        problem.GetProperty("errors").EnumerateObject().Select(p => p.Name).Should().Equal("lines");
+        problem.GetProperty("errors").GetProperty("lines")[0].GetString()
+            .Should().Be("An order can have at most 50 lines. Remove some from your cart and review it again.");
         (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
     }
 }
