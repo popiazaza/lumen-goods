@@ -43,6 +43,9 @@ internal sealed class HarborOrderGateway(
         }
 
         var client = httpClients.CreateClient(HarborCatalogSource.HttpClientName);
+        // Harbor's contract names no Content-Type for this body (unlike Kestrel's "application/xml"), so JsonContent's
+        // standard "application/json; charset=utf-8" stays: JSON's registration defines no charset parameter and says
+        // adding one has no effect on compliant recipients (RFC 8259, section 11).
         using var message = new HttpRequestMessage(HttpMethod.Post, "v2/orders")
         {
             Content = JsonContent.Create(HarborOrderRequestDto.From(request), options: HarborJson.Options),

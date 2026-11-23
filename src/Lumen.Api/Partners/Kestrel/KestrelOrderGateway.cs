@@ -39,8 +39,10 @@ internal sealed class KestrelOrderGateway(
             return NotConfigured();
         }
 
+        // Exactly the contract's type: a strict Kestrel could refuse a charset parameter with a 400, which reads as a
+        // rejection and refunds every Kestrel line. The XML declaration already says UTF-8.
         var content = new ByteArrayContent(KestrelOrderXml.PurchaseOrder(request));
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/xml") { CharSet = "utf-8" };
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/xml");
         using var message = new HttpRequestMessage(HttpMethod.Post, "orders") { Content = content };
 
         try

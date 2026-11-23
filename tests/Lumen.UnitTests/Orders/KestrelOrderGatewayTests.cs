@@ -64,6 +64,17 @@ public sealed class KestrelOrderGatewayTests
     }
 
     [Fact]
+    public async Task The_purchase_order_is_sent_as_exactly_application_xml_and_declares_utf_8_itself()
+    {
+        var (_, kestrel) = await SubmitAsync(_ => Ack("KT-5521"));
+
+        // The contract says "Content-Type: application/xml"; a charset parameter is not part of it.
+        var sent = kestrel.Requests.Should().ContainSingle().Subject;
+        sent.ContentType.Should().Be("application/xml");
+        sent.Body.Should().StartWith("""<?xml version="1.0" encoding="utf-8"?>""");
+    }
+
+    [Fact]
     public async Task Without_a_second_line_the_street_is_line1_and_control_characters_are_dropped()
     {
         var shipTo = new PartnerShipTo("Ana\u0001 Silva", "12 Harbour Road", " ", "Portland", "OR", "97201", "US");
