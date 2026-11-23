@@ -3,7 +3,7 @@
 @if (order(); as order) {
   @if (isPaid()) {
     <div class="thanks">
-      <mat-icon svgIcon="check_circle" aria-hidden="true" />
+      <ng-icon name="lucideCircleCheck" />
       <div>
         <p>
           Thank you. Your order number is <strong class="number">{{ order.number }}</strong>.
@@ -32,7 +32,7 @@
     </section>
   } @else if (awaitingCode()) {
     <div class="confirming" role="status">
-      <mat-icon svgIcon="lock" aria-hidden="true" />
+      <ng-icon name="lucideLock" />
       <div>
         <p><strong>Waiting for your one-time code</strong></p>
         <p>
@@ -41,12 +41,12 @@
         </p>
       </div>
     </div>
-    <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
+    <a hlmBtn routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
       >Enter the code</a
     >
   } @else if (confirming()) {
     <div class="confirming" role="status">
-      <mat-icon svgIcon="schedule" aria-hidden="true" />
+      <ng-icon name="lucideClock" />
       <div>
         <p><strong>Confirming your payment</strong></p>
         <p>
@@ -57,15 +57,13 @@
     </div>
     @if (order.canPay) {
       <p>You can also try the same card again: you won’t be charged twice.</p>
-      <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
+      <a hlmBtn routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
         >Go to payment</a
       >
     }
   } @else if (order.canPay) {
     <p>This order is placed but not paid yet. We hold its prices and items until the hold ends.</p>
-    <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
-      >Pay now</a
-    >
+    <a hlmBtn routerLink="/checkout/payment" [queryParams]="{ order: order.number }">Pay now</a>
   } @else if (order.status === 'expired') {
     <p>This order was not paid, so it was cancelled. You have not been charged.</p>
   } @else {
@@ -92,7 +90,7 @@
               <div>
                 <span class="name">{{ line.quantity }} × {{ line.name }}</span>
                 <span class="status" [attr.data-status]="line.status">
-                  <mat-icon aria-hidden="true" [svgIcon]="lineIcons[line.status]" />
+                  <ng-icon [name]="lineIcons[line.status]" />
                   {{ line.statusText }}
                 </span>
               </div>
@@ -133,33 +131,30 @@
   </section>
 
   <div class="actions">
-    <a matButton="filled" [routerLink]="['/orders', order.number]">View your order</a>
-    <a matButton routerLink="/">Continue shopping</a>
+    <a hlmBtn size="lg" [routerLink]="['/orders', order.number]">View your order</a>
+    <a hlmBtn variant="outline" size="lg" routerLink="/">Continue shopping</a>
   </div>
 } @else {
   @switch (state()) {
     @case ('not-found') {
       <p>We couldn’t find this order in your account.</p>
-      <a matButton="filled" routerLink="/orders">Your orders</a>
+      <a hlmBtn routerLink="/orders">Your orders</a>
     }
     @case ('signed-out') {
       <p>Sign in to see this order.</p>
-      <a
-        matButton="filled"
-        routerLink="/sign-in"
-        [queryParams]="{ returnUrl: `/orders/${id()}/confirmation` }"
+      <a hlmBtn routerLink="/sign-in" [queryParams]="{ returnUrl: `/orders/${id()}/confirmation` }"
         >Sign in</a
       >
     }
     @case ('error') {
       <div class="error" role="alert">
         <p>We couldn’t load your order. It is saved; check your connection and try again.</p>
-        <button matButton="outlined" type="button" (click)="retry()">Retry</button>
+        <button hlmBtn variant="outline" type="button" (click)="retry()">Retry</button>
       </div>
     }
     @default {
       <div class="page-loading" role="status">
-        <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+        <hlm-progress aria-hidden="true"><hlm-progress-indicator /></hlm-progress>
         <p>Loading your order…</p>
       </div>
     }
