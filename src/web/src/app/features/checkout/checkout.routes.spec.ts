@@ -25,6 +25,7 @@ describe('checkout routes', () => {
       sessionStorage.setItem(
         CHECKOUT_STORAGE_KEY,
         JSON.stringify({
+          owner: session.email,
           checkoutKey: 'key-1',
           address: null,
           shippingMethod: null,

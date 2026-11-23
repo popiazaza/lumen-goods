@@ -1,7 +1,8 @@
 import { DOCUMENT } from '@angular/common';
-import { Service, computed, inject, signal } from '@angular/core';
+import { Service, computed, inject, linkedSignal, signal } from '@angular/core';
 import { PlaceOrderRequest } from '../api/checkout.api';
 import { OrderDetailDto, ShippingAddress, ShippingMethod } from '../api/order.models';
+import { SessionApi } from '../api/session.api';
 
 export const CHECKOUT_STEPS = ['address', 'shipping', 'review', 'payment'] as const;
 export type CheckoutStep = (typeof CHECKOUT_STEPS)[number];
@@ -10,6 +11,11 @@ export type CheckoutStep = (typeof CHECKOUT_STEPS)[number];
 What the shopper has entered so far in this checkout.
 */
 export interface CheckoutState {
+  /**
+   * Whose checkout this is: the signed-in email (lower case) when it was last saved, or null if
+   * nobody was signed in. Another account in the same tab never sees it (see `ownedBy`).
+   */
+  owner: string | null;
   /**
   Sent with Place order, so a repeat of the same review returns the same order (BR-PAY-01).
   */
@@ -41,7 +47,25 @@ export const CHECKOUT_STORAGE_KEY = 'lumen.checkout.v1';
 export class CheckoutStore {
   private readonly storage = storageOf(inject(DOCUMENT));
 
-  private readonly state = signal<CheckoutState>(this.restore());
+  private readonly sessionApi = inject(SessionApi);
+
+  /**
+  The signed-in account (lower-case email), or null while signed out or not known yet.
+  */
+  private readonly signedInAs = computed(() => {
+    const { isAuthenticated, email } = this.sessionApi.session();
+    return isAuthenticated && email ? email.toLowerCase() : null;
+  });
+
+  /**
+   * Restored from storage on first read, and checked against the signed-in account whenever it
+   * changes, so a sign-in as someone else, a sign-out in another tab or an expired session never
+   * hands one customer's address and order to the next.
+   */
+  private readonly state = linkedSignal<string | null, CheckoutState>({
+    source: this.signedInAs,
+    computation: (account, previous) => this.ownedBy(account, previous?.value ?? this.restore()),
+  });
 
   private readonly placed = signal<OrderDetailDto | null>(null);
 
@@ -80,23 +104,45 @@ export class CheckoutStore {
   });
 
   private update(change: (state: CheckoutState) => CheckoutState): void {
-    const next = change(this.state());
-    if (next === this.state()) {
+    const current = this.state();
+    const changed = change(current);
+    if (changed === current) {
       return;
     }
+    const next = { ...changed, owner: this.signedInAs() ?? changed.owner };
     this.state.set(next);
+    this.persist(next);
+  }
+
+  private persist(state: CheckoutState): void {
     if (this.storage) {
-      save(this.storage, JSON.stringify(next));
+      save(this.storage, JSON.stringify(state));
     }
   }
 
   private restore(): CheckoutState {
     const saved = this.storage ? load(this.storage) : null;
     const parsed = saved ? parseJson(saved) : null;
-    // State saved before keys were tied to a review has no `keyReview`: treat it as unused.
+    // State saved before keys were tied to a review has no `keyReview`: treat it as unused. State
+    // saved before checkouts had an owner has none: nobody can say whose it is.
     return isCheckoutState(parsed)
-      ? { ...parsed, keyReview: parsed.keyReview ?? null }
+      ? { ...parsed, keyReview: parsed.keyReview ?? null, owner: parsed.owner ?? null }
       : emptyState();
+  }
+
+  /**
+   * `state` if it belongs to `account`, else a new checkout for `account` (saved over the old one,
+   * so it is gone from this tab too). Signed out, the checkout is kept as it is: nobody can open
+   * it (checkout needs a sign-in), and the same customer signing in again carries on.
+   */
+  private ownedBy(account: string | null, state: CheckoutState): CheckoutState {
+    if (account === null || state.owner === account) {
+      return state;
+    }
+    const fresh = { ...emptyState(), owner: account };
+    // Not a signal write, so allowed here; the next read of storage must not find the old owner's data.
+    this.persist(fresh);
+    return fresh;
   }
 
   /**
@@ -163,8 +209,9 @@ export class CheckoutStore {
   }
 
   /**
-  Forgets this checkout (after payment, or on sign-out) and starts the next with a new key.
-  */
+   * Forgets this checkout (after payment, or on sign-out) and starts the next with a new key. A
+   * different account signing in needs no call: the store starts over on its own.
+   */
   reset(): void {
     this.placed.set(null);
     this.update(() => emptyState());
@@ -205,6 +252,7 @@ const freshKey = (): Pick<CheckoutState, 'checkoutKey' | 'keyReview'> => ({
 });
 
 const emptyState = (): CheckoutState => ({
+  owner: null,
   ...freshKey(),
   address: null,
   shippingMethod: null,
@@ -292,10 +340,12 @@ const isCheckoutState = (value: unknown): value is CheckoutState => {
   const state = value as Partial<CheckoutState>;
   const hasKey = typeof state.checkoutKey === 'string' && state.checkoutKey.length > 0;
   const hasKeyReview = state.keyReview === undefined || isNullOrString(state.keyReview);
+  const hasOwner = state.owner === undefined || isNullOrString(state.owner);
   const hasAddress = state.address === null || isAddress(state.address);
   return [
     hasKey,
     hasKeyReview,
+    hasOwner,
     hasAddress,
     SAVED_SHIPPING_METHODS.has(state.shippingMethod),
     isNullOrString(state.orderNumber),

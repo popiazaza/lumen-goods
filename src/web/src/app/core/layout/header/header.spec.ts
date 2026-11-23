@@ -141,6 +141,7 @@ describe('Header account area', () => {
     sessionStorage.setItem(
       CHECKOUT_STORAGE_KEY,
       JSON.stringify({
+        owner: CUSTOMER_SESSION.email,
         checkoutKey: 'k',
         address: US_ADDRESS,
         shippingMethod: null,

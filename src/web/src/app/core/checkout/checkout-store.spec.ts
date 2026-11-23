@@ -1,5 +1,7 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { US_ADDRESS } from '../../testing/fixtures';
+import { ANONYMOUS_SESSION, Session, SessionApi } from '../api/session.api';
+import { CUSTOMER_SESSION, US_ADDRESS } from '../../testing/fixtures';
 import { anOrder } from '../../testing/order-fixtures';
 import {
   CHECKOUT_STORAGE_KEY,
@@ -23,15 +25,28 @@ const aReview = (overrides: Partial<ReviewedOrder> = {}): ReviewedOrder => ({
 });
 
 /**
+Who is signed in, as `SessionApi.session()` says; anonymous unless a test signs someone in.
+*/
+const session = signal<Session>(ANONYMOUS_SESSION);
+
+const OTHER_CUSTOMER: Session = { ...CUSTOMER_SESSION, email: 'someone-else@example.test' };
+
+/**
 A new store, as after a page refresh: only sessionStorage survives.
 */
 const freshStore = (): CheckoutStore => {
   TestBed.resetTestingModule();
+  TestBed.configureTestingModule({
+    providers: [{ provide: SessionApi, useValue: { session: session.asReadonly() } }],
+  });
   return TestBed.inject(CheckoutStore);
 };
 
 describe('CheckoutStore', () => {
-  afterEach(() => sessionStorage.clear());
+  afterEach(() => {
+    sessionStorage.clear();
+    session.set(ANONYMOUS_SESSION);
+  });
 
   it('starts empty with a checkout key, and only the address step open', () => {
     const store = freshStore();
@@ -206,6 +221,67 @@ describe('CheckoutStore', () => {
 
     expect(store.address()).toBeNull();
     expect(store.checkoutKey()).not.toBe(key);
+    expect(freshStore().address()).toBeNull();
+  });
+
+  it('starts over when another account signs in in the same tab', () => {
+    session.set(CUSTOMER_SESSION);
+    const store = freshStore();
+    store.setAddress(US_ADDRESS);
+    store.setShippingMethod('express');
+    const key = store.checkoutKeyFor(aReview());
+    store.orderPlaced(anOrder({ number: 'LG-1' }));
+
+    session.set(OTHER_CUSTOMER);
+
+    expect(store.address()).toBeNull();
+    expect(store.shippingMethod()).toBeNull();
+    expect(store.orderNumber()).toBeNull();
+    expect(store.placedOrder()).toBeNull();
+    expect(store.checkoutKey()).not.toBe(key);
+    expect([...store.reachable()]).toStrictEqual(['address']);
+    // Gone from this tab's storage too, not just hidden.
+    expect(sessionStorage.getItem(CHECKOUT_STORAGE_KEY)).not.toContain(US_ADDRESS.line1);
+  });
+
+  it('restores only the signed-in customer’s own checkout after a refresh', () => {
+    session.set(CUSTOMER_SESSION);
+    freshStore().setAddress(US_ADDRESS);
+
+    expect(freshStore().address()).toStrictEqual(US_ADDRESS);
+
+    session.set(OTHER_CUSTOMER);
+
+    expect(freshStore().address()).toBeNull();
+  });
+
+  it('keeps the checkout while signed out, for the same customer signing in again', () => {
+    session.set(CUSTOMER_SESSION);
+    const store = freshStore();
+    store.setAddress(US_ADDRESS);
+
+    session.set(ANONYMOUS_SESSION);
+
+    expect(store.address()).toStrictEqual(US_ADDRESS);
+
+    session.set({ ...CUSTOMER_SESSION, email: CUSTOMER_SESSION.email?.toUpperCase() ?? null });
+
+    expect(store.address()).toStrictEqual(US_ADDRESS);
+  });
+
+  it('gives a checkout saved without an owner to nobody who signs in', () => {
+    sessionStorage.setItem(
+      CHECKOUT_STORAGE_KEY,
+      JSON.stringify({
+        checkoutKey: 'key-1',
+        keyReview: null,
+        address: US_ADDRESS,
+        shippingMethod: 'standard',
+        orderNumber: null,
+      })
+    );
+    session.set(CUSTOMER_SESSION);
+
     expect(freshStore().address()).toBeNull();
   });
 
