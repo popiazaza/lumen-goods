@@ -104,8 +104,10 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     {
         var m = NewMarker();
         var d = NewMarker();
+        var inMarkup = NewMarker();
         var socks = Partner(ProductSources.Kestrel, $"{m} Trail socks");
-        socks.Description = $"<p>Cushioned for <strong>{d} days</strong> on the trail.</p>";
+        // The attribute is only here to put a unique word inside a tag: search must never see it.
+        socks.Description = $"<p data-note=\"{inMarkup}\">Cushioned for <strong>{d} days</strong> on the trail.</p>";
         // The sanitiser's output for plain partner text: "&" and "<" arrive encoded.
         var grinder = Partner(ProductSources.Harbor, $"{m} Grinder");
         grinder.Description = $"{d} salt &amp; pepper, 5 &lt; 6";
@@ -118,7 +120,7 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
         (await NamesAsync($"q={Uri.EscapeDataString($"for {d} days")}")).Should().Equal($"{m} Trail socks");
         (await NamesAsync($"q={Uri.EscapeDataString($"{d} salt & pepper")}")).Should().Equal($"{m} Grinder");
         (await NamesAsync($"q={Uri.EscapeDataString($"{d} keeps <strong>")}")).Should().Equal($"{m} Note");
-        (await NamesAsync("q=strong&pageSize=96")).Should().NotContain($"{m} Trail socks");
+        (await NamesAsync($"q={inMarkup}")).Should().BeEmpty();
     }
 
     [Fact]

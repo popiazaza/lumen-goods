@@ -128,36 +128,46 @@ describe('AdminPartnersPage', () => {
     expect(text(card('Harbor Supply Co.'), '.facts')).not.toContain('Held back');
   });
 
-  it('confirms held removals only after a second click, then refreshes with confirmRemovals', async () => {
+  const confirmRemovalsButton = (name: string) =>
+    card(name).querySelector<HTMLButtonElement>(':scope .confirm-removals');
+  /**
+  Remove and refresh, then Cancel, in Kestrel's removal check.
+  */
+  const kestrelRemovalCheckButtons = () => [
+    ...card('Kestrel Outfitters').querySelectorAll<HTMLButtonElement>(
+      ':scope .removal-check button'
+    ),
+  ];
+
+  it('asks once more before confirming held removals, and Cancel sends nothing', async () => {
     await load([HARBOR, { ...KESTREL, heldRemovals: 12 }]);
-    const kestrel = card('Kestrel Outfitters');
-    const confirmButton = () => kestrel.querySelector<HTMLButtonElement>('.confirm-removals');
-    const checkButtons = () => [
-      ...kestrel.querySelectorAll<HTMLButtonElement>(':scope .removal-check button'),
-    ];
 
-    expect(card('Harbor Supply Co.').querySelector('.confirm-removals')).toBeNull();
+    expect(confirmRemovalsButton('Harbor Supply Co.')).toBeNull();
 
-    confirmButton()?.click();
-    fixture.detectChanges();
+    confirmRemovalsButton('Kestrel Outfitters')?.click();
+    await fixture.whenStable();
 
-    expect(text(kestrel, '.removal-check p')).toBe(
+    expect(text(card('Kestrel Outfitters'), '.removal-check p')).toBe(
       'Remove 12 products from the shop? Check first that they have really left the Kestrel Outfitters catalogue.'
     );
+    // The clicked button is gone; focus moves to the confirming action, not to the page.
+    expect(document.activeElement).toBe(kestrelRemovalCheckButtons().at(0));
+
+    kestrelRemovalCheckButtons().at(1)?.click();
+    await fixture.whenStable();
+
+    expect(card('Kestrel Outfitters').querySelector('.removal-check')).toBeNull();
+    expect(document.activeElement).toBe(confirmRemovalsButton('Kestrel Outfitters'));
 
     http.expectNone((request) => request.url.endsWith('/refresh'));
+  });
 
-    checkButtons().at(1)?.click();
-    fixture.detectChanges();
-
-    expect(kestrel.querySelector('.removal-check')).toBeNull();
-
-    http.expectNone((request) => request.url.endsWith('/refresh'));
-
-    confirmButton()?.click();
-    fixture.detectChanges();
-    checkButtons().at(0)?.click();
-    fixture.detectChanges();
+  it('refreshes with confirmRemovals once confirmed, and returns focus to Refresh now', async () => {
+    await load([HARBOR, { ...KESTREL, heldRemovals: 12 }]);
+    confirmRemovalsButton('Kestrel Outfitters')?.click();
+    await fixture.whenStable();
+    kestrelRemovalCheckButtons().at(0)?.click();
+    await fixture.whenStable();
     const post = http.expectOne('/api/v1/admin/partners/kestrel/refresh?confirmRemovals=true');
 
     expect(post.request.method).toBe('POST');
@@ -165,9 +175,32 @@ describe('AdminPartnersPage', () => {
       'Refreshing Kestrel Outfitters and removing the held products',
       'polite'
     );
+    expect(document.activeElement).toBe(refreshButton('Kestrel Outfitters'));
 
     post.flush(null, ACCEPTED);
     // Leaving the page stops the status polling the refresh started.
+    fixture.destroy();
+  });
+
+  it('closes an open removal check when a refresh starts, and refuses to confirm while one runs', async () => {
+    await load([HARBOR, { ...KESTREL, heldRemovals: 12 }]);
+
+    confirmRemovalsButton('Kestrel Outfitters')?.click();
+    await fixture.whenStable();
+    refreshButton('Kestrel Outfitters').click();
+    await fixture.whenStable();
+    const plain = http.expectOne('/api/v1/admin/partners/kestrel/refresh');
+
+    expect(card('Kestrel Outfitters').querySelector('.removal-check')).toBeNull();
+
+    // While that refresh runs, the greyed-out button stays clickable for screen readers but does nothing.
+    confirmRemovalsButton('Kestrel Outfitters')?.click();
+    await fixture.whenStable();
+
+    expect(card('Kestrel Outfitters').querySelector('.removal-check')).toBeNull();
+
+    http.expectNone((request) => request.urlWithParams.includes('confirmRemovals'));
+    plain.flush(null, ACCEPTED);
     fixture.destroy();
   });
 

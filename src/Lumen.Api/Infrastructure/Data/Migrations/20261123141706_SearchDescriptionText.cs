@@ -4,7 +4,11 @@
 
 namespace Lumen.Api.Infrastructure.Data.Migrations
 {
-    /// <inheritdoc />
+    /// <summary>
+    /// BR-CAT-03: search reads <c>Products.DescriptionText</c>, a stored generated column. Adding it rewrites
+    /// <c>Products</c> under an exclusive lock, and the index is built without CONCURRENTLY: instant at launch size,
+    /// a maintenance-window step at catalogue scale (DESIGN §10).
+    /// </summary>
     public partial class SearchDescriptionText : Migration
     {
         /// <inheritdoc />

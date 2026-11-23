@@ -132,7 +132,11 @@
         <h2 id="description-heading">Description</h2>
         @if (descriptionIsHtml()) {
           <!-- Sanitised on the server (A-21); Angular's sanitiser runs again here. -->
-          <div class="description" [innerHTML]="product.description"></div>
+          <div
+            class="description"
+            [class.plain]="descriptionHasNoTags()"
+            [innerHTML]="product.description"
+          ></div>
         } @else {
           <p class="description plain">{{ product.description }}</p>
         }

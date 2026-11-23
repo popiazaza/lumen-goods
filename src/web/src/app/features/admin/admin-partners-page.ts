@@ -1,6 +1,15 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import { MatCard } from '@angular/material/card';
@@ -73,6 +82,10 @@ export class AdminPartnersPage {
   private readonly announcer = inject(LiveAnnouncer);
 
   private readonly destroyRef = inject(DestroyRef);
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  private readonly injector = inject(Injector);
 
   /**
   A refresh call can also come back 401/403 (session expired, role removed).
@@ -157,24 +170,47 @@ export class AdminPartnersPage {
     this.refreshes.update((all) => ({ ...all, [partner.partner]: state }));
   }
 
+  /**
+  The button that had focus was removed by the change, so focus moves to `selector` in the partner's card once
+  the next render has put it on the page.
+  */
+  private focusAfterRender(partner: PartnerStatus, selector: string): void {
+    afterNextRender(
+      () =>
+        this.host.nativeElement
+          .querySelector<HTMLElement>(`[data-partner="${CSS.escape(partner.partner)}"] ${selector}`)
+          ?.focus(),
+      { injector: this.injector }
+    );
+  }
+
   protected isRefreshing(partner: PartnerStatus): boolean {
     return this.refreshes()[partner.partner]?.kind === 'running';
   }
 
   /**
-  Removing held products takes them out of the shop, so it needs a second, explicit click.
+  Removing held products takes them out of the shop, so it needs a second, explicit click. Not while a
+  refresh runs: `disabledInteractive` keeps a disabled button clickable, so the handlers refuse too.
   */
   protected askToConfirmRemovals(partner: PartnerStatus): void {
+    if (this.isRefreshing(partner)) {
+      return;
+    }
     this.confirmingRemovals.set(partner.partner);
+    this.focusAfterRender(partner, '.remove-and-refresh');
   }
 
-  protected cancelRemovals(): void {
+  protected cancelRemovals(partner: PartnerStatus): void {
     this.confirmingRemovals.set(undefined);
+    this.focusAfterRender(partner, '.confirm-removals');
   }
 
   protected confirmRemovals(partner: PartnerStatus): void {
-    this.confirmingRemovals.set(undefined);
+    if (this.isRefreshing(partner)) {
+      return;
+    }
     this.refresh(partner, true);
+    this.focusAfterRender(partner, '.refresh-now');
   }
 
   protected isExpanded(partner: PartnerStatus): boolean {
@@ -207,6 +243,8 @@ export class AdminPartnersPage {
     if (this.isRefreshing(partner)) {
       return;
     }
+    // Any refresh closes an open confirmation, so a later hold never starts half confirmed.
+    this.confirmingRemovals.set(undefined);
     this.setRefresh(partner, { kind: 'running' });
     void this.announcer.announce(
       shouldConfirmRemovals

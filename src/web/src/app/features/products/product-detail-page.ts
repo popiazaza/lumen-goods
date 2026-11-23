@@ -39,6 +39,11 @@ import { ProductPrice } from '../../shared/products/product-price';
 import { clampQuantity, maxSelectableQuantity } from './quantity';
 
 /**
+The tags the server's sanitiser keeps (A-21).
+*/
+const SANITISER_TAG = /<\/?(?:p|br|b|strong|i|em|ul|ol|li)\b[^>]*>/iu;
+
+/**
 Product detail (`/products/:id`): gallery, price, stock, description, attributes, Add to cart.
 */
 @Component({
@@ -131,6 +136,13 @@ export class ProductDetailPage {
     const product = this.loaded();
     return product !== undefined && product.source !== OWN_SOURCE;
   });
+
+  /**
+  A partner description with none of the sanitiser's tags is plain text, encoded: it still renders as HTML, but keeps its line breaks as an own description does.
+  */
+  protected readonly descriptionHasNoTags = computed(
+    () => !SANITISER_TAG.test(this.loaded()?.description ?? '')
+  );
 
   protected readonly attributes = computed(() =>
     Object.entries(this.loaded()?.attributes ?? {}).map(([key, value]) => ({

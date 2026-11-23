@@ -19,7 +19,7 @@
     @for (partner of partners; track partner.partner) {
       @let partnerHealth = health(partner);
       @let run = refreshes()[partner.partner];
-      <mat-card appearance="outlined" class="card">
+      <mat-card appearance="outlined" class="card" [attr.data-partner]="partner.partner">
         <div class="card-header">
           <h2>{{ partner.name }}</h2>
           <p class="health" [class]="partnerHealth.tone">
@@ -123,6 +123,7 @@
           <button
             matButton="filled"
             type="button"
+            class="refresh-now"
             disabledInteractive
             [disabled]="isRefreshing(partner)"
             (click)="refresh(partner)"
@@ -154,10 +155,17 @@
                 that {{ partner.heldRemovals === 1 ? 'it has' : 'they have' }} really left the
                 {{ partner.name }} catalogue.
               </p>
-              <button matButton="filled" type="button" (click)="confirmRemovals(partner)">
+              <button
+                matButton="filled"
+                type="button"
+                class="remove-and-refresh"
+                disabledInteractive
+                [disabled]="isRefreshing(partner)"
+                (click)="confirmRemovals(partner)"
+              >
                 Remove and refresh
               </button>
-              <button matButton type="button" (click)="cancelRemovals()">Cancel</button>
+              <button matButton type="button" (click)="cancelRemovals(partner)">Cancel</button>
             </div>
           }
           @if (run?.kind === 'running') {
