@@ -219,6 +219,7 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | Scalar | The API reference at `/api/docs`, over the OpenAPI document ASP.NET Core 10 generates itself |
 | OpenTelemetry | Vendor-neutral traces, metrics and logs over OTLP: the Aspire dashboard locally, any backend in production |
 | Angular with Angular Material | Router, typed forms and an HTTP client with XSRF support in one framework; Material gives accessible components and an M3 theme |
+| Fontsource (Inter, Fraunces) | The two typefaces as npm packages, bundled into the build and served from our own origin: no font CDN request, and the `font-src 'self'` CSP holds |
 | Ultracite (ESLint, Prettier, Stylelint) | One maintained preset for linting and formatting, template accessibility rules included, instead of hand-tuned configs |
 | xUnit v3 with Microsoft.Testing.Platform | Current xUnit; dynamic skip lets the end-to-end tests skip without a stack; `dotnet test` on the new test platform (`global.json`) |
 | AwesomeAssertions | Readable assertions; the Apache 2.0 fork of FluentAssertions, which needs a paid licence for commercial use from v8 |
@@ -226,7 +227,7 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | CsCheck | Property-based tests: the money rules hold for thousands of random carts, not only the worked examples |
 
 Licences mattered: every library above, and every package the API and web app ship, is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
-PostgreSQL licence). MediatR, AutoMapper, MassTransit and FluentAssertions are left out because they moved to
+PostgreSQL licence; the fonts under the SIL Open Font License). MediatR, AutoMapper, MassTransit and FluentAssertions are left out because they moved to
 commercial licences; handlers and mapping are written by hand.
 
 ## Exact versions
