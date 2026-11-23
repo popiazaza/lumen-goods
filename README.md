@@ -31,6 +31,7 @@ At phone width:
 - Open questions answered with written assumptions, not emails ([ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 - The payment gateway is a mock inside the API process, behind `IPaymentGateway` ([ADR 0005](docs/adr/0005-payments-charge-then-refund-one-partner-order-per-line.md)).
 - Kestrel prices are as fresh as its 3-minute feed: it has no per-item price endpoint, so Place order checks only its stock live ([ADR 0004](docs/adr/0004-checkout-consistency-the-order-is-the-price-lock.md)).
+- Harbor's 60-a-minute limit fits 6 live item checks in Place order's 5 s: beyond 6 Harbor lines, the rest are ordered on a Harbor sync under 2 minutes old (BR-CHK-02); a partner that then can't supply is refunded (BR-ORD-03).
 
 What I would change next, and when: [DESIGN.md §10](DESIGN.md#10-decisions-id-revisit).
 

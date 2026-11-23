@@ -1,3 +1,4 @@
+using Lumen.Api.Catalog;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Orders;
 using Lumen.Api.Partners.Mapping;
@@ -79,6 +80,8 @@ internal sealed class PlaceOrderService(
 
     private readonly int _maxUnpaid = options.Value.MaxUnpaidOrdersPerCustomer;
 
+    private readonly TimeSpan _syncedDataMaxAge = options.Value.SyncedDataMaxAge;
+
     public async Task<PlaceOrderOutcome> PlaceAsync(Guid customerId, PlaceOrderRequest request, CancellationToken cancellationToken)
     {
         var checkoutKey = request.CheckoutKey!.Value;
@@ -128,8 +131,10 @@ internal sealed class PlaceOrderService(
         var live = await availability.CheckAsync(
             [.. toCheck.Select(l => new PartnerLineToCheck(l.Product.Source, new PartnerLineCheck(
                 l.Line.Id, l.Product.SourceProductId, l.Line.Quantity,
-                reviewed.TryGetValue(l.Product.Id, out var seen) ? seen.UnitPrice : l.Product.PriceUsd!.Value)))],
+                reviewed.TryGetValue(l.Product.Id, out var seen) ? seen.UnitPrice : l.Product.PriceUsd!.Value,
+                l.Product.Quantity)))],
             cancellationToken);
+        live = await TrustFreshSyncAsync(toCheck, live, cancellationToken);
         await SaveLiveResultsAsync(toCheck, live, cancellationToken);
         foreach (var line in toCheck)
         {
@@ -204,12 +209,48 @@ internal sealed class PlaceOrderService(
     /// values and corrects them if the partner disagrees. A row a sync changed meanwhile is left to the sync; the other
     /// rows are still saved.
     /// </summary>
+    /// <summary>
+    /// BR-CHK-02: a line the partner was not asked about (NotChecked: its rate limit left no room in the time limit) is
+    /// ordered on Lumen's synced data, which the cart rules above have already applied, only when that data is fresh:
+    /// the product's partner data was read within <see cref="CheckoutOptions.SyncedDataMaxAge"/>. Otherwise the line is
+    /// Unreachable, "Temporarily unavailable", as if the partner had not answered.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<Guid, PartnerLineCheckResult>> TrustFreshSyncAsync(
+        IReadOnlyList<CheckoutCartLine> checkedLines, IReadOnlyDictionary<Guid, PartnerLineCheckResult> live, CancellationToken cancellationToken)
+    {
+        var notChecked = checkedLines.Where(l => live[l.Line.Id].Outcome == PartnerLineCheckOutcome.NotChecked).ToList();
+        if (notChecked.Count == 0)
+        {
+            return live;
+        }
+
+        var checks = await db.PartnerSyncStates.AsNoTracking()
+            .ToDictionaryAsync(s => s.Partner, s => new PartnerCheck(s.LastSuccessUtc, s.StockRefreshedUtc), StringComparer.Ordinal, cancellationToken);
+        var freshSince = time.GetUtcNow() - _syncedDataMaxAge;
+        var results = live.ToDictionary();
+        foreach (var line in notChecked)
+        {
+            var lastChecked = ProductMapping.LastChecked(line.Product, checks.GetValueOrDefault(line.Product.Source));
+            if (_syncedDataMaxAge > TimeSpan.Zero && lastChecked >= freshSince)
+            {
+                logger.LogInformation("Place order: {Source} item {Item} was not checked live; ordered on its data from {LastChecked:O}",
+                    line.Product.Source, line.Product.SourceProductId, lastChecked);
+                continue;
+            }
+
+            results[line.Line.Id] = new PartnerLineCheckResult(line.Line.Id, PartnerLineCheckOutcome.Unreachable,
+                Detail: $"Not checked live, and its synced data ({lastChecked?.ToString("O") ?? "never read"}) is older than {_syncedDataMaxAge}.");
+        }
+
+        return results;
+    }
+
     private async Task SaveLiveResultsAsync(
         IReadOnlyList<CheckoutCartLine> checkedLines, IReadOnlyDictionary<Guid, PartnerLineCheckResult> live, CancellationToken cancellationToken)
     {
         var answers = checkedLines
             .Select(l => (l.Product.Id, Result: live[l.Line.Id]))
-            .Where(a => a.Result.Outcome != PartnerLineCheckOutcome.Unreachable)
+            .Where(a => a.Result.Outcome is not (PartnerLineCheckOutcome.Unreachable or PartnerLineCheckOutcome.NotChecked))
             .ToDictionary(a => a.Id, a => a.Result);
         if (answers.Count == 0)
         {

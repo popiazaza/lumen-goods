@@ -51,6 +51,30 @@ public sealed class PartnerAvailabilityCheckTests
         request.Header(HarborKeyHandler.HeaderName).Should().Be(PartnerTestKit.HarborKey);
     }
 
+    [Fact]
+    [Trait("BR", "BR-CHK-02")]
+    public async Task BR_CHK_02_harbor_asks_only_max_live_checks_lines_tightest_first_and_returns_the_rest_not_checked()
+    {
+        var harbor = new StubPartner(request => StubPartner.Json(HarborItem(request.Uri.Segments[^1])));
+        using var services = PartnerTestKit.Services(harbor: harbor, overrides: new() { ["Partners:Harbor:MaxLiveChecks"] = "3" });
+        var check = ActivatorUtilities.CreateInstance<HarborAvailabilityCheck>(services);
+        PartnerLineCheck Line(string code, int quantity, int? known) => new(Guid.NewGuid(), code, quantity, 49.90m, known);
+        var lines = new[]
+        {
+            Line("HSC-PLENTY", quantity: 4, known: null), // unknown quantity: after every known one
+            Line("HSC-ROOMY", quantity: 1, known: 10), // known, 9 to spare
+            Line("HSC-ONE", quantity: 1, known: null),
+            Line("HSC-LAST", quantity: 3, known: 3), // known, nothing to spare: asked first
+            Line("HSC-TIGHT", quantity: 1, known: 2), // known, 1 to spare
+        };
+
+        var results = (await check.CheckAsync(lines, PartnerTestKit.Ct)).ToDictionary(r => r.LineId);
+
+        harbor.Requests.Select(r => r.Uri.Segments[^1]).Should().BeEquivalentTo("HSC-LAST", "HSC-TIGHT", "HSC-ROOMY");
+        lines.Where(l => l.KnownQuantity is not null).Should().AllSatisfy(l => results[l.LineId].Outcome.Should().Be(PartnerLineCheckOutcome.Ok));
+        lines.Where(l => l.KnownQuantity is null).Should().AllSatisfy(l => results[l.LineId].Outcome.Should().Be(PartnerLineCheckOutcome.NotChecked));
+    }
+
     [Theory]
     [Trait("BR", "BR-CHK-01")]
     [InlineData("5490", 54.90)]
