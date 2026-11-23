@@ -32,7 +32,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-18 | **"Newest"** = when Lumen first saw the product (own products: created date), not last updated |
 | A-19 | Attribute keys are normalised with a small dictionary then camelCase (`colour`/`Colour` → `color`) |
 | A-20 | Images: Kestrel `large` preferred, else `thumb`; none → placeholder. Partner images are fetched by Lumen (with the partner's credentials) and served from Lumen URLs; the browser never calls a partner |
-| A-21 | Partner HTML descriptions are sanitised server-side to a small allowlist (p, br, b, strong, i, em, ul, ol, li); everything else is stripped |
+| A-21 | Partner HTML descriptions are sanitised server-side to a small allowlist (p, br, b, strong, i, em, ul, ol, li); everything else is stripped. The storefront shows a partner description as HTML and Lumen's own (typed by an admin) as text |
 | A-22 | Search is case-insensitive over name and description. Category and seller filters allow several values; price range is inclusive; "in stock only" = sellable and in/low stock. 24 per page. Sort is included in the URL |
 | A-59 | `lastUpdatedUtc` keeps the spec's meaning (when the product last changed; Harbor's own `updated_at` when it gives one). The product format adds **`lastCheckedUtc`**: when Lumen last confirmed a partner product's price and stock (the partner's last successful catalogue run, the older of that and the last stock refresh for Kestrel, or a later write to the product). The product page dates partner prices by it ("Lumen last checked … on …"); own products have none, as their price and stock are live |
 
