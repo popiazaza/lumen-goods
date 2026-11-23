@@ -115,6 +115,11 @@ a {
   outline-offset: 2px;
 }
 
+// An inline SVG sits on the text baseline, which left every icon about 3px high in its button.
+mat-icon > svg {
+  display: block;
+}
+
 .price {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
