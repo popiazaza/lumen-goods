@@ -8,7 +8,8 @@
   padding: 0;
   border: 0;
   margin: var(--lg-space-4) 0 0;
-  gap: var(--lg-space-2);
+  // Room between a hint and the next field's floating label.
+  gap: var(--lg-space-3);
 
   & legend {
     margin-bottom: var(--lg-space-3);

@@ -27,9 +27,12 @@ mat-icon {
   align-self: flex-start;
 }
 
+// break-word, not anywhere: anywhere also shrinks the min-content width, so a table column
+// squeezed the badge to a letter or two per line.
 .text {
-  overflow-wrap: anywhere;
-  text-wrap: balance;
+  overflow-wrap: break-word;
+  // The style only: a parent's `white-space: nowrap` (admin tables) still keeps it on one line.
+  text-wrap-style: balance;
 }
 
 :host(.tone-success) {

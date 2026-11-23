@@ -86,10 +86,11 @@
   @include scroll-region.scroll-shadows;
 }
 
-// Fixed column widths, so the tables of every seller line up under one another.
+// Fixed column widths, so the tables of every seller line up under one another. The minimum fits
+// the card at 1280px; below that the region scrolls.
 table {
   width: 100%;
-  min-width: 51rem;
+  min-width: 42rem;
   border-collapse: collapse;
   table-layout: fixed;
 
@@ -98,26 +99,23 @@ table {
     box-sizing: border-box;
   }
 
-  & th:nth-child(1) {
-    width: 3rem;
-  }
-
+  & th:nth-child(1),
   & th:nth-child(3) {
-    width: 3.5rem;
+    width: 3rem;
   }
 
   & th:nth-child(4),
   & th:nth-child(7) {
-    width: 6.5rem;
+    width: 6rem;
   }
 
   & th:nth-child(5) {
-    width: 5.5rem;
+    width: 5rem;
   }
 
+  // A long partner status wraps to a second line inside its badge.
   & th:nth-child(6) {
-    // A long partner status ("Confirmed by Harbor Supply Co.") on one line.
-    width: 14rem;
+    width: 11rem;
   }
 }
 
