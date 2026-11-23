@@ -3,25 +3,25 @@ import {
   Component,
   ElementRef,
   Injector,
-  TemplateRef,
   afterNextRender,
   computed,
   effect,
   inject,
   linkedSignal,
+  signal,
   untracked,
   viewChild,
 } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
-import { MatBottomSheet, MatBottomSheetRef } from '@angular/material/bottom-sheet';
-import { MatButton } from '@angular/material/button';
-import { MatChip, MatChipRemove, MatChipSet } from '@angular/material/chips';
-import { MatOption } from '@angular/material/core';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
-import { MatSelect } from '@angular/material/select';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmBadge } from '@spartan-ng/helm/badge';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmLabel } from '@spartan-ng/helm/label';
+import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
+import { HlmSheet, HlmSheetImports } from '@spartan-ng/helm/sheet';
+import { HlmSkeleton } from '@spartan-ng/helm/skeleton';
 import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
 import { PRODUCT_SORTS, ProductPage, ProductSort, ProductsApi } from '../../core/api/products.api';
 import { Seller } from '../../core/api/sellers.api';
@@ -65,6 +65,9 @@ const SKELETON_CARDS = /* @__PURE__ */ Array.from({ length: 8 }, (_, index) => i
 
 const toSortOption = (value: ProductSort) => ({ value, label: SORT_LABELS[value] });
 
+const isProductSort = (value: unknown): value is ProductSort =>
+  (PRODUCT_SORTS as readonly unknown[]).includes(value);
+
 /**
  * The catalogue (`/`). The URL's query string is the single source of truth: the page derives its
  * state from it and every control navigates with the new state, so Back/Forward and shared links
@@ -74,16 +77,14 @@ const toSortOption = (value: ProductSort) => ({ value, label: SORT_LABELS[value]
   selector: 'app-catalogue-page',
   imports: [
     RouterLink,
-    MatButton,
-    MatChip,
-    MatChipRemove,
-    MatChipSet,
-    MatFormField,
-    MatIcon,
-    MatLabel,
-    MatOption,
-    MatProgressBar,
-    MatSelect,
+    NgIcon,
+    HlmBadge,
+    HlmButton,
+    HlmLabel,
+    HlmNativeSelectImports,
+    HlmProgressImports,
+    HlmSheetImports,
+    HlmSkeleton,
     CatalogueFilters,
     ProductCard,
   ],
@@ -95,13 +96,13 @@ export class CataloguePage {
 
   private readonly router = inject(Router);
 
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   private readonly injector = inject(Injector);
 
   private readonly productsApi = inject(ProductsApi);
 
   private readonly announcer = inject(LiveAnnouncer);
-
-  private readonly bottomSheet = inject(MatBottomSheet);
 
   private readonly lastQuery = inject(LastCatalogueQuery);
 
@@ -109,9 +110,12 @@ export class CataloguePage {
 
   private readonly resultsHeading = viewChild.required<ElementRef<HTMLElement>>('resultsHeading');
 
-  private readonly filtersSheet = viewChild.required<TemplateRef<unknown>>('filtersSheet');
+  private readonly filtersSheet = viewChild.required<HlmSheet>('filtersSheet');
 
-  private sheetRef: MatBottomSheetRef | undefined;
+  /**
+  After a chip's removal: the chip whose remove button takes focus once the removed one is gone.
+  */
+  private readonly chipFocus = signal<{ removed: string; next: string } | null>(null);
 
   private readonly queryParamMap = toSignal(this.route.queryParamMap, { requireSync: true });
 
@@ -227,6 +231,7 @@ export class CataloguePage {
 
     this.announceResultCounts();
     this.focusResultsOnPageChange();
+    this.focusNeighbourChip();
   }
 
   /**
@@ -276,6 +281,27 @@ export class CataloguePage {
     });
   }
 
+  private focusNeighbourChip(): void {
+    effect(() => {
+      const pending = this.chipFocus();
+      if (!pending || this.chips().some((chip) => chip.key === pending.removed)) {
+        return;
+      }
+      untracked(() => this.chipFocus.set(null));
+      afterNextRender(
+        {
+          write: () =>
+            this.host.nativeElement
+              .querySelector<HTMLButtonElement>(
+                `.chip-remove[data-chip="${CSS.escape(pending.next)}"]`
+              )
+              ?.focus(),
+        },
+        { injector: this.injector }
+      );
+    });
+  }
+
   private focusResultsHeadingAfterRender(): void {
     afterNextRender(
       { write: () => this.resultsHeading().nativeElement.focus() },
@@ -304,9 +330,23 @@ export class CataloguePage {
     this.navigate(applyChange(this.query(), change));
   }
 
-  protected removeChip(chip: FilterChip): void {
-    // The chip set moves focus to a neighbouring chip; the last chip takes the row with it.
-    if (this.chips().length === 1) {
+  protected applySort(value: string | null | undefined): void {
+    if (isProductSort(value)) {
+      this.apply({ sort: value });
+    }
+  }
+
+  /**
+   * Focus moves to the chip that takes the removed one's place (or the one before it, at the end
+   * of the row) once the new query has dropped it; the last chip takes the row with it, so focus
+   * goes to the results.
+   */
+  protected removeChip(chip: FilterChip, index: number): void {
+    const chips = this.chips();
+    const neighbour = chips[index + 1] ?? chips[index - 1];
+    if (neighbour) {
+      this.chipFocus.set({ removed: chip.key, next: neighbour.key });
+    } else {
       this.focusResultsHeadingAfterRender();
     }
     this.apply(chip.removal);
@@ -328,8 +368,8 @@ export class CataloguePage {
       return;
     }
     this.navigate(clearFilters(this.query()));
-    // The CDK may have removed tabindex after its own autofocus moved on (it does for elements it
-    // considers unfocusable); put it back so the heading can take focus.
+    // The CDK removes tabindex from a heading it autofocused once focus moves on; put it back so
+    // the heading can take focus again.
     if (!heading.hasAttribute('tabindex')) {
       heading.setAttribute('tabindex', '-1');
     }
@@ -346,15 +386,8 @@ export class CataloguePage {
     this.results.reload();
   }
 
-  protected openFilters(): void {
-    this.sheetRef = this.bottomSheet.open(this.filtersSheet(), {
-      ariaLabel: 'Filters',
-      autoFocus: 'first-heading',
-    });
-  }
-
   protected closeFilters(): void {
-    this.sheetRef?.dismiss();
+    this.filtersSheet().close();
   }
 }
 

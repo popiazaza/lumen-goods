@@ -13,6 +13,7 @@
   <aside class="sidebar" aria-labelledby="filters-heading">
     <h2 id="filters-heading" class="panel-title">Filters</h2>
     <app-catalogue-filters
+      idPrefix="sidebar"
       [query]="query()"
       [sellers]="sellerOptions()"
       [sellersFailed]="sellersFailed()"
@@ -26,61 +27,99 @@
       <h2 #resultsHeading id="results-heading" class="count" tabindex="-1">
         {{ countText() }}
       </h2>
-      <button matButton="outlined" type="button" class="filters-button" (click)="openFilters()">
-        <mat-icon svgIcon="filter_list" />
-        Filters
-        @if (filterCount() > 0) {
-          ({{ filterCount() }})
-        }
-      </button>
-      <mat-form-field class="sort" appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Sort by</mat-label>
-        <mat-select [value]="query().sort" (selectionChange)="apply({ sort: $event.value })">
-          @for (option of sortOptions; track option.value) {
-            <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      <hlm-sheet #filtersSheet side="bottom" autoFocus="first-heading">
+        <button hlmSheetTrigger hlmBtn variant="outline" type="button" class="filters-button">
+          <ng-icon name="lucideSlidersHorizontal" />
+          Filters
+          @if (filterCount() > 0) {
+            ({{ filterCount() }})
           }
-        </mat-select>
-      </mat-form-field>
+        </button>
+        <hlm-sheet-content *hlmSheetPortal class="filters-sheet">
+          <h2 #sheetHeading hlmSheetTitle class="sheet-title" tabindex="-1">Filters</h2>
+          <div class="sheet-body">
+            <app-catalogue-filters
+              idPrefix="sheet"
+              [query]="query()"
+              [sellers]="sellerOptions()"
+              [sellersFailed]="sellersFailed()"
+              (filtersChange)="apply($event)"
+            />
+          </div>
+          <div class="sheet-actions">
+            <button
+              hlmBtn
+              variant="ghost"
+              type="button"
+              [attr.aria-disabled]="filterCount() === 0"
+              (click)="clearAllInSheet(sheetHeading)"
+            >
+              Clear all
+            </button>
+            <button hlmBtn type="button" (click)="closeFilters()">
+              {{ page() ? `Show ${countText()}` : 'Show results' }}
+            </button>
+          </div>
+        </hlm-sheet-content>
+      </hlm-sheet>
+      <div class="sort">
+        <label hlmLabel for="sort-by">Sort by</label>
+        <hlm-native-select
+          selectId="sort-by"
+          [value]="query().sort"
+          (valueChange)="applySort($event)"
+        >
+          @for (option of sortOptions; track option.value) {
+            <option hlmNativeSelectOption [value]="option.value">{{ option.label }}</option>
+          }
+        </hlm-native-select>
+      </div>
     </div>
 
     @if (chips().length > 0) {
       <div class="applied">
-        <mat-chip-set role="list" aria-label="Applied filters">
+        <ul class="chips" aria-label="Applied filters">
           @for (chip of chips(); track chip.key) {
-            <mat-chip role="listitem" (removed)="removeChip(chip)">
+            <li hlmBadge variant="secondary" class="chip">
               {{ chip.label }}
               <button
                 type="button"
-                matChipRemove
+                class="chip-remove"
+                [attr.data-chip]="chip.key"
                 [attr.aria-label]="`Remove filter: ${chip.label}`"
+                (click)="removeChip(chip, $index)"
               >
-                <mat-icon svgIcon="cancel" />
+                <ng-icon name="lucideX" />
               </button>
-            </mat-chip>
+            </li>
           }
-        </mat-chip-set>
-        <button matButton type="button" (click)="clearAll()">Clear all</button>
+        </ul>
+        <button hlmBtn variant="link" size="sm" type="button" (click)="clearAll()">
+          Clear all
+        </button>
       </div>
     }
 
     <div class="progress">
       @if (results.isLoading() && page()) {
-        <mat-progress-bar mode="indeterminate" aria-label="Loading products" />
+        <hlm-progress aria-label="Loading products">
+          <hlm-progress-indicator />
+        </hlm-progress>
       }
     </div>
 
     @if (isError()) {
       <div class="state" role="alert">
-        <mat-icon svgIcon="error" />
+        <ng-icon name="lucideCircleAlert" />
         @if (isBadRequest()) {
           <h3>Some filters in this link are not valid</h3>
           <p>{{ errorMessage() }}</p>
-          <button matButton="filled" type="button" (click)="clearAll()">Clear all filters</button>
+          <button hlmBtn type="button" (click)="clearAll()">Clear all filters</button>
         } @else {
           <h3>We couldn’t load products</h3>
           <p>Check your connection and try again. Your search and filters are kept.</p>
-          <button matButton="filled" type="button" (click)="retry()">
-            <mat-icon svgIcon="refresh" />
+          <button hlmBtn type="button" (click)="retry()">
+            <ng-icon name="lucideRefreshCw" />
             Retry
           </button>
         }
@@ -102,8 +141,14 @@
               <ul class="pages">
                 @if (page.page > 1) {
                   <li>
-                    <a class="step" routerLink="." [queryParams]="pageParams(page.page - 1)">
-                      <mat-icon svgIcon="chevron_left" />
+                    <a
+                      hlmBtn
+                      variant="ghost"
+                      class="step"
+                      routerLink="."
+                      [queryParams]="pageParams(page.page - 1)"
+                    >
+                      <ng-icon name="lucideChevronLeft" />
                       Previous
                     </a>
                   </li>
@@ -114,7 +159,10 @@
                       <span class="gap" aria-hidden="true">…</span>
                     } @else if (link === page.page) {
                       <a
-                        class="number current"
+                        hlmBtn
+                        variant="outline"
+                        size="icon"
+                        class="number"
                         routerLink="."
                         aria-current="page"
                         [queryParams]="pageParams(link)"
@@ -123,6 +171,9 @@
                       >
                     } @else {
                       <a
+                        hlmBtn
+                        variant="ghost"
+                        size="icon"
                         class="number"
                         routerLink="."
                         [queryParams]="pageParams(link)"
@@ -134,9 +185,15 @@
                 }
                 @if (page.page < page.totalPages) {
                   <li>
-                    <a class="step" routerLink="." [queryParams]="pageParams(page.page + 1)">
+                    <a
+                      hlmBtn
+                      variant="ghost"
+                      class="step"
+                      routerLink="."
+                      [queryParams]="pageParams(page.page + 1)"
+                    >
                       Next
-                      <mat-icon svgIcon="chevron_right" />
+                      <ng-icon name="lucideChevronRight" />
                     </a>
                   </li>
                 }
@@ -148,13 +205,13 @@
         <div class="state">
           <h3>There is no page {{ query().page }}</h3>
           <p>These results have {{ page.totalPages }} pages.</p>
-          <a matButton="filled" routerLink="." [queryParams]="pageParams(page.totalPages)"
+          <a hlmBtn routerLink="." [queryParams]="pageParams(page.totalPages)"
             >Go to the last page</a
           >
         </div>
       } @else {
         <div class="state">
-          <mat-icon svgIcon="search" />
+          <ng-icon name="lucideSearch" />
           <h3>No products match</h3>
           @if (query().q) {
             <p>
@@ -164,9 +221,9 @@
             <p>Nothing matches these filters.</p>
           }
           @if (filterCount() > 0) {
-            <button matButton="filled" type="button" (click)="clearAll()">Clear all filters</button>
+            <button hlmBtn type="button" (click)="clearAll()">Clear all filters</button>
           } @else {
-            <a matButton="filled" routerLink="/">Browse all products</a>
+            <a hlmBtn routerLink="/">Browse all products</a>
           }
         </div>
       }
@@ -174,38 +231,12 @@
       <div class="grid" aria-hidden="true">
         @for (card of skeletonCards; track card) {
           <div class="skeleton">
-            <div class="skeleton-image"></div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line short"></div>
+            <hlm-skeleton class="skeleton-image" />
+            <hlm-skeleton class="skeleton-line" />
+            <hlm-skeleton class="skeleton-line short" />
           </div>
         }
       </div>
     }
   </section>
 </div>
-
-<ng-template #filtersSheet>
-  <div class="sheet">
-    <h2 #sheetHeading class="panel-title" tabindex="-1">Filters</h2>
-    <app-catalogue-filters
-      [query]="query()"
-      [sellers]="sellerOptions()"
-      [sellersFailed]="sellersFailed()"
-      (filtersChange)="apply($event)"
-    />
-    <div class="sheet-actions">
-      <button
-        matButton
-        type="button"
-        disabledInteractive
-        [disabled]="filterCount() === 0"
-        (click)="clearAllInSheet(sheetHeading)"
-      >
-        Clear all
-      </button>
-      <button matButton="filled" type="button" (click)="closeFilters()">
-        {{ page() ? `Show ${countText()}` : 'Show results' }}
-      </button>
-    </div>
-  </div>
-</ng-template>

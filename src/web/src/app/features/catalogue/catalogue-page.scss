@@ -8,8 +8,18 @@
   display: flex;
   flex-wrap: wrap;
   margin: calc(-1 * var(--lg-space-4)) 0 var(--lg-space-4);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
   gap: var(--lg-space-2) var(--lg-space-4);
   overflow-wrap: anywhere;
+
+  & strong {
+    color: var(--foreground);
+  }
+
+  & a {
+    font-weight: 500;
+  }
 }
 
 .layout {
@@ -23,8 +33,11 @@
 }
 
 .panel-title {
-  margin: 0 0 var(--lg-space-3);
-  font: var(--mat-sys-title-medium);
+  margin: 0 0 var(--lg-space-4);
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5rem;
 
   &:focus {
     outline: none;
@@ -34,19 +47,43 @@
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--lg-space-3);
 }
 
 .count {
   flex: 1 1 100%;
   margin: 0;
-  font: var(--mat-sys-title-large);
+  color: var(--foreground);
+  font-family: var(--lg-font-heading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+  }
 }
 
 .sort {
+  display: grid;
   min-width: 11rem;
   flex: 1;
+  gap: 6px;
+
+  & label {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+  }
+
+  // The helm wrapper is as wide as its select; here the select fills the column.
+  & hlm-native-select {
+    width: 100%;
+  }
 }
 
 .applied {
@@ -57,8 +94,54 @@
   gap: var(--lg-space-2);
 }
 
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0;
+  margin: 0;
+  gap: var(--lg-space-2);
+}
+
+.chip {
+  height: 28px;
+  padding: 0 2px 0 var(--lg-space-3);
+  border-color: var(--border);
+  font-size: 0.8125rem;
+  gap: 2px;
+}
+
+.chip-remove {
+  position: relative;
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  place-items: center;
+
+  &:hover {
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+    color: var(--foreground);
+  }
+
+  & ng-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  // 44px to touch on phones, without making the chip any bigger (WCAG 2.5.8).
+  @media (width < 640px) {
+    &::after {
+      position: absolute;
+      content: '';
+      inset: -10px;
+    }
+  }
+}
+
 .progress {
-  height: 4px;
+  height: 6px;
   margin: var(--lg-space-3) 0;
 }
 
@@ -68,7 +151,6 @@
   margin: 0;
   gap: var(--lg-space-3);
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  list-style: none;
 
   & > li {
     display: flex;
@@ -81,28 +163,25 @@
 
   &.stale {
     opacity: 0.6;
+    transition: opacity 150ms ease;
   }
 }
 
 .skeleton {
+  overflow: hidden;
   padding-bottom: var(--lg-space-3);
-  border: 1px solid var(--mat-sys-outline-variant);
+  border: 1px solid var(--border);
   border-radius: var(--lg-radius-card);
-}
-
-.skeleton-image,
-.skeleton-line {
-  background: var(--mat-sys-surface-container-high);
+  background: var(--card);
 }
 
 .skeleton-image {
-  border-radius: var(--lg-radius-card) var(--lg-radius-card) 0 0;
+  border-radius: 0;
   aspect-ratio: 1;
 }
 
 .skeleton-line {
   height: 14px;
-  border-radius: 4px;
   margin: var(--lg-space-3) var(--lg-space-3) 0;
 
   &.short {
@@ -114,54 +193,38 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: var(--lg-space-6);
-  gap: var(--lg-space-2);
+  margin-top: var(--lg-space-8);
+  gap: var(--lg-space-3);
 }
 
 .range {
   margin: 0;
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-medium);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
 }
 
 .pages {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
   padding: 0;
   margin: 0;
   gap: var(--lg-space-1);
-  list-style: none;
 
-  & a,
+  & .number {
+    font-variant-numeric: tabular-nums;
+  }
+
+  & .step {
+    color: var(--foreground);
+  }
+
   & .gap {
-    display: inline-flex;
-    min-width: 44px;
-    min-height: 44px;
-    box-sizing: border-box;
-    align-items: center;
-    justify-content: center;
-    padding: 0 var(--lg-space-2);
-    border-radius: 22px;
-    font: var(--mat-sys-label-large);
-  }
-
-  & a {
-    color: var(--mat-sys-primary);
-    text-decoration: none;
-
-    &:hover {
-      background: var(--mat-sys-surface-container-high);
-    }
-  }
-
-  & .current {
-    background: var(--mat-sys-primary);
-    color: var(--mat-sys-on-primary);
-
-    &:hover {
-      background: var(--mat-sys-primary);
-    }
+    display: inline-grid;
+    width: 36px;
+    color: var(--muted-foreground);
+    place-items: center;
   }
 }
 
@@ -169,28 +232,49 @@
   @include state.state;
 }
 
-.sheet {
-  padding: var(--lg-space-2) 0;
+// The phone sheet: up to most of the screen, its filters scrolling between a fixed title and a
+// fixed row of actions, so the result count and close button are always there.
+.filters-sheet {
+  max-height: 88dvh;
+  border-radius: var(--lg-radius-card) var(--lg-radius-card) 0 0;
+  gap: 0;
 }
 
-// Stays in view while the sheet scrolls, so the result count and close button are always there.
-// Above the form fields, whose outlines are positioned and would otherwise show through.
+.sheet-title {
+  padding: var(--lg-space-4) var(--lg-gutter) var(--lg-space-2);
+  margin: 0;
+  font-family: var(--lg-font-heading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.sheet-body {
+  padding: var(--lg-space-2) var(--lg-gutter);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .sheet-actions {
-  position: sticky;
-  z-index: 1;
-  bottom: calc(-1 * var(--lg-space-2));
   display: flex;
   justify-content: flex-end;
-  padding: var(--lg-space-3) 0;
-  border-top: 1px solid var(--mat-sys-outline-variant);
-  margin-top: var(--lg-space-4);
-  background: var(--mat-sys-surface-container-low);
+  padding: var(--lg-space-3) var(--lg-gutter);
+  border-top: 1px solid var(--border);
   gap: var(--lg-space-2);
+
+  & button:last-child {
+    flex: 1;
+  }
 }
 
 @media (width >= 960px) {
   .layout {
-    grid-template-columns: 260px minmax(0, 1fr);
+    column-gap: var(--lg-space-8);
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 
   .sidebar {
@@ -203,10 +287,17 @@
 
   .count {
     flex-basis: auto;
+    align-self: center;
   }
 
   .sort {
-    flex: 0 0 14rem;
+    flex: 0 0 13rem;
+    align-items: center;
+    grid-template-columns: auto 1fr;
+
+    & label {
+      font-size: 0.875rem;
+    }
   }
 
   .grid {

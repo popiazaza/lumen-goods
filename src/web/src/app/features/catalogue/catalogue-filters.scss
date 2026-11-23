@@ -9,39 +9,89 @@ fieldset {
   min-width: 0;
   flex-direction: column;
   padding: 0 0 var(--lg-space-4);
-  border: 0;
-  border-bottom: 1px solid var(--mat-sys-outline-variant);
-  margin: 0;
+  border-bottom: 1px solid var(--border);
+  gap: 2px;
 }
 
 legend {
   padding: 0 0 var(--lg-space-2);
-  color: var(--mat-sys-on-surface);
-  font: var(--mat-sys-title-small);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
 }
 
-.price {
+// A whole row is the target: 32px tall, 44px on phones (WCAG 2.5.8).
+.option {
+  min-height: 32px;
+  padding: 0 var(--lg-space-2);
+  border-radius: calc(var(--radius) * 0.8);
+  margin: 0 calc(-1 * var(--lg-space-2));
+  color: var(--foreground);
+  cursor: pointer;
+  font-weight: 400;
+  gap: var(--lg-space-3);
+  line-height: 1.25rem;
+
+  &:hover {
+    background: var(--accent);
+  }
+
+  @media (width < 640px) {
+    min-height: 44px;
+  }
+}
+
+.switch {
+  font-weight: 500;
+}
+
+.price-range {
   display: grid;
   // Min keeps its height when only Max shows an error.
   align-items: start;
-  gap: var(--lg-space-2);
+  gap: var(--lg-space-3) var(--lg-space-2);
   grid-template-columns: 1fr 1fr;
-
-  & mat-form-field {
-    min-width: 0;
-  }
 
   & button {
     grid-column: 1 / -1;
   }
 }
 
-.note {
-  margin: 0;
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-small);
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
 }
 
-mat-slide-toggle {
-  padding-bottom: var(--lg-space-2);
+// "$" sits inside the field, at its start.
+.money {
+  position: relative;
+
+  & input {
+    padding-left: 22px;
+  }
+}
+
+.currency {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.field-error {
+  margin: 0;
+  color: var(--destructive);
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
+.note {
+  margin: var(--lg-space-1) 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
 }
