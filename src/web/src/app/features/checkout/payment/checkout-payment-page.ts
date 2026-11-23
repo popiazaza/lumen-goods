@@ -835,7 +835,8 @@ export class CheckoutPaymentPage {
     }
     const stillWrong = shown.filter((problem) =>
       CARD_FIELDS.some(
-        (field) => CARD_FIELD_IDS[field] === problem.fieldId && this.cardForm.controls[field].invalid
+        (field) =>
+          CARD_FIELD_IDS[field] === problem.fieldId && this.cardForm.controls[field].invalid
       )
     );
     if (stillWrong.length !== shown.length) {

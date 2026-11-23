@@ -31,7 +31,8 @@ export const signedOutInterceptor: HttpInterceptorFn = (request, next) => {
     tap({
       error: (error: unknown) => {
         const now = sessionApi.session();
-        const sameAccount = sentAs.isAuthenticated && now.isAuthenticated && now.email === sentAs.email;
+        const sameAccount =
+          sentAs.isAuthenticated && now.isAuthenticated && now.email === sentAs.email;
         const lostSession =
           error instanceof HttpErrorResponse &&
           error.status === 401 &&

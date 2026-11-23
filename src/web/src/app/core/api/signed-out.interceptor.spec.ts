@@ -102,7 +102,9 @@ describe('signedOutInterceptor', () => {
     await start(ANONYMOUS_SESSION);
     const slow = firstValueFrom(client.get('/api/v1/orders'));
 
-    const signIn = firstValueFrom(sessionApi.signIn({ email: 'customer@lumen.test', password: 'x' }));
+    const signIn = firstValueFrom(
+      sessionApi.signIn({ email: 'customer@lumen.test', password: 'x' })
+    );
     http.expectOne('/api/v1/auth/sign-in').flush(CUSTOMER_SESSION);
     await signIn;
     http.expectOne('/api/v1/orders').flush({ title: 'Unauthorized' }, UNAUTHORIZED);
