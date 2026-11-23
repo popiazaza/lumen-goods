@@ -137,8 +137,8 @@ public enum CartLineUnavailableReason
 /// quantity counts at its current quantity until reduced.
 /// </summary>
 /// <param name="ItemCount">
-/// Sum of the quantities the subtotal covers: <see cref="CartDto.ItemCount"/> without the unavailable lines, so
-/// "Subtotal (n items)" matches the amount next to it.
+/// Sum of the quantities the subtotal covers, so "Subtotal (n items)" matches the amount next to it. Unlike the cart's
+/// own <see cref="CartDto.ItemCount"/> (the badge), it leaves out the unavailable lines.
 /// </param>
 public sealed record CartTotalsDto(
     int ItemCount,
