@@ -9,6 +9,7 @@ using Lumen.IntegrationTests.Checkout;
 using Lumen.IntegrationTests.Orders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -348,6 +349,57 @@ public sealed class PaymentWindowJobTests(CheckoutHost host) : IClassFixture<Che
             return await db.SaveChangesAsync(Ct);
         });
         return payment;
+    }
+
+    [Fact]
+    [Trait("BR", "BR-PAY-05")]
+    [Trait("BR", "BR-STOCK-01")]
+    public async Task BR_PAY_05_a_failed_payment_the_gateway_cannot_settle_is_reported_while_it_holds_the_order()
+    {
+        var (_, order, _) = await OrderAsync(quantity: 1);
+        var payment = await StuckPaymentAsync(order, PaymentStatus.Failed, MockGatewayChargeStatus.Approved);
+        host.Gateway.StatusUnavailable.Add(payment.Id);
+        var warnAfter = TimeSpan.FromMinutes(10);
+        var logger = new WarningLogger<PaymentWindowJob>();
+        using var job = new PaymentWindowJob(
+            host.App.Services.GetRequiredService<IServiceScopeFactory>(),
+            host.App.Services.GetRequiredService<PaymentWindowPolicy>(),
+            host.App.Services.GetRequiredService<IOptionsMonitor<PaymentOptions>>(),
+            new FixedOptions<PaymentJobsOptions>(new PaymentJobsOptions { UnsettledFailedWarnAfter = warnAfter }),
+            host.App.Services.GetRequiredService<IOptionsMonitor<JobsOptions>>(),
+            host.Clock,
+            logger);
+
+        host.Clock.Advance(warnAfter);
+        (await job.RunOnceAsync(Ct)).UnsettledFailedPayments.Should().BeGreaterThanOrEqualTo(1);
+
+        logger.Warnings.Should().ContainSingle().Which.Should().Contain("stay held");
+        (await host.OrderAsync(order.Number)).Status.Should().Be(OrderStatus.AwaitingPayment, "the hold is over, but it may have charged");
+
+        // Repeated at most once per warning period while it lasts, not on every run.
+        await job.RunOnceAsync(Ct);
+        logger.Warnings.Should().ContainSingle();
+        host.Clock.Advance(warnAfter);
+        await job.RunOnceAsync(Ct);
+        logger.Warnings.Should().HaveCount(2);
+    }
+
+    /// <summary>Keeps the job's warnings, formatted, so a test can read what an operator would see.</summary>
+    private sealed class WarningLogger<T> : ILogger<T>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+            {
+                Warnings.Add(formatter(state, exception));
+            }
+        }
     }
 
     private sealed class FixedOptions<T>(T value) : IOptionsMonitor<T>

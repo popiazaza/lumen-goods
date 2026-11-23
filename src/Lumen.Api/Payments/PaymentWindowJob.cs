@@ -10,7 +10,11 @@ namespace Lumen.Api.Payments;
 /// <summary>What one run of the payment window job did.</summary>
 /// <param name="PaymentsChecked">Payments looked at: expired codes, errors past their retry window, stuck charges, Failed payments.</param>
 /// <param name="OrdersExpired">Orders moved to Expired, their reserved stock released.</param>
-public sealed record PaymentWindowReport(int PaymentsChecked, int OrdersExpired);
+/// <param name="UnsettledFailedPayments">
+/// Failed payments still unsettled after <see cref="PaymentJobsOptions.UnsettledFailedWarnAfter"/>: each holds its order
+/// and reserved stock until the gateway's status answers (BR-PAY-05).
+/// </param>
+public sealed record PaymentWindowReport(int PaymentsChecked, int OrdersExpired, int UnsettledFailedPayments = 0);
 
 /// <summary>
 /// The hold-expiry and payment housekeeping job (BR-STOCK-01, BR-PAY-03, BR-PAY-05): wakes every
@@ -21,7 +25,9 @@ public sealed record PaymentWindowReport(int PaymentsChecked, int OrdersExpired)
 /// status decides), and Failed payments (the gateway's status settles them);</item>
 /// <item>expires orders awaiting payment whose hold is over or whose attempts are used up, when no payment holds
 /// them, releasing their reserved stock. A slow card still running when the hold ends keeps the order, and so does a
-/// Failed payment until the gateway settles it.</item>
+/// Failed payment until the gateway settles it;</item>
+/// <item>warns when a Failed payment has stayed unsettled for longer than
+/// <see cref="PaymentJobsOptions.UnsettledFailedWarnAfter"/>, since nothing else would end that hold.</item>
 /// </list>
 /// Each payment and order is handled in its own scope and transaction, so one bad row never stops the rest. Payments
 /// the gateway cannot answer for stay due, so the payment sweep pages through the due set with a cursor instead of
@@ -45,6 +51,9 @@ internal sealed class PaymentWindowJob(
     /// sweep reached the end. Only read and written under <see cref="_running"/>; a restart simply starts from the oldest.
     /// </summary>
     private (DateTimeOffset StatusChangedUtc, Guid Id)? _sweepCursor;
+
+    /// <summary>When the last unsettled-Failed warning was logged; null once none remain. Only used under <see cref="_running"/>.</summary>
+    private DateTimeOffset? _lastUnsettledWarning;
 
     public async Task<PaymentWindowReport> RunOnceAsync(CancellationToken cancellationToken)
     {
@@ -130,12 +139,51 @@ internal sealed class PaymentWindowJob(
                 }, "expiring order", orderId, cancellationToken);
             }
 
-            return new PaymentWindowReport(due.Count, expired);
+            var unsettled = await WarnAboutUnsettledFailedPaymentsAsync(now, cancellationToken);
+            return new PaymentWindowReport(due.Count, expired, unsettled);
         }
         finally
         {
             _running.Release();
         }
+    }
+
+    /// <summary>
+    /// BR-PAY-05: a Failed payment holds its order and stock until the gateway's status settles it, with no time limit of
+    /// its own, so a status lookup that stays down would hold them silently. Past
+    /// <see cref="PaymentJobsOptions.UnsettledFailedWarnAfter"/> this logs a warning for an operator (who can check the
+    /// charge with the gateway), repeated at most that often while any remain.
+    /// </summary>
+    /// <returns>How many Failed payments are unsettled for longer than that.</returns>
+    private async Task<int> WarnAboutUnsettledFailedPaymentsAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var warnAfter = options.CurrentValue.UnsettledFailedWarnAfter;
+        var since = now - warnAfter;
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LumenDbContext>();
+        var unsettled = db.Payments.AsNoTracking().Where(p => p.Status == PaymentStatus.Failed && p.StatusChangedUtc <= since);
+        var count = await unsettled.CountAsync(cancellationToken);
+        if (count == 0)
+        {
+            _lastUnsettledWarning = null;
+            return 0;
+        }
+
+        if (_lastUnsettledWarning is { } last && now - last < warnAfter)
+        {
+            return count;
+        }
+
+        var oldest = await unsettled
+            .OrderBy(p => p.StatusChangedUtc).ThenBy(p => p.Id)
+            .Select(p => new { p.Id, p.StatusChangedUtc, Order = db.Orders.Where(o => o.Id == p.OrderId).Select(o => o.Number).First() })
+            .FirstAsync(cancellationToken);
+        logger.LogWarning(
+            "{Count} Failed payments are unsettled for over {WarnAfter}: the gateway's status cannot say whether they charged, so their "
+            + "orders and reserved stock stay held. Oldest: payment {Payment} of order {Order}, Failed since {Since:o}",
+            count, warnAfter, oldest.Id, oldest.Order, oldest.StatusChangedUtc);
+        _lastUnsettledWarning = now;
+        return count;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
