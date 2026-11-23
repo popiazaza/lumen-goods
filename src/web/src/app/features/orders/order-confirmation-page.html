@@ -79,7 +79,7 @@
         <div class="group-head">
           <h3>Sold by {{ shipment.sellerName }}</h3>
           <span class="muted">
-            {{ shipment.method === 'express' ? 'Express' : 'Standard' }} shipping ·
+            {{ shipment.method === 'express' ? 'Express' : 'Standard' }} shipping:
             {{ shipment.fee | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
             @if (shipment.feeRefunded) {
               (refunded)
@@ -109,13 +109,13 @@
   <section aria-labelledby="amounts-heading">
     <h2 id="amounts-heading">{{ isPaid() ? 'Amounts charged' : 'Amounts' }}</h2>
     <dl class="totals">
-      <dt>Items</dt>
+      <dt>Subtotal</dt>
       <dd>{{ order.totals.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
       <dt>Shipping</dt>
       <dd>{{ order.totals.shipping | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
-      <dt>Sales tax</dt>
+      <dt>Tax</dt>
       <dd>{{ order.totals.tax | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
-      <dt class="grand">Total</dt>
+      <dt class="grand">{{ isPaid() ? 'Total charged' : 'Total' }}</dt>
       <dd class="grand price">
         {{ order.totals.total | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
       </dd>
@@ -124,7 +124,7 @@
         <dd class="refund">
           −{{ order.totals.refunded | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
         </dd>
-        <dt class="grand">You paid</dt>
+        <dt class="grand">Net paid</dt>
         <dd class="grand price">
           {{ order.totals.netPaid | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
         </dd>

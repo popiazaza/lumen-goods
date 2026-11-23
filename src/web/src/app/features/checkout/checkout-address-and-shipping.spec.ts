@@ -241,7 +241,7 @@ describe('Checkout address and shipping steps', () => {
       expect(partner.querySelector('mat-radio-button')).toBeNull();
       expect(
         partner.querySelector('.fixed-method')?.textContent?.replaceAll(/\s+/gu, ' ').trim()
-      ).toBe('Standard shipping, $4.99 · Partner shops ship Standard only.');
+      ).toBe('Standard shipping: $4.99 · Partner shops ship Standard only.');
       expect(text('.muted')).toBe(
         'Your order arrives in 2 packages: each shop ships its own items.'
       );

@@ -160,12 +160,12 @@ describe('OrderDetailPage', () => {
       kestrel: { shipping: text(kestrel, '.shipping'), name: text(kestrel, '.line .name') },
     }).toStrictEqual({
       lumen: {
-        shipping: 'Express shipping, $12.99',
+        shipping: 'Express shipping: $12.99',
         name: 'Enamel Camp Mug',
         quantity: '2 × $18.50',
         lineTotal: '$37.00',
       },
-      kestrel: { shipping: 'Standard shipping, $4.99', name: 'Merino Trail Socks' },
+      kestrel: { shipping: 'Standard shipping: $4.99', name: 'Merino Trail Socks' },
     });
     expect(text(host(), '.overview')).toContain('Processing');
     // Hours and minutes; seconds are noise on a customer's order.
@@ -216,7 +216,7 @@ describe('OrderDetailPage', () => {
       struckFee: kestrel.querySelector(':scope .shipping s')?.textContent,
       lineTotal: text(kestrel, '.line-total s'),
     }).toStrictEqual({
-      shipping: 'Standard shipping, $4.99 (refunded)',
+      shipping: 'Standard shipping: $4.99 (refunded)',
       struckFee: '$4.99',
       lineTotal: 'You don’t pay: $16.22',
     });
