@@ -161,7 +161,7 @@ internal static class OrderDetailMapping
         return new OrderDetailDto(
             order.Number,
             order.Status,
-            OrderStatusText.ForOrder(order.Status, refundPending, awaitingCode),
+            OrderStatusText.ForOrder(order.Status, refundPending, awaitingCode, paymentUnsettled: payment is { Status: PaymentStatus.Failed }),
             order.CreatedUtc.UtcDateTime,
             order.PaidUtc?.UtcDateTime,
             order.HoldExpiresUtc.UtcDateTime,
@@ -184,9 +184,13 @@ internal static class OrderDetailMapping
                 .Select(r => new RefundDto(r.Id, r.Amount, r.Status, forAdmin ? r.Reason : CustomerReason(r.Reason), [.. r.Lines.Select(l => l.OrderLineId)], r.ShippingAmount,
                     r.CreatedUtc.UtcDateTime, r.CompletedUtc?.UtcDateTime))],
             CanPay: order.Status == OrderStatus.AwaitingPayment && paymentWindow.CanStartAttempt(order.FailedPaymentAttempts, order.CreatedUtc, now),
+            // A Failed payment the gateway has yet to settle changes on its own too (BR-PAY-05): the payment window job
+            // asks the gateway and pays or releases the order, also when the customer has no attempt left to start.
             IsUpdating: order.Status == OrderStatus.PaymentProcessing
+                        || (order.Status == OrderStatus.AwaitingPayment && payment is { Status: PaymentStatus.Failed })
                         || order.Lines.Any(l => l.Status == OrderLineStatus.AwaitingPartner)
-                        || refundPending);
+                        || refundPending,
+            AwaitingOneTimeCode: order.Status == OrderStatus.PaymentProcessing && awaitingCode);
     }
 
     /// <summary>

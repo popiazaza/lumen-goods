@@ -130,12 +130,14 @@ internal static class AdminOrderEndpoints
                 NeedsAttention = o.Lines.Any(l => l.Status == OrderLineStatus.NeedsAttention),
                 RefundPending = o.Refunds.Any(r => r.Status != RefundStatus.Succeeded),
                 AwaitingCode = o.Payments.Any(p => p.Status == PaymentStatus.RequiresAction && p.OneTimeCodeExpiresUtc > now),
+                // Failed is not final, and at most one payment per order is not, so a Failed one is the current payment.
+                PaymentUnsettled = o.Payments.Any(p => p.Status == PaymentStatus.Failed),
             })
             .ToListAsync(cancellationToken);
 
         var items = rows
             .Select(r => new AdminOrderSummaryDto(
-                r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending, r.AwaitingCode), r.CreatedUtc.UtcDateTime, r.Email ?? "", r.Total, r.RefundedTotal,
+                r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending, r.AwaitingCode, r.PaymentUnsettled), r.CreatedUtc.UtcDateTime, r.Email ?? "", r.Total, r.RefundedTotal,
                 sellers.Names(r.Sources), r.PaymentMethod, r.NeedsAttention))
             .ToList();
         return TypedResults.Ok(PagedResult<AdminOrderSummaryDto>.Create(items, paging, total));

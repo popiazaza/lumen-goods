@@ -43,7 +43,11 @@ public sealed record OrderSummaryDto(
 /// <param name="StatusText">Customer wording for <see cref="Status"/> (paid is shown as "Processing").</param>
 /// <param name="HoldExpiresUtc">Until when the order can be paid (15-minute price and stock hold).</param>
 /// <param name="CanPay">The order awaits payment, its hold lasts and attempts are left: show the payment step.</param>
-/// <param name="IsUpdating">Something can still change on its own: a payment being confirmed, or a line awaiting its partner.</param>
+/// <param name="IsUpdating">
+/// Something can still change on its own: a payment being confirmed, a Failed payment the gateway has yet to settle
+/// (BR-PAY-05), a line awaiting its partner, or a refund on its way.
+/// </param>
+/// <param name="AwaitingOneTimeCode">The current payment waits for the customer's one-time code, which has not expired: offer "Enter the code".</param>
 /// <param name="Payment">The latest payment, or null before the first one.</param>
 /// <example>
 /// <code>
@@ -66,7 +70,7 @@ public sealed record OrderSummaryDto(
 ///   "payment": { "paymentId": "0193a2c4-...", "method": "card", "status": "succeeded", "amount": 75.46,
 ///                "cardBrand": "visa", "cardLast4": "1111", "completedUtc": "2026-11-20T08:01:10Z" },
 ///   "refunds": [],
-///   "canPay": false, "isUpdating": true
+///   "canPay": false, "isUpdating": true, "awaitingOneTimeCode": false
 /// }
 /// </code>
 /// </example>
@@ -84,7 +88,8 @@ public sealed record OrderDetailDto(
     PaymentSummaryDto? Payment,
     IReadOnlyList<RefundDto> Refunds,
     bool CanPay,
-    bool IsUpdating);
+    bool IsUpdating,
+    bool AwaitingOneTimeCode);
 
 /// <summary>One seller's part of the order: its shipment (method, fee, whether the fee was refunded) and its lines.</summary>
 public sealed record OrderShipmentDto(

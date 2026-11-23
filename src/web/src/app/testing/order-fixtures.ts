@@ -119,6 +119,7 @@ export const anOrderDetail = (overrides: Partial<OrderDetailDto> = {}): OrderDet
   refunds: [],
   canPay: false,
   isUpdating: true,
+  awaitingOneTimeCode: false,
   ...overrides,
 });
 

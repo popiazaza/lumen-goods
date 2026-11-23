@@ -233,9 +233,13 @@ export interface OrderDetailDto {
   */
   canPay: boolean;
   /**
-   * Something can still change on its own: a payment being confirmed, a line awaiting its partner, or a refund being paid back. The order pages poll while it is true.
+   * Something can still change on its own: a payment being confirmed (a Failed one the card provider has yet to settle included), a line awaiting its partner, or a refund being paid back. The order pages poll while it is true.
    */
   isUpdating: boolean;
+  /**
+  The current payment waits for the customer's one-time code, which has not expired: offer Enter the code.
+  */
+  awaitingOneTimeCode: boolean;
 }
 
 const BRAND_NAMES: Readonly<Record<CardBrand, string>> = {

@@ -280,7 +280,8 @@ public sealed class OrderingContractTests
             new PaymentSummaryDto(Guid.NewGuid(), PaymentMethod.Wallet, PaymentStatus.Succeeded, 92.98m, null, null, At.AddMinutes(1)),
             [new RefundDto(Guid.NewGuid(), 40.03m, RefundStatus.Succeeded, "Not supplied by Kestrel Outfitters", [line.Id], 4.99m, At, At)],
             CanPay: false,
-            IsUpdating: false);
+            IsUpdating: false,
+            AwaitingOneTimeCode: false);
 
         var json = Serialize(detail);
 

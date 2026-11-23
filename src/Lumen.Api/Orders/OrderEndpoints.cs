@@ -64,12 +64,14 @@ internal static class OrderEndpoints
                 RefundPending = o.Refunds.Any(r => r.Status != RefundStatus.Succeeded),
                 // At most one payment of an order is not final, so a RequiresAction one is the current payment.
                 AwaitingCode = o.Payments.Any(p => p.Status == PaymentStatus.RequiresAction && p.OneTimeCodeExpiresUtc > now),
+                // Failed is not final, and at most one payment per order is not, so a Failed one is the current payment.
+                PaymentUnsettled = o.Payments.Any(p => p.Status == PaymentStatus.Failed),
             })
             .ToListAsync(cancellationToken);
 
         var items = rows
             .Select(r => new OrderSummaryDto(
-                r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending, r.AwaitingCode), r.CreatedUtc.UtcDateTime, r.Total, r.RefundedTotal, r.ItemCount,
+                r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending, r.AwaitingCode, r.PaymentUnsettled), r.CreatedUtc.UtcDateTime, r.Total, r.RefundedTotal, r.ItemCount,
                 sellers.Names(r.Sources),
                 // The same test as the order page's CanPay (OrderDetailReader), so the list and the page agree.
                 CanPay: r.Status == OrderStatus.AwaitingPayment && paymentWindow.CanStartAttempt(r.FailedPaymentAttempts, r.CreatedUtc, now),

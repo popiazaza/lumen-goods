@@ -51,6 +51,12 @@
         <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: o.number }"
           >Enter the code</a
         >
+      } @else if (action === 'checking') {
+        <mat-icon svgIcon="schedule" />
+        <p>
+          We’re checking with your card provider whether your card was charged. If it was, your
+          order will be paid; if not, it will be cancelled and you won’t be charged.
+        </p>
       } @else {
         <mat-icon svgIcon="credit_card" />
         @if (action === 'pay-after-failure') {

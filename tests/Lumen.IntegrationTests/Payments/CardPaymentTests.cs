@@ -254,7 +254,7 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
 
         var listed = history.Items.Single(o => o.Number == order.Number);
         (listed.StatusText, listed.AwaitingOneTimeCode, listed.CanPay).Should().Be(("Waiting for your one-time code", true, false));
-        (detail.Status, detail.StatusText).Should().Be((OrderStatus.PaymentProcessing, "Waiting for your one-time code"));
+        (detail.Status, detail.StatusText, detail.AwaitingOneTimeCode).Should().Be((OrderStatus.PaymentProcessing, "Waiting for your one-time code", true));
         detail.Payment!.Status.Should().Be(PaymentStatus.RequiresAction);
 
         // Once the code has run out, nothing waits for the customer any more.
@@ -263,6 +263,8 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
         var expired = afterExpiry.Items.Single(o => o.Number == order.Number);
         expired.StatusText.Should().NotBe("Waiting for your one-time code");
         expired.AwaitingOneTimeCode.Should().BeFalse();
+        (await (await shopper.Session.GetAsync($"/api/v1/orders/{order.Number}")).ReadAsync<OrderDetailDto>()).AwaitingOneTimeCode
+            .Should().BeFalse("an expired code is not waited for");
     }
 
     [Fact]
@@ -285,6 +287,37 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
 
         host.Clock.Advance(TimeSpan.FromMinutes(15));
         (await CanPayAsync()).Should().Be((false, false), "the hold is over");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-02")]
+    [Trait("BR", "BR-PAY-03")]
+    [Trait("BR", "BR-PAY-05")]
+    public async Task BR_PAY_05_the_list_and_the_order_page_agree_on_a_failed_payment_with_and_without_attempts_left()
+    {
+        var (shopper, order) = await OrderAsync();
+        var failed = await FailedCardPaymentAsync(order, MockGatewayChargeStatus.Error);
+        host.Gateway.StatusUnavailable.Add(failed.Id);
+        async Task<(OrderSummaryDto Listed, OrderDetailDto Detail)> ReadAsync()
+        {
+            var history = await (await shopper.Session.GetAsync("/api/v1/orders")).ReadAsync<PagedResult<OrderSummaryDto>>();
+            var detail = await (await shopper.Session.GetAsync($"/api/v1/orders/{order.Number}")).ReadAsync<OrderDetailDto>();
+            return (history.Items.Single(o => o.Number == order.Number), detail);
+        }
+
+        // Attempts left: the same card may try again, and the job may settle the payment meanwhile.
+        var (listed, detail) = await ReadAsync();
+        (listed.CanPay, detail.CanPay).Should().Be((true, true));
+        (listed.StatusText, detail.StatusText).Should().Be(("Confirming your payment", "Confirming your payment"));
+        detail.IsUpdating.Should().BeTrue("the gateway's answer changes the order on its own");
+
+        // Attempts used up: nothing to start, but the order still waits for the gateway, and the pages keep reading it.
+        await host.WithDbAsync(db => db.Orders.Where(o => o.Number == order.Number)
+            .ExecuteUpdateAsync(s => s.SetProperty(o => o.FailedPaymentAttempts, 5), Ct));
+        (listed, detail) = await ReadAsync();
+        (listed.CanPay, detail.CanPay).Should().Be((false, false));
+        (listed.StatusText, detail.StatusText).Should().Be(("Confirming your payment", "Confirming your payment"));
+        (detail.Status, detail.IsUpdating).Should().Be((OrderStatus.AwaitingPayment, true));
     }
 
     [Fact]
