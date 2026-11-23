@@ -33,11 +33,7 @@
     <nav id="primary-menu" class="menu" aria-label="Main" [class.open]="menuOpen()">
       <ul class="links">
         <li>
-          <a
-            routerLink="/"
-            routerLinkActive="active"
-            ariaCurrentWhenActive="page"
-            [routerLinkActiveOptions]="shopLinkMatch"
+          <a routerLink="/" [class.active]="shopCurrent()" [attr.aria-current]="shopCurrent()"
             >Shop</a
           >
         </li>

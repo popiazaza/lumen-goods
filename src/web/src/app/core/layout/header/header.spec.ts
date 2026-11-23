@@ -43,6 +43,7 @@ describe('Header account area', () => {
           { path: 'admin', component: StubPage },
           { path: 'admin/products', component: StubPage },
           { path: 'sign-in', component: StubPage },
+          { path: 'products/:id', component: StubPage },
         ]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -128,6 +129,31 @@ describe('Header account area', () => {
     http.expectNone('/api/v1/wallet');
 
     expect(panel()?.querySelector('.balance')).toBeNull();
+  });
+
+  it('marks Shop current on the catalogue and its product pages, not on the cart', async () => {
+    await render(ANONYMOUS);
+    const router = TestBed.inject(Router);
+    const shop = () => link('Shop');
+    const state = () => ({
+      active: shop()?.classList.contains('active'),
+      current: shop()?.getAttribute('aria-current') ?? null,
+    });
+
+    await router.navigateByUrl('/?q=mug');
+    await fixture.whenStable();
+
+    expect(state()).toStrictEqual({ active: true, current: 'page' });
+
+    await router.navigateByUrl('/products/lumen-mug');
+    await fixture.whenStable();
+
+    expect(state()).toStrictEqual({ active: true, current: 'true' });
+
+    await router.navigateByUrl('/cart');
+    await fixture.whenStable();
+
+    expect(state()).toStrictEqual({ active: false, current: null });
   });
 
   it('closes the menu with Escape and returns focus to its button', async () => {
