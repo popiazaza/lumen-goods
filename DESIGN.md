@@ -269,6 +269,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 | Integration | `tests/Lumen.IntegrationTests` | API on Testcontainers PostgreSQL 18.7: constraints, races, auth, jobs with fake partners and clock |
 | Conformance | `tests/*.StandIn.Tests` | stand-ins' raw status codes, headers and bodies against the contracts |
 | Angular | `src/web` (`npm test`, `npm run lint`) | components, URL state, cart state |
+| API end to end | `tests/Lumen.EndToEndTests` (`LUMEN_E2E_URL`) | the compose stack over HTTP: a cart from all three sellers paid once by card completes; a wallet payment lowers the balance by exactly the total |
 | Browser end to end | `src/web/e2e` (`npm run e2e`, Playwright) | the compose stack through the UI in Chromium, desktop and phone: catalogue URL state, a three-shop checkout, test cards, a price change at Place order, admin pages |
 | Load | `tests/load` (k6, `docker compose run --rm k6`) | catalogue reads through nginx at a fixed rate, against p95 under 200 ms and under 1 % errors; run by hand, not in CI (results in §7) |
 | CI | `.github/workflows/ci.yml` | all of the above except load, then a `docker compose up --wait` smoke test |
