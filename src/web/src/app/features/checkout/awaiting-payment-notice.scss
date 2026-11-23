@@ -1,0 +1,23 @@
+@use '../../../styles/alert';
+
+:host {
+  display: block;
+}
+
+.banner {
+  @include alert.alert(info);
+
+  margin: 0 0 var(--lg-space-4);
+
+  & p {
+    margin: 0 0 var(--lg-space-2);
+  }
+
+  & > div {
+    flex: 1 1 16rem;
+  }
+
+  & a {
+    margin-top: var(--lg-space-1);
+  }
+}

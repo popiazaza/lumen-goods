@@ -1,5 +1,7 @@
 <h1 #heading tabindex="-1">Your cart</h1>
 
+<app-awaiting-payment-notice />
+
 @if (mergeNotice(); as notice) {
   <div class="banner merge" role="status">
     <mat-icon svgIcon="info" aria-hidden="true" />

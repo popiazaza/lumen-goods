@@ -21,6 +21,7 @@ import { problemMessage } from '../../core/api/problem-details';
 import { SessionApi } from '../../core/api/session.api';
 import { CartStateService } from '../../core/cart/cart-state.service';
 import { ProductImage } from '../../shared/products/product-image';
+import { AwaitingPaymentNotice } from '../checkout/awaiting-payment-notice';
 import { canAcknowledge, groupBySeller, noticesOf } from './cart-notices';
 
 /**
@@ -37,7 +38,15 @@ const money = (amount: number): string => formatCurrency(amount, 'en-US', '$', '
  */
 @Component({
   selector: 'app-cart-page',
-  imports: [CurrencyPipe, RouterLink, MatButton, MatIcon, MatIconButton, ProductImage],
+  imports: [
+    CurrencyPipe,
+    RouterLink,
+    MatButton,
+    MatIcon,
+    MatIconButton,
+    AwaitingPaymentNotice,
+    ProductImage,
+  ],
   templateUrl: './cart-page.html',
   styleUrl: './cart-page.scss',
 })

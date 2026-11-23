@@ -7,9 +7,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatSnackBarHarness } from '@angular/material/snack-bar/testing';
 import { Router, provideRouter } from '@angular/router';
 import { CartDto, CartLineDto, EMPTY_CART } from '../../core/api/cart.api';
+import { SessionApi } from '../../core/api/session.api';
 import { CartStateService } from '../../core/cart/cart-state.service';
+import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../core/icons/app-icons';
-import { aCart, aCartLine } from '../../testing/fixtures';
+import { CUSTOMER_SESSION, aCart, aCartLine } from '../../testing/fixtures';
+import { anOrderDetail } from '../../testing/order-fixtures';
 import { CartPage } from './cart-page';
 
 @Component({ selector: 'app-stub-page', template: '<h1>Elsewhere</h1>' })
@@ -120,6 +123,30 @@ describe('CartPage', () => {
   afterEach(() => {
     http.verify();
     vi.restoreAllMocks();
+    sessionStorage.clear();
+  });
+
+  it('says first when an order from this checkout is waiting for payment, and links to it', async () => {
+    const ready = TestBed.inject(SessionApi).ready();
+    http.expectOne('/api/v1/auth/session').flush(CUSTOMER_SESSION);
+    await ready;
+    TestBed.inject(CheckoutStore).setOrderNumber('LG-WAIT1');
+    fixture = TestBed.createComponent(CartPage);
+    fixture.detectChanges();
+    http.expectOne('/api/v1/cart').flush(aCart([GONE_TOTE]));
+    await vi.waitFor(() =>
+      http
+        .expectOne('/api/v1/orders/LG-WAIT1')
+        .flush(anOrderDetail({ number: 'LG-WAIT1', status: 'awaiting_payment', canPay: true }))
+    );
+    await fixture.whenStable();
+
+    const notice = host().querySelector('h1 + app-awaiting-payment-notice');
+
+    expect(text(notice, 'strong')).toBe('Order LG-WAIT1 is waiting for payment');
+    expect(notice?.querySelector('a')?.getAttribute('href')).toBe(
+      '/checkout/payment?order=LG-WAIT1'
+    );
   });
 
   it('groups lines by seller, each shipping separately, with estimated totals', async () => {
