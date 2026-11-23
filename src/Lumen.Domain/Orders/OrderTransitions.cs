@@ -64,7 +64,8 @@ public static class OrderTransitions
     /// <summary>
     /// BR-ORD-03: a refund is recorded (Pending) in the transaction that rejects the line, then sent to the gateway
     /// outside it. The refund id is the gateway idempotency key, so a retry (Failed → Pending → sent again) can never
-    /// pay the customer twice. Wallet refunds credit the balance in the recording transaction (Pending → Succeeded).
+    /// pay the customer twice. A wallet refund is also sent later, not in the recording transaction: the credit and
+    /// Pending → Succeeded commit together, in a transaction of their own.
     /// </summary>
     public static readonly TransitionTable<RefundStatus> Refund = new(RefundStatus.Pending,
     [

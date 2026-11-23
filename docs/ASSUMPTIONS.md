@@ -61,7 +61,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-36 | Card form: number, name, expiry (not in the past), CVC. Only brand + last 4 digits are stored |
 | A-37 | Stolen-card decline shows the customer a generic "card declined" message; the admin sees the real reason |
 | A-38 | **Wallet**: seeded customer has **$2,000.00** (enough for the >1.000 EUR item); newly registered customers start with **$500.00** (mock money). No top-up. **One payment method per payment attempt** (wallet *or* card, no split); after a declined attempt the customer may switch method |
-| A-39 | Refunds go back to the original method (wallet: instant credit; card: mock refund) |
+| A-39 | Refunds go back to the original method (wallet: credit, usually within about 5 s; card: mock refund) |
 | A-40 | A refund covers the line + its tax, plus that seller's shipping fee if **all** that seller's lines failed. Total refunds never exceed the amount charged |
 | A-41 | Order numbers look like `LG-7K3M9QX2` (random, not sequential); partner refs are `{orderNo}-{line}` |
 | A-42 | Placing the order locks its prices and reserves own stock for **15 minutes** (not on add-to-cart). The reservation is released when the order expires: the 15 minutes end with no payment in progress, or the fifth payment attempt fails |
