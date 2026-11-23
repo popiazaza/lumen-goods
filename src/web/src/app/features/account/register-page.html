@@ -37,7 +37,8 @@
         }
       </mat-form-field>
 
-      <mat-form-field appearance="outline">
+      <!-- Dynamic, so the longer hint and a multi-rule error wrap instead of being clipped. -->
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>Password</mat-label>
         <input
           id="register-password"
@@ -57,7 +58,7 @@
         >
           <mat-icon [svgIcon]="showPassword() ? 'visibility_off' : 'visibility'" />
         </button>
-        <mat-hint>At least {{ minPasswordLength }} characters</mat-hint>
+        <mat-hint>{{ passwordHint }}</mat-hint>
         @if (form.controls.password.invalid) {
           <mat-error>{{ passwordError() }}</mat-error>
         }

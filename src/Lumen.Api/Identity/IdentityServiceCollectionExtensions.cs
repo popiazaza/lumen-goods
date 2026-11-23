@@ -23,10 +23,11 @@ internal static class IdentityServiceCollectionExtensions
             .AddIdentityCore<AppUser>(options =>
             {
                 options.User.RequireUniqueEmail = true;
-                options.Password.RequiredLength = 8;
+                PasswordRules.Apply(options.Password);
                 options.Lockout.MaxFailedAccessAttempts = 5;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
             })
+            .AddErrorDescriber<PlainIdentityErrorDescriber>()
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<LumenDbContext>()
             .AddSignInManager();

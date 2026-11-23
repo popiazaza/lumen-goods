@@ -80,7 +80,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-47 | Guest cart merge: same product → quantities added, capped by availability and 10 per line; registering also merges |
 | A-48 | Guest cart lives 30 days after its last use, in a cookie-identified server cart |
 | A-49 | A product that disappears or is deactivated stays in the cart marked "No longer available"; checkout is blocked until it's removed |
-| A-50 | Registration: unique email, ASP.NET Identity password rules with a minimum length of 8; no email verification or password reset (no email infrastructure yet) |
+| A-50 | Registration: unique email; password of at least 8 characters with an upper-case letter, a lower-case letter, a number and a symbol (ASP.NET Identity's checks, set in one place, `Identity/PasswordRules.cs`, with plain error wording; the register page's hint and early check in `features/account/password-rules.ts` mirror it); no email verification or password reset (no email infrastructure yet) |
 | A-51 | **Single launch country: US.** The spec never names a country; inferred from USD-only prices, "sales tax", the sample addresses (Portland, OR, US) and "more countries" being a planned feature. The country is a config value; addresses use US rules (the form offers the 50 states + DC; the API also accepts PR, GU, VI, AS and MP; 5-digit or ZIP+4) |
 | A-52 | Admin can't hard-delete own products (orders reference them); deactivate/reactivate only. Stock edits are rejected if they'd drop below what's already reserved |
 | A-53 | "Refresh now" runs a sync immediately in the background; a second click while running shows "running" |

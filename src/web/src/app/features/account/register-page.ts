@@ -20,11 +20,7 @@ import { SessionApi } from '../../core/api/session.api';
 import { safeReturnUrl } from '../../core/routing/return-url';
 import { ErrorSummary, FormProblem } from '../../shared/forms/error-summary';
 import { AfterSignIn } from './after-sign-in';
-
-/**
-The API's password rule (`RegisterRequest`): at least 8 characters.
-*/
-export const MIN_PASSWORD_LENGTH = 8;
+import { PASSWORD_HINT, passwordRulesValidator } from './password-rules';
 
 /**
 Create an account (`/register?returnUrl=`): email and password, then signed in.
@@ -61,7 +57,7 @@ export class RegisterPage {
 
   protected readonly session = this.sessionApi.session;
 
-  protected readonly minPasswordLength = MIN_PASSWORD_LENGTH;
+  protected readonly passwordHint = PASSWORD_HINT;
 
   protected readonly returnParams = computed(() => {
     const returnUrl = safeReturnUrl(this.returnUrl(), '');
@@ -77,7 +73,7 @@ export class RegisterPage {
     }),
     password: new FormControl('', {
       nonNullable: true,
-      validators: [Validators.required, Validators.minLength(MIN_PASSWORD_LENGTH)],
+      validators: [Validators.required, passwordRulesValidator],
     }),
   });
 
@@ -150,9 +146,11 @@ export class RegisterPage {
     if (control.hasError('server')) {
       return this.serverErrors().password ?? 'Choose a different password';
     }
-    return control.hasError('required')
-      ? 'Enter a password'
-      : `Use at least ${MIN_PASSWORD_LENGTH} characters`;
+    if (control.hasError('required')) {
+      return 'Enter a password';
+    }
+    const missing: unknown = control.getError('passwordRules');
+    return Array.isArray(missing) ? missing.join(' ') : 'Choose a different password';
   }
 
   protected submit(): void {
