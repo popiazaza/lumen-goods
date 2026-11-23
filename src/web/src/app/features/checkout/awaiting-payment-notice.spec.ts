@@ -31,7 +31,12 @@ describe('AwaitingPaymentNotice', () => {
   */
   const render = async (session: Session, orderNumber: string | null): Promise<void> => {
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideAppIcons()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideAppIcons(),
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     const ready = TestBed.inject(SessionApi).ready();
@@ -60,6 +65,7 @@ describe('AwaitingPaymentNotice', () => {
 
     expect(text()).toContain('Order LG-WAIT1 is waiting for payment');
     expect(text()).toContain('Its items are held for that order');
+
     const link = host().querySelector('a');
 
     expect(link?.textContent?.trim()).toBe('Continue to payment');

@@ -9,13 +9,9 @@
         Its items are held for that order until
         <time [attr.datetime]="order.holdExpiresUtc">{{
           order.holdExpiresUtc | date: 'shortTime'
-        }}</time
-        >, so they may show as out of stock here.
+        }}</time>, so they may show as out of stock here.
       </p>
-      <a
-        matButton="filled"
-        routerLink="/checkout/payment"
-        [queryParams]="{ order: order.number }"
+      <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
         >Continue to payment</a
       >
     </div>

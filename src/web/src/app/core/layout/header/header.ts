@@ -127,10 +127,10 @@ export class Header {
         this.accountOpen.set(false);
         this.currentUrl.set(event.urlAfterRedirects);
         // Keep the field in sync with the URL so Back and shared links show the current search.
-        // Only the catalogue's own `q`: other pages (the admin product search) have theirs.
+        // Only the catalogue's own `q` (the root path): other pages, such as the admin product
+        // search, have queries of their own.
         const url = this.router.parseUrl(event.urlAfterRedirects);
-        // The catalogue is the root path: no primary child segment.
-        const isCatalogue = !url.root.children[PRIMARY_OUTLET];
+        const isCatalogue = url.root.children[PRIMARY_OUTLET] === undefined;
         const q = isCatalogue ? (url.queryParamMap.get('q') ?? '') : '';
         this.searchForm.controls.q.setValue(q, { emitEvent: false });
       });

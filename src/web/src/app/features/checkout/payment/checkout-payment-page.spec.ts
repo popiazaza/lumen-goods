@@ -327,6 +327,7 @@ describe('CheckoutPaymentPage', () => {
       await settle();
 
       expect(host().querySelector('app-error-summary')).toBeNull();
+
       http.expectNone(`${ORDER_URL}/payments`);
     });
 

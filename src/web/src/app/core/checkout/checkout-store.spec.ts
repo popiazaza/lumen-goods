@@ -234,12 +234,20 @@ describe('CheckoutStore', () => {
 
     session.set(OTHER_CUSTOMER);
 
-    expect(store.address()).toBeNull();
-    expect(store.shippingMethod()).toBeNull();
-    expect(store.orderNumber()).toBeNull();
-    expect(store.placedOrder()).toBeNull();
+    expect({
+      address: store.address(),
+      shippingMethod: store.shippingMethod(),
+      orderNumber: store.orderNumber(),
+      placedOrder: store.placedOrder(),
+      reachable: [...store.reachable()],
+    }).toStrictEqual({
+      address: null,
+      shippingMethod: null,
+      orderNumber: null,
+      placedOrder: null,
+      reachable: ['address'],
+    });
     expect(store.checkoutKey()).not.toBe(key);
-    expect([...store.reachable()]).toStrictEqual(['address']);
     // Gone from this tab's storage too, not just hidden.
     expect(sessionStorage.getItem(CHECKOUT_STORAGE_KEY)).not.toContain(US_ADDRESS.line1);
   });

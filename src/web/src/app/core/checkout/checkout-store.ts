@@ -58,9 +58,7 @@ export class CheckoutStore {
   });
 
   /**
-   * Restored from storage on first read, and checked against the signed-in account whenever it
-   * changes, so a sign-in as someone else, a sign-out in another tab or an expired session never
-   * hands one customer's address and order to the next.
+   * Restored from storage on first read, and checked against the signed-in account whenever it changes, so a sign-in as someone else, a sign-out in another tab or an expired session never hands one customer's address and order to the next.
    */
   private readonly state = linkedSignal<string | null, CheckoutState>({
     source: this.signedInAs,

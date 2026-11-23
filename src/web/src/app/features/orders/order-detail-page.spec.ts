@@ -218,8 +218,9 @@ describe('OrderDetailPage', () => {
       struckFee: '$4.99',
       lineTotal: 'You don’t pay: $16.22',
     });
-    expect(text(host(), '.notice')).toContain('1 item couldn’t be supplied.');
-    expect(text(host(), '.notice')).toContain('The rest of your order goes ahead.');
+    expect(text(host(), '.notice')).toBe(
+      '1 item couldn’t be supplied. You don’t pay for it: the refund goes back to how you paid. The rest of your order goes ahead.'
+    );
     expect({
       refunded: row(summary(), '.refunded'),
       netPaid: row(summary(), '.refunded + .total'),

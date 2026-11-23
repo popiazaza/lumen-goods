@@ -833,7 +833,9 @@ export class CheckoutPaymentPage {
       return;
     }
     const listed = new Set(shown.map((problem) => problem.fieldId));
-    this.problems.set(this.problemsOf(CARD_FIELDS.filter((field) => listed.has(CARD_FIELD_IDS[field]))));
+    this.problems.set(
+      this.problemsOf(CARD_FIELDS.filter((field) => listed.has(CARD_FIELD_IDS[field])))
+    );
   }
 
   private problemsOf(fields: readonly CardField[]): FormProblem[] {

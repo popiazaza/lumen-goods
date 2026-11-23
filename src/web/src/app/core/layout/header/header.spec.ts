@@ -31,6 +31,7 @@ describe('Header account area', () => {
   const toggle = () =>
     host().querySelector<HTMLButtonElement>('button[aria-controls="account-panel"]');
   const panel = () => host().querySelector<HTMLElement>('#account-panel');
+  const searchBox = () => host().querySelector<HTMLInputElement>('#site-search');
 
   const render = async (session: Session): Promise<void> => {
     TestBed.configureTestingModule({
@@ -140,18 +141,17 @@ describe('Header account area', () => {
 
   it('shows the catalogue’s search in the search box, never another page’s query', async () => {
     await render(ADMIN_SESSION);
-    const search = () => host().querySelector<HTMLInputElement>('#site-search')?.value;
     const router = TestBed.inject(Router);
 
     await router.navigateByUrl('/?q=tote');
     await fixture.whenStable();
 
-    expect(search()).toBe('tote');
+    expect(searchBox()?.value).toBe('tote');
 
     await router.navigateByUrl('/admin/products?q=cotton%20market');
     await fixture.whenStable();
 
-    expect(search()).toBe('');
+    expect(searchBox()?.value).toBe('');
   });
 
   it('signs out: forgets the checkout, shows the guest cart and goes home', async () => {

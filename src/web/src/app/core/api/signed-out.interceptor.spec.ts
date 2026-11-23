@@ -51,9 +51,14 @@ describe('signedOutInterceptor', () => {
     url: string,
     status = UNAUTHORIZED
   ): Promise<unknown> => {
-    const call = firstValueFrom(client.request(method, url)).catch((error: unknown) => error);
+    const call = firstValueFrom(client.request(method, url));
     http.expectOne(url).flush({ title: status.statusText }, status);
-    return call;
+    try {
+      await call;
+      return undefined;
+    } catch (error: unknown) {
+      return error;
+    }
   };
 
   afterEach(() => http.verify());
@@ -99,6 +104,7 @@ describe('signedOutInterceptor', () => {
     await fail('GET', '/api/v1/orders');
 
     http.expectNone('/api/v1/auth/session');
+
     expect(router.url).toBe('/checkout/review');
   });
 });

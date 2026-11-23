@@ -141,7 +141,7 @@ describe('CartPage', () => {
     );
     await fixture.whenStable();
 
-    const notice = host().querySelector('h1 + app-awaiting-payment-notice');
+    const notice = host().querySelector(':scope h1 + app-awaiting-payment-notice');
 
     expect(text(notice, 'strong')).toBe('Order LG-WAIT1 is waiting for payment');
     expect(notice?.querySelector('a')?.getAttribute('href')).toBe(

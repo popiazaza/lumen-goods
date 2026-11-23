@@ -339,9 +339,9 @@ describe('CheckoutReviewPage', () => {
     await fixture.whenStable();
 
     expect(text('app-awaiting-payment-notice')).toContain('Order LG-WAIT1 is waiting for payment');
-    expect(
-      host().querySelector('app-awaiting-payment-notice a')?.getAttribute('href')
-    ).toBe('/checkout/payment?order=LG-WAIT1');
+    expect(host().querySelector(':scope app-awaiting-payment-notice a')?.getAttribute('href')).toBe(
+      '/checkout/payment?order=LG-WAIT1'
+    );
   });
 
   it('lists the API’s reasons when it refuses the address (400), with a way to change it', async () => {
