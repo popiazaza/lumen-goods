@@ -81,10 +81,15 @@ export class Header {
   protected readonly isAdmin = this.sessionApi.isAdmin;
 
   /**
+  Staff accounts such as the admin have no wallet, so they get no balance line (and no 404 behind it).
+  */
+  protected readonly hasWallet = this.sessionApi.isCustomer;
+
+  /**
   Read when the account panel opens, so the balance is current after a payment or refund.
   */
   protected readonly wallet = rxResource({
-    params: () => (this.accountOpen() && this.session().isAuthenticated ? true : undefined),
+    params: () => (this.accountOpen() && this.hasWallet() ? true : undefined),
     stream: () => this.walletApi.get(),
   });
 

@@ -1,4 +1,5 @@
 @use '../orders/order-page';
+@use '../../../styles/alert';
 
 // The page's list item lays its content out in a grid; the same grid here keeps the spacing.
 :host {
@@ -26,17 +27,12 @@ code {
 }
 
 .last-error {
-  display: flex;
-  align-items: flex-start;
-  padding: var(--lg-space-2);
-  border-radius: 8px;
+  @include alert.alert(error, $dense: true);
+
   margin: 0;
-  background: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
-  gap: var(--lg-space-2);
   overflow-wrap: anywhere;
 
-  & mat-icon {
-    flex: none;
+  &.unknown {
+    @include alert.tone(warning);
   }
 }

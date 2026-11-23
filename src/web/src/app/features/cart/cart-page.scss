@@ -1,3 +1,5 @@
+@use '../../../styles/alert';
+
 :host {
   display: block;
 }
@@ -8,24 +10,19 @@
 }
 
 .banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  padding: var(--lg-space-3) var(--lg-space-4);
-  border-radius: var(--lg-radius-card);
-  margin: 0 0 var(--lg-space-4);
-  background: var(--mat-sys-secondary-container);
-  color: var(--mat-sys-on-secondary-container);
-  gap: var(--lg-space-3);
+  @include alert.alert(info);
 
-  &.notices {
-    background: var(--mat-sys-tertiary-container);
-    color: var(--mat-sys-on-tertiary-container);
+  flex-wrap: wrap;
+  margin: 0 0 var(--lg-space-4);
+
+  // Not `.notices`: that class is the per-line notice list, whose reset (no padding, margin or
+  // bullets) would win over this banner's.
+  &.changes {
+    @include alert.tone(warning);
   }
 
   &.error {
-    background: var(--mat-sys-error-container);
-    color: var(--mat-sys-on-error-container);
+    @include alert.tone(error);
   }
 
   & p,
@@ -38,12 +35,12 @@
     flex: 1 1 16rem;
   }
 
-  // In the banner's colours (an error colour on the tertiary container would be hard to read);
-  // the icon and the words say it is an error.
+  // The icon and the words say it is an error; the colour only adds to it.
   & .banner-error {
     display: flex;
     align-items: flex-start;
     margin-top: var(--lg-space-2);
+    color: var(--mat-sys-error);
     font-weight: 500;
     gap: var(--lg-space-1);
 

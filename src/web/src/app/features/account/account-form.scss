@@ -1,4 +1,6 @@
 // Shared by the sign-in and register pages.
+@use '../../../styles/alert';
+
 :host {
   display: block;
 }
@@ -24,17 +26,9 @@
 }
 
 .failure {
-  display: flex;
-  padding: var(--lg-space-3) var(--lg-space-4);
-  border-radius: var(--lg-radius-card);
-  margin: 0 0 var(--lg-space-4);
-  background: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
-  gap: var(--lg-space-3);
+  @include alert.alert(error);
 
-  & mat-icon {
-    flex: none;
-  }
+  margin: 0 0 var(--lg-space-4);
 
   & p {
     margin: 0;

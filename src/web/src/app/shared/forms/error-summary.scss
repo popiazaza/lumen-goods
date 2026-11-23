@@ -1,9 +1,10 @@
+@use '../../../styles/alert';
+
 .summary {
-  padding: var(--lg-space-4);
-  border: 2px solid var(--mat-sys-error);
-  border-radius: var(--lg-radius-card);
+  @include alert.alert(error);
+
+  display: block;
   margin: 0 0 var(--lg-space-6);
-  background: var(--mat-sys-surface);
 
   &:focus-visible {
     outline-offset: 3px;
