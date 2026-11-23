@@ -136,6 +136,58 @@ public sealed class RateLimitTests(LumenApiFactory factory)
         fromOtherCustomer.StatusCode.Should().NotBe(HttpStatusCode.TooManyRequests, "the limit is per customer");
     }
 
+    [Fact]
+    public async Task A_61st_cart_change_in_a_minute_from_one_guest_address_gets_429_and_other_clients_and_customers_are_not_affected()
+    {
+        var product = await factory.OwnProductAsync(onHand: 100);
+        var address = NewClientAddress();
+        var add = new { productId = product.Id, quantity = 1 };
+
+        // A script that drops the guest cart cookie: without the limit, every one of these adds would create a guest
+        // cart row, kept for 30 days.
+        var attempts = new List<HttpResponseMessage>();
+        for (var i = 0; i < 61; i++)
+        {
+            var cookieless = await SessionFromAsync(address);
+            attempts.Add(await cookieless.PostAsJsonAsync($"{CartTestSupport.CartUrl}/lines", add));
+        }
+
+        var otherGuest = await SessionFromAsync(NewClientAddress());
+        var fromOtherGuest = await otherGuest.PostAsJsonAsync($"{CartTestSupport.CartUrl}/lines", add);
+        var customerAtSameAddress = await SessionFromAsync(address);
+        await customerAtSameAddress.RegisterAsync();
+        var fromCustomer = await customerAtSameAddress.PostAsJsonAsync($"{CartTestSupport.CartUrl}/lines", add);
+
+        attempts.Take(60).Select(r => r.StatusCode).Should().AllBeEquivalentTo(HttpStatusCode.OK);
+        var limited = attempts[60];
+        limited.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        limited.Headers.RetryAfter!.Delta.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThanOrEqualTo(TimeSpan.FromMinutes(1));
+        (await limited.ReadJsonAsync()).GetProperty("type").GetString().Should().Be(RateLimitProblemTypes.RateLimited);
+        fromOtherGuest.StatusCode.Should().Be(HttpStatusCode.OK, "guests are limited per client address");
+        fromCustomer.StatusCode.Should().Be(HttpStatusCode.OK, "a signed-in customer has a limit of their own");
+    }
+
+    [Fact]
+    public async Task A_61st_cart_change_in_a_minute_from_one_customer_gets_429_and_guests_at_the_same_address_are_not_affected()
+    {
+        var address = NewClientAddress();
+        var customer = await SessionFromAsync(address);
+        await customer.RegisterAsync();
+
+        var attempts = new List<HttpResponseMessage>();
+        for (var i = 0; i < 61; i++)
+        {
+            attempts.Add(await customer.AcknowledgeAsync());
+        }
+
+        var guestAtSameAddress = await SessionFromAsync(address);
+        var fromGuest = await guestAtSameAddress.AcknowledgeAsync();
+
+        attempts.Take(60).Select(r => r.StatusCode).Should().AllBeEquivalentTo(HttpStatusCode.OK);
+        attempts[60].StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        fromGuest.StatusCode.Should().Be(HttpStatusCode.OK, "the customer's limit is theirs, not the address's");
+    }
+
     private async Task<ApiSession> SessionFromAsync(string clientAddress)
     {
         var client = factory.CreateClient();

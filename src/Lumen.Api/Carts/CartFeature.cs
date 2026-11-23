@@ -73,7 +73,7 @@ internal static class CartFeature
     /// Cart endpoints under /api/v1, for guests and customers alike; 403 for a signed-in account without the customer
     /// role (the admin). Every one answers 200 with the whole <see cref="CartDto"/>, or 409
     /// <see cref="CartProblems.CartChangedType"/> when the guest cart the cookie names is gone (merged by a sign-in racing
-    /// the request: re-read the cart):
+    /// the request: re-read the cart). Changes (all but GET) get 429 past <c>RateLimiting:CartWritesPerShopper</c>:
     /// <list type="bullet">
     /// <item><c>GET /cart</c> (an empty cart when there is none; never creates one)</item>
     /// <item><c>POST /cart/lines</c> <see cref="AddCartLineRequest"/> (creates the cart, and for a guest the cookie, on

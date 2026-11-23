@@ -29,12 +29,20 @@ public sealed class RateLimitingOptions : IValidatableObject
     /// <summary>Payment starts per customer: each card payment calls the gateway.</summary>
     public WindowLimit PaymentPerCustomer { get; set; } = new() { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) };
 
+    /// <summary>
+    /// Cart changes (add, change quantity, remove, acknowledge) per signed-in customer, or per client IP for a guest:
+    /// a cookieless add creates a guest cart row kept 30 days, so a script could otherwise fill the database. Generous,
+    /// so a shopper clicking quickly never meets it; guests behind one address (an office, a carrier NAT) share it.
+    /// </summary>
+    public WindowLimit CartWritesPerShopper { get; set; } = new() { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) };
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         foreach (var (name, limit) in new[]
         {
             (nameof(SignInPerClient), SignInPerClient), (nameof(RegisterPerClient), RegisterPerClient),
             (nameof(PlaceOrderPerCustomer), PlaceOrderPerCustomer), (nameof(PaymentPerCustomer), PaymentPerCustomer),
+            (nameof(CartWritesPerShopper), CartWritesPerShopper),
         })
         {
             if (limit is null || limit.PermitLimit is < 1 or > 100_000 || limit.Window < TimeSpan.FromSeconds(1) || limit.Window > TimeSpan.FromDays(1))

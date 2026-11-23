@@ -13,6 +13,7 @@ internal static class RateLimitPolicies
     public const string Register = "register";
     public const string PlaceOrder = "place-order";
     public const string Payment = "payment";
+    public const string CartWrite = "cart-write";
 }
 
 public static class RateLimitProblemTypes
@@ -23,7 +24,8 @@ public static class RateLimitProblemTypes
 
 /// <summary>
 /// Inbound rate limiting (<see cref="RateLimitingOptions"/>): sign-in and registration per client IP, Place order and
-/// payment starts per signed-in customer. A rejected request gets a 429 problem with <c>Retry-After</c>. The limiters
+/// payment starts per signed-in customer, cart changes per customer or, for a guest, per client IP. A rejected request
+/// gets a 429 problem with <c>Retry-After</c>. The limiters
 /// keep their own clock (System.Threading.RateLimiting takes no <see cref="TimeProvider"/>); tests only ever exceed a
 /// limit, they never wait for a window to pass.
 /// </summary>
@@ -47,6 +49,7 @@ internal static class InboundRateLimiting
             options.AddPolicy(RateLimitPolicies.Register, http => PerClient(http, o => o.RegisterPerClient));
             options.AddPolicy(RateLimitPolicies.PlaceOrder, http => PerCustomer(http, o => o.PlaceOrderPerCustomer));
             options.AddPolicy(RateLimitPolicies.Payment, http => PerCustomer(http, o => o.PaymentPerCustomer));
+            options.AddPolicy(RateLimitPolicies.CartWrite, http => PerCustomerOrClient(http, o => o.CartWritesPerShopper));
         });
         return services;
     }
@@ -75,6 +78,15 @@ internal static class InboundRateLimiting
         http.User.CustomerId() is { } customerId
             ? FixedWindow(customerId.ToString(), http, limit)
             : RateLimitPartition.GetNoLimiter("anonymous");
+
+    /// <summary>
+    /// Keyed by the signed-in customer, or by the client IP (as <see cref="PerClient"/>) for a guest, so a customer has a
+    /// limit of their own, not shared with the guests behind the same address.
+    /// </summary>
+    private static RateLimitPartition<string> PerCustomerOrClient(HttpContext http, Func<RateLimitingOptions, WindowLimit> limit) =>
+        http.User.CustomerId() is { } customerId ? FixedWindow($"customer:{customerId}", http, limit)
+        : http.Connection.RemoteIpAddress is { } ip ? FixedWindow($"client:{ip}", http, limit)
+        : RateLimitPartition.GetNoLimiter("no-client-address");
 
     private static RateLimitPartition<string> FixedWindow(string key, HttpContext http, Func<RateLimitingOptions, WindowLimit> limit)
     {
