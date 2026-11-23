@@ -25,6 +25,7 @@ import { MatInput } from '@angular/material/input';
 import { Title } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
+import { OWN_SOURCE } from '../../core/api/order.models';
 import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
 import { ProductDto, ProductsApi } from '../../core/api/products.api';
 import { CartStateService } from '../../core/cart/cart-state.service';
@@ -36,11 +37,6 @@ import { ProductImage } from '../../shared/products/product-image';
 import { categoryLabel, humaniseAttributeKey } from '../../shared/products/product-labels';
 import { ProductPrice } from '../../shared/products/product-price';
 import { clampQuantity, maxSelectableQuantity } from './quantity';
-
-/**
-The tags the server's sanitiser keeps (A-21); anything else is treated as plain text.
-*/
-const ALLOWED_HTML = /<\/?(?:p|br|b|strong|i|em|ul|ol|li)\b[^>]*>/iu;
 
 /**
 Product detail (`/products/:id`): gallery, price, stock, description, attributes, Add to cart.
@@ -127,9 +123,14 @@ export class ProductDetailPage {
     return total > 1 ? `${name}, image ${this.selectedImage() + 1} of ${total}` : name;
   });
 
-  protected readonly descriptionIsHtml = computed(() =>
-    ALLOWED_HTML.test(this.loaded()?.description ?? '')
-  );
+  /**
+  A partner description is always the server sanitiser's output (A-21): HTML even when it has no tags, so a plain "&"
+  arrives as "&amp;" and must be rendered as HTML. Lumen's own descriptions are the text an admin typed, shown as text.
+  */
+  protected readonly descriptionIsHtml = computed(() => {
+    const product = this.loaded();
+    return product !== undefined && product.source !== OWN_SOURCE;
+  });
 
   protected readonly attributes = computed(() =>
     Object.entries(this.loaded()?.attributes ?? {}).map(([key, value]) => ({
