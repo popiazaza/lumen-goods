@@ -142,6 +142,24 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
     };
 
     [Fact]
+    [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_the_price_can_be_at_most_999_999_99_so_the_largest_order_fits_the_order_columns()
+    {
+        var (admin, atMax) = await CreateAsync(NewProduct($"{NewMarker()} Brass Telescope", price: OwnProductValidation.MaxPrice));
+
+        var above = await admin.PostAsJsonAsync(Products, NewProduct($"{NewMarker()} Gold Telescope", price: 1_000_000.00m));
+        var editAbove = await admin.PutAsJsonAsync($"{Products}/{atMax.Id}", EditOf(atMax) with { Price = 1_000_000.00m });
+
+        atMax.Price.Should().Be(999_999.99m);
+        foreach (var refused in new[] { above, editAbove })
+        {
+            refused.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            (await refused.ReadJsonAsync()).GetProperty("errors").GetProperty("price")[0].GetString()
+                .Should().Be("Price can be at most $999,999.99.");
+        }
+    }
+
+    [Fact]
     public async Task A_description_keeps_its_line_breaks_and_tabs()
     {
         var description = "First line.\r\nSecond line.\n\tIndented line.";

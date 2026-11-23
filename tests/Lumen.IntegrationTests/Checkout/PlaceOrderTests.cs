@@ -1,4 +1,5 @@
 using System.Net;
+using Lumen.Api.Admin;
 using Lumen.Api.Catalog;
 using Lumen.Api.Checkout;
 using Lumen.Api.Orders;
@@ -592,5 +593,32 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         problem.GetProperty("errors").GetProperty("lines")[0].GetString()
             .Should().Be("An order can have at most 50 lines. Remove some from your cart and review it again.");
         (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_the_largest_order_at_the_highest_own_price_is_placed_instead_of_overflowing_the_order_columns()
+    {
+        // 50 lines of 10 units at the highest price the admin may set: before the cap, one such line could already
+        // overflow the numeric(12,2) order columns, and Place order answered 500.
+        var shopper = await host.NewShopperAsync();
+        var products = Enumerable.Range(0, PlaceOrderRequest.MaxLines)
+            .Select(i => CatalogTestSupport.Own($"Largest order item {i} {Guid.NewGuid():N}", OwnProductValidation.MaxPrice, onHand: 10))
+            .ToArray();
+        await host.InsertAsync(products);
+        foreach (var product in products)
+        {
+            await shopper.AddToCartAsync(product, 10);
+        }
+
+        var preview = await shopper.PreviewAsync();
+        var response = await shopper.PlaceAsync(preview);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync(Ct));
+        var order = await response.ReadAsync<OrderDetailDto>();
+        // Per line: 10 x 999,999.99 = 9,999,999.90, tax 8 % = 799,999.99 (rounded per line); Standard shipping 4.99.
+        (order.Totals.Subtotal, order.Totals.Tax, order.Totals.Shipping, order.Totals.Total)
+            .Should().Be((499_999_995.00m, 39_999_999.50m, 4.99m, 539_999_999.49m));
+        (await host.OrderAsync(order.Number)).Total.Should().Be(539_999_999.49m);
     }
 }
