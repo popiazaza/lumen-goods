@@ -70,6 +70,7 @@ public sealed class CustomerOrderApiTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-ORD-02")]
+    [Trait("BR", "BR-ORD-03")]
     public async Task BR_ORD_02_the_order_page_follows_each_line_from_awaiting_its_shop_to_confirmed_or_not_supplied_and_refunded()
     {
         var (me, session) = await factory.SignedInCustomerAsync();
@@ -108,6 +109,9 @@ public sealed class CustomerOrderApiTests(LumenApiFactory factory)
         final.Refunds.Should().ContainSingle().Which.Should().BeEquivalentTo(new
         {
             Amount = 40.03m, ShippingAmount = 4.99m, Status = RefundStatus.Pending, LineIds = new[] { kestrelLine.Id },
+            // BR-ORD-03: the line's part is split into its subtotal and its tax, so the page can label the tax.
+            Lines = new[] { new { LineId = kestrelLine.Id, Subtotal = 32.44m, Tax = 2.60m, Amount = 35.04m } },
+            TaxAmount = 2.60m,
         });
 
         // On the wire: snake_case statuses, two-decimal money, a Lumen media URL for the image.
@@ -118,6 +122,8 @@ public sealed class CustomerOrderApiTests(LumenApiFactory factory)
         wireLine.GetProperty("status").GetString().Should().Be("rejected");
         wireLine.GetProperty("imageUrl").GetString().Should().MatchRegex("/media/[0-9a-f-]{36}/0\\?v=[0-9a-f]{12}$");
         json.GetProperty("refunds")[0].GetProperty("shippingAmount").GetRawText().Should().Be("4.99");
+        json.GetProperty("refunds")[0].GetProperty("taxAmount").GetRawText().Should().Be("2.60");
+        json.GetProperty("refunds")[0].GetProperty("lines")[0].GetProperty("subtotal").GetRawText().Should().Be("32.44");
         json.GetProperty("shipments")[1].GetProperty("lines")[0].GetProperty("statusText").ValueKind.Should().Be(JsonValueKind.String);
 
         // Paid back (what the refund job records): the line and the order say so.

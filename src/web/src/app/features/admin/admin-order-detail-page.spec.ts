@@ -86,6 +86,8 @@ const rejected = (refundStatus: RefundStatus = 'pending'): AdminOrder => {
         reason: 'Rejected by an admin: Kestrel support says it is lost',
         lineIds: [SOCKS_LINE.id],
         shippingAmount: 4.99,
+        lines: [{ lineId: SOCKS_LINE.id, subtotal: 16.22, tax: 1.3, amount: 17.52 }],
+        taxAmount: 1.3,
         createdUtc: '2026-11-21T09:00:00Z',
         completedUtc: isPaidBack ? '2026-11-21T09:00:05Z' : null,
       },
@@ -280,7 +282,7 @@ describe('AdminOrderDetailPage', () => {
     });
   });
 
-  it('shows refunds with their status, the lines and the shipping fee they pay back', async () => {
+  it('shows refunds with their status, the lines, their tax and the shipping fee they pay back', async () => {
     await load(rejected('failed'));
 
     const refunds = host().querySelector(':scope app-order-summary-panel .refunds') as HTMLElement;
@@ -288,8 +290,13 @@ describe('AdminOrderDetailPage', () => {
     expect(text(refunds, '.amount')).toBe('$22.51');
     // The admin sees what the customer does not: this attempt failed and is being retried.
     expect(text(refunds, 'app-status-badge')).toBe('Failed, will retry');
-    expect(texts(refunds, '.breakdown dt')).toStrictEqual(['Merino Trail Socks', 'Shipping fee']);
-    expect(texts(refunds, '.breakdown dd')).toStrictEqual(['$17.52', '$4.99']);
+    // The line's price and its tax apart, so the amounts add up to the refund (BR-ORD-03).
+    expect(texts(refunds, '.breakdown dt')).toStrictEqual([
+      'Merino Trail Socks',
+      'Tax',
+      'Shipping fee',
+    ]);
+    expect(texts(refunds, '.breakdown dd')).toStrictEqual(['$16.22', '$1.30', '$4.99']);
     expect(text(section('Partner orders'), 'app-status-badge')).toBe('Closed by an admin');
   });
 

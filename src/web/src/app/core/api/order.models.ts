@@ -196,6 +196,27 @@ export interface RefundDto {
   shippingAmount: number;
   createdUtc: string;
   completedUtc: string | null;
+  /**
+  What it pays back per line, split into the line's subtotal and its tax (in `lineIds` order).
+  */
+  lines: RefundLineDto[];
+  /**
+  The tax it pays back (its lines' tax). `amount` = the lines' subtotals + `taxAmount` + `shippingAmount`.
+  */
+  taxAmount: number;
+}
+
+/**
+One order line a refund pays back (BR-ORD-03).
+*/
+export interface RefundLineDto {
+  lineId: string;
+  subtotal: number;
+  tax: number;
+  /**
+  `subtotal` + `tax`: the line's `refundedAmount`.
+  */
+  amount: number;
 }
 
 /**

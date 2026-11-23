@@ -203,6 +203,8 @@ describe('OrderDetailPage', () => {
           reason: 'Kestrel Outfitters could not supply Merino Trail Socks',
           lineIds: [SOCKS_LINE.id],
           shippingAmount: 4.99,
+          lines: [{ lineId: SOCKS_LINE.id, subtotal: 16.22, tax: 1.3, amount: 17.52 }],
+          taxAmount: 1.3,
           createdUtc: '2026-11-20T08:05:00Z',
           completedUtc: '2026-11-20T08:05:01Z',
         },
@@ -226,13 +228,13 @@ describe('OrderDetailPage', () => {
     expect({
       refunded: row(summary(), '.refunded'),
       netPaid: row(summary(), '.refunded + .total'),
-      // The line and the shipping fee it paid back, as separate amounts.
+      // The line, its tax and the shipping fee it paid back, as separate amounts (BR-ORD-03).
       breakdown: rows(summary(), '.breakdown > div'),
       refundBadge: text(summary(), '.refunds li app-status-badge'),
     }).toStrictEqual({
       refunded: 'Refunded −$22.51',
       netPaid: 'Net paid $52.95',
-      breakdown: ['Merino Trail Socks $17.52', 'Shipping fee $4.99'],
+      breakdown: ['Merino Trail Socks $16.22', 'Tax $1.30', 'Shipping fee $4.99'],
       refundBadge: 'Refunded',
     });
 
@@ -469,6 +471,8 @@ describe('OrderDetailPage', () => {
           reason: 'Not supplied by Kestrel Outfitters',
           lineIds: [SOCKS_LINE.id],
           shippingAmount: 4.99,
+          lines: [{ lineId: SOCKS_LINE.id, subtotal: 16.22, tax: 1.3, amount: 17.52 }],
+          taxAmount: 1.3,
           createdUtc: '2026-11-20T08:05:00Z',
           completedUtc: status === 'succeeded' ? '2026-11-20T08:06:00Z' : null,
         },

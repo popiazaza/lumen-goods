@@ -2,10 +2,19 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { MatCard } from '@angular/material/card';
 import { MatIcon } from '@angular/material/icon';
-import { OrderDetailDto, OrderLineDto, OrderStatus, RefundDto } from '../../core/api/order.models';
+import { OrderDetailDto, OrderStatus, RefundDto } from '../../core/api/order.models';
 import { addressLines } from '../checkout/us-address';
 import { paymentMethodLabel, paymentStatusView, refundStatusView } from './order-labels';
 import { StatusBadge } from './status-badge';
+
+/**
+A line in a refund's breakdown.
+*/
+interface RefundedLine {
+  id: string;
+  name: string;
+  subtotal: number;
+}
 
 /**
 Statuses in which nothing has been charged (yet), as on the confirmation page.
@@ -77,10 +86,15 @@ export class OrderSummaryPanel {
   protected readonly refundStatus = refundStatusView;
 
   /**
-  The lines a refund pays back, each with the amount the API refunded for it.
-  */
-  protected refundedLines(refund: RefundDto): OrderLineDto[] {
+   * The lines a refund pays back, each with the subtotal the API refunded for it; their tax is one
+   * row of its own (`taxAmount`), so the amounts read like the order's own summary.
+   */
+  protected refundedLines(refund: RefundDto): RefundedLine[] {
     const lines = this.linesById();
-    return refund.lineIds.flatMap((id) => lines.get(id) ?? []);
+    return refund.lines.map((part) => ({
+      id: part.lineId,
+      name: lines.get(part.lineId)?.name ?? 'Item',
+      subtotal: part.subtotal,
+    }));
   }
 }
