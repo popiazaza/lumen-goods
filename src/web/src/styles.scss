@@ -12,9 +12,10 @@
 // `.cdk-visually-hidden`: text for screen readers only.
 @include cdk.a11y-visually-hidden();
 
-// Inter for everything people read and compare (tabular figures for prices); Fraunces, a soft
-// serif, for the wordmark and page and section headings only, through --lg-font-heading. The
-// fallbacks cover the moment before the fonts load (font-display: swap).
+// Inter for everything people read and compare (tabular figures for prices); Fraunces, a warm
+// serif, for the wordmark, page headings (h1), section headings set in title-large and dialog
+// titles, through --lg-font-heading. Smaller title-medium labels, counts and every amount stay
+// Inter. The fallbacks cover the moment before the fonts load (font-display: swap).
 $font-family:
   'Inter Variable',
   system-ui,
@@ -40,6 +41,13 @@ html {
         brand-family: $font-family,
       ),
       density: 0,
+    )
+  );
+
+  // Dialog titles are headings too.
+  @include mat.dialog-overrides(
+    (
+      subhead-font: $heading-family,
     )
   );
 
