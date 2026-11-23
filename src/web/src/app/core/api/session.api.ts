@@ -111,6 +111,15 @@ export class SessionApi {
       .pipe(tap((session) => this.remember(session)));
   }
 
+  /**
+   * The API refused a call with 401 although this tab was signed in (`signedOutInterceptor`): shows
+   * the shop signed out at once, then reads the session again, which also renews the XSRF cookie.
+   */
+  sessionEnded(): void {
+    this.current.set(ANONYMOUS_SESSION);
+    this.known = this.loadOrSignedOut();
+  }
+
   signOut(): Observable<Session> {
     return this.http
       .post<Session>(`${this.baseUrl}/auth/sign-out`, null)

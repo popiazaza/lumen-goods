@@ -103,6 +103,15 @@ describe('Sign in and register', () => {
     });
   });
 
+  it('says the shopper was signed out when the session ended under them', async () => {
+    await harness.navigateByUrl('/sign-in?returnUrl=%2Fcheckout%2Faddress&reason=signed-out');
+
+    expect(text('[role="status"]')).toBe(
+      'You were signed out. Sign in to continue; your cart is saved.'
+    );
+    expect(host().querySelector('.intro')).toBeNull();
+  });
+
   it('never follows a returnUrl to another site', async () => {
     await harness.navigateByUrl('/sign-in?returnUrl=%2F%2Fevil.example');
     type('sign-in-email', 'customer@lumen.test');

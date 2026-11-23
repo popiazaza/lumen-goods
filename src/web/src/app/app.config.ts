@@ -5,7 +5,12 @@ import {
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { provideHttpClient, withFetch, withXsrfConfiguration } from '@angular/common/http';
+import {
+  provideHttpClient,
+  withFetch,
+  withInterceptors,
+  withXsrfConfiguration,
+} from '@angular/common/http';
 import {
   TitleStrategy,
   provideRouter,
@@ -14,6 +19,7 @@ import {
 } from '@angular/router';
 import { routes } from './app.routes';
 import { loadSessionOnStartup } from './core/api/session.api';
+import { signedOutInterceptor } from './core/api/signed-out.interceptor';
 import { provideAppIcons } from './core/icons/app-icons';
 import { PageTitleStrategy } from './core/routing/page-title-strategy';
 import { provideRouteHeadingFocus } from './core/routing/route-heading-focus';
@@ -31,9 +37,11 @@ export const appConfig: ApplicationConfig = {
     { provide: TitleStrategy, useClass: PageTitleStrategy },
     provideRouteHeadingFocus(),
     // Lumen.Api issues the XSRF-TOKEN cookie; Angular echoes it on mutating same-origin requests.
+    // A 401 on a signed-in call means the session ended elsewhere: sign in again.
     provideHttpClient(
       withFetch(),
-      withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' })
+      withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' }),
+      withInterceptors([signedOutInterceptor])
     ),
     // GET /api/v1/auth/session sets that cookie, so load it before anything can POST.
     provideAppInitializer(loadSessionOnStartup),
