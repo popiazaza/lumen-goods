@@ -251,11 +251,11 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 - XML DTDs are refused (no XXE).
 - The image proxy fetches only from allow-listed origins and follows no redirects (SSRF guard).
 - The card number and CVC stay in memory; only brand and last 4 digits are stored, and `CardDetails` never prints them.
-- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP (taken from X-Forwarded-For only when the peer is nginx, `ForwardedHeaders:KnownProxies`); sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer. A 429 is ProblemDetails with `Retry-After`.
+- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP (taken from X-Forwarded-For only when the peer is nginx, `ForwardedHeaders:KnownProxies`, or loopback, which ASP.NET Core trusts by default); sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer. A 429 is ProblemDetails with `Retry-After`.
 - At most 3 unpaid orders per customer (BR-CHK-03), so one account cannot keep own stock reserved.
 - nginx answers only for `localhost` and `127.0.0.1` and the API's `AllowedHosts` matches, against DNS rebinding. Another hostname needs both changed.
 - Data Protection keys live on a volume, so a restart keeps sessions and XSRF tokens valid. In production they would be encrypted with a key vault.
-- API answers carry `Cache-Control: no-store`.
+- API answers carry `Cache-Control: no-cache, no-store`.
 
 **Configuration over code.** Every setting a reviewer may change is an `IOptions<T>` validated at start-up, set in `src/Lumen.Api/appsettings.json` and overridable by environment variables.
 
@@ -351,7 +351,7 @@ That is about 180 requests/s per vCPU. Prices are Linux, East US, pay-as-you-go,
 PostgreSQL vCores come from about 1.4 ms of CPU per request (§7): requests/s × 1.4 ms × 2 ÷ 0.6, about 4.7 vCores per 1,000 requests/s, rounded up to a Flexible Server size. They are a floor. With 96 products, counting the filtered set on every list request is cheap; at 1 M products that count dominates until the catalogue moves to keyset paging or a search read model (§7, [0009](docs/adr/0009-postgresql-for-orders-and-stock-where-mongodb-fits.md)). Writes, 10 % of calls, are costed as reads.
 
 - **One instance today.** The code runs a single API instance ([0002][adr2]: rate limiters, the sync lock and the image cache live in the process). One P3v4 carries the normal peak at about 40 % CPU; a P2v4 would run at about 83 %. More instances need the §7 split first (jobs on one deployment, shared limiter and key ring, images in Blob Storage). After that: 3 × P1v4, with autoscale on CPU.
-- **Make the catalogue cacheable before the first sale.** Anonymous catalogue GETs would send `Cache-Control: public, max-age=60` instead of `no-store`. Caching takes the sale hour from about 48 PostgreSQL vCores to 16, and the API from 7 × P3v4 to 4 × P2v4.
+- **Make the catalogue cacheable before the first sale.** Anonymous catalogue GETs would send `Cache-Control: public, max-age=60` instead of `no-cache, no-store`. Caching takes the sale hour from about 48 PostgreSQL vCores to 16, and the API from 7 × P3v4 to 4 × P2v4.
 - **Scale out before a planned sale**, not during it: autoscale reacts in minutes.
 - **Replace the half-a-CPU assumption with a measurement.** Run the same k6 script (`BASE_URL`) for an hour against a throwaway one-instance P1v4 plan (about $0.15). A deployment slot would not do: it shares production's instances.
 
