@@ -235,7 +235,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 |---|---|
 | Conditional `UPDATE ... WHERE` | stock reservation, payment claim, wallet debit |
 | `xmin` row versions | products, carts, orders, payments, partner orders, refunds, wallets |
-| Locks in a fixed order | the order row (`FOR UPDATE`) before product rows, products by id |
+| Locks in a fixed order | Place order: the customer row (`FOR NO KEY UPDATE`) before product rows; payment and expiry: the order row (`FOR UPDATE`) before product rows; products by id |
 | `FOR UPDATE SKIP LOCKED` + lease | partner order and refund claims |
 | In-process only | sync lock and Harbor token buckets, so one replica (§10) |
 
