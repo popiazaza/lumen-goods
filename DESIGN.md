@@ -396,7 +396,7 @@ PostgreSQL vCores come from about 1.4 ms of CPU per request (§7): requests/s ×
 | Typed Reactive Forms, not Angular 22 Signal Forms | Mature and documented, and every form's tests are written against them | A form being reworked anyway: move it to Signal Forms, one form at a time |
 | `ILogger` message templates, no `LoggerMessage` source generators | Logs are already structured; at today's volume the saved allocations don't matter | Busy hot paths (sync, partner order job): generated `[LoggerMessage]` methods, with CA1848 as a warning |
 | Account lockout per email plus per-IP limits | Stops mass lockouts and password spraying with no extra service | Targeted lockouts from many IPs: a step-up (CAPTCHA or email code) after a few failures instead of a hard lock |
-| Migrations run at API start-up | `docker compose up` needs no extra step | A second replica or a real pipeline: a `dotnet ef migrations bundle` step before deploy (§8) |
+| Migrations run at API start-up | `docker compose up` needs no extra step | A second replica or a real pipeline: a `dotnet ef migrations bundle` step before deploy (§8). A migration that rewrites a large table (`SearchDescriptionText` adds a stored column to `Products`) then runs in steps: add the column, backfill in batches, build the index `CONCURRENTLY` |
 
 [adr2]: docs/adr/0002-modular-monolith-in-one-api-host.md
 [adr3]: docs/adr/0003-partner-integration-adapters-sync-image-proxy.md

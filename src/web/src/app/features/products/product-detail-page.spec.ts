@@ -138,7 +138,7 @@ describe('ProductDetailPage', () => {
     expect(host().querySelector('.updated')).toBeNull();
   });
 
-  it('renders an HTML description through Angular’s sanitiser, and plain text as text', async () => {
+  it('renders a partner description as HTML through Angular’s sanitiser, and an own one as text', async () => {
     vi.spyOn(console, 'warn').mockReturnValue(undefined);
     await open(
       aProduct({
@@ -149,16 +149,32 @@ describe('ProductDetailPage', () => {
 
     expect(description.querySelector('strong')?.textContent).toBe('800 fill');
     expect(description.querySelector('script')).toBeNull();
+    // Tagged HTML lays out by its tags; its source line breaks are not kept.
+    expect(description.classList).not.toContain('plain');
 
     await harness.navigateByUrl('/products/lumen-2', ProductDetailPage);
-    http
-      .expectOne('/api/v1/products/lumen-2')
-      .flush(aProduct({ id: 'lumen-2', description: 'Line one\n5 < 6 & <tag> stays text' }));
+    http.expectOne('/api/v1/products/lumen-2').flush(
+      aProduct({
+        id: 'lumen-2',
+        source: 'lumen',
+        description: 'Line one\n5 < 6 & <tag> stays text',
+      })
+    );
     await harness.fixture.whenStable();
     const plain = host().querySelector('.description') as HTMLElement;
 
     expect(plain.classList).toContain('plain');
     expect(plain.textContent).toBe('Line one\n5 < 6 & <tag> stays text');
+  });
+
+  it('shows a partner’s plain-text description decoded, with its line breaks kept', async () => {
+    // The sanitiser returns plain partner text HTML-encoded: "Salt & pepper" is stored as "Salt &amp; pepper".
+    await open(aProduct({ description: 'Salt &amp; pepper grinder\n5 &lt; 6 settings' }));
+    const description = host().querySelector('.description') as HTMLElement;
+
+    expect(description.tagName).toBe('DIV');
+    expect(description.classList).toContain('plain');
+    expect(description.textContent).toBe('Salt & pepper grinder\n5 < 6 settings');
   });
 
   it('shows the primary image first and switches images from the thumbnails', async () => {

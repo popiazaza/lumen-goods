@@ -59,7 +59,8 @@ export interface ProductDto {
   sourceProductId: string;
   name: string;
   /**
-  Plain text, or HTML the server sanitised to p, br, b, strong, i, em, ul, ol, li.
+  Lumen's own products: plain text as the admin typed it. Partner products: HTML the server sanitised to p, br, b,
+  strong, i, em, ul, ol, li, so plain partner text arrives HTML-encoded ("&amp;").
   */
   description: string;
   category: ProductCategory;

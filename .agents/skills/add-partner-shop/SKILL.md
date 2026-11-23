@@ -29,7 +29,9 @@ few places listed in step 4.
 | `IPartnerOrderGateway` | `<Name>OrderGateway` | Send `ExternalRef` (`{orderNo}-{line}`) on every retry; treat "already exists" as success; set `DecidesLater` if the partner answers later; set `OutcomeUnknown` when a send may have reached it |
 
 Parse partner numbers with an explicit `NumberFormatInfo` (`InvariantGlobalization` is on). Map categories through
-configuration (`Partners:<Name>:CategoryMap`), never in code.
+configuration (`Partners:<Name>:CategoryMap`), never in code. Pass every description through `DescriptionSanitizer`,
+plain text included: the storefront renders a partner description as HTML, and search reads it with tags and
+entities removed (`Product.DescriptionText`).
 
 ## 3. Register it
 

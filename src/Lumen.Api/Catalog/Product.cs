@@ -18,8 +18,18 @@ public sealed class Product
 
     public required string Name { get; set; }
 
-    /// <summary>Plain text, or HTML already sanitised to the allow-list when the source supplies HTML.</summary>
+    /// <summary>
+    /// Lumen's own products: plain text as the admin typed it. Partner products: the sanitiser's output, HTML reduced to
+    /// the allow-list, so plain partner text is stored HTML-encoded ("&amp;amp;").
+    /// </summary>
     public string Description { get; set; } = "";
+
+    /// <summary>
+    /// The description as a customer reads it, for search (BR-CAT-03): a stored column PostgreSQL computes from
+    /// <see cref="Description"/> (see ProductConfiguration), so a search for "strong" doesn't match a strong tag and
+    /// "salt &amp; pepper" matches an encoded partner description. The application never writes it.
+    /// </summary>
+    public string DescriptionText { get; private set; } = "";
 
     /// <summary><see cref="ProductCategories"/> value.</summary>
     public required string Category { get; set; }

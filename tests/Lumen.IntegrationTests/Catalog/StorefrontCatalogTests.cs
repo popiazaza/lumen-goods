@@ -100,6 +100,31 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_search_matches_the_words_of_a_partner_description_not_its_markup()
+    {
+        var m = NewMarker();
+        var d = NewMarker();
+        var inMarkup = NewMarker();
+        var socks = Partner(ProductSources.Kestrel, $"{m} Trail socks");
+        // The attribute is only here to put a unique word inside a tag: search must never see it.
+        socks.Description = $"<p data-note=\"{inMarkup}\">Cushioned for <strong>{d} days</strong> on the trail.</p>";
+        // The sanitiser's output for plain partner text: "&" and "<" arrive encoded.
+        var grinder = Partner(ProductSources.Harbor, $"{m} Grinder");
+        grinder.Description = $"{d} salt &amp; pepper, 5 &lt; 6";
+        var own = Own($"{m} Note", description: $"{d} keeps <strong> & &amp; as typed");
+        await factory.InsertAsync(socks, grinder, own);
+
+        socks.DescriptionText.Should().Be($"Cushioned for {d} days on the trail.");
+        grinder.DescriptionText.Should().Be($"{d} salt & pepper, 5 < 6");
+        own.DescriptionText.Should().Be(own.Description);
+        (await NamesAsync($"q={Uri.EscapeDataString($"for {d} days")}")).Should().Equal($"{m} Trail socks");
+        (await NamesAsync($"q={Uri.EscapeDataString($"{d} salt & pepper")}")).Should().Equal($"{m} Grinder");
+        (await NamesAsync($"q={Uri.EscapeDataString($"{d} keeps <strong>")}")).Should().Equal($"{m} Note");
+        (await NamesAsync($"q={inMarkup}")).Should().BeEmpty();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CAT-03")]
     public async Task BR_CAT_03_search_treats_like_wildcards_and_backslashes_literally()
     {
         var m = NewMarker();

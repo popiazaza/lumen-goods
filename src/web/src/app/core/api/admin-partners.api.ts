@@ -61,11 +61,16 @@ export class AdminPartnersApi {
    * Emits when the server accepted the request, read from its `Date` header (epoch ms on the
    * server's clock, comparable with the status timestamps whatever the browser's clock says), or
    * `null` when the header is missing.
+   *
+   * `shouldConfirmRemovals` also removes the products the mass-removal guard is holding back
+   * (`heldRemovals`), once an admin has checked they really left the partner's catalogue.
    */
-  refresh(partner: string): Observable<number | null> {
+  refresh(partner: string, shouldConfirmRemovals = false): Observable<number | null> {
+    const params = shouldConfirmRemovals ? { confirmRemovals: 'true' } : {};
     return this.http
       .post(`${this.baseUrl}/admin/partners/${encodeURIComponent(partner)}/refresh`, null, {
         observe: 'response',
+        params,
       })
       .pipe(
         map((response) => {
