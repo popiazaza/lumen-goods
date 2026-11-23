@@ -6,7 +6,10 @@ namespace Lumen.Domain.Payments;
 /// </summary>
 public enum PaymentStatus
 {
-    /// <summary>Written when the payment claimed the order; the gateway call is about to be sent.</summary>
+    /// <summary>
+    /// The table's starting state. Lumen moves a new payment to Processing before its first save, so Created is never
+    /// stored; the code that reads payments still treats it as in progress, in case one ever is.
+    /// </summary>
     Created,
 
     /// <summary>Sent to the gateway (or the wallet debit is running); a charge may happen at any moment (BR-PAY-01).</summary>

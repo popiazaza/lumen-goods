@@ -63,9 +63,9 @@ Ports bind to 127.0.0.1. Start order: `db` healthy, then `api` healthy (migrated
 | `Orders` | Order APIs, partner order job, line rejection and refunds | BR-ORD-01..04 |
 | `Wallets` | Balance, log, opening balances | BR-PAY-06 |
 | `Partners/Ports` | `IPartnerCatalogSource`, `IPartnerStockSource`, `IPartnerAvailabilityCheck`, `IPartnerOrderGateway` | |
-| `Partners/Harbor`, `Kestrel` | One anti-corruption adapter per partner | BR-CAT-01/02 |
+| `Partners/Harbor`, `Kestrel` | One anti-corruption adapter per partner; Harbor's rate gate (`HarborHttp.cs`) | BR-CAT-01/02 |
 | `Partners/Sync` | Partner-neutral engine: schedule, hash, upsert, mass-deletion guard | BR-SYNC-01/02 |
-| `Partners/Mapping`, `Http`, `Media`, `Admin` | Category map, FX, sanitiser; resilience, Harbor rate gate; image proxy; Partner status | BR-MONEY-01 |
+| `Partners/Mapping`, `Http`, `Media`, `Admin` | Category map, FX, sanitiser; resilience; image proxy; Partner status | BR-MONEY-01 |
 | `Admin`, `Identity` | Own products; cookie session and roles, cart merge on sign-in, wallet on registration | BR-ADM-01, BR-CART-01, BR-PAY-06 |
 | `Infrastructure` | DbContext, migrations, seeding, two-decimal JSON, XSRF filter | |
 
@@ -164,7 +164,7 @@ sequenceDiagram
         OJ->>P: POST with the same reference<br/>every time, or poll the ticket
         alt Harbor 201 or 200, Kestrel CONFIRMED
             OJ->>DB: line Confirmed
-        else Harbor 409/422, REJECTED, or never reached it in 30 min
+        else Harbor 400/409/422, Kestrel REJECTED or a 400 no earlier send can have reached, or never reached it in 30 min
             OJ->>DB: line Rejected and<br/>Refund Pending
             RJ->>G: refund, key = refund id<br/>(wallet: credit instead)
             RJ->>DB: Refund Succeeded
@@ -176,7 +176,7 @@ Each step claims in a short transaction, calls out with none open, then records 
 
 ### (c) Lifecycles
 
-Orders, order lines, partner orders, payments and refunds each move through a transition table in `Lumen.Domain/Orders`; a move that is not in its table throws. All five state diagrams are in [Orders/README.md][orders-readme], generated from those tables and checked by `TransitionTableTests`, so they cannot drift from the code. The order's own lifecycle:
+Orders, order lines, partner orders, payments and refunds each move through a transition table in `Lumen.Domain/Orders` (payments: `Lumen.Domain/Payments`); a move that is not in its table throws. All five state diagrams are in [Orders/README.md][orders-readme], generated from those tables and checked by `TransitionTableTests`, so they cannot drift from the code. The order's own lifecycle:
 
 ```mermaid
 stateDiagram-v2
@@ -235,7 +235,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 |---|---|
 | Conditional `UPDATE ... WHERE` | stock reservation, payment claim, wallet debit |
 | `xmin` row versions | products, carts, orders, payments, partner orders, refunds, wallets |
-| Locks in a fixed order | the order row (`FOR UPDATE`) before product rows, products by id |
+| Locks in a fixed order | Place order: the customer row (`FOR NO KEY UPDATE`) before product rows; payment and expiry: the order row (the claim's conditional `UPDATE`, or `FOR UPDATE` when recording an outcome or expiring) before product rows; products by id |
 | `FOR UPDATE SKIP LOCKED` + lease | partner order and refund claims |
 | In-process only | sync lock and Harbor token buckets, so one replica (§10) |
 
@@ -251,11 +251,11 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 - XML DTDs are refused (no XXE).
 - The image proxy fetches only from allow-listed origins and follows no redirects (SSRF guard).
 - The card number and CVC stay in memory; only brand and last 4 digits are stored, and `CardDetails` never prints them.
-- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP (taken from X-Forwarded-For only when the peer is nginx, `ForwardedHeaders:KnownProxies`); sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer. A 429 is ProblemDetails with `Retry-After`.
+- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP (taken from X-Forwarded-For only when the peer is nginx, `ForwardedHeaders:KnownProxies`, or loopback, which ASP.NET Core trusts by default); sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer. A 429 is ProblemDetails with `Retry-After`.
 - At most 3 unpaid orders per customer (BR-CHK-03), so one account cannot keep own stock reserved.
 - nginx answers only for `localhost` and `127.0.0.1` and the API's `AllowedHosts` matches, against DNS rebinding. Another hostname needs both changed.
 - Data Protection keys live on a volume, so a restart keeps sessions and XSRF tokens valid. In production they would be encrypted with a key vault.
-- API answers carry `Cache-Control: no-store`.
+- API answers carry `Cache-Control: no-cache, no-store`.
 
 **Configuration over code.** Every setting a reviewer may change is an `IOptions<T>` validated at start-up, set in `src/Lumen.Api/appsettings.json` and overridable by environment variables.
 
@@ -269,6 +269,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 | Integration | `tests/Lumen.IntegrationTests` | API on Testcontainers PostgreSQL 18.7: constraints, races, auth, jobs with fake partners and clock |
 | Conformance | `tests/*.StandIn.Tests` | stand-ins' raw status codes, headers and bodies against the contracts |
 | Angular | `src/web` (`npm test`, `npm run lint`) | components, URL state, cart state |
+| API end to end | `tests/Lumen.EndToEndTests` (`LUMEN_E2E_URL`) | the compose stack over HTTP: a cart from all three sellers paid once by card completes; a wallet payment lowers the balance by exactly the total |
 | Browser end to end | `src/web/e2e` (`npm run e2e`, Playwright) | the compose stack through the UI in Chromium, desktop and phone: catalogue URL state, a three-shop checkout, test cards, a price change at Place order, admin pages |
 | Load | `tests/load` (k6, `docker compose run --rm k6`) | catalogue reads through nginx at a fixed rate, against p95 under 200 ms and under 1 % errors; run by hand, not in CI (results in §7) |
 | CI | `.github/workflows/ci.yml` | all of the above except load, then a `docker compose up --wait` smoke test |
@@ -351,7 +352,7 @@ That is about 180 requests/s per vCPU. Prices are Linux, East US, pay-as-you-go,
 PostgreSQL vCores come from about 1.4 ms of CPU per request (§7): requests/s × 1.4 ms × 2 ÷ 0.6, about 4.7 vCores per 1,000 requests/s, rounded up to a Flexible Server size. They are a floor. With 96 products, counting the filtered set on every list request is cheap; at 1 M products that count dominates until the catalogue moves to keyset paging or a search read model (§7, [0009](docs/adr/0009-postgresql-for-orders-and-stock-where-mongodb-fits.md)). Writes, 10 % of calls, are costed as reads.
 
 - **One instance today.** The code runs a single API instance ([0002][adr2]: rate limiters, the sync lock and the image cache live in the process). One P3v4 carries the normal peak at about 40 % CPU; a P2v4 would run at about 83 %. More instances need the §7 split first (jobs on one deployment, shared limiter and key ring, images in Blob Storage). After that: 3 × P1v4, with autoscale on CPU.
-- **Make the catalogue cacheable before the first sale.** Anonymous catalogue GETs would send `Cache-Control: public, max-age=60` instead of `no-store`. Caching takes the sale hour from about 48 PostgreSQL vCores to 16, and the API from 7 × P3v4 to 4 × P2v4.
+- **Make the catalogue cacheable before the first sale.** Anonymous catalogue GETs would send `Cache-Control: public, max-age=60` instead of `no-cache, no-store`. Caching takes the sale hour from about 48 PostgreSQL vCores to 16, and the API from 7 × P3v4 to 4 × P2v4.
 - **Scale out before a planned sale**, not during it: autoscale reacts in minutes.
 - **Replace the half-a-CPU assumption with a measurement.** Run the same k6 script (`BASE_URL`) for an hour against a throwaway one-instance P1v4 plan (about $0.15). A deployment slot would not do: it shares production's instances.
 
@@ -391,7 +392,7 @@ PostgreSQL vCores come from about 1.4 ms of CPU per request (§7): requests/s ×
 | Re-confirm every price change, drops too ([A-09][assumptions]) | One rule, easy to test: nothing is charged that the customer did not see | Customers abandoning at the drop notice: accept a drop silently and charge the lower price |
 | Kestrel prices as fresh as its feed ([0004][adr4]) | Kestrel has no per-item price endpoint; the feed is read every 3 min | Kestrel adds a price lookup, or its prices change within minutes: check them live at Place order, as for Harbor |
 | One API replica ([0002][adr2]) | Rate limiters, the per-email sign-in queue, the sync lock and the image cache live in the process: nothing to coordinate | A second replica (about 1,000 requests/s at the two-year normal peak, §7): web replicas plus a jobs deployment, shared limiter, sync lease and key ring |
-| Two large units kept whole: the payment page (969 lines of TypeScript, 319 of template) and `PartnerOrderProcessor` (571 lines) | Both move money and are well covered (885 lines of page spec, `PartnerOrderJobTests`); splitting them in the last days risked regressions for no change in behaviour | The next change to either: the page into card form, one-time-code panel and status poller; the processor into claim, send and give-up steps |
+| Two large units kept whole: the payment page (1,054 lines of TypeScript, 215 of template) and `PartnerOrderProcessor` (571 lines) | Both move money and are well covered (1,000 lines of page spec, `PartnerOrderJobTests`); splitting them in the last days risked regressions for no change in behaviour | The next change to either: the page into card form, one-time-code panel and status poller; the processor into claim, send and give-up steps |
 | Typed Reactive Forms, not Angular 22 Signal Forms | Mature and documented, and every form's tests are written against them | A form being reworked anyway: move it to Signal Forms, one form at a time |
 | `ILogger` message templates, no `LoggerMessage` source generators | Logs are already structured; at today's volume the saved allocations don't matter | Busy hot paths (sync, partner order job): generated `[LoggerMessage]` methods, with CA1848 as a warning |
 | Account lockout per email plus per-IP limits | Stops mass lockouts and password spraying with no extra service | Targeted lockouts from many IPs: a step-up (CAPTCHA or email code) after a few failures instead of a hard lock |

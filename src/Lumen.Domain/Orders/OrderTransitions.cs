@@ -45,16 +45,17 @@ public static class OrderTransitions
     /// same reference. Harbor answers synchronously (Submitted → Confirmed or Rejected); Kestrel first returns a
     /// ticket (Accepted = RECEIVED) and decides later. BR-ORD-04: one never accepted within the deadline is given
     /// up; an accepted one is never given up automatically, because the goods may still ship. When an admin resolves
-    /// its line, the partner order is closed in the same step (<see cref="PartnerOrderUpdates.ResolveByAdmin"/>).
+    /// its line, the partner order is closed in the same step (<see cref="PartnerOrderUpdates.ResolveByAdmin"/>). One
+    /// sent with an unknown outcome (Submitted) goes to Confirmed or GivenUp when an admin confirms or rejects its line.
     /// </summary>
     public static readonly TransitionTable<PartnerOrderStatus> PartnerOrder = new(PartnerOrderStatus.Pending,
     [
         new(PartnerOrderStatus.Pending, PartnerOrderStatus.Submitted, "sent, same reference on every retry"),
         new(PartnerOrderStatus.Pending, PartnerOrderStatus.GivenUp, "not accepted within 30 min"),
-        new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Confirmed, "Harbor created the order"),
+        new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Confirmed, "Harbor created the order, or an admin confirmed the line"),
         new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Accepted, "Kestrel ticket RECEIVED"),
-        new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Rejected, "Harbor 409 or 422"),
-        new(PartnerOrderStatus.Submitted, PartnerOrderStatus.GivenUp, "not accepted within 30 min"),
+        new(PartnerOrderStatus.Submitted, PartnerOrderStatus.Rejected, "Harbor 400, 409 or 422, Kestrel 400"),
+        new(PartnerOrderStatus.Submitted, PartnerOrderStatus.GivenUp, "not accepted within 30 min, or an admin rejected the line"),
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.Confirmed, "Kestrel CONFIRMED"),
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.Rejected, "Kestrel REJECTED"),
         new(PartnerOrderStatus.Accepted, PartnerOrderStatus.ClosedByAdmin, "admin resolved the line"),
@@ -63,7 +64,8 @@ public static class OrderTransitions
     /// <summary>
     /// BR-ORD-03: a refund is recorded (Pending) in the transaction that rejects the line, then sent to the gateway
     /// outside it. The refund id is the gateway idempotency key, so a retry (Failed → Pending → sent again) can never
-    /// pay the customer twice. Wallet refunds credit the balance in the recording transaction (Pending → Succeeded).
+    /// pay the customer twice. A wallet refund is also sent later, not in the recording transaction: the credit and
+    /// Pending → Succeeded commit together, in a transaction of their own.
     /// </summary>
     public static readonly TransitionTable<RefundStatus> Refund = new(RefundStatus.Pending,
     [
