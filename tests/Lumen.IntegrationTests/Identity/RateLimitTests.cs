@@ -1,6 +1,7 @@
 using System.Net;
 using Lumen.Api.Identity;
 using Lumen.Api.Infrastructure.RateLimiting;
+using Lumen.IntegrationTests.Carts;
 using Lumen.IntegrationTests.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
@@ -105,6 +106,34 @@ public sealed class RateLimitTests(LumenApiFactory factory)
         anotherClientThroughNginx.Should().NotBe(StatusCodes.Status429TooManyRequests, "nginx names each client, and each has its own limit");
         direct.Take(5).Should().NotContain(StatusCodes.Status429TooManyRequests);
         direct[5].Should().Be(StatusCodes.Status429TooManyRequests, "a peer that is not the proxy is limited by its own address, whatever it forwards");
+    }
+
+    [Theory]
+    [InlineData("/api/v1/checkout/orders")]
+    [InlineData("/api/v1/orders/LG-RATE-LIMIT/payments")]
+    public async Task An_eleventh_place_order_or_payment_start_in_a_minute_from_one_customer_gets_429_and_other_customers_are_not_affected(string url)
+    {
+        var customer = await SessionFromAsync(NewClientAddress());
+        await customer.RegisterAsync();
+        var otherCustomer = await SessionFromAsync(NewClientAddress());
+        await otherCustomer.RegisterAsync();
+
+        // Empty bodies fail inside the endpoint (validation, unknown order), after the limiter has counted them: the
+        // limit is on attempts, so a customer can't hammer the partner checks or the gateway with failing calls either.
+        var attempts = new List<HttpResponseMessage>();
+        for (var i = 0; i < 11; i++)
+        {
+            attempts.Add(await customer.PostAsJsonAsync(url, new { }));
+        }
+
+        var fromOtherCustomer = await otherCustomer.PostAsJsonAsync(url, new { });
+
+        attempts.Take(10).Select(r => r.StatusCode).Should().NotContain(HttpStatusCode.TooManyRequests);
+        var limited = attempts[10];
+        limited.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        limited.Headers.RetryAfter!.Delta.Should().BeGreaterThan(TimeSpan.Zero).And.BeLessThanOrEqualTo(TimeSpan.FromMinutes(1));
+        (await limited.ReadJsonAsync()).GetProperty("type").GetString().Should().Be(RateLimitProblemTypes.RateLimited);
+        fromOtherCustomer.StatusCode.Should().NotBe(HttpStatusCode.TooManyRequests, "the limit is per customer");
     }
 
     private async Task<ApiSession> SessionFromAsync(string clientAddress)
