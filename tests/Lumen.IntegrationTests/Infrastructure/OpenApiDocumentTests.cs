@@ -71,6 +71,7 @@ public sealed class OpenApiDocumentTests(LumenApiFactory factory)
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.Should().Be("text/html");
-        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Contain("\"url\":\"api/openapi/v1.json\"");
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Contain("\"url\":\"api/openapi/v1.json\"")
+            .And.Contain("\"withDefaultFonts\":false", "Scalar's CDN fonts would break the font-src 'self' CSP");
     }
 }
