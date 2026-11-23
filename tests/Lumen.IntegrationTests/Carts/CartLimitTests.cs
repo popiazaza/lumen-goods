@@ -28,6 +28,43 @@ public sealed class CartLimitTests(LumenApiFactory factory)
     }
 
     [Theory]
+    [Trait("BR", "BR-CART-03")]
+    [InlineData("PUT", "0")]
+    [InlineData("PUT", "11")]
+    [InlineData("PUT", "-1")]
+    [InlineData("PUT", "2147483648")]
+    [InlineData("PUT", "1.5")]
+    [InlineData("PUT", "null")]
+    [InlineData("PUT", "\"two\"")]
+    [InlineData("POST", "2147483648")]
+    [InlineData("POST", "1.5")]
+    [InlineData("POST", "null")]
+    public async Task BR_CART_03_a_quantity_that_is_not_a_whole_number_from_1_to_10_gets_the_quantity_message(string method, string quantity)
+    {
+        var product = await factory.OwnProductAsync();
+        var (guest, _) = factory.NewBrowser();
+        var line = (await guest.AddOkAsync(product.Id, 2)).LineFor(product);
+        using var request = method == "PUT"
+            ? new HttpRequestMessage(HttpMethod.Put, $"{CartTestSupport.CartUrl}/lines/{line.Id}")
+            {
+                Content = new StringContent($$"""{"quantity":{{quantity}}}""", Encoding.UTF8, "application/json"),
+            }
+            : new HttpRequestMessage(HttpMethod.Post, $"{CartTestSupport.CartUrl}/lines")
+            {
+                Content = new StringContent($$"""{"productId":"{{product.Id}}","quantity":{{quantity}}}""", Encoding.UTF8, "application/json"),
+            };
+        request.Headers.Add("X-XSRF-TOKEN", guest.XsrfToken);
+
+        var response = await guest.Client.SendAsync(request, CartTestSupport.Ct);
+
+        var problem = await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest);
+        problem.GetProperty("errors").EnumerateObject()
+            .Should().ContainSingle(e => e.Name.Equals("quantity", StringComparison.OrdinalIgnoreCase))
+            .Which.Value[0].GetString().Should().Be(CartProblems.QuantityRangeMessage);
+        (await guest.GetCartAsync()).LineFor(product).Quantity.Should().Be(2);
+    }
+
+    [Theory]
     [InlineData("1", "-1")]
     [InlineData("11", "1")]
     public async Task A_body_that_names_quantity_twice_is_rejected_whichever_value_comes_last(string first, string second)

@@ -36,6 +36,14 @@ public sealed class OpenApiDocumentTests(LumenApiFactory factory)
         placeOrder.Should().Contain("\n1. the cart's products against `lines`")
             .And.Contain("\n2. each line's").And.Contain("\n3. the re-priced");
         schemas.GetProperty("UpdateCartLineRequest").GetProperty("examples")[0].GetProperty("quantity").GetInt32().Should().Be(3);
+        foreach (var request in new[] { "UpdateCartLineRequest", "AddCartLineRequest" })
+        {
+            // The quantity's lenient converter must not leave it described as "any value".
+            var quantity = schemas.GetProperty(request).GetProperty("properties").GetProperty("quantity");
+            (quantity.GetProperty("type").GetString(), quantity.GetProperty("minimum").GetInt32(), quantity.GetProperty("maximum").GetInt32())
+                .Should().Be(("integer", 1, 10));
+        }
+
         json.Should().NotContain("```").And.NotContain("\"examples\": [null]").And.NotContain("\"examples\":[null]");
     }
 

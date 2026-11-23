@@ -22,7 +22,7 @@ builder.Services.AddLumenTelemetry(builder.Configuration);
 builder.Services.AddProblemDetails();
 builder.Services.ConfigureHttpJsonOptions(options => JsonDefaults.Configure(options.SerializerOptions));
 builder.Services.AddValidation();
-builder.Services.AddOpenApi(options => options.AddDocumentTransformer<XmlDocTextTransformer>());
+builder.Services.AddOpenApi(options => options.AddDocumentTransformer<XmlDocTextTransformer>().AddSchemaTransformer<CartQuantitySchemaTransformer>());
 builder.Services.AddLumenData(builder.Configuration);
 builder.Services.AddLumenIdentity(builder.Configuration);
 builder.Services.AddCatalog(builder.Configuration);

@@ -164,7 +164,8 @@ public sealed record CartTotalsDto(
 /// <example><code>{ "productId": "0193a0f1-...", "quantity": 2 }</code></example>
 public sealed record AddCartLineRequest(
     [Required] Guid? ProductId,
-    [Range(1, CartLine.MaxQuantity, ErrorMessage = CartProblems.QuantityRangeMessage)] int Quantity = 1);
+    [Range(1, CartLine.MaxQuantity, ErrorMessage = CartProblems.QuantityRangeMessage)]
+    [property: JsonConverter(typeof(CartQuantityJsonConverter))] int Quantity = 1);
 
 /// <summary>
 /// <c>PUT /api/v1/cart/lines/{lineId}</c>: set the line's quantity (1 to 10; remove the line with DELETE). Raising it
@@ -172,4 +173,5 @@ public sealed record AddCartLineRequest(
 /// </summary>
 /// <example><code>{ "quantity": 3 }</code></example>
 public sealed record UpdateCartLineRequest(
-    [Range(1, CartLine.MaxQuantity, ErrorMessage = CartProblems.QuantityRangeMessage)] int Quantity);
+    [Range(1, CartLine.MaxQuantity, ErrorMessage = CartProblems.QuantityRangeMessage)]
+    [property: JsonConverter(typeof(CartQuantityJsonConverter))] int Quantity);
