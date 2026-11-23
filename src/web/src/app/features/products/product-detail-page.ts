@@ -194,9 +194,15 @@ export class ProductDetailPage {
     initialValue: 1,
   });
 
-  protected readonly addedMessage = signal('');
+  /**
+  "Added to your cart", until the product (or its stock) is read again.
+  */
+  protected readonly addedMessage = linkedSignal({ source: this.loaded, computation: () => '' });
 
-  protected readonly addError = signal('');
+  /**
+  A refused add stays explained after the product is re-read, until another product opens.
+  */
+  protected readonly addError = linkedSignal({ source: this.id, computation: () => '' });
 
   protected readonly adding = signal(false);
 
@@ -211,7 +217,8 @@ export class ProductDetailPage {
       }
     });
 
-    // A new product (or a stock change) starts the selector again at 1.
+    // A new product (or a stock change) starts the selector again at 1. An effect, not a
+    // linkedSignal: the selector is a FormControl, which only takes values through its own API.
     effect(() => {
       const canBuy = this.canBuy();
       this.loaded();
@@ -219,14 +226,7 @@ export class ProductDetailPage {
         const control = this.buyForm.controls.quantity;
         control.setValue(1);
         control[canBuy ? 'enable' : 'disable']();
-        this.addedMessage.set('');
       });
-    });
-
-    // A refused add stays explained after the product is re-read, until another product opens.
-    effect(() => {
-      this.id();
-      untracked(() => this.addError.set(''));
     });
   }
 
