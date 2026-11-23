@@ -30,7 +30,11 @@ public sealed class PipelineTests(LumenApiFactory factory)
         using var client = app.CreateClient();
 
         using var atLimit = await client.PostAsync("/api/v1/cart/lines", JsonBodyOf(1_048_576), Ct);
-        using var overLimit = await client.PostAsync("/api/v1/cart/lines", JsonBodyOf(1_048_577), Ct);
+        // Expect: 100-continue lets Kestrel refuse on the Content-Length before the body is sent, so the client never
+        // races a reset connection while still writing a body the server will not read.
+        using var tooLarge = new HttpRequestMessage(HttpMethod.Post, "/api/v1/cart/lines") { Content = JsonBodyOf(1_048_577) };
+        tooLarge.Headers.ExpectContinue = true;
+        using var overLimit = await client.SendAsync(tooLarge, Ct);
 
         atLimit.StatusCode.Should().NotBe(HttpStatusCode.RequestEntityTooLarge);
         overLimit.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
