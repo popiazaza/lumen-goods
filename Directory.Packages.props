@@ -1,7 +1,7 @@
 <Project>
   <!-- Central package management: every version in the solution is pinned here.
-       EF Core, Identity and ASP.NET Core packages stay on 10.0.x because the PostgreSQL
-       EF Core provider for 11.x is not stable yet (see docs/adr/0007). -->
+       EF Core, Identity and ASP.NET Core packages stay on 10.0.x with the .NET 10 runtime
+       until the planned .NET 11 upgrade (see docs/adr/0007). -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
