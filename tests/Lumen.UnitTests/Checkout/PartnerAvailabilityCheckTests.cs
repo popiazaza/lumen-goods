@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Lumen.Api.Partners.Harbor;
 using Lumen.Api.Partners.Kestrel;
@@ -81,13 +82,13 @@ public sealed class PartnerAvailabilityCheckTests
 
     [Theory]
     [Trait("BR", "BR-CHK-01")]
-    [InlineData("5490", 54.90)]
-    [InlineData("4490", 44.90)]
-    public async Task BR_CHK_01_harbor_reports_a_live_price_up_or_down(string cents, decimal live)
+    [InlineData("5490", "54.90")]
+    [InlineData("4490", "44.90")]
+    public async Task BR_CHK_01_harbor_reports_a_live_price_up_or_down(string cents, string live)
     {
         var result = await CheckHarborAsync(new StubPartner(_ => StubPartner.Json(HarborItem("HSC-1", cents))));
 
-        (result.Outcome, result.CurrentUnitPriceUsd).Should().Be((PartnerLineCheckOutcome.PriceChanged, live));
+        (result.Outcome, result.CurrentUnitPriceUsd).Should().Be((PartnerLineCheckOutcome.PriceChanged, decimal.Parse(live, CultureInfo.InvariantCulture)));
     }
 
     [Fact]

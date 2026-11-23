@@ -181,8 +181,7 @@ internal static class OrderDetailMapping
                     payment.CompletedUtc?.UtcDateTime),
             [.. order.Refunds
                 .OrderBy(r => r.CreatedUtc).ThenBy(r => r.Id)
-                .Select(r => new RefundDto(r.Id, r.Amount, r.Status, forAdmin ? r.Reason : CustomerReason(r.Reason), [.. r.Lines.Select(l => l.OrderLineId)], r.ShippingAmount,
-                    r.CreatedUtc.UtcDateTime, r.CompletedUtc?.UtcDateTime))],
+                .Select(r => ToDto(r, order, forAdmin))],
             CanPay: order.Status == OrderStatus.AwaitingPayment && paymentWindow.CanStartAttempt(order.FailedPaymentAttempts, order.CreatedUtc, now),
             // A Failed payment the gateway has yet to settle changes on its own too (BR-PAY-05): the payment window job
             // asks the gateway and pays or releases the order, also when the customer has no attempt left to start.
@@ -191,6 +190,33 @@ internal static class OrderDetailMapping
                         || order.Lines.Any(l => l.Status == OrderLineStatus.AwaitingPartner)
                         || refundPending,
             AwaitingOneTimeCode: order.Status == OrderStatus.PaymentProcessing && awaitingCode);
+    }
+
+    /// <summary>
+    /// A refund with each line's part split into its subtotal and its tax (BR-ORD-03), so the page can say what the amount
+    /// is made of instead of showing a line's price plus unexplained tax. The line's tax is the tax it was charged (the
+    /// calculator refunds exactly that); the subtotal is the rest of the refunded part, so the parts always add up to it.
+    /// </summary>
+    private static RefundDto ToDto(Refund refund, Order order, bool forAdmin)
+    {
+        var linesById = order.Lines.ToDictionary(l => l.Id);
+        var parts = refund.Lines
+            .Select(part => (Part: part, Line: linesById.GetValueOrDefault(part.OrderLineId)))
+            .OrderBy(p => p.Line?.LineNumber ?? int.MaxValue)
+            .Select(p =>
+            {
+                // The split is derived, not stored: a RefundLine keeps one Amount, which LineRejection records as the
+                // whole line's subtotal + tax (RefundCalculator only refunds whole lines), so the line's own Tax is the
+                // tax part. If refunds of part of a line's quantity were added, this would no longer hold: RefundLine
+                // would need to store its subtotal and tax (computed by the calculator per refunded unit, rounded once)
+                // and this would read them instead of deriving them from the line.
+                var tax = Math.Min(p.Line?.Tax ?? 0m, p.Part.Amount);
+                return new RefundLineDto(p.Part.OrderLineId, p.Part.Amount - tax, tax, p.Part.Amount);
+            })
+            .ToList();
+        return new RefundDto(refund.Id, refund.Amount, refund.Status, forAdmin ? refund.Reason : CustomerReason(refund.Reason),
+            [.. parts.Select(p => p.LineId)], refund.ShippingAmount, refund.CreatedUtc.UtcDateTime, refund.CompletedUtc?.UtcDateTime,
+            parts, parts.Sum(p => p.Tax));
     }
 
     /// <summary>

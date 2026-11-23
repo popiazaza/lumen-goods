@@ -1,8 +1,10 @@
-# 0007 Versions: .NET 10 LTS and PostgreSQL 18
+# 0007 Versions: .NET 10 LTS (now .NET 11) and PostgreSQL 18
 
 ## Status
 
-Accepted, 2026-11-20
+Accepted, 2026-11-20. Updated 2026-11-24: on .NET 11 now, through the upgrade path below (see "Update: upgraded on 2026-11-24").
+
+It stays Accepted rather than Superseded: the decision is the rule, the newest set in which every component is stable and built to work with the others, and it named its own upgrade trigger. That trigger fired and the planned upgrade was made, so the rule holds; only the version numbers changed. The PostgreSQL half is unchanged.
 
 ## Context
 
@@ -41,6 +43,23 @@ We use the newest set in which every component is stable and built to work with 
 - nothing here needs an EF Core 11 or C# 15 feature.
 
 The upgrade is still the one-commit change described under Consequences, and it is the first thing to do after hand-in. Meanwhile the 10.x line moved on to Npgsql EF Core 10.0.4, which is what we pin now. PostgreSQL 19 still waits for its first minor release.
+
+## Update: upgraded on 2026-11-24
+
+The upgrade described under Consequences is done, before hand-in after all. Two review passes named the version deviation as the weakest point, and the upgrade turned out to be the small, reviewable change this record predicted, with the full test suite passing on it. This replaces "we stay on .NET 10 for this submission" in the update above.
+
+- Now: .NET SDK 11.0.100 and runtime 11.0.0 (STS, supported until 2028-11-14, the same day as .NET 10), `net11.0`, C# 15; ASP.NET Core, EF Core, Identity and the `dotnet-ef` tool 11.0.0; Npgsql EF Core 11.0.0. Every other package was already on its latest stable version. The three Dockerfiles use `sdk:11.0.100` and `aspnet:11.0.0`.
+- PostgreSQL stays on 18.7: 19 still has no minor release.
+
+What the upgrade needed beyond the pins:
+- ASP.NET Core 11's request validation also walks `[AsParameters]` records. `AdminProductContext` bundles services, its `LumenDbContext` among them, so every admin product request enumerated each DbSet, and failed with a 500 once an order's navigations formed a cycle. The two service bundles, `AdminProductContext` and `AfterSignIn`, are `[SkipValidation]`; `RequestValidationScopeTests` keeps any future one honest.
+- .NET 11 converts `double` to `decimal` exactly (`(decimal)54.9d` is `54.899999999999998578…`). No production code converts money from `double`; the money theories that passed prices as `double` `InlineData` now pass them as strings (a few tests still use exact `double` values such as 10.0, which convert without loss).
+- `IStartupValidator` is obsolete (SYSLIB0066); the options tests call `IAsyncStartupValidator`, which `ValidateOnStart` registers too.
+
+Reviewed, no change needed:
+- Npgsql 11 reports a deadlock or serialization failure in `SaveChanges` as `DbUpdateConcurrencyException`. The handlers that catch it answer a 409 or retry, and Place order's live-price write-through leaves those rows to the partner sync; before, the request failed with a 500. The cart's conflict retry now covers them too; before, Npgsql wrapped them in an `InvalidOperationException` that escaped it.
+- The OpenAPI document is now version 3.2.0, which the Scalar reference renders.
+- EF Core 11 finds no pending model changes, so there is no new migration.
 
 ## More information
 

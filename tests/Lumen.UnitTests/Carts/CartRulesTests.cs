@@ -1,3 +1,4 @@
+using System.Globalization;
 using Lumen.Api.Carts;
 using Lumen.Api.Catalog;
 using Lumen.Domain.Catalog;
@@ -48,11 +49,11 @@ public sealed class CartRulesTests
 
     [Theory]
     [Trait("BR", "BR-CART-02")]
-    [InlineData(54.90)]
-    [InlineData(44.90)]
-    public void BR_CART_02_a_price_up_or_down_shows_from_and_to(double priceNow)
+    [InlineData("54.90")]
+    [InlineData("44.90")]
+    public void BR_CART_02_a_price_up_or_down_shows_from_and_to(string priceNow)
     {
-        var now = (decimal)priceNow;
+        var now = decimal.Parse(priceNow, CultureInfo.InvariantCulture);
         var state = CartRules.Evaluate(Line(seenPrice: 49.90m), Partner(price: now), Policy);
 
         state.Notices.PriceChanged.Should().Be(new PriceChangedNoticeDto(49.90m, now));
@@ -74,12 +75,12 @@ public sealed class CartRulesTests
 
     [Theory]
     [Trait("BR", "BR-CART-03")]
-    [InlineData(false, true, 49.90)]
-    [InlineData(true, false, 49.90)]
+    [InlineData(false, true, "49.90")]
+    [InlineData(true, false, "49.90")]
     [InlineData(true, true, null)]
-    public void BR_CART_03_a_product_that_is_not_sellable_is_no_longer_available_and_blocks_checkout(bool active, bool listed, double? price)
+    public void BR_CART_03_a_product_that_is_not_sellable_is_no_longer_available_and_blocks_checkout(bool active, bool listed, string? price)
     {
-        var product = Partner(price: (decimal?)price, active: active, listed: listed);
+        var product = Partner(price: price is null ? null : decimal.Parse(price, CultureInfo.InvariantCulture), active: active, listed: listed);
 
         var state = CartRules.Evaluate(Line(), product, Policy);
 

@@ -246,7 +246,8 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     [InlineData("price_desc", new[] { "Alpha", "Delta", "Charlie", "Bravo" })]
     [InlineData("name_asc", new[] { "Alpha", "Bravo", "Charlie", "Delta" })]
     [InlineData("newest", new[] { "Bravo", "Delta", "Alpha", "Charlie" })]
-    [InlineData("", new[] { "Bravo", "Delta", "Alpha", "Charlie" })]
+    [InlineData("featured", new[] { "Delta", "Bravo", "Alpha", "Charlie" })]
+    [InlineData("", new[] { "Delta", "Bravo", "Alpha", "Charlie" })]
     [Trait("BR", "BR-CAT-03")]
     public async Task BR_CAT_03_sorts_put_unpriced_products_last_and_newest_means_first_seen(string sort, string[] expected)
     {
@@ -267,6 +268,7 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
     [InlineData("price_desc")]
     [InlineData("name_asc")]
     [InlineData("newest")]
+    [InlineData("featured")]
     [Trait("BR", "BR-CAT-03")]
     public async Task BR_CAT_03_equal_sort_keys_are_ordered_by_id_so_no_item_repeats_or_vanishes_across_pages(string sort)
     {
@@ -281,9 +283,59 @@ public sealed class StorefrontCatalogTests(LumenApiFactory factory)
         }
 
         // PostgreSQL orders uuids by their bytes, which is the ordinal order of the lower-case text form. The id
-        // follows the direction of the main key: descending for newest and price_desc, ascending otherwise.
+        // follows the direction of the main key: descending for newest, featured (one seller: newest first) and
+        // price_desc, ascending otherwise.
         var byId = twins.Select(t => t.Id.ToString()).Order(StringComparer.Ordinal).ToList();
-        paged.Should().Equal(sort is "newest" or "price_desc" ? Enumerable.Reverse(byId) : byId);
+        paged.Should().Equal(sort is "newest" or "featured" or "price_desc" ? Enumerable.Reverse(byId) : byId);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_featured_is_the_default_and_takes_the_shops_in_turn_each_newest_first()
+    {
+        // Kestrel's products are the newest of all, as after a fresh Kestrel sync: "newest" would open on Kestrel only.
+        var m = NewMarker();
+        await factory.InsertAsync(
+            Own($"{m} L1", firstSeen: BaseTime.AddDays(3)),
+            Own($"{m} L2", firstSeen: BaseTime.AddDays(2)),
+            Own($"{m} L3", firstSeen: BaseTime.AddDays(1)),
+            Partner(ProductSources.Harbor, $"{m} H1", firstSeen: BaseTime.AddDays(6)),
+            Partner(ProductSources.Harbor, $"{m} H2", firstSeen: BaseTime.AddDays(5)),
+            Partner(ProductSources.Harbor, $"{m} H3", firstSeen: BaseTime.AddDays(4)),
+            Partner(ProductSources.Kestrel, $"{m} K1", firstSeen: BaseTime.AddDays(9)),
+            Partner(ProductSources.Kestrel, $"{m} K2", firstSeen: BaseTime.AddDays(8)));
+
+        (await NamesAsync($"q={m}&sort=newest&pageSize=3")).Should().Equal($"{m} K1", $"{m} K2", $"{m} H1");
+
+        var expected = new[] { "L1", "H1", "K1", "L2", "H2", "K2", "L3", "H3" }.Select(n => $"{m} {n}").ToList();
+        (await NamesAsync($"q={m}")).Should().Equal(expected, "featured is the default sort");
+
+        var paged = new List<string>();
+        for (var page = 1; page <= 3; page++)
+        {
+            paged.AddRange(await NamesAsync($"q={m}&sort=featured&pageSize=3&page={page}"));
+        }
+
+        paged.Should().Equal(expected, "pages of 3 follow the same order, each product exactly once");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CAT-03")]
+    public async Task BR_CAT_03_featured_takes_turns_among_the_products_the_filters_keep()
+    {
+        var m = NewMarker();
+        await factory.InsertAsync(
+            Own($"{m} L1 bag", category: ProductCategories.Bags, firstSeen: BaseTime.AddDays(3)),
+            Partner(ProductSources.Harbor, $"{m} H1 shirt", firstSeen: BaseTime.AddDays(9)),
+            Partner(ProductSources.Harbor, $"{m} H2 shirt", firstSeen: BaseTime.AddDays(8)),
+            Partner(ProductSources.Harbor, $"{m} H3 bag", category: ProductCategories.Bags, firstSeen: BaseTime.AddDays(7)),
+            Partner(ProductSources.Harbor, $"{m} H4 bag", category: ProductCategories.Bags, firstSeen: BaseTime.AddDays(6)),
+            Partner(ProductSources.Kestrel, $"{m} K1 bag", category: ProductCategories.Bags, firstSeen: BaseTime.AddDays(5)),
+            Partner(ProductSources.Kestrel, $"{m} K2 bag", category: ProductCategories.Bags, firstSeen: BaseTime.AddDays(4)));
+
+        // Harbor's bags are its 3rd and 4th newest overall, but the turns are counted among the bags only.
+        (await NamesAsync($"q={m}&category=bags")).Should().Equal(
+            $"{m} L1 bag", $"{m} H3 bag", $"{m} K1 bag", $"{m} H4 bag", $"{m} K2 bag");
     }
 
     [Theory]

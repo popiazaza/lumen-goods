@@ -88,6 +88,16 @@ describe('CardDetails', () => {
     expect(errors()).toStrictEqual(['This card can’t be used.']);
   });
 
+  it('lists every test card under the card number', () => {
+    const hint = numberField().closest('.field')?.querySelector('.hint')?.textContent;
+    const endings = hint?.match(/\b00[1-9]\d\b/gu);
+
+    expect({ approves: hint?.includes('4111 1111 1111 1111'), endings }).toStrictEqual({
+      approves: true,
+      endings: ['0018', '0026', '0034', '0042', '0059'],
+    });
+  });
+
   it('names an Amex card and asks for its 4-digit code on the front', async () => {
     typeNumber('378282246310005');
     await fixture.whenStable();

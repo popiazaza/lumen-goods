@@ -245,6 +245,31 @@ describe('CataloguePage', () => {
     expect(host().querySelector('.applied')).toBeNull();
   });
 
+  it('opens on Featured (the shops in turn) and keeps Newest one choice away', async () => {
+    const first = await open('/');
+
+    const select = host().querySelector<HTMLSelectElement>('select#sort-by');
+
+    expect({
+      sort: first.request.params.get('sort'),
+      shown: select?.selectedOptions[0]?.textContent?.trim(),
+    }).toStrictEqual({ sort: 'featured', shown: 'Featured' });
+
+    expect([...(select?.options ?? [])].map((o) => o.textContent?.trim())).toStrictEqual([
+      'Featured',
+      'Newest',
+      'Price: low to high',
+      'Price: high to low',
+      'Name: A to Z',
+    ]);
+
+    chooseSort('Newest');
+    await expectUrl('/?sort=newest');
+    const newest = await respond(aPage([LAMP, TOTE]));
+
+    expect(newest.request.params.get('sort')).toBe('newest');
+  });
+
   it('changes the sort from the select and resets the page', async () => {
     await open('/?page=2', aPage([TOTE], { page: 2, totalPages: 2, totalCount: 25 }));
 
@@ -366,6 +391,37 @@ describe('CataloguePage', () => {
 
     expect(text('[role="alert"] h3')).toBe('Some filters in this link are not valid');
     expect(text('[role="alert"] p')).toBe('minPrice is too low.');
+  });
+
+  it('says why a hand-edited price range with the min above the max shows nothing', async () => {
+    await harness.navigateByUrl('/?minPrice=100&maxPrice=20', CataloguePage);
+    http.expectOne('/api/v1/sellers').flush(SELLERS);
+    const request = await nextProductsRequest();
+
+    // The API decides: the range is sent as it is, not dropped in silence.
+    expect([
+      request.request.params.get('minPrice'),
+      request.request.params.get('maxPrice'),
+    ]).toStrictEqual(['100', '20']);
+
+    request.flush(
+      {
+        title: 'The catalogue query is not valid',
+        errors: { minPrice: ['minPrice cannot be greater than maxPrice.'] },
+      },
+      { status: 400, statusText: 'Bad Request' }
+    );
+    await harness.fixture.whenStable();
+
+    expect({
+      heading: text('[role="alert"] h3'),
+      message: text('[role="alert"] p'),
+      chip: text('.applied .chips'),
+    }).toStrictEqual({
+      heading: 'Some filters in this link are not valid',
+      message: 'minPrice cannot be greater than maxPrice.',
+      chip: expect.stringContaining('$100.00 – $20.00'),
+    });
   });
 
   it('announces the result count after a change, but not on the first load', async () => {

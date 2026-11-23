@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
 using Lumen.Api.Catalog;
@@ -119,16 +120,16 @@ public sealed class KestrelAdapterTests
     }
 
     [Theory]
-    [InlineData("14,95", 14.95)]
-    [InlineData("1.249,00", 1249.00)]
-    [InlineData("12.345.678,90", 12345678.90)]
-    [InlineData("1249,00", 1249.00)]
-    [InlineData("12345678,90", 12345678.90)]
-    [InlineData(" 0,99 ", 0.99)]
-    public void Kestrel_prices_parse_with_comma_decimals_and_dot_thousands(string text, decimal expected)
+    [InlineData("14,95", "14.95")]
+    [InlineData("1.249,00", "1249.00")]
+    [InlineData("12.345.678,90", "12345678.90")]
+    [InlineData("1249,00", "1249.00")]
+    [InlineData("12345678,90", "12345678.90")]
+    [InlineData(" 0,99 ", "0.99")]
+    public void Kestrel_prices_parse_with_comma_decimals_and_dot_thousands(string text, string expected)
     {
         KestrelPrice.TryParse(text, out var amount).Should().BeTrue();
-        amount.Should().Be(expected);
+        amount.Should().Be(decimal.Parse(expected, CultureInfo.InvariantCulture));
     }
 
     [Theory]
@@ -159,10 +160,11 @@ public sealed class KestrelAdapterTests
 
     [Theory]
     [Trait("BR", "BR-MONEY-01")]
-    [InlineData(1249.00, 1355.17)]
-    [InlineData(14.95, 16.22)]
-    public void BR_MONEY_01_eur_prices_convert_per_unit_rounding_half_away_from_zero(decimal eur, decimal usd)
+    [InlineData("1249.00", "1355.17")]
+    [InlineData("14.95", "16.22")]
+    public void BR_MONEY_01_eur_prices_convert_per_unit_rounding_half_away_from_zero(string eurText, string usdText)
     {
+        var (eur, usd) = (decimal.Parse(eurText, CultureInfo.InvariantCulture), decimal.Parse(usdText, CultureInfo.InvariantCulture));
         using var services = Services();
         var price = services.GetRequiredService<CurrencyConverter>().ToUsd(eur, "EUR");
 

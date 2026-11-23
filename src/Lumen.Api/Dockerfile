@@ -1,5 +1,5 @@
 # Build context: the repository root (docker-compose.yml sets it).
-FROM mcr.microsoft.com/dotnet/sdk:10.0.404 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 WORKDIR /repo
 
 # Restore first, from project files only, so the restore layer is cached across source edits.
@@ -12,7 +12,7 @@ COPY src/Lumen.Domain/ src/Lumen.Domain/
 COPY src/Lumen.Api/ src/Lumen.Api/
 RUN dotnet publish src/Lumen.Api/Lumen.Api.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.15 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS runtime
 WORKDIR /app
 
 # Data Protection keys (DataProtection__KeysPath); compose mounts a volume here. A new volume takes this owner.

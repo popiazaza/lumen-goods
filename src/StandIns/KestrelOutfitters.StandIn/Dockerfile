@@ -1,7 +1,7 @@
 # Kestrel Outfitters stand-in. Build context is the repository root:
 #   docker build -f src/StandIns/KestrelOutfitters.StandIn/Dockerfile -t kestrel-standin:dev .
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0.404 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 WORKDIR /src
 
 # Restore first, from the files that pin the SDK and package versions, so source edits reuse the restore layer.
@@ -13,7 +13,7 @@ COPY src/StandIns/KestrelOutfitters.StandIn/ src/StandIns/KestrelOutfitters.Stan
 RUN dotnet publish src/StandIns/KestrelOutfitters.StandIn/KestrelOutfitters.StandIn.csproj \
     --configuration Release --no-restore --output /app/publish -p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0.15 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0 AS runtime
 WORKDIR /app
 
 ENV ASPNETCORE_HTTP_PORTS=8080 \

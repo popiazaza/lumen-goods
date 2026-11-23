@@ -22,7 +22,7 @@ import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { HlmSheet, HlmSheetImports } from '@spartan-ng/helm/sheet';
 import { HlmSkeleton } from '@spartan-ng/helm/skeleton';
-import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
+import { httpStatusOf, problemMessage, validationErrorsOf } from '../../core/api/problem-details';
 import { PRODUCT_SORTS, ProductPage, ProductSort, ProductsApi } from '../../core/api/products.api';
 import { Seller } from '../../core/api/sellers.api';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
@@ -168,9 +168,17 @@ export class CataloguePage {
 
   protected readonly isBadRequest = computed(() => httpStatusOf(this.results.error()) === 400);
 
-  protected readonly errorMessage = computed(() =>
-    problemMessage(this.results.error(), 'Some filters in this link are not valid.')
-  );
+  /**
+   * What is wrong with the link: the API's own messages for the parameters it rejected ("minPrice
+   * cannot be greater than maxPrice."), else its detail or title.
+   */
+  protected readonly errorMessage = computed(() => {
+    const error = this.results.error();
+    const messages = Object.values(validationErrorsOf(error)).flat();
+    return messages.length > 0
+      ? messages.join(' ')
+      : problemMessage(error, 'Some filters in this link are not valid.');
+  });
 
   protected readonly countText = computed(() => {
     const page = this.page();

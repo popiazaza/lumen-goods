@@ -17,26 +17,26 @@ public sealed class PartnerOptionsValidationTests
     [InlineData("Partners:Media:FailureCacheDuration", "00:00:00")]
     [InlineData("Partners:Media:ResponseTimeout", "00:00:00")]
     [InlineData("Partners:Media:MaxFetchDuration", "00:00:00")]
-    public void A_time_span_that_is_not_positive_is_refused_at_start(string key, string value)
+    public async Task A_time_span_that_is_not_positive_is_refused_at_start(string key, string value)
     {
         using var services = Services(overrides: new() { [key] = value });
 
-        var act = () => services.GetRequiredService<IStartupValidator>().Validate();
+        var act = () => services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(TestContext.Current.CancellationToken);
 
-        act.Should().Throw<OptionsValidationException>().WithMessage($"*{key[(key.LastIndexOf(':') + 1)..]}*");
+        (await act.Should().ThrowAsync<OptionsValidationException>()).WithMessage($"*{key[(key.LastIndexOf(':') + 1)..]}*");
     }
 
     [Theory]
     [InlineData("-00:00:01")]
     [InlineData("00:00:11")]
-    public void An_image_rate_limit_wait_outside_0_to_10_seconds_is_refused_at_start(string value)
+    public async Task An_image_rate_limit_wait_outside_0_to_10_seconds_is_refused_at_start(string value)
     {
         // Longer would let queued image requests hold the browser's few connections again.
         using var services = Services(overrides: new() { ["Partners:Media:RateLimitWait"] = value });
 
-        var act = () => services.GetRequiredService<IStartupValidator>().Validate();
+        var act = () => services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(TestContext.Current.CancellationToken);
 
-        act.Should().Throw<OptionsValidationException>().WithMessage("*RateLimitWait*");
+        (await act.Should().ThrowAsync<OptionsValidationException>()).WithMessage("*RateLimitWait*");
     }
 
     [Theory]
@@ -44,22 +44,22 @@ public sealed class PartnerOptionsValidationTests
     [InlineData("Partners:AttributeKeySynonyms:colour", "Color")]
     [InlineData("Partners:AttributeKeySynonyms:colour", "colour shade")]
     [InlineData("Partners:AttributeKeySynonyms:colour", "")]
-    public void An_attribute_key_synonym_that_is_not_lower_camel_case_on_both_sides_is_refused_at_start(string key, string value)
+    public async Task An_attribute_key_synonym_that_is_not_lower_camel_case_on_both_sides_is_refused_at_start(string key, string value)
     {
         using var services = Services(overrides: new() { [key] = value });
 
-        var act = () => services.GetRequiredService<IStartupValidator>().Validate();
+        var act = () => services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(TestContext.Current.CancellationToken);
 
-        act.Should().Throw<OptionsValidationException>().WithMessage("*AttributeKeySynonyms*");
+        (await act.Should().ThrowAsync<OptionsValidationException>()).WithMessage("*AttributeKeySynonyms*");
     }
 
     [Fact]
-    public void The_default_settings_pass_start_up_validation()
+    public async Task The_default_settings_pass_start_up_validation()
     {
         using var services = Services();
 
-        var act = () => services.GetRequiredService<IStartupValidator>().Validate();
+        var act = () => services.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(TestContext.Current.CancellationToken);
 
-        act.Should().NotThrow();
+        await act.Should().NotThrowAsync();
     }
 }

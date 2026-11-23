@@ -98,7 +98,7 @@ describe('AdminOrdersPage', () => {
 
   it('asks the API for exactly what the URL says and shows it in the filters', async () => {
     const request = await open(
-      '/admin/orders?status=needs_attention&status=refunded&status=paid&status=bogus' +
+      '/admin/orders?status=needs_attention&status=refunded&status=completed&status=paid&status=bogus' +
         '&from=2026-11-01&to=2026-11-20&page=2'
     );
 
@@ -113,7 +113,7 @@ describe('AdminOrdersPage', () => {
       page: params.get('page'),
       pageSize: params.get('pageSize'),
     }).toStrictEqual({
-      status: ['paid', 'refunded', 'needs_attention'],
+      status: ['paid', 'completed', 'refunded', 'needs_attention'],
       from: localMidnight('2026-11-01'),
       to: localMidnight('2026-11-20', 1),
       page: '2',
@@ -123,7 +123,8 @@ describe('AdminOrdersPage', () => {
     const status = await loader.getHarness(MatSelectHarness);
 
     await expect(status.getValueText()).resolves.toBe(
-      'Paid, in progress, Refunded, Needs attention'
+      // Completed reads "Confirmed": every seller confirmed, nothing has shipped.
+      'Paid, in progress, Confirmed, Refunded, Needs attention'
     );
     expect({ from: dateInput('from').value, to: dateInput('to').value }).toStrictEqual({
       from: '2026-11-01',
