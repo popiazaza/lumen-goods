@@ -4,7 +4,7 @@ One online shop that sells Lumen Goods' own products and resells products from t
 Harbor Supply Co. (JSON REST) and Kestrel Outfitters (XML feed, CSV stock, asynchronous XML orders):
 one catalogue, one cart, one payment, one order, and every item followed to the end.
 
-Angular 22 storefront and admin · ASP.NET Core 10 API with EF Core and PostgreSQL 18 · two partner stand-ins ·
+Angular 22 storefront and admin · ASP.NET Core 11 API with EF Core and PostgreSQL 18 · two partner stand-ins ·
 mock card gateway and wallet · `docker compose up` runs all of it.
 
 | | |
@@ -27,7 +27,7 @@ At phone width:
 
 ## Deviations from the brief
 
-- .NET 10 LTS and PostgreSQL 18, not the newest majors. .NET 11's PostgreSQL provider was still a release candidate when the build started; it went stable hours later, too late to switch majors safely before hand-in. It's a one-commit upgrade, and PostgreSQL 19 has no minor release yet ([ADR 0007](docs/adr/0007-dotnet-10-lts-and-postgresql-18.md)).
+- PostgreSQL 18, not the newest major: PostgreSQL 19.0 came out the day before the build started and has no minor release yet. .NET is on the newest major, 11; the build started on .NET 10 LTS while .NET 11's PostgreSQL provider was still a release candidate, and moved up once it went stable ([ADR 0007](docs/adr/0007-dotnet-10-lts-and-postgresql-18.md)).
 - Open questions answered with written assumptions, not emails ([ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 - The payment gateway is a mock inside the API process, behind `IPaymentGateway` ([ADR 0005](docs/adr/0005-payments-charge-then-refund-one-partner-order-per-line.md)).
 - The product format is the brief's, plus `lastCheckedUtc` (when Lumen last confirmed a partner's price and stock, A-59); a price-on-request product has `price: null` (A-10). The cart embeds a smaller product shape per line.
@@ -39,14 +39,17 @@ What I would change next, and when: [DESIGN.md §10](DESIGN.md#10-decisions-id-r
 
 ## Run it
 
-Prerequisite: Docker (Docker Desktop on Windows/macOS). From the repository root:
+Prerequisite: Docker (Docker Desktop on Windows/macOS); the images bring their own .NET. Running the tests outside
+Docker needs the .NET 11 SDK ([Tests](#tests)). From the repository root:
 
 ```bash
 docker compose up --build
 ```
 
 The first build takes a few minutes; later starts take seconds. Migrations and seed data run at start-up.
-Everything listens on `127.0.0.1` only.
+Everything listens on `127.0.0.1` only. After a start, some Harbor pictures show a placeholder for the first few
+minutes: Lumen fetches them within its share of Harbor's rate limit (10 a minute), main images first, and caches them
+in memory (DESIGN §6).
 
 | What | URL | Credentials |
 |---|---|---|
@@ -163,7 +166,8 @@ docker compose run --rm -e RATE=2000 -e DURATION=2m k6  # bash and PowerShell al
 
 What each suite proves (the integration tests run the real API on PostgreSQL 18): [DESIGN.md §6](DESIGN.md#6-crosscutting-concepts).
 CI runs them all plus a `docker compose up` smoke test on every pull request that changes code. Outside Docker you
-need .NET SDK 10.0.404 (`global.json`), Node.js 26.13 or later, and Docker running.
+need the .NET 11 SDK (11.0.100 or a later 11.0.1xx patch, `global.json`; a .NET 10 SDK cannot build it), Node.js
+26.13 or later, and Docker running.
 
 ## Seeing what it does
 
@@ -219,7 +223,7 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | HtmlSanitizer | Partner descriptions are untrusted HTML; an allow-list over a real HTML parser, not regular expressions |
 | CsvHelper | Kestrel's `;`-separated stock CSV, read by header name with invariant number parsing |
 | Microsoft.Extensions.Http.Resilience | Polly v8 pipelines per partner client (timeouts, retries that honour `Retry-After`, circuit breaker), all from configuration |
-| Scalar | The API reference at `/api/docs`, over the OpenAPI document ASP.NET Core 10 generates itself from the handlers and our `///` comments (`Infrastructure/OpenApi/XmlDocTextTransformer.cs` tidies the C# the comment generator leaves in). Its CDN fonts are off, so the `font-src 'self'` CSP holds here too |
+| Scalar | The API reference at `/api/docs`, over the OpenAPI 3.2 document ASP.NET Core 11 generates itself from the handlers and our `///` comments (`Infrastructure/OpenApi/XmlDocTextTransformer.cs` tidies the C# the comment generator leaves in). Its CDN fonts are off, so the `font-src 'self'` CSP holds here too |
 | OpenTelemetry | Vendor-neutral traces, metrics and logs over OTLP: the Aspire dashboard locally, any backend in production |
 | Angular with Angular Material | Router, typed forms and an HTTP client with XSRF support in one framework; Material gives accessible components and an M3 theme |
 | Fontsource (Inter, Fraunces) | The two typefaces as npm packages, bundled into the build and served from our own origin: no font CDN request, and the `font-src 'self'` CSP holds |
@@ -237,9 +241,9 @@ commercial licences; handlers and mapping are written by hand.
 
 | Component | Version |
 |---|---|
-| .NET SDK / runtime | 10.0.404 / 10.0.15 (LTS), C# 14 |
-| ASP.NET Core, EF Core, Identity | 10.0.15 |
-| Npgsql EF Core provider | 10.0.4 |
+| .NET SDK / runtime | 11.0.100 / 11.0.0 (STS, supported until 2028-11-14), C# 15 |
+| ASP.NET Core, EF Core, Identity | 11.0.0 |
+| Npgsql EF Core provider | 11.0.0 |
 | PostgreSQL | 18.7 |
 | Angular, Angular Material | 22.3.0 |
 | TypeScript / Node.js | 6.0.3 / 26.13.1 (LTS) |

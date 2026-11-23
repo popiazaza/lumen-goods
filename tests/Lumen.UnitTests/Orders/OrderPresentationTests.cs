@@ -1,3 +1,4 @@
+using System.Globalization;
 using Lumen.Api.Catalog;
 using Lumen.Api.Orders;
 using Lumen.Domain.Catalog;
@@ -24,18 +25,18 @@ public sealed class OrderPresentationTests
     }));
 
     [Theory]
-    [InlineData(OrderLineStatus.AwaitingPartner, ProductSources.Kestrel, "Kestrel Outfitters", 0, false, "Awaiting Kestrel Outfitters")]
-    [InlineData(OrderLineStatus.Confirmed, ProductSources.Harbor, "Harbor Supply Co.", 0, false, "Confirmed by Harbor Supply Co.")]
-    [InlineData(OrderLineStatus.Confirmed, ProductSources.Lumen, "Lumen Goods", 0, false, "Confirmed")]
-    [InlineData(OrderLineStatus.NeedsAttention, ProductSources.Kestrel, "Kestrel Outfitters", 0, false, "Delayed")]
-    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", 40.03, false, "Not supplied, refund pending")]
-    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", 40.03, true, "Not supplied, refunded $40.03")]
-    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", 1355.17, true, "Not supplied, refunded $1,355.17")]
-    [InlineData(OrderLineStatus.Rejected, ProductSources.Harbor, "Harbor Supply Co.", 0, false, "Not supplied")]
+    [InlineData(OrderLineStatus.AwaitingPartner, ProductSources.Kestrel, "Kestrel Outfitters", "0", false, "Awaiting Kestrel Outfitters")]
+    [InlineData(OrderLineStatus.Confirmed, ProductSources.Harbor, "Harbor Supply Co.", "0", false, "Confirmed by Harbor Supply Co.")]
+    [InlineData(OrderLineStatus.Confirmed, ProductSources.Lumen, "Lumen Goods", "0", false, "Confirmed")]
+    [InlineData(OrderLineStatus.NeedsAttention, ProductSources.Kestrel, "Kestrel Outfitters", "0", false, "Delayed")]
+    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", "40.03", false, "Not supplied, refund pending")]
+    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", "40.03", true, "Not supplied, refunded $40.03")]
+    [InlineData(OrderLineStatus.Rejected, ProductSources.Kestrel, "Kestrel Outfitters", "1355.17", true, "Not supplied, refunded $1,355.17")]
+    [InlineData(OrderLineStatus.Rejected, ProductSources.Harbor, "Harbor Supply Co.", "0", false, "Not supplied")]
     [Trait("BR", "BR-ORD-02")]
     public void BR_ORD_02_each_line_says_its_status_with_the_shops_name(
-        OrderLineStatus status, string source, string seller, double refunded, bool refundPaid, string expected) =>
-        OrderStatusText.ForLine(status, OrderStatus.Paid, source, seller, (decimal)refunded, refundPaid).Should().Be(expected);
+        OrderLineStatus status, string source, string seller, string refunded, bool refundPaid, string expected) =>
+        OrderStatusText.ForLine(status, OrderStatus.Paid, source, seller, decimal.Parse(refunded, CultureInfo.InvariantCulture), refundPaid).Should().Be(expected);
 
     [Theory]
     [InlineData(OrderStatus.AwaitingPayment, "Awaiting payment")]

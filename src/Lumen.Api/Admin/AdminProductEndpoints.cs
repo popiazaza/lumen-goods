@@ -5,6 +5,7 @@ using Lumen.Domain.Catalog;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Validation;
 using Npgsql;
 
 namespace Lumen.Api.Admin;
@@ -266,7 +267,12 @@ internal static class AdminProductEndpoints
 
 }
 
-/// <summary>The per-request services every admin product endpoint needs, bound with [AsParameters].</summary>
+/// <summary>
+/// The per-request services every admin product endpoint needs, bound with [AsParameters]. Services, not input, so
+/// <see cref="SkipValidationAttribute"/>: the validation generator otherwise walks into <see cref="Db"/> and enumerates
+/// every DbSet on each request (and fails on the first order whose navigations form a cycle).
+/// </summary>
+[SkipValidation]
 internal sealed record AdminProductContext(
     LumenDbContext Db,
     AvailabilityPolicy Policy,
