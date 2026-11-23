@@ -42,7 +42,7 @@ Step-by-step procedures for recurring changes, in the open Agent Skills format (
 
 ## Stack (pinned)
 
-.NET SDK 10.0.404 (`global.json`), every NuGet version in `Directory.Packages.props` (central package management: never put a version in a `.csproj`).
+.NET SDK 11.0.100 (`global.json`), every NuGet version in `Directory.Packages.props` (central package management: never put a version in a `.csproj`).
 PostgreSQL 18.7. Angular 22.3, TypeScript 6.0, Node 26 LTS.
 
 ## Hard rules

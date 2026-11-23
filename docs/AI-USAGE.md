@@ -20,7 +20,7 @@ person decided, how its output was checked, and where it was wrong.
 | Decision | Where |
 |---|---|
 | Scope: lean plan, future features only as seams, not code | this page |
-| .NET 10 LTS and PostgreSQL 18 instead of the brand-new .NET 11 / PostgreSQL 19 | [ADR 0007](adr/0007-dotnet-10-lts-and-postgresql-18.md) |
+| .NET 10 LTS and PostgreSQL 18 instead of the brand-new .NET 11 / PostgreSQL 19; then the move to .NET 11 once its PostgreSQL provider was stable | [ADR 0007](adr/0007-dotnet-10-lts-and-postgresql-18.md) |
 | No clarifying emails; the assumption list instead (US launch country, flat 8 % tax, …) | [ASSUMPTIONS.md](ASSUMPTIONS.md) |
 | Charge then refund; one partner order per line; server retries card 0059 once with the same payment | [ADR 0005](adr/0005-payments-charge-then-refund-one-partner-order-per-line.md) |
 | Vendor-neutral agent files (`AGENTS.md`), PR workflow with evidence and independent review | this page |
