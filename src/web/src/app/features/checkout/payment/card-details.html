@@ -16,9 +16,11 @@
     @if (view().brandName; as brand) {
       <span matTextSuffix class="brand" aria-live="polite">{{ brand }}</span>
     }
+    <!-- Every test card from the README, so a demo needs nothing else open. -->
     <mat-hint
-      >Demo shop, nothing is charged. 4111 1111 1111 1111 approves; 4242 0000 0000 0018 declines,
-      0034 asks for a code, 0042 is slow.</mat-hint
+      >Demo shop, nothing is charged. 4111 1111 1111 1111 approves. 4242 0000 0000 then: 0018 no
+      funds, 0026 stolen, 0034 asks for a code, 0042 slow, 0059 errors once and the retry
+      approves.</mat-hint
     >
     @if (view().errors.number; as message) {
       <mat-error>{{ message }}</mat-error>
