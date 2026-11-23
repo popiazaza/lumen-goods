@@ -16,7 +16,10 @@
     @if (view().brandName; as brand) {
       <span matTextSuffix class="brand" aria-live="polite">{{ brand }}</span>
     }
-    <mat-hint>Test cards: 4111 1111 1111 1111 approves; see the README for the others</mat-hint>
+    <mat-hint
+      >Demo shop, nothing is charged. 4111 1111 1111 1111 approves; 4242 0000 0000 0018 declines,
+      0034 asks for a code, 0042 is slow.</mat-hint
+    >
     @if (view().errors.number; as message) {
       <mat-error>{{ message }}</mat-error>
     }

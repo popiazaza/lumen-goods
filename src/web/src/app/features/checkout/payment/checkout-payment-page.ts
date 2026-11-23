@@ -105,6 +105,13 @@ export const SLOW_PAYMENT_NOTICE_MS = 25_000;
 Announce the code's remaining time once at this point, then at expiry (never every second).
 */
 export const CODE_WARNING_MS = 60_000;
+/**
+ * The code's length when the API does not say. The gateway's code length is configured on the server
+ * (`Payments:OneTimeCode`, 4 to 8 digits) and the API exposes it only through the test code it shows,
+ * so the page asks for that many digits when it has one and 6 otherwise: a shorter or longer code
+ * would only be refused by the gateway and use up a payment attempt.
+ */
+export const DEFAULT_CODE_LENGTH = 6;
 
 /**
 Statuses during which the charge is still running: keep polling. `error` is retried once by the server.
@@ -224,6 +231,11 @@ export class CheckoutPaymentPage {
   private readonly outcomeBanner = viewChild<ElementRef<HTMLElement>>('outcomeBanner');
 
   private polling: Subscription | null = null;
+
+  /**
+  The order and payment read under way: a newer load replaces it, so an older answer never shows.
+  */
+  private loading: Subscription | null = null;
 
   private readonly waitingSince = signal(0);
 
@@ -360,6 +372,11 @@ export class CheckoutPaymentPage {
   protected readonly testCode = computed(() => this.payment()?.testOneTimeCode ?? null);
 
   /**
+  How many digits the code has (see `DEFAULT_CODE_LENGTH`); the messages and the check use the same number.
+  */
+  protected readonly codeLength = computed(() => this.testCode()?.length ?? DEFAULT_CODE_LENGTH);
+
+  /**
    * After a Failed payment the gateway could not settle, only that same card payment may be tried
    * again (BR-PAY-05): its idempotency key makes a second charge impossible. No wallet, no new card.
    */
@@ -414,7 +431,10 @@ export class CheckoutPaymentPage {
   protected readonly codeForm = new FormGroup({
     code: new FormControl('', {
       nonNullable: true,
-      validators: [Validators.required, (control: AbstractControl<string>) => validCode(control)],
+      validators: [
+        Validators.required,
+        (control: AbstractControl<string>) => validCode(control, untracked(this.codeLength)),
+      ],
     }),
   });
 
@@ -459,6 +479,7 @@ export class CheckoutPaymentPage {
   */
   private load(number: string, then?: () => void): void {
     this.stopPolling();
+    this.loading?.unsubscribe();
     if (!number) {
       this.close('There is no order to pay. Review your order and place it first.');
       return;
@@ -469,7 +490,7 @@ export class CheckoutPaymentPage {
     // the answer it gave; otherwise the order is read, and its 404 only matters if the payment
     // read cannot find the order either.
     const placed = this.store.placedOrder();
-    forkJoin({
+    this.loading = forkJoin({
       order: placed?.number === number ? of(placed) : notFoundAsNull(this.orders.get(number)),
       payment: notFoundAsNull(this.payments.current(number)),
     })
@@ -597,7 +618,7 @@ export class CheckoutPaymentPage {
   */
   private showOutcome(payment: PaymentStatusDto): void {
     this.inProgressNotice.set('');
-    this.outcome.set(outcomeOf(payment));
+    this.outcome.set(outcomeOf(payment, this.walletCovers()));
     // The security code is asked again for every attempt, as card forms do; the rest stays.
     this.cardForm.controls.cvc.reset();
     if (payment.method === 'wallet') {
@@ -947,8 +968,11 @@ export class CheckoutPaymentPage {
     const control = this.codeForm.controls.code;
     if (control.invalid) {
       control.markAsTouched();
+      const length = this.codeLength();
       this.codeError.set(
-        control.hasError('required') ? 'Enter the 6-digit code' : 'The code must be 6 digits'
+        control.hasError('required')
+          ? `Enter the ${length}-digit code`
+          : `The code must be ${length} digits`
       );
       return;
     }
@@ -1036,21 +1060,34 @@ const notFoundAsNull = <T>(read: Observable<T>): Observable<T | null> =>
     )
   );
 
+const nextStepAfterDecline = (payment: PaymentStatusDto, walletCovers: boolean): string => {
+  if (payment.method !== 'card') {
+    return 'Try paying by card';
+  }
+  return walletCovers && payment.retryMode === 'any_method'
+    ? 'Try another card or pay from your wallet'
+    : 'Try another card';
+};
+
+const CODE_CHARACTERS = /^[\d\s-]+$/u;
+
 /**
-4 to 8 digits once spaces and dashes are taken out (a pasted "123 456" is fine).
+Exactly `length` digits once spaces and dashes are taken out (a pasted "123 456" is fine).
 */
-const validCode = (control: AbstractControl<string>): ValidationErrors | null => {
+const validCode = (control: AbstractControl<string>, length: number): ValidationErrors | null => {
   const raw = control.value ?? '';
   if (!raw.trim()) {
     return null;
   }
-  return /^[\d\s-]+$/u.test(raw) && /^\d{4,8}$/u.test(digitsOf(raw)) ? null : { code: true };
+  return CODE_CHARACTERS.test(raw) && digitsOf(raw).length === length ? null : { code: true };
 };
 
 /**
-What to tell the shopper after an attempt that did not go through (BR-PAY-07 wording from the API).
-*/
-const outcomeOf = (payment: PaymentStatusDto): Outcome => {
+ * What to tell the shopper after an attempt that did not go through (BR-PAY-07 wording from the API).
+ * The wallet is suggested only when it can pay this order: it covers the total and any method may
+ * be tried again.
+ */
+const outcomeOf = (payment: PaymentStatusDto, walletCovers: boolean): Outcome => {
   const attempts =
     payment.attemptsLeft === 1 ? '1 attempt left' : `${payment.attemptsLeft} attempts left`;
   switch (payment.status) {
@@ -1073,11 +1110,7 @@ const outcomeOf = (payment: PaymentStatusDto): Outcome => {
     default: {
       return {
         title: payment.declineMessage ?? 'Your card was declined',
-        detail: `Payment declined. You have not been charged. ${
-          payment.method === 'card'
-            ? 'Try another card or pay from your wallet'
-            : 'Try paying by card'
-        }. ${attempts}.`,
+        detail: `Payment declined. You have not been charged. ${nextStepAfterDecline(payment, walletCovers)}. ${attempts}.`,
       };
     }
   }
