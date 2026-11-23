@@ -117,10 +117,15 @@ h2 {
     @include alert.tone(error);
   }
 
+  &.warning {
+    @include alert.tone(warning);
+  }
+
   & p {
     margin: 0 0 var(--lg-space-2);
   }
 
+  & > p:last-child,
   & > div > :last-child {
     margin-bottom: 0;
   }

@@ -15,7 +15,9 @@
   flex-wrap: wrap;
   margin: 0 0 var(--lg-space-4);
 
-  &.notices {
+  // Not `.notices`: that class is the per-line notice list, whose reset (no padding, margin or
+  // bullets) would win over this banner's.
+  &.changes {
     @include alert.tone(warning);
   }
 

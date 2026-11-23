@@ -106,10 +106,6 @@
   @include alert.alert(error, $dense: true);
 
   overflow-wrap: anywhere;
-
-  & p {
-    margin: 0;
-  }
 }
 
 .errors {

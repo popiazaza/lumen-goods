@@ -31,4 +31,8 @@ code {
 
   margin: 0;
   overflow-wrap: anywhere;
+
+  &.unknown {
+    @include alert.tone(warning);
+  }
 }
