@@ -216,7 +216,7 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | HtmlSanitizer | Partner descriptions are untrusted HTML; an allow-list over a real HTML parser, not regular expressions |
 | CsvHelper | Kestrel's `;`-separated stock CSV, read by header name with invariant number parsing |
 | Microsoft.Extensions.Http.Resilience | Polly v8 pipelines per partner client (timeouts, retries that honour `Retry-After`, circuit breaker), all from configuration |
-| Scalar | The API reference at `/api/docs`, over the OpenAPI document ASP.NET Core 10 generates itself |
+| Scalar | The API reference at `/api/docs`, over the OpenAPI document ASP.NET Core 10 generates itself from the handlers and our `///` comments (`Infrastructure/OpenApi/XmlDocTextTransformer.cs` tidies the C# the comment generator leaves in). Its CDN fonts are off, so the `font-src 'self'` CSP holds here too |
 | OpenTelemetry | Vendor-neutral traces, metrics and logs over OTLP: the Aspire dashboard locally, any backend in production |
 | Angular with Angular Material | Router, typed forms and an HTTP client with XSRF support in one framework; Material gives accessible components and an M3 theme |
 | Fontsource (Inter, Fraunces) | The two typefaces as npm packages, bundled into the build and served from our own origin: no font CDN request, and the `font-src 'self'` CSP holds |

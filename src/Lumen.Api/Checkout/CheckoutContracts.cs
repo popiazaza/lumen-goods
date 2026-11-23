@@ -80,7 +80,11 @@ public sealed record ShippingOptionDto(
 /// <summary>
 /// <c>POST /api/v1/checkout/orders</c> (signed in): place exactly what the customer reviewed. The server checks partner
 /// lines live first (BR-CHK-02) and saves what it learns to the product rows, then re-prices the cart and compares it
-/// with the request <b>per line and in total</b> (BR-CHK-01):
+/// with the request per line and in total (BR-CHK-01). Any difference is a 409 <see cref="PriceChangedProblem"/> and
+/// nothing is created or reserved. Otherwise 201 with the order (<c>OrderDetailDto</c>, Location
+/// <c>/api/v1/orders/{number}</c>), priced from exactly the values compared, own stock reserved and prices held for
+/// 15 minutes. The same <see cref="CheckoutKey"/> again returns 200 with that same order (BR-PAY-01); after a 409
+/// nothing used the key, so the re-confirmed request may send it again. What is compared:
 /// <list type="number">
 /// <item>the cart's products against <see cref="Lines"/>: a product on one side only is <c>cart_changed</c>, a different
 /// quantity is <c>quantity_changed</c>;</item>
@@ -89,10 +93,6 @@ public sealed record ShippingOptionDto(
 /// <c>temporarily_unavailable</c>;</item>
 /// <item>the re-priced total (lines, shipping and tax) against <see cref="ExpectedTotal"/>.</item>
 /// </list>
-/// Any difference is a 409 <see cref="PriceChangedProblem"/> and nothing is created or reserved. Otherwise 201 with the
-/// order (<c>OrderDetailDto</c>, Location <c>/api/v1/orders/{number}</c>), priced from exactly the values compared, own
-/// stock reserved and prices held for 15 minutes. The same <see cref="CheckoutKey"/> again returns 200 with that same
-/// order (BR-PAY-01); after a 409 nothing used the key, so the re-confirmed request may send it again.
 /// </summary>
 /// <param name="CheckoutKey">A random id the checkout page creates once and sends with every Place order attempt.</param>
 /// <param name="Lines">
