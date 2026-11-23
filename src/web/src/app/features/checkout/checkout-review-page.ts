@@ -10,11 +10,11 @@ import {
   viewChild,
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
 import { Router, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
 import { finalize, noop } from 'rxjs';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import {
   CHECKOUT_KEY_TAKEN_PROBLEM,
   CheckoutApi,
@@ -60,9 +60,9 @@ const REVIEW_AGAIN_KINDS: ReadonlySet<CheckoutChangeKind> = /* @__PURE__ */ new 
   imports: [
     CurrencyPipe,
     RouterLink,
-    MatButton,
-    MatIcon,
-    MatProgressBar,
+    NgIcon,
+    HlmButtonImports,
+    HlmProgressImports,
     AwaitingPaymentNotice,
     CheckoutSteps,
   ],
@@ -249,7 +249,8 @@ export class CheckoutReviewPage {
    */
   protected placeOrder(): void {
     const preview = this.loaded();
-    if (!preview || this.blocked() || this.preview.isLoading()) {
+    // The button stays focusable while it can't be used (aria-disabled), so check here.
+    if (!preview || preview.shipments.length === 0 || this.blocked() || this.preview.isLoading()) {
       return;
     }
     this.send(reviewedLines(preview), preview.total);

@@ -1,6 +1,6 @@
 @if (awaiting(); as order) {
   <div class="banner" role="status">
-    <mat-icon svgIcon="info" aria-hidden="true" />
+    <ng-icon name="lucideInfo" />
     <div>
       <p>
         <strong>Order {{ order.number }} is waiting for payment</strong>
@@ -11,7 +11,7 @@
           order.holdExpiresUtc | date: 'shortTime'
         }}</time>, so they may show as out of stock here.
       </p>
-      <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
+      <a hlmBtn size="sm" routerLink="/checkout/payment" [queryParams]="{ order: order.number }"
         >Continue to payment</a
       >
     </div>

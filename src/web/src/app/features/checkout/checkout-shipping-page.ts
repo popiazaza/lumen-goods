@@ -2,11 +2,12 @@ import { CurrencyPipe } from '@angular/common';
 import { Component, computed, effect, inject, linkedSignal, untracked } from '@angular/core';
 import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { MatButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
-import { MatRadioButton, MatRadioGroup } from '@angular/material/radio';
 import { Router, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmLabelImports } from '@spartan-ng/helm/label';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
+import { HlmRadioGroupImports } from '@spartan-ng/helm/radio-group';
 import {
   CheckoutApi,
   CheckoutPreviewDto,
@@ -29,11 +30,11 @@ import type { Signal } from '@angular/core';
     CurrencyPipe,
     ReactiveFormsModule,
     RouterLink,
-    MatButton,
-    MatIcon,
-    MatProgressBar,
-    MatRadioButton,
-    MatRadioGroup,
+    NgIcon,
+    HlmButtonImports,
+    HlmLabelImports,
+    HlmProgressImports,
+    HlmRadioGroupImports,
     CheckoutSteps,
   ],
   templateUrl: './checkout-shipping-page.html',

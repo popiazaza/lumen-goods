@@ -453,7 +453,7 @@ describe('CheckoutReviewPage', () => {
     await fixture.whenStable();
 
     expect(text('.place-error p')).toBe(detail);
-    expect(placeButton().disabled).toBeFalsy();
+    expect(placeButton().getAttribute('aria-disabled')).toBe('false');
   });
 
   it('says nothing was charged when Place order fails for another reason', async () => {

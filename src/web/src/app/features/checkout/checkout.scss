@@ -1,5 +1,6 @@
 // Shared by the checkout steps.
 @use '../../../styles/alert';
+@use '../../../styles/field';
 @use '../../../styles/totals';
 
 :host {
@@ -11,15 +12,26 @@
 .checkout-form {
   display: flex;
   flex-direction: column;
-  // Room between a hint and the next field's floating label.
-  gap: var(--lg-space-3);
+  gap: var(--lg-space-4);
+}
+
+.field {
+  @include field.field;
+}
+
+.hint {
+  @include field.hint;
+}
+
+.field-error {
+  @include field.error;
 }
 
 .row {
   display: grid;
   // Fields of different heights (one with an error) keep their own height.
   align-items: start;
-  gap: var(--lg-space-3) var(--lg-space-4);
+  gap: var(--lg-space-4);
   grid-template-columns: minmax(0, 1fr);
 
   @media (width >= 600px) {
@@ -30,9 +42,15 @@
 .required-note,
 .country,
 .muted {
-  margin: 0 0 var(--lg-space-2);
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-medium);
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.country strong {
+  color: var(--foreground);
+  font-weight: 500;
 }
 
 .actions {
@@ -42,48 +60,112 @@
   margin-top: var(--lg-space-4);
   gap: var(--lg-space-3);
 
-  & button,
-  & a {
-    min-height: 48px;
+  // The step's main button reads as the way on: wider than its words.
+  & [data-slot='button'] {
+    min-width: 8rem;
+    padding-inline: var(--lg-space-4);
+  }
+
+  @media (width < 640px) {
+    & [data-slot='button'] {
+      flex: 1 1 100%;
+    }
   }
 }
 
 h2 {
-  margin: var(--lg-space-6) 0 var(--lg-space-3);
-  font: var(--mat-sys-title-large);
+  margin: var(--lg-space-8) 0 var(--lg-space-3);
+  color: var(--foreground);
   font-family: var(--lg-font-heading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
 }
 
+// A choice between methods (shipping, payment): each a bordered row, the whole row the target
+// (WCAG 2.5.8).
+.methods {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lg-space-2);
+}
+
+.option {
+  min-height: 48px;
+  padding: var(--lg-space-3) var(--lg-space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  gap: var(--lg-space-3);
+  line-height: 1.25rem;
+
+  // Only where there is a pointer: a tap would leave a phone's option looking chosen.
+  @media (hover: hover) {
+    &:hover {
+      background: var(--accent);
+    }
+  }
+
+  // The chosen one: a primary outline and the faint teal wash.
+  &:has(.brn-radio-checked) {
+    border-color: var(--primary);
+    background: var(--accent);
+  }
+
+  &[data-disabled='true'] {
+    background: var(--muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  & ng-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--muted-foreground);
+  }
+}
+
+// One seller's items: a card, like the cart's.
 .group {
   padding: var(--lg-space-4);
-  border: 1px solid var(--mat-sys-outline-variant);
+  border: 1px solid var(--border);
   border-radius: var(--lg-radius-card);
   margin: 0 0 var(--lg-space-4);
+  background: var(--card);
+  box-shadow: var(--lg-shadow-card);
 }
 
 .group-head {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
   margin: 0 0 var(--lg-space-3);
   gap: var(--lg-space-1) var(--lg-space-3);
 
   & h3 {
     margin: 0;
-    font: var(--mat-sys-title-medium);
+    color: var(--foreground);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.5rem;
   }
 }
 
 .ships {
   display: inline-flex;
   align-items: center;
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-medium);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
   gap: var(--lg-space-1);
 
-  & mat-icon {
-    width: 18px;
-    height: 18px;
+  & ng-icon {
+    width: 16px;
+    height: 16px;
   }
 }
 
@@ -92,9 +174,10 @@ h2 {
 
   max-width: 24rem;
   margin: 0 0 0 auto;
+  font-size: 0.875rem;
 
   & dt:not(.grand) {
-    color: var(--mat-sys-on-surface-variant);
+    color: var(--muted-foreground);
   }
 }
 

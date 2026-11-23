@@ -5,7 +5,7 @@
   @if (preview.shipments.length === 0) {
     <p>Your cart is empty, so there is nothing to ship. <a routerLink="/">Continue shopping</a></p>
   } @else {
-    <p class="muted">
+    <p class="muted intro">
       Your order arrives in {{ preview.shipments.length }}
       {{ preview.shipments.length === 1 ? 'package' : 'packages' }}: each shop ships its own items.
     </p>
@@ -18,7 +18,7 @@
           </h2>
           <h3 aria-hidden="true">Sold by {{ shipment.sellerName }}</h3>
           <span class="ships">
-            <mat-icon svgIcon="local_shipping" aria-hidden="true" />
+            <ng-icon name="lucideTruck" />
             Ships separately
           </span>
         </div>
@@ -29,22 +29,25 @@
         </ul>
 
         @if (shipment.source === ownSource && expressOffered()) {
-          <mat-radio-group
+          <hlm-radio-group
             class="methods"
             [formControl]="method"
             [attr.aria-label]="`Shipping method for ${shipment.sellerName}`"
           >
             @for (option of options(); track option.method) {
-              <mat-radio-button [value]="option.method">
+              <label hlmLabel class="option">
+                <hlm-radio [value]="option.method"><hlm-radio-indicator indicator /></hlm-radio>
                 <span class="method-name">{{
                   option.method === 'express' ? 'Express' : 'Standard'
                 }}</span>
+                <!-- Angular drops the space between the two; the name reads as "Express, $12.99". -->
+                <span class="cdk-visually-hidden">, </span>
                 <span class="method-fee price">{{
                   option.fee | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
                 }}</span>
-              </mat-radio-button>
+              </label>
             }
-          </mat-radio-group>
+          </hlm-radio-group>
         } @else {
           <p class="fixed-method">
             Standard shipping:
@@ -78,28 +81,23 @@
     </p>
 
     <div class="actions">
-      <button
-        matButton="filled"
-        type="button"
-        [attr.aria-disabled]="updating()"
-        (click)="continue()"
-      >
+      <button hlmBtn size="lg" type="button" [attr.aria-disabled]="updating()" (click)="continue()">
         Continue to review
       </button>
-      <a matButton routerLink="/checkout/address">Back to address</a>
+      <a hlmBtn variant="ghost" size="lg" routerLink="/checkout/address">Back to address</a>
     </div>
   }
 } @else if (preview.status() === 'error') {
   <div class="banner error" role="alert">
-    <mat-icon svgIcon="error" aria-hidden="true" />
+    <ng-icon name="lucideCircleAlert" />
     <div>
       <p>We couldn’t load the shipping options. Check your connection and try again.</p>
-      <button matButton="outlined" type="button" (click)="preview.reload()">Retry</button>
+      <button hlmBtn variant="outline" type="button" (click)="preview.reload()">Retry</button>
     </div>
   </div>
 } @else {
   <div class="page-loading" role="status">
-    <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+    <hlm-progress aria-hidden="true"><hlm-progress-indicator /></hlm-progress>
     <p>Loading shipping options…</p>
   </div>
 }

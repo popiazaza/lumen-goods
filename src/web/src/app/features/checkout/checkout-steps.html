@@ -7,7 +7,7 @@
           <a [routerLink]="['/checkout', step.id]">
             <span class="marker" aria-hidden="true">
               @if (step.done) {
-                <mat-icon svgIcon="check_circle" />
+                <ng-icon name="lucideCheck" />
               } @else {
                 {{ $index + 1 }}
               }

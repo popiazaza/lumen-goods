@@ -1,20 +1,36 @@
 nav {
-  margin: 0 0 var(--lg-space-4);
+  margin: 0 0 var(--lg-space-6);
 }
 
 .compact {
   margin: 0 0 var(--lg-space-2);
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-label-large);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
 
 ol {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   padding: 0;
   margin: 0;
-  gap: var(--lg-space-1) var(--lg-space-4);
+  gap: var(--lg-space-1) var(--lg-space-3);
   list-style: none;
+}
+
+li {
+  display: flex;
+  align-items: center;
+  gap: var(--lg-space-3);
+
+  // A short rule between steps.
+  &:not(:last-child)::after {
+    width: 24px;
+    height: 1px;
+    background: var(--border);
+    content: '';
+  }
 }
 
 a,
@@ -22,43 +38,57 @@ a,
   display: inline-flex;
   min-height: 44px;
   align-items: center;
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-label-large);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
   gap: var(--lg-space-2);
+  line-height: 1.25rem;
 }
 
+// A done step links back to it.
 a {
-  color: var(--mat-sys-primary);
+  color: var(--foreground);
+  text-decoration: none;
+
+  &:hover .label {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
 }
 
 .current .step {
-  color: var(--mat-sys-on-surface);
-  font-weight: 700;
+  color: var(--foreground);
+  font-weight: 600;
 }
 
 .marker {
   display: inline-grid;
   width: 24px;
   height: 24px;
-  border: 2px solid currentcolor;
+  flex: none;
+  border: 1px solid var(--input);
   border-radius: 50%;
-  font-size: 12px;
+  background: var(--background);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
   place-items: center;
 
-  & mat-icon {
-    width: 24px;
-    height: 24px;
+  & ng-icon {
+    width: 14px;
+    height: 14px;
   }
 }
 
 .done .marker {
-  border: 0;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .current .marker {
-  border-color: var(--mat-sys-primary);
-  background: var(--mat-sys-primary);
-  color: var(--mat-sys-on-primary);
+  border: 2px solid var(--primary);
+  color: var(--primary);
 }
 
 // A phone has room for four markers but not four labels: only the current step keeps its label on
@@ -74,6 +104,14 @@ a {
     margin: -1px;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+
+  li {
+    gap: var(--lg-space-2);
+
+    &:not(:last-child)::after {
+      width: 12px;
+    }
   }
 
   a {
