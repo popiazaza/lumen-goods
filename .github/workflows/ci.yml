@@ -1,12 +1,13 @@
 name: CI
 
-# Docs-only changes skip CI: Actions minutes are metered while the repo is private.
+# Docs-only changes skip CI: Actions minutes are metered while the repo is private. So do changes to the
+# k6 load test alone (tests/load), which CI never runs.
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**']
+    paths-ignore: ['**.md', 'docs/**', 'tests/load/**']
   pull_request:
-    paths-ignore: ['**.md', 'docs/**']
+    paths-ignore: ['**.md', 'docs/**', 'tests/load/**']
 
 permissions:
   contents: read

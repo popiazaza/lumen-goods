@@ -148,6 +148,15 @@ with `docker compose exec`, so it runs only when `E2E_COMPOSE=1` is set, as in C
 cd src/web && npx playwright install chromium && npm run e2e   # http://localhost:8080 unless E2E_BASE_URL is set
 ```
 
+A load test ([k6](tests/load/catalogue.js)) sends catalogue, search and product requests through nginx at a fixed
+rate, and fails when p95 goes over 200 ms or more than 1 % of requests fail. Results and the Azure sizing that
+follows from them: [DESIGN.md §7–8](DESIGN.md#7-scale-path).
+
+```bash
+docker compose run --rm k6                              # 300 requests/s for 1 minute
+docker compose run --rm -e RATE=2000 -e DURATION=2m k6  # bash and PowerShell alike
+```
+
 What each suite proves (the integration tests run the real API on PostgreSQL 18): [DESIGN.md §6](DESIGN.md#6-crosscutting-concepts).
 CI runs them all plus a `docker compose up` smoke test on every pull request that changes code. Outside Docker you
 need .NET SDK 10.0.404 (`global.json`), Node.js 26.13 or later, and Docker running.

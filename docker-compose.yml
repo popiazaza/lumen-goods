@@ -128,6 +128,15 @@ services:
       - "127.0.0.1:${DASHBOARD_PORT:-18888}:18888"
     restart: unless-stopped
 
+  # Optional: "docker compose run --rm k6" load-tests the catalogue reads through nginx (tests/load/catalogue.js,
+  # 300 requests/s for 1 minute; set RATE and DURATION with -e). Start the stack first.
+  k6:
+    image: grafana/k6:2.4.0
+    profiles: [load]
+    volumes:
+      - ./tests/load:/scripts:ro
+    command: ["run", "/scripts/catalogue.js"]
+
 networks:
   default:
     ipam:
