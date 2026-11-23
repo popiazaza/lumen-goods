@@ -17,7 +17,9 @@
 .account-form {
   display: flex;
   flex-direction: column;
-  gap: var(--lg-space-2);
+  // Fields size their hint and error to fit (subscriptSizing="dynamic"), so a wrapped error never
+  // covers the next label; the gap keeps room for that label.
+  gap: var(--lg-space-3);
 }
 
 .submit {

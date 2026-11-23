@@ -3,7 +3,7 @@
   <h2>Summary</h2>
   <dl class="pairs totals">
     <div>
-      <dt>Items</dt>
+      <dt>Subtotal</dt>
       <dd>{{ o.totals.subtotal | currency }}</dd>
     </div>
     <div>
@@ -99,13 +99,11 @@
 <mat-card appearance="outlined" class="section">
   <h2>Shipping to</h2>
   <address>
-    {{ o.shippingAddress.name }}<br />
-    {{ o.shippingAddress.line1 }}<br />
-    @if (o.shippingAddress.line2) {
-      {{ o.shippingAddress.line2 }}<br />
+    @for (line of addressLines(); track $index) {
+      {{ line }}
+      @if (!$last) {
+        <br />
+      }
     }
-    {{ o.shippingAddress.city }}, {{ o.shippingAddress.region }} {{ o.shippingAddress.postalCode
-    }}<br />
-    {{ o.shippingAddress.country }}
   </address>
 </mat-card>

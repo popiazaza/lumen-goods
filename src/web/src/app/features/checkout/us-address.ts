@@ -1,4 +1,5 @@
 import { AbstractControl, ValidationErrors } from '@angular/forms';
+import { ShippingAddress } from '../../core/api/order.models';
 
 /**
 US states and DC, as [code, name]: Lumen ships to the US only at launch (A-51).
@@ -59,7 +60,23 @@ export const US_STATES: readonly (readonly [string, string])[] = [
 
 const STATE_NAMES = /* @__PURE__ */ new Map(US_STATES);
 
-export const stateName = (code: string): string => STATE_NAMES.get(code) ?? code;
+const stateName = (code: string): string => STATE_NAMES.get(code) ?? code;
+
+const COUNTRY_NAMES: ReadonlyMap<string, string> = /* @__PURE__ */ new Map([
+  ['US', 'United States'],
+]);
+
+/**
+ * An address as the shopper reads it, one line per entry, with the state and country written out
+ * ("Portland, Oregon 97209", "United States"): the same on the review step and the order pages.
+ */
+export const addressLines = (address: ShippingAddress): string[] => [
+  address.name,
+  address.line1,
+  ...(address.line2 ? [address.line2] : []),
+  `${address.city}, ${stateName(address.region)} ${address.postalCode}`,
+  COUNTRY_NAMES.get(address.country) ?? address.country,
+];
 
 /**
 ZIP (97209) or ZIP+4 (97209-1234).

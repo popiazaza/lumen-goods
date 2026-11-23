@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { unsavedChangesGuard } from './unsaved-changes.guard';
 
 /**
  * The admin pages, under `/admin`. `app.routes.ts` matches them for admins only (`adminGuard`);
@@ -18,12 +19,14 @@ export const adminRoutes: Routes = [
       },
       {
         path: 'products/new',
+        canDeactivate: [unsavedChangesGuard],
         title: 'New product — Admin',
         loadComponent: () =>
           import('./admin-product-edit-page').then((m) => m.AdminProductEditPage),
       },
       {
         path: 'products/:id',
+        canDeactivate: [unsavedChangesGuard],
         title: 'Edit product — Admin',
         loadComponent: () =>
           import('./admin-product-edit-page').then((m) => m.AdminProductEditPage),

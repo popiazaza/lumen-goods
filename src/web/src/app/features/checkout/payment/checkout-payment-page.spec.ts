@@ -107,6 +107,16 @@ describe('CheckoutPaymentPage', () => {
     type('card-cvc', '123');
   };
 
+  /**
+  Types a code, presses Verify and gives the code's error, if any.
+  */
+  const verify = async (code: string): Promise<string | undefined> => {
+    type('one-time-code', code);
+    host().querySelector<HTMLButtonElement>(':scope .code-form button[type="submit"]')?.click();
+    await settle();
+    return text('.field-error');
+  };
+
   const pay = async (): Promise<void> => {
     host().querySelector<HTMLButtonElement>('#pay-button')?.click();
     await settle();
@@ -124,8 +134,11 @@ describe('CheckoutPaymentPage', () => {
   /**
   Pays by card and gets a decline (or another final answer) back.
   */
-  const declineWith = async (payment: Partial<PaymentStatusDto>): Promise<void> => {
-    await open(null);
+  const declineWith = async (
+    payment: Partial<PaymentStatusDto>,
+    { balance = 2000 }: { balance?: number } = {}
+  ): Promise<void> => {
+    await open(null, { balance });
     fillCard('4242000000000018');
     await pay();
     http.expectOne(`${ORDER_URL}/payments`).flush(
@@ -638,6 +651,14 @@ describe('CheckoutPaymentPage', () => {
       expect(host().querySelector('.outcome')).toBeNull();
     });
 
+    it('suggests only another card when the wallet does not cover the total', async () => {
+      await declineWith({ declineMessage: 'Insufficient funds', attemptsLeft: 4 }, { balance: 10 });
+
+      expect(text('.outcome .outcome-title + p')).toBe(
+        'Payment declined. You have not been charged. Try another card. 4 attempts left.'
+      );
+    });
+
     it('shows only the generic decline for a stolen card', async () => {
       await declineWith({ declineMessage: 'Your card was declined', attemptsLeft: 1 });
 
@@ -888,7 +909,7 @@ describe('CheckoutPaymentPage', () => {
     it('shows the API’s reason when it refuses the code itself (400), staying on the code', async () => {
       await open(needsCode());
 
-      type('one-time-code', '1234');
+      type('one-time-code', '000000');
       host().querySelector<HTMLButtonElement>(':scope .code-form button[type="submit"]')?.click();
       await settle();
       http.expectOne(`${CURRENT_URL}/one-time-code`).flush(
@@ -906,6 +927,50 @@ describe('CheckoutPaymentPage', () => {
       expect(input('one-time-code').getAttribute('aria-describedby')?.split(' ', 1)[0]).toBe(
         'code-error'
       );
+    });
+
+    it('never sends a code of the wrong length, which would use up an attempt', async () => {
+      await open(needsCode());
+
+      expect({
+        empty: await verify(''),
+        short: await verify('12345'),
+        long: await verify('1234567'),
+      }).toStrictEqual({
+        empty: 'Enter the 6-digit code',
+        short: 'The code must be 6 digits',
+        long: 'The code must be 6 digits',
+      });
+
+      http.expectNone(`${CURRENT_URL}/one-time-code`);
+    });
+
+    it('asks for as many digits as the gateway’s code has', async () => {
+      await open(needsCode({ testOneTimeCode: '2468' }));
+
+      type('one-time-code', '123456');
+      host().querySelector<HTMLButtonElement>(':scope .code-form button[type="submit"]')?.click();
+      await settle();
+
+      expect(text('.field-error')).toBe('The code must be 4 digits');
+
+      http.expectNone(`${CURRENT_URL}/one-time-code`);
+    });
+
+    it('accepts any configurable length when the API shows no test code', async () => {
+      await open(needsCode({ testOneTimeCode: null }));
+
+      expect({
+        empty: await verify(''),
+        short: await verify('123'),
+        long: await verify('123456789'),
+      }).toStrictEqual({
+        empty: 'Enter the code',
+        short: 'The code must be 4 to 8 digits',
+        long: 'The code must be 4 to 8 digits',
+      });
+
+      http.expectNone(`${CURRENT_URL}/one-time-code`);
     });
 
     it('focuses the outcome when Try again after expiry finds the code step still open', async () => {
@@ -1034,6 +1099,29 @@ describe('CheckoutPaymentPage', () => {
     expect(url()).toBe(`/orders/${ORDER}/confirmation`);
     expect(store.orderNumber()).toBe('LG-OTHER1');
     expect(store.address()).toStrictEqual(US_ADDRESS);
+  });
+
+  it('drops an unfinished load when the order in the URL changes, so the old order never shows', async () => {
+    fixture = TestBed.createComponent(CheckoutPaymentPage);
+    fixture.componentRef.setInput('order', 'LG-OLD00001');
+    await settle();
+    const oldOrder = http.expectOne('/api/v1/orders/LG-OLD00001');
+    const oldPayment = http.expectOne('/api/v1/orders/LG-OLD00001/payments/current');
+
+    fixture.componentRef.setInput('order', ORDER);
+    await settle();
+
+    expect({ order: oldOrder.cancelled, payment: oldPayment.cancelled }).toStrictEqual({
+      order: true,
+      payment: true,
+    });
+
+    http.expectOne(ORDER_URL).flush(anOrder());
+    http.expectOne(CURRENT_URL).flush({ title: 'Not Found' }, NOT_FOUND);
+    http.expectOne('/api/v1/wallet').flush(aWallet());
+    await settle();
+
+    expect(text('.order-line')).toContain(`Order ${ORDER}`);
   });
 
   it('goes straight to the confirmation for an order that is already paid', async () => {

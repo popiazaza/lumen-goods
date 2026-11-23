@@ -102,7 +102,7 @@
             <p class="shipping">
               <mat-icon svgIcon="local_shipping" />
               <span>
-                {{ shippingLabel(shipment.method) }},
+                {{ shippingLabel(shipment.method) }}:
                 @if (shipment.feeRefunded) {
                   <s class="price">{{ shipment.fee | currency }}</s> (refunded)
                 } @else {

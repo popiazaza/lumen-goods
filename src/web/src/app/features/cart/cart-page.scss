@@ -95,6 +95,7 @@
 .ships,
 .notices li,
 .line-error,
+.line-note,
 .blocked-reason {
   display: flex;
   align-items: flex-start;
@@ -156,8 +157,13 @@
 }
 
 .line-error,
+.line-note,
 .blocked-reason {
   margin: var(--lg-space-2) 0;
+}
+
+.line-error,
+.blocked-reason {
   color: var(--mat-sys-error);
 }
 

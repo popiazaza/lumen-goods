@@ -17,7 +17,9 @@
 
 .row {
   display: grid;
-  column-gap: var(--lg-space-4);
+  // Fields of different heights (one with an error) keep their own height.
+  align-items: start;
+  gap: var(--lg-space-3) var(--lg-space-4);
   grid-template-columns: minmax(0, 1fr);
 
   @media (width >= 600px) {

@@ -28,6 +28,10 @@ describe('Header account area', () => {
   const host = () => fixture.nativeElement as HTMLElement;
   const link = (name: string) =>
     [...host().querySelectorAll('a')].find((a) => a.textContent?.trim() === name);
+  const shopState = () => ({
+    active: link('Shop')?.classList.contains('active'),
+    current: link('Shop')?.getAttribute('aria-current') ?? null,
+  });
   const toggle = () =>
     host().querySelector<HTMLButtonElement>('button[aria-controls="account-panel"]');
   const panel = () => host().querySelector<HTMLElement>('#account-panel');
@@ -43,6 +47,7 @@ describe('Header account area', () => {
           { path: 'admin', component: StubPage },
           { path: 'admin/products', component: StubPage },
           { path: 'sign-in', component: StubPage },
+          { path: 'products/:id', component: StubPage },
         ]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -128,6 +133,26 @@ describe('Header account area', () => {
     http.expectNone('/api/v1/wallet');
 
     expect(panel()?.querySelector('.balance')).toBeNull();
+  });
+
+  it('marks Shop current on the catalogue and its product pages, not on the cart', async () => {
+    await render(ANONYMOUS);
+    const router = TestBed.inject(Router);
+
+    await router.navigateByUrl('/?q=mug');
+    await fixture.whenStable();
+
+    expect(shopState()).toStrictEqual({ active: true, current: 'page' });
+
+    await router.navigateByUrl('/products/lumen-mug');
+    await fixture.whenStable();
+
+    expect(shopState()).toStrictEqual({ active: true, current: 'true' });
+
+    await router.navigateByUrl('/cart');
+    await fixture.whenStable();
+
+    expect(shopState()).toStrictEqual({ active: false, current: null });
   });
 
   it('closes the menu with Escape and returns focus to its button', async () => {

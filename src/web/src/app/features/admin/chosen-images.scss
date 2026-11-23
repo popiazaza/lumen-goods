@@ -18,7 +18,7 @@
 
   & img,
   & .no-thumbnail {
-    border-radius: 8px;
+    border-radius: var(--mat-sys-corner-small);
     background: var(--mat-sys-surface-container);
     object-fit: cover;
   }

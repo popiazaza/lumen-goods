@@ -22,7 +22,7 @@
   display: grid;
   // Fields of different heights (one with a hint) keep their own height.
   align-items: start;
-  column-gap: var(--lg-space-4);
+  gap: var(--lg-space-3) var(--lg-space-4);
   grid-template-columns: minmax(0, 1fr);
 
   @media (width >= 600px) {

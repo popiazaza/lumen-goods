@@ -7,7 +7,6 @@ import { MatBadge } from '@angular/material/badge';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import {
-  IsActiveMatchOptions,
   NavigationEnd,
   PRIMARY_OUTLET,
   Router,
@@ -61,14 +60,17 @@ export class Header {
   private readonly currentUrl = signal('/');
 
   /**
-  "Shop" stays active while the catalogue's query string changes.
-  */
-  protected readonly shopLinkMatch: IsActiveMatchOptions = {
-    paths: 'exact',
-    queryParams: 'ignored',
-    matrixParams: 'ignored',
-    fragment: 'ignored',
-  };
+   * "Shop" is the catalogue (whatever its query string) and the product pages in it, not the cart:
+   * `aria-current="page"` on the catalogue itself, `"true"` on a product, null elsewhere.
+   */
+  protected readonly shopCurrent = computed((): 'page' | 'true' | null => {
+    const segments =
+      this.router.parseUrl(this.currentUrl()).root.children[PRIMARY_OUTLET]?.segments ?? [];
+    if (segments.length === 0) {
+      return 'page';
+    }
+    return segments[0]?.path === 'products' ? 'true' : null;
+  });
 
   protected readonly menuOpen = signal(false);
 

@@ -1,3 +1,4 @@
+@use '../../../styles/alert';
 @use '../orders/order-page';
 @use '../../../styles/scroll-region';
 
@@ -47,16 +48,12 @@
 }
 
 .attention {
-  padding: var(--lg-space-3);
-  border-radius: 8px;
-  border-left: 4px solid var(--lg-status-warning);
+  @include alert.alert(warning);
+
   margin-bottom: var(--lg-space-4);
-  background: var(--mat-sys-surface-container);
-  color: var(--lg-status-warning);
 
   & p {
     margin: 0;
-    color: var(--mat-sys-on-surface);
   }
 }
 

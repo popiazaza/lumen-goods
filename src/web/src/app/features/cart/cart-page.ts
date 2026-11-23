@@ -1,5 +1,5 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
-import { CurrencyPipe, formatCurrency } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import {
   Component,
   ElementRef,
@@ -21,18 +21,10 @@ import { CartDto, CartLineDto } from '../../core/api/cart.api';
 import { problemMessage } from '../../core/api/problem-details';
 import { SessionApi } from '../../core/api/session.api';
 import { CartStateService } from '../../core/cart/cart-state.service';
+import { formatUsd, joinNames } from '../../shared/format';
 import { ProductImage } from '../../shared/products/product-image';
 import { AwaitingPaymentNotice } from '../checkout/awaiting-payment-notice';
 import { canAcknowledge, groupBySeller, noticesOf } from './cart-notices';
-
-/**
-The quantity selector's ceiling per line (BR-CART-03); the server's `maxQuantity` can be lower.
-*/
-export const MAX_LINE_QUANTITY = 10;
-
-const money = (amount: number): string => formatCurrency(amount, 'en-US', '$', 'USD', '1.2-2');
-
-const NAME_LIST = /* @__PURE__ */ new Intl.ListFormat('en-US', { type: 'conjunction' });
 
 /**
  * The cart (`/cart`): lines grouped by seller, quantities, notices for lines whose price or stock
@@ -100,8 +92,6 @@ export class CartPage {
           {
             notices: noticesOf(line),
             canAcknowledge: canAcknowledge(line),
-            // Never offer more than 10, nor less than what the line holds (so it can be lowered).
-            max: Math.min(MAX_LINE_QUANTITY, Math.max(line.maxQuantity, 1)),
           },
         ])
       )
@@ -162,13 +152,18 @@ export class CartPage {
     if (names.length === 0) {
       return null;
     }
-    const list = NAME_LIST.format(names);
+    const list = joinNames(names);
     return names.length === 1
       ? `Not included, as it can’t be ordered: ${list}.`
       : `Not included, as they can’t be ordered: ${list}.`;
   });
 
   protected readonly lineErrors = signal<Readonly<Record<string, string>>>({});
+
+  /**
+  A typed quantity above the line's maximum was lowered to it: say so on the line, never silently.
+  */
+  protected readonly lineNotes = signal<Readonly<Record<string, string>>>({});
 
   constructor() {
     // Fresh notices and prices every time the cart opens.
@@ -187,7 +182,8 @@ export class CartPage {
     line: CartLineDto,
     request: Observable<CartDto>,
     message: (cart: CartDto) => string,
-    afterSuccess?: () => void
+    afterSuccess?: () => void,
+    afterError?: () => void
   ): void {
     this.busy.update((busy) => {
       const next = new Set(busy);
@@ -195,6 +191,7 @@ export class CartPage {
       return next;
     });
     this.setLineError(line.id, null);
+    this.setLineNote(line.id, null);
     request
       .pipe(
         finalize(() =>
@@ -218,6 +215,7 @@ export class CartPage {
             line.id,
             problemMessage(error, 'We couldn’t update this item. Try again.')
           );
+          afterError?.();
           // The cart may have changed under us (422: stock moved); show the server's version.
           this.cartState.reload().subscribe({ error: noop });
         },
@@ -225,11 +223,11 @@ export class CartPage {
   }
 
   private setLineError(lineId: string, message: string | null): void {
-    this.lineErrors.update((errors) =>
-      message
-        ? { ...errors, [lineId]: message }
-        : Object.fromEntries(Object.entries(errors).filter(([id]) => id !== lineId))
-    );
+    this.lineErrors.update((errors) => withEntry(errors, lineId, message));
+  }
+
+  private setLineNote(lineId: string, message: string | null): void {
+    this.lineNotes.update((notes) => withEntry(notes, lineId, message));
   }
 
   private say(message: string): void {
@@ -266,19 +264,48 @@ export class CartPage {
   }
 
   protected setQuantity(line: CartLineDto, quantity: number, input?: HTMLInputElement): void {
-    const max = this.lineViews().get(line.id)?.max ?? MAX_LINE_QUANTITY;
-    // Lowering is always allowed (a line above stock must come down); raising stops at `max`.
+    // The server's ceiling for this line (BR-CART-03: 10, or less when stock is lower). Lowering is
+    // always allowed (a line above stock must come down); raising stops at the ceiling, and a typed
+    // quantity above it says so instead of changing silently.
+    const max = Math.max(line.maxQuantity, 1);
     const next = quantity < line.quantity ? Math.max(quantity, 1) : Math.min(quantity, max);
-    if (next === line.quantity || this.isBusy(line.id)) {
+    // Capped only when raising past the ceiling, not when lowering a line that is still above it.
+    const isCapped = quantity > line.quantity && quantity > max;
+    const showRealQuantity = () => {
       if (input) {
         input.value = String(line.quantity);
       }
+    };
+    if (this.isBusy(line.id)) {
+      showRealQuantity();
       return;
     }
-    this.run(line, this.cartState.setQuantity(line.id, next), (cart) => {
-      const updated = cart.lines.find((candidate) => candidate.id === line.id);
-      return `${line.product.name}: quantity ${updated?.quantity ?? next}. Cart total ${money(cart.totals.total)}.`;
-    });
+    if (next === line.quantity) {
+      showRealQuantity();
+      if (isCapped) {
+        this.setLineNote(line.id, `${max} is the most you can buy.`);
+        this.say(`${line.product.name}: ${max} is the most you can buy.`);
+      }
+      return;
+    }
+    this.run(
+      line,
+      this.cartState.setQuantity(line.id, next),
+      (cart) => {
+        const updated = cart.lines.find((candidate) => candidate.id === line.id);
+        const parts = [`${line.product.name}: quantity ${updated?.quantity ?? next}.`];
+        if (isCapped) {
+          const note = `We changed the quantity from ${quantity} to ${updated?.quantity ?? next}, the most you can buy.`;
+          this.setLineNote(line.id, note);
+          parts.push(note);
+        }
+        parts.push(`Cart total ${formatUsd(cart.totals.total)}.`);
+        return parts.join(' ');
+      },
+      undefined,
+      // A refused change leaves the box showing what the cart really holds, not what was typed.
+      showRealQuantity
+    );
   }
 
   protected acknowledge(line: CartLineDto): void {
@@ -342,3 +369,15 @@ export class CartPage {
     }
   }
 }
+
+/**
+The record with `id` set to `message`, or without `id` when there is none.
+*/
+const withEntry = (
+  entries: Readonly<Record<string, string>>,
+  id: string,
+  message: string | null
+): Readonly<Record<string, string>> =>
+  message
+    ? { ...entries, [id]: message }
+    : Object.fromEntries(Object.entries(entries).filter(([key]) => key !== id));

@@ -35,9 +35,10 @@ import {
 } from '../../core/api/problem-details';
 import { CartStateService } from '../../core/cart/cart-state.service';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
+import { joinNames } from '../../shared/format';
 import { AwaitingPaymentNotice } from './awaiting-payment-notice';
 import { CheckoutSteps } from './checkout-steps';
-import { stateName } from './us-address';
+import { addressLines } from './us-address';
 
 /**
 Changes that only mean the review is out of date (the cart changed in another tab).
@@ -47,11 +48,6 @@ const REVIEW_AGAIN_KINDS: ReadonlySet<CheckoutChangeKind> = /* @__PURE__ */ new 
   'quantity_changed',
   'price_changed',
 ]);
-
-/**
-"Harbor Supply Co. and Kestrel Outfitters".
-*/
-const SELLER_LIST = /* @__PURE__ */ new Intl.ListFormat('en-US', { type: 'conjunction' });
 
 /**
  * Checkout step 3 (`/checkout/review`): the server's preview of the order, then Place order.
@@ -115,17 +111,13 @@ export class CheckoutReviewPage {
       }
     }
     return [...sellers]
-      .map(([method, names]) => `${SHIPPING_METHOD_NAMES[method]} for ${SELLER_LIST.format(names)}`)
+      .map(([method, names]) => `${SHIPPING_METHOD_NAMES[method]} for ${joinNames(names)}`)
       .join('; ');
   });
 
   protected readonly addressText = computed(() => {
     const address = this.address();
-    if (!address) {
-      return '';
-    }
-    const street = [address.line1, address.line2].filter(Boolean).join(', ');
-    return `${address.name}, ${street}, ${address.city}, ${stateName(address.region)} ${address.postalCode}, United States`;
+    return address ? addressLines(address).join(', ') : '';
   });
 
   protected readonly preview = rxResource({

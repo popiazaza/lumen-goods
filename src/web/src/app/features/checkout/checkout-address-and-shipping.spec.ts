@@ -110,6 +110,20 @@ describe('Checkout address and shipping steps', () => {
       expect(store.address()).toBeNull();
     });
 
+    it('keeps the capitals of "ZIP" in the message for an empty ZIP code', async () => {
+      await harness.navigateByUrl('/checkout/address');
+      noPastOrders();
+
+      host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+      await harness.fixture.whenStable();
+
+      expect(
+        [...host().querySelectorAll(':scope app-error-summary li')].map((li) =>
+          li.textContent?.trim()
+        )
+      ).toContain('Enter ZIP code');
+    });
+
     it('saves the address and moves on; coming back shows it again', async () => {
       await harness.navigateByUrl('/checkout/address');
       noPastOrders();
@@ -227,7 +241,7 @@ describe('Checkout address and shipping steps', () => {
       expect(partner.querySelector('mat-radio-button')).toBeNull();
       expect(
         partner.querySelector('.fixed-method')?.textContent?.replaceAll(/\s+/gu, ' ').trim()
-      ).toBe('Standard shipping, $4.99 · Partner shops ship Standard only.');
+      ).toBe('Standard shipping: $4.99 · Partner shops ship Standard only.');
       expect(text('.muted')).toBe(
         'Your order arrives in 2 packages: each shop ships its own items.'
       );

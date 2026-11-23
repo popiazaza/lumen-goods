@@ -146,13 +146,13 @@
   }
 
   <dl class="totals" [attr.aria-busy]="preview.shipments.length > 0 && placing()">
-    <dt>Items</dt>
+    <dt>Subtotal</dt>
     <dd>{{ preview.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
     <dt>Shipping</dt>
     <dd>{{ preview.shipping | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
-    <dt>Sales tax</dt>
+    <dt>Tax</dt>
     <dd>{{ preview.tax | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
-    <dt class="grand">Order total</dt>
+    <dt class="grand">Total</dt>
     <dd class="grand price review-total">
       {{ preview.total | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
     </dd>

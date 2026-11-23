@@ -41,10 +41,12 @@ import {
   problemOf,
 } from '../../core/api/problem-details';
 import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
+import { SessionApi } from '../../core/api/session.api';
 import { categoryLabel } from '../../shared/products/product-labels';
 import { registerOrderIcons } from '../orders/order-icons';
 import { AdminAccessDenied } from './admin-access-denied';
 import { ChosenImages } from './chosen-images';
+import { HasUnsavedChanges } from './unsaved-changes.guard';
 import { ImageLibrary } from './image-library';
 import {
   MAX_ATTRIBUTES,
@@ -96,7 +98,7 @@ const categoryOption = (value: ProductCategory) => ({ value, label: categoryLabe
   templateUrl: './admin-product-edit-page.html',
   styleUrl: './admin-product-edit-page.scss',
 })
-export class AdminProductEditPage {
+export class AdminProductEditPage implements HasUnsavedChanges {
   private readonly api = inject(AdminProductsApi);
 
   private readonly router = inject(Router);
@@ -104,6 +106,8 @@ export class AdminProductEditPage {
   private readonly snackBar = inject(MatSnackBar);
 
   private readonly announcer = inject(LiveAnnouncer);
+
+  private readonly session = inject(SessionApi);
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -358,6 +362,15 @@ export class AdminProductEditPage {
     const { images } = this.form.controls;
     images.setValue([file, ...images.value.filter((name) => name !== file)]);
     images.markAsDirty();
+  }
+
+  /**
+   * Edits not saved yet: leaving asks first (`unsavedChangesGuard`). Not once the form is gone: after a
+   * 401 or 403 the page shows access denied and the sign-in redirect must go through, and after the
+   * admin signed out there is nothing left to save.
+   */
+  hasUnsavedChanges(): boolean {
+    return this.form.dirty && !this.accessStatus() && this.session.isAuthenticated();
   }
 
   /**

@@ -47,7 +47,7 @@
           </mat-radio-group>
         } @else {
           <p class="fixed-method">
-            Standard shipping,
+            Standard shipping:
             <span class="price">{{
               shipment.fee | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
             }}</span>
@@ -60,11 +60,11 @@
     }
 
     <dl class="totals" [attr.aria-busy]="updating()">
-      <dt>Items</dt>
+      <dt>Subtotal</dt>
       <dd>{{ preview.subtotal | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
       <dt>Shipping</dt>
       <dd>{{ preview.shipping | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
-      <dt>Estimated tax</dt>
+      <dt>Tax</dt>
       <dd>{{ preview.tax | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</dd>
       <dt class="grand">Total</dt>
       <dd class="grand price">
@@ -73,7 +73,7 @@
     </dl>
     <p class="cdk-visually-hidden" role="status">
       @if (!updating()) {
-        Order total {{ preview.total | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
+        Total {{ preview.total | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}
       }
     </p>
 

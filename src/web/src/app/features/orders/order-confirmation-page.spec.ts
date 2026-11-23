@@ -96,7 +96,7 @@ describe('OrderConfirmationPage', () => {
     ]);
     expect(all('.lines .status')).toStrictEqual(['Confirmed', 'Awaiting Kestrel Outfitters']);
     expect({ labels: all('.totals dt'), amounts: all('.totals dd') }).toStrictEqual({
-      labels: ['Items', 'Shipping', 'Sales tax', 'Total'],
+      labels: ['Subtotal', 'Shipping', 'Tax', 'Total charged'],
       amounts: ['$53.22', '$9.98', '$4.26', '$67.46'],
     });
     expect(host().querySelector(':scope .actions a')?.getAttribute('href')).toBe(
@@ -146,8 +146,8 @@ describe('OrderConfirmationPage', () => {
     );
 
     expect(all('.lines .status')[1]).toBe('Not supplied, refunded $17.52');
-    expect(all('.group-head .muted')[1]).toBe('Standard shipping · $4.99 (refunded)');
-    expect(all('.totals dt').slice(4)).toStrictEqual(['Refunded', 'You paid']);
+    expect(all('.group-head .muted')[1]).toBe('Standard shipping: $4.99 (refunded)');
+    expect(all('.totals dt').slice(4)).toStrictEqual(['Refunded', 'Net paid']);
     expect(all('.totals dd').slice(4)).toStrictEqual(['−$22.51', '$44.95']);
     expect(all('.next li')[1]).toBe(
       'Kestrel Outfitters couldn’t supply these items, so you don’t pay for them. The refund goes back to how you paid.'
@@ -242,6 +242,8 @@ describe('OrderConfirmationPage', () => {
     expect(host().querySelector('a[href^="/checkout/payment"]')?.getAttribute('href')).toBe(
       '/checkout/payment?order=LG-7K3M9QX2'
     );
+    // Nothing charged yet: "Total", as on the order page.
+    expect(all('.totals dt').at(-1)).toBe('Total');
   });
 
   it('says the payment is being confirmed while it runs, and refreshes until it is paid', async () => {
