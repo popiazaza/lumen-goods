@@ -147,6 +147,21 @@
   }
 }
 
+.removal-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: var(--lg-space-3);
+  border-radius: var(--lg-radius-card);
+  background: var(--mat-sys-surface-container-high);
+  gap: var(--lg-space-2);
+
+  & p {
+    flex-basis: 100%;
+    margin: 0;
+  }
+}
+
 .outcome {
   &.succeeded {
     color: var(--lg-status-success);

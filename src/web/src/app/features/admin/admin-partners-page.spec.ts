@@ -128,6 +128,49 @@ describe('AdminPartnersPage', () => {
     expect(text(card('Harbor Supply Co.'), '.facts')).not.toContain('Held back');
   });
 
+  it('confirms held removals only after a second click, then refreshes with confirmRemovals', async () => {
+    await load([HARBOR, { ...KESTREL, heldRemovals: 12 }]);
+    const kestrel = card('Kestrel Outfitters');
+    const confirmButton = () => kestrel.querySelector<HTMLButtonElement>('.confirm-removals');
+    const checkButtons = () => [
+      ...kestrel.querySelectorAll<HTMLButtonElement>(':scope .removal-check button'),
+    ];
+
+    expect(card('Harbor Supply Co.').querySelector('.confirm-removals')).toBeNull();
+
+    confirmButton()?.click();
+    fixture.detectChanges();
+
+    expect(text(kestrel, '.removal-check p')).toBe(
+      'Remove 12 products from the shop? Check first that they have really left the Kestrel Outfitters catalogue.'
+    );
+
+    http.expectNone((request) => request.url.endsWith('/refresh'));
+
+    checkButtons().at(1)?.click();
+    fixture.detectChanges();
+
+    expect(kestrel.querySelector('.removal-check')).toBeNull();
+
+    http.expectNone((request) => request.url.endsWith('/refresh'));
+
+    confirmButton()?.click();
+    fixture.detectChanges();
+    checkButtons().at(0)?.click();
+    fixture.detectChanges();
+    const post = http.expectOne('/api/v1/admin/partners/kestrel/refresh?confirmRemovals=true');
+
+    expect(post.request.method).toBe('POST');
+    expect(announcer.announce).toHaveBeenCalledWith(
+      'Refreshing Kestrel Outfitters and removing the held products',
+      'polite'
+    );
+
+    post.flush(null, ACCEPTED);
+    // Leaving the page stops the status polling the refresh started.
+    fixture.destroy();
+  });
+
   /**
   The 202 carries the server's clock: the refresh was accepted at 06:10:00Z.
   */

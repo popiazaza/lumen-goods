@@ -271,7 +271,8 @@ internal sealed class PartnerSyncService(LumenDbContext db, SnapshotMapper mappe
             {
                 heldCount = dropped.Count;
                 held = $"{settings.Name}: {heldCount} removals held back by the mass-deletion guard ({reason}); those products stay listed. "
-                    + "The rest of the catalogue was applied. If the removals are real, confirm them with Refresh now and confirmRemovals=true.";
+                    + "The rest of the catalogue was applied. If the removals are real, press Confirm removals on the Partners page "
+                    + "(a refresh with confirmRemovals=true).";
                 dropped = [];
             }
         }

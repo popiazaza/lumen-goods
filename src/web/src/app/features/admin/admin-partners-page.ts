@@ -96,6 +96,11 @@ export class AdminPartnersPage {
 
   protected readonly refreshes = signal<Readonly<Record<string, RefreshState>>>({});
 
+  /**
+  The partner whose held removals the admin is being asked to confirm, if any.
+  */
+  protected readonly confirmingRemovals = signal<string | undefined>(undefined);
+
   protected readonly pollSeconds = REFRESH_POLL_INTERVAL_MS / 1000;
 
   protected readonly recentErrorsShown = RECENT_ERRORS_SHOWN;
@@ -156,6 +161,22 @@ export class AdminPartnersPage {
     return this.refreshes()[partner.partner]?.kind === 'running';
   }
 
+  /**
+  Removing held products takes them out of the shop, so it needs a second, explicit click.
+  */
+  protected askToConfirmRemovals(partner: PartnerStatus): void {
+    this.confirmingRemovals.set(partner.partner);
+  }
+
+  protected cancelRemovals(): void {
+    this.confirmingRemovals.set(undefined);
+  }
+
+  protected confirmRemovals(partner: PartnerStatus): void {
+    this.confirmingRemovals.set(undefined);
+    this.refresh(partner, true);
+  }
+
   protected isExpanded(partner: PartnerStatus): boolean {
     return this.expanded().has(partner.partner);
   }
@@ -182,18 +203,23 @@ export class AdminPartnersPage {
    * accepted, not the status loaded with the page, so an unrelated scheduled sync in between does
    * not end the wait early.
    */
-  protected refresh(partner: PartnerStatus): void {
+  protected refresh(partner: PartnerStatus, shouldConfirmRemovals = false): void {
     if (this.isRefreshing(partner)) {
       return;
     }
     this.setRefresh(partner, { kind: 'running' });
-    void this.announcer.announce(`Refreshing ${partner.name}`, 'polite');
+    void this.announcer.announce(
+      shouldConfirmRemovals
+        ? `Refreshing ${partner.name} and removing the held products`
+        : `Refreshing ${partner.name}`,
+      'polite'
+    );
     // Fallback baseline if the server sends no Date header; taken before the POST, so a run the
     // POST triggers is never older than it.
     const sentAt = Date.now();
 
     this.api
-      .refresh(partner.partner)
+      .refresh(partner.partner, shouldConfirmRemovals)
       .pipe(
         switchMap((acceptedAt) => {
           const requestedAt = acceptedAt ?? sentAt;

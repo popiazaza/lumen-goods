@@ -130,6 +130,36 @@
             <mat-icon svgIcon="refresh" />
             {{ isRefreshing(partner) ? 'Refreshing…' : 'Refresh now' }}
           </button>
+          @if (partner.heldRemovals > 0 && confirmingRemovals() !== partner.partner) {
+            <button
+              matButton="outlined"
+              type="button"
+              class="confirm-removals"
+              disabledInteractive
+              [disabled]="isRefreshing(partner)"
+              (click)="askToConfirmRemovals(partner)"
+            >
+              Confirm removals…
+            </button>
+          }
+          @if (partner.heldRemovals > 0 && confirmingRemovals() === partner.partner) {
+            <div
+              class="removal-check"
+              role="group"
+              [attr.aria-label]="`Confirm removals for ${partner.name}`"
+            >
+              <p>
+                Remove {{ partner.heldRemovals | number }}
+                {{ partner.heldRemovals === 1 ? 'product' : 'products' }} from the shop? Check first
+                that {{ partner.heldRemovals === 1 ? 'it has' : 'they have' }} really left the
+                {{ partner.name }} catalogue.
+              </p>
+              <button matButton="filled" type="button" (click)="confirmRemovals(partner)">
+                Remove and refresh
+              </button>
+              <button matButton type="button" (click)="cancelRemovals()">Cancel</button>
+            </div>
+          }
           @if (run?.kind === 'running') {
             <mat-progress-bar
               mode="indeterminate"
