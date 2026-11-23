@@ -1,5 +1,5 @@
-// One look for a page's empty, not-found and error states: a centred icon, a short heading in the
-// heading face, a line of text and one filled button.
+// One look for a page's empty, not-found and error states: a centred icon in a soft disc, a short
+// heading in the heading face, a line of text and one button.
 
 @mixin state {
   display: flex;
@@ -12,25 +12,40 @@
   h2,
   h3 {
     margin: 0;
-    font: var(--mat-sys-title-large);
+    color: var(--foreground);
     font-family: var(--lg-font-heading);
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.75rem;
   }
 
   // Admin states lead with a bold line instead of a heading.
   strong {
-    color: var(--mat-sys-on-surface);
+    color: var(--foreground);
   }
 
   p {
     max-width: 40ch;
     margin: 0 0 var(--lg-space-2);
-    color: var(--mat-sys-on-surface-variant);
+    color: var(--muted-foreground);
     overflow-wrap: anywhere;
   }
 
+  > ng-icon {
+    width: 24px;
+    height: 24px;
+    box-sizing: content-box;
+    padding: var(--lg-space-3);
+    border-radius: 50%;
+    margin-bottom: var(--lg-space-2);
+    background: var(--muted);
+    color: var(--muted-foreground);
+  }
+
+  // The pages still on Material.
   > mat-icon {
     width: 40px;
     height: 40px;
-    color: var(--mat-sys-on-surface-variant);
+    color: var(--muted-foreground);
   }
 }

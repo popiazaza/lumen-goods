@@ -117,6 +117,17 @@ export default [
     },
   },
   {
+    files: ['**/*.html'],
+    rules: {
+      // spartan/ui's checkbox and switch are components (a `role="checkbox"`/`"switch"` button
+      // inside), labelled by the <label> around them; the rule only knows native controls.
+      '@angular-eslint/template/label-has-associated-control': [
+        'error',
+        { controlComponents: ['hlm-checkbox', 'hlm-switch'] },
+      ],
+    },
+  },
+  {
     files: ['src/**/*.spec.ts'],
     rules: {
       // Angular's unit-test builder runs `*.spec.ts`, and `ng generate` names specs that way.

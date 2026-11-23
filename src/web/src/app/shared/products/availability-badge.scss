@@ -1,28 +1,30 @@
 :host {
   display: inline-flex;
   align-items: center;
-  font: var(--mat-sys-label-large);
-  gap: var(--lg-space-1);
+  font-size: 0.875rem;
+  font-weight: 500;
+  gap: 6px;
+  line-height: 1.25rem;
 }
 
-mat-icon {
-  width: 18px;
-  height: 18px;
+ng-icon {
+  width: 16px;
+  height: 16px;
   flex: none;
 }
 
 :host(.available) {
-  color: var(--lg-status-success);
+  color: var(--success);
 }
 
 :host(.low) {
-  color: var(--lg-status-warning);
+  color: var(--warning);
 }
 
 :host(.out) {
-  color: var(--mat-sys-error);
+  color: var(--destructive);
 }
 
 :host(.unavailable) {
-  color: var(--mat-sys-on-surface-variant);
+  color: var(--muted-foreground);
 }

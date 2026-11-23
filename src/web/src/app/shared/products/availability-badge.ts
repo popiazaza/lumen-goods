@@ -1,5 +1,5 @@
 import { Component, computed, input } from '@angular/core';
-import { MatIcon } from '@angular/material/icon';
+import { NgIcon } from '@ng-icons/core';
 import { ProductDto } from '../../core/api/products.api';
 import { availabilityOf } from './availability';
 
@@ -8,9 +8,9 @@ import { availabilityOf } from './availability';
 */
 @Component({
   selector: 'app-availability-badge',
-  imports: [MatIcon],
+  imports: [NgIcon],
   template: `
-    <mat-icon aria-hidden="true" [svgIcon]="label().icon" />
+    <ng-icon [name]="label().icon" />
     <span>{{ label().text }}</span>
   `,
   styleUrl: './availability-badge.scss',
