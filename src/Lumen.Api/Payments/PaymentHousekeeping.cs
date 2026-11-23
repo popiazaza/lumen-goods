@@ -79,9 +79,10 @@ internal sealed class PaymentHousekeeping(
     }
 
     /// <summary>
-    /// BR-STOCK-01: expires an order awaiting payment whose hold is over, or whose attempts are used up, when no payment
-    /// is in progress, and releases its reserved stock. An order whose latest payment is Failed is not expired: that
-    /// payment is settled with the gateway first (<see cref="SettleIfDueAsync"/>), because it may have charged.
+    /// BR-STOCK-01: expires an order awaiting payment that <see cref="PaymentWindowPolicy.MustExpireOrder"/> says must
+    /// expire (hold over or attempts used up, and no payment holding it), and releases its reserved stock. An order whose
+    /// latest payment is Failed is held: that payment is settled with the gateway first (<see cref="SettleIfDueAsync"/>),
+    /// because it may have charged (BR-PAY-05).
     /// </summary>
     /// <returns>True when the order was expired.</returns>
     public async Task<bool> ExpireIfDueAsync(Guid orderId, CancellationToken cancellationToken)
@@ -99,8 +100,7 @@ internal sealed class PaymentHousekeeping(
             .OrderByDescending(p => p.CreatedUtc).ThenByDescending(p => p.Id)
             .FirstOrDefaultAsync(cancellationToken);
         var now = time.GetUtcNow();
-        if (latest?.Status == PaymentStatus.Failed
-            || !window.MustExpireOrder(order.FailedPaymentAttempts, order.CreatedUtc, now, latest?.Snapshot))
+        if (!window.MustExpireOrder(order.FailedPaymentAttempts, order.CreatedUtc, now, latest?.Snapshot))
         {
             return false;
         }

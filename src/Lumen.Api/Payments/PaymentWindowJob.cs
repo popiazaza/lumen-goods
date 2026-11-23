@@ -19,8 +19,9 @@ public sealed record PaymentWindowReport(int PaymentsChecked, int OrdersExpired)
 /// <item>closes payments that no longer hold their order: a one-time code nobody entered in time, a gateway error
 /// whose one automatic retry can no longer run, a charge stuck Created or Processing (its worker died: the gateway's
 /// status decides), and Failed payments (the gateway's status settles them);</item>
-/// <item>expires orders awaiting payment whose hold is over or whose attempts are used up, when no payment is in
-/// progress, releasing their reserved stock. A slow card still running when the hold ends keeps the order.</item>
+/// <item>expires orders awaiting payment whose hold is over or whose attempts are used up, when no payment holds
+/// them, releasing their reserved stock. A slow card still running when the hold ends keeps the order, and so does a
+/// Failed payment until the gateway settles it.</item>
 /// </list>
 /// Each payment and order is handled in its own scope and transaction, so one bad row never stops the rest. Payments
 /// the gateway cannot answer for stay due, so the payment sweep pages through the due set with a cursor instead of
@@ -101,11 +102,13 @@ internal sealed class PaymentWindowJob(
                 var db = scope.ServiceProvider.GetRequiredService<LumenDbContext>();
                 var maxAttempts = window.MaxAttempts;
 
-                // An order whose latest payment is Failed is not expired until the gateway settles that payment
-                // (ExpireIfDueAsync), so it is left out here: otherwise such orders, oldest first, could fill every batch
-                // during a gateway status outage and no other order would ever expire. At most one payment per order is
-                // not final (IX_Payments_OrderId_NotFinal) and Failed is not final, so a Failed payment is always the
-                // order's latest.
+                // The rule is PaymentWindowPolicy.MustExpireOrder, which ExpireIfDueAsync applies to each order. This
+                // query only picks the candidates, and it must leave out what the policy holds for a Failed payment
+                // (BR-PAY-05): otherwise those orders, oldest first, could fill every batch during a gateway status
+                // outage and no other order would ever expire. "Has a Failed payment" is the policy's "latest payment
+                // is Failed": at most one payment per order is not final (IX_Payments_OrderId_NotFinal) and Failed is
+                // not final, so a Failed payment is always the order's latest. A payment in progress needs no filter:
+                // its order is PaymentProcessing (the claim), not AwaitingPayment.
                 expiring = await db.Orders.AsNoTracking()
                     .Where(o => o.Status == OrderStatus.AwaitingPayment && (o.HoldExpiresUtc <= now || o.FailedPaymentAttempts >= maxAttempts)
                         && !db.Payments.Any(p => p.OrderId == o.Id && p.Status == PaymentStatus.Failed))
