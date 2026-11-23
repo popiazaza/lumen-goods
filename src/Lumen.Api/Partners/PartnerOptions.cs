@@ -140,7 +140,7 @@ public sealed class PartnerResilienceOptions
 }
 
 /// <summary>Settings shared by all partners (section <c>Partners</c>).</summary>
-public sealed class PartnersOptions
+public sealed class PartnersOptions : IValidatableObject
 {
     public const string SectionName = "Partners";
 
@@ -160,6 +160,30 @@ public sealed class PartnersOptions
         }
 
         return synonyms;
+    }
+
+    /// <summary>
+    /// A synonym is looked up by the lower camelCase form of a partner key, and its target is shown as a storefront key,
+    /// so both sides must already be lower camelCase (the lookup ignores case). Anything else would silently never match
+    /// or put a key in the wrong format on every product.
+    /// </summary>
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        var noSynonyms = new Dictionary<string, string>();
+        foreach (var (from, to) in AttributeKeySynonyms)
+        {
+            if (!string.Equals(AttributeKeys.Normalize(from, noSynonyms), from, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return new ValidationResult(
+                    $"AttributeKeySynonyms key '{from}' is not a lower camelCase attribute key, so it would never match.", [nameof(AttributeKeySynonyms)]);
+            }
+
+            if (!string.Equals(AttributeKeys.Normalize(to, noSynonyms), to, StringComparison.Ordinal))
+            {
+                yield return new ValidationResult(
+                    $"AttributeKeySynonyms maps '{from}' to '{to}', which is not a lower camelCase attribute key.", [nameof(AttributeKeySynonyms)]);
+            }
+        }
     }
 }
 
