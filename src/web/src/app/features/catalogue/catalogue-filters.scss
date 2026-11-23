@@ -22,6 +22,8 @@ legend {
 
 .price {
   display: grid;
+  // Min keeps its height when only Max shows an error.
+  align-items: start;
   gap: var(--lg-space-2);
   grid-template-columns: 1fr 1fr;
 

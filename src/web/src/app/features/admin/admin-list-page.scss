@@ -50,11 +50,16 @@
   & .search {
     display: flex;
     flex: 2 1 20rem;
+    // On the narrowest phones the button goes under the field instead of pushing the page
+    // sideways (no horizontal scroll at 320px, WCAG 1.4.10).
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--lg-space-2);
 
     & mat-form-field {
       max-width: none;
+      // Beside the button whenever both fit, also below 600px.
+      flex: 1 1 12rem;
     }
 
     // As tall as the outlined field beside it.
