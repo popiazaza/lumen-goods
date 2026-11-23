@@ -7,8 +7,9 @@
 }
 
 .muted {
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-medium);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .banner {
@@ -27,9 +28,11 @@
     @include alert.tone(error);
   }
 
-  & p,
+  // The changed lines, as a bulleted list (Tailwind's reset takes the bullets away).
   & ul {
-    margin: 0;
+    padding-left: 1.25rem;
+    margin-top: var(--lg-space-1);
+    list-style: disc;
   }
 
   & > p,
@@ -42,19 +45,30 @@
     display: flex;
     align-items: flex-start;
     margin-top: var(--lg-space-2);
-    color: var(--mat-sys-error);
+    color: var(--destructive);
     font-weight: 500;
     gap: var(--lg-space-1);
 
-    & mat-icon {
-      width: 20px;
-      height: 20px;
+    & ng-icon {
+      width: 16px;
+      height: 16px;
       flex: none;
+      margin-top: 2px;
     }
   }
 
-  & .acknowledge-all {
+  & .acknowledge-all,
+  &.error button {
     margin-top: var(--lg-space-3);
+  }
+
+  // The merge notice's Dismiss sits at the end of the row.
+  &.merge {
+    align-items: center;
+
+    & > p {
+      flex: 1 1 12rem;
+    }
   }
 }
 
@@ -73,23 +87,43 @@
   }
 }
 
+// One seller's lines, and the summary: cards.
+.group,
+.summary {
+  border: 1px solid var(--border);
+  border-radius: var(--lg-radius-card);
+  background: var(--card);
+  box-shadow: var(--lg-shadow-card);
+}
+
+// Seller and summary headings, in the heading face.
+.group-head h2,
+.summary h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--lg-font-heading);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+}
+
 .group {
   padding: var(--lg-space-4);
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: var(--lg-radius-card);
   margin: 0 0 var(--lg-space-4);
+
+  @media (width >= 600px) {
+    padding: var(--lg-space-4) var(--lg-space-6);
+  }
 }
 
 .group-head {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
+  padding-bottom: var(--lg-space-3);
+  border-bottom: 1px solid var(--border);
   gap: var(--lg-space-1) var(--lg-space-3);
-
-  & h2 {
-    margin: 0;
-    font: var(--mat-sys-title-medium);
-  }
 }
 
 .ships,
@@ -99,18 +133,24 @@
 .blocked-reason {
   display: flex;
   align-items: flex-start;
-  gap: var(--lg-space-1);
+  gap: var(--lg-space-2);
 
-  & mat-icon {
-    width: 20px;
-    height: 20px;
+  & ng-icon {
+    width: 16px;
+    height: 16px;
     flex: none;
+    margin-top: 2px;
   }
 }
 
 .ships {
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-medium);
+  align-items: center;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+
+  & ng-icon {
+    margin-top: 0;
+  }
 }
 
 .line-list,
@@ -123,35 +163,65 @@
 .line {
   display: grid;
   padding: var(--lg-space-4) 0 0;
-  gap: var(--lg-space-3);
+  gap: var(--lg-space-4);
   grid-template-columns: 64px minmax(0, 1fr);
 
   & + & {
-    border-top: 1px solid var(--mat-sys-outline-variant);
+    border-top: 1px solid var(--border);
     margin-top: var(--lg-space-4);
+  }
+
+  @media (width >= 600px) {
+    grid-template-columns: 88px minmax(0, 1fr);
   }
 }
 
+.thumb {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .name {
-  font: var(--mat-sys-title-small);
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5rem;
   overflow-wrap: anywhere;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .unit {
-  margin: var(--lg-space-1) 0;
-  color: var(--mat-sys-on-surface-variant);
+  margin: 2px 0 var(--lg-space-2);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+
+  & .price {
+    color: var(--foreground);
+    font-weight: 500;
+  }
 }
 
 .notices li {
   margin: var(--lg-space-1) 0;
-  font: var(--mat-sys-body-medium);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+
+  &.info ng-icon {
+    color: var(--primary);
+  }
 
   &.warning {
-    color: var(--lg-status-warning);
+    color: var(--warning);
   }
 
   &.blocking {
-    color: var(--mat-sys-error);
+    color: var(--destructive);
     font-weight: 500;
   }
 }
@@ -160,11 +230,21 @@
 .line-note,
 .blocked-reason {
   margin: var(--lg-space-2) 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .line-error,
 .blocked-reason {
-  color: var(--mat-sys-error);
+  color: var(--destructive);
+}
+
+.line-note {
+  color: var(--muted-foreground);
+
+  & ng-icon {
+    color: var(--primary);
+  }
 }
 
 .controls,
@@ -172,7 +252,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  margin-top: var(--lg-space-2);
+  margin-top: var(--lg-space-3);
   gap: var(--lg-space-2);
 }
 
@@ -180,34 +260,40 @@
   justify-content: space-between;
 }
 
-// Drawn like the product page's outlined quantity field, a size smaller: the same corner, outline
-// and focus, which goes on the whole control rather than a box inside it.
+// Like the product page's quantity stepper, a size smaller: one outlined control whose focus
+// goes on the whole box rather than a box inside it.
 .stepper {
   display: inline-flex;
+  height: 40px;
   align-items: center;
-  padding: var(--lg-space-1);
-  border: 1px solid var(--mat-sys-outline);
-  border-radius: var(--mat-sys-corner-extra-small);
-
-  &:hover {
-    border-color: var(--mat-sys-on-surface);
-  }
+  padding: 0 2px;
+  border: 1px solid var(--input);
+  border-radius: calc(var(--radius) * 0.8);
+  background: var(--background);
+  box-shadow: var(--lg-shadow-card);
 
   &:focus-within {
-    border-color: var(--mat-sys-primary);
-    box-shadow: inset 0 0 0 1px var(--mat-sys-primary);
+    border-color: var(--ring);
   }
 
+  & button {
+    width: 34px;
+    height: 34px;
+  }
+
+  // Tailwind's reset already takes the input's border, padding and background away.
   & input {
     width: 3rem;
-    height: 40px;
-    padding: 0;
-    border: 0;
+    height: 100%;
     appearance: textfield;
-    background: transparent;
-    color: var(--mat-sys-on-surface);
-    font: var(--mat-sys-body-large);
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
     text-align: center;
+
+    &:disabled {
+      opacity: 0.5;
+    }
 
     &:focus-visible {
       outline: none;
@@ -220,32 +306,63 @@
       appearance: none;
     }
   }
+
+  // 44px targets on phones (WCAG 2.5.8 asks for 24; the shop's phone layout uses 44).
+  @media (width < 640px) {
+    height: 48px;
+
+    & button {
+      width: 44px;
+      height: 44px;
+    }
+  }
 }
 
-// The first action lines up with the stepper's edge, not with its own padding.
+// The first action lines up with the line's text, not with its own padding.
 .line-actions > .remove:first-child {
-  margin-left: calc(-1 * var(--lg-space-3));
+  margin-left: calc(-1 * var(--lg-space-2));
 }
 
-// Outlined like the seller groups beside it and the order page's summary.
+.remove {
+  color: var(--muted-foreground);
+
+  &:hover {
+    color: var(--destructive);
+  }
+}
+
+// The summary: a card beside the lines (below them on phones), like the order page's.
 .summary {
-  padding: var(--lg-space-4);
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: var(--lg-radius-card);
+  display: flex;
+  flex-direction: column;
+  padding: var(--lg-space-6);
+  gap: var(--lg-space-3);
 
   & h2 {
-    margin: 0 0 var(--lg-space-3);
-    font: var(--mat-sys-title-large);
-    font-family: var(--lg-font-heading);
+    font-size: 1.25rem;
   }
 
   & .checkout {
     width: 100%;
-    min-height: 48px;
-    margin-top: var(--lg-space-3);
+    height: 44px;
+    margin-top: var(--lg-space-1);
+  }
+
+  & .blocked-reason {
+    margin: 0;
+  }
+
+  & .continue {
+    align-self: center;
   }
 }
 
 .totals {
   @include totals.totals;
+
+  font-size: 0.875rem;
+
+  & dt:not(.grand) {
+    color: var(--muted-foreground);
+  }
 }

@@ -1,11 +1,11 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MatSnackBarHarness } from '@angular/material/snack-bar/testing';
 import { Router, provideRouter } from '@angular/router';
+import { toast } from '@spartan-ng/brain/sonner';
+import { HlmToaster } from '@spartan-ng/helm/sonner';
 import { CartDto, CartLineDto, EMPTY_CART } from '../../core/api/cart.api';
 import { SessionApi } from '../../core/api/session.api';
 import { CartStateService } from '../../core/cart/cart-state.service';
@@ -121,6 +121,8 @@ describe('CartPage', () => {
   });
 
   afterEach(() => {
+    // Toasts live in a module-wide store; start every test without any.
+    toast.dismiss();
     http.verify();
     vi.restoreAllMocks();
     sessionStorage.clear();
@@ -391,6 +393,8 @@ describe('CartPage', () => {
       'true'
     );
 
+    // It stays focusable but does nothing (no request; `http.verify()` would catch one).
+    button(line, 'Increase quantity of Enamel Camp Mug').click();
     button(line, 'Change to 2').click();
 
     expect(http.expectOne('/api/v1/cart/lines/line-mug').request.body).toStrictEqual({
@@ -536,6 +540,9 @@ describe('CartPage', () => {
   });
 
   it('removes a line and offers Undo, which adds it back', async () => {
+    // The app shell renders the toaster; here it stands beside the page.
+    const toaster = TestBed.createComponent(HlmToaster);
+    toaster.detectChanges();
     await open(aCart([LUMEN_MUG, KESTREL_SOCKS]));
 
     button(lineOf('Enamel Camp Mug'), 'Remove Enamel Camp Mug').click();
@@ -548,12 +555,17 @@ describe('CartPage', () => {
 
     expect(lineOf('Enamel Camp Mug')).toBeUndefined();
 
-    const snackBar =
-      await TestbedHarnessEnvironment.documentRootLoader(fixture).getHarness(MatSnackBarHarness);
+    await toaster.whenStable();
+    const region = toaster.nativeElement.querySelector(
+      'section[aria-live="polite"]'
+    ) as HTMLElement;
+    const message = region.querySelector<HTMLElement>('[data-sonner-toast]');
 
-    await expect(snackBar.getMessage()).resolves.toBe('Removed Enamel Camp Mug.');
+    expect(message?.querySelector('[data-title]')?.textContent?.trim()).toBe(
+      'Removed Enamel Camp Mug.'
+    );
 
-    await snackBar.dismissWithAction();
+    button(region, 'Undo').click();
     const add = http.expectOne('/api/v1/cart/lines');
 
     expect(add.request.body).toStrictEqual({ productId: 'lumen-mug', quantity: 2 });

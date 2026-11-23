@@ -4,9 +4,9 @@
 
 @if (mergeNotice(); as notice) {
   <div class="banner merge" role="status">
-    <mat-icon svgIcon="info" aria-hidden="true" />
+    <ng-icon name="lucideInfo" />
     <p>{{ notice }}</p>
-    <button matButton type="button" (click)="dismissMergeNotice()">
+    <button hlmBtn variant="ghost" size="sm" type="button" (click)="dismissMergeNotice()">
       Dismiss<span class="cdk-visually-hidden"> merge notice</span>
     </button>
   </div>
@@ -15,15 +15,15 @@
 @if (cart(); as cart) {
   @if (cart.lines.length === 0) {
     <div class="state">
-      <mat-icon svgIcon="cart" aria-hidden="true" />
+      <ng-icon name="lucideShoppingCart" />
       <h2>Your cart is empty</h2>
       <p>Browse our own goods and picks from our partner shops; everything goes in one cart.</p>
-      <a matButton="filled" routerLink="/">Continue shopping</a>
+      <a hlmBtn routerLink="/">Continue shopping</a>
     </div>
   } @else {
     @if (changedLines().length > 0) {
       <div class="banner changes" role="region" aria-labelledby="changes-title">
-        <mat-icon svgIcon="warning" aria-hidden="true" />
+        <ng-icon name="lucideTriangleAlert" />
         <div>
           <p id="changes-title">
             <strong>
@@ -40,17 +40,17 @@
           </ul>
           @if (acknowledgeAllError(); as error) {
             <p class="banner-error" role="alert">
-              <mat-icon svgIcon="error" aria-hidden="true" />
+              <ng-icon name="lucideCircleAlert" />
               {{ error }}
             </p>
           }
           @if (canAcknowledgeAll()) {
             <button
-              matButton="outlined"
+              hlmBtn
+              variant="outline"
               type="button"
               class="acknowledge-all"
-              disabledInteractive
-              [disabled]="acknowledgingAll()"
+              [attr.aria-disabled]="acknowledgingAll()"
               (click)="acknowledgeAll()"
             >
               Acknowledge all<span class="cdk-visually-hidden"> changes</span>
@@ -67,7 +67,7 @@
             <div class="group-head">
               <h2 [id]="`seller-${group.source}`">Sold by {{ group.sellerName }}</h2>
               <span class="ships">
-                <mat-icon svgIcon="local_shipping" aria-hidden="true" />
+                <ng-icon name="lucideTruck" />
                 Ships separately
               </span>
             </div>
@@ -104,7 +104,7 @@
                       <ul class="notices" [id]="`notices-${line.id}`">
                         @for (notice of view.notices; track notice.kind) {
                           <li [class]="notice.tone">
-                            <mat-icon aria-hidden="true" [svgIcon]="notice.icon" />
+                            <ng-icon [name]="notice.icon" />
                             <span>{{ notice.text }}</span>
                           </li>
                         }
@@ -112,14 +112,14 @@
                     }
                     @if (lineErrors()[line.id]; as error) {
                       <p class="line-error" role="alert">
-                        <mat-icon svgIcon="error" aria-hidden="true" />
+                        <ng-icon name="lucideCircleAlert" />
                         {{ error }}
                       </p>
                     }
                     @if (lineNotes()[line.id]; as note) {
                       <!-- Announced with the new quantity; shown here so it is not only spoken. -->
                       <p class="line-note">
-                        <mat-icon svgIcon="info" aria-hidden="true" />
+                        <ng-icon name="lucideInfo" />
                         {{ note }}
                       </p>
                     }
@@ -131,16 +131,15 @@
                         [attr.aria-label]="`Quantity of ${line.product.name}`"
                       >
                         <button
-                          matIconButton
+                          hlmBtn
+                          variant="ghost"
+                          size="icon"
                           type="button"
-                          disabledInteractive
-                          [disabled]="
-                            line.quantity <= 1 || isBusy(line.id) || line.maxQuantity === 0
-                          "
+                          [attr.aria-disabled]="!canDecrease(line)"
                           [attr.aria-label]="`Decrease quantity of ${line.product.name}`"
                           (click)="step(line, -1)"
                         >
-                          <mat-icon svgIcon="remove" />
+                          <ng-icon name="lucideMinus" />
                         </button>
                         <label class="cdk-visually-hidden" [for]="`qty-${line.id}`">
                           Quantity of {{ line.product.name }}
@@ -159,18 +158,15 @@
                           (change)="typed(line, $event)"
                         />
                         <button
-                          matIconButton
+                          hlmBtn
+                          variant="ghost"
+                          size="icon"
                           type="button"
-                          disabledInteractive
-                          [disabled]="
-                            line.quantity >= line.maxQuantity ||
-                            isBusy(line.id) ||
-                            line.maxQuantity === 0
-                          "
+                          [attr.aria-disabled]="!canIncrease(line)"
                           [attr.aria-label]="`Increase quantity of ${line.product.name}`"
                           (click)="step(line, 1)"
                         >
-                          <mat-icon svgIcon="add" />
+                          <ng-icon name="lucidePlus" />
                         </button>
                       </div>
 
@@ -188,7 +184,9 @@
                         line.notices.quantityLimited.allowed > 0
                       ) {
                         <button
-                          matButton="tonal"
+                          hlmBtn
+                          variant="secondary"
+                          size="sm"
                           type="button"
                           (click)="setQuantity(line, line.notices.quantityLimited.allowed)"
                         >
@@ -197,11 +195,12 @@
                       }
                       @if (view?.canAcknowledge) {
                         <button
-                          matButton="outlined"
+                          hlmBtn
+                          variant="outline"
+                          size="sm"
                           type="button"
                           class="acknowledge"
-                          disabledInteractive
-                          [disabled]="isBusy(line.id)"
+                          [attr.aria-disabled]="isBusy(line.id)"
                           (click)="acknowledge(line)"
                         >
                           Acknowledge<span class="cdk-visually-hidden">
@@ -210,14 +209,15 @@
                         </button>
                       }
                       <button
-                        matButton
+                        hlmBtn
+                        variant="ghost"
+                        size="sm"
                         type="button"
                         class="remove"
-                        disabledInteractive
-                        [disabled]="isBusy(line.id)"
+                        [attr.aria-disabled]="isBusy(line.id)"
                         (click)="remove(line)"
                       >
-                        <mat-icon svgIcon="delete" />
+                        <ng-icon name="lucideTrash2" />
                         Remove<span class="cdk-visually-hidden"> {{ line.product.name }}</span>
                       </button>
                     </div>
@@ -255,40 +255,43 @@
         </p>
 
         <button
-          matButton="filled"
+          hlmBtn
+          size="lg"
           type="button"
           class="checkout"
-          disabledInteractive
-          [disabled]="!cart.canCheckout"
+          [attr.aria-disabled]="!cart.canCheckout"
           [attr.aria-describedby]="cart.canCheckout ? null : 'checkout-blocked'"
           (click)="checkout()"
         >
-          <mat-icon svgIcon="lock" />
+          <ng-icon name="lucideLock" />
           Check out
         </button>
         @if (!cart.canCheckout) {
           <p id="checkout-blocked" class="blocked-reason">
-            <mat-icon svgIcon="block" aria-hidden="true" />
+            <ng-icon name="lucideBan" />
             {{ blockedReason() }}
           </p>
         } @else if (!session().isAuthenticated) {
           <p class="muted">You’ll sign in or create an account next.</p>
         }
-        <a matButton routerLink="/">Continue shopping</a>
+        <a hlmBtn variant="ghost" class="continue" routerLink="/">Continue shopping</a>
       </aside>
     </div>
   }
 } @else if (loadFailed()) {
   <div class="banner error" role="alert">
-    <mat-icon svgIcon="error" aria-hidden="true" />
+    <ng-icon name="lucideCircleAlert" />
     <div>
       <p>We couldn’t load your cart. Check your connection and try again.</p>
-      <button matButton="outlined" type="button" (click)="retry()">Retry</button>
+      <button hlmBtn variant="outline" type="button" (click)="retry()">
+        <ng-icon name="lucideRefreshCw" />
+        Retry
+      </button>
     </div>
   </div>
 } @else {
   <div class="page-loading" role="status">
-    <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+    <hlm-progress aria-hidden="true"><hlm-progress-indicator /></hlm-progress>
     <p>Loading your cart…</p>
   </div>
 }
