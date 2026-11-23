@@ -38,7 +38,7 @@ import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { joinNames } from '../../shared/format';
 import { AwaitingPaymentNotice } from './awaiting-payment-notice';
 import { CheckoutSteps } from './checkout-steps';
-import { stateName } from './us-address';
+import { addressLines } from './us-address';
 
 /**
 Changes that only mean the review is out of date (the cart changed in another tab).
@@ -120,8 +120,7 @@ export class CheckoutReviewPage {
     if (!address) {
       return '';
     }
-    const street = [address.line1, address.line2].filter(Boolean).join(', ');
-    return `${address.name}, ${street}, ${address.city}, ${stateName(address.region)} ${address.postalCode}, United States`;
+    return addressLines(address).join(', ');
   });
 
   protected readonly preview = rxResource({

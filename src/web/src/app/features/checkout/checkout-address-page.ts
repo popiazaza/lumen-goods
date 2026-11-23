@@ -43,6 +43,14 @@ const LABELS: Readonly<Record<AddressField, string>> = {
   postalCode: 'ZIP code',
 };
 
+const CAPITALISED_WORD = /^[A-Z][a-z]/u;
+
+/**
+"Full name" becomes "full name" inside a sentence; "ZIP code" keeps its capitals.
+*/
+const lowerFirst = (label: string): string =>
+  CAPITALISED_WORD.test(label) ? `${label.charAt(0).toLowerCase()}${label.slice(1)}` : label;
+
 const text = (
   field: AddressField,
   isRequired: boolean,
@@ -151,7 +159,7 @@ export class CheckoutAddressPage {
   protected errorFor(field: AddressField): string {
     const control = this.form.controls[field];
     if (control.hasError('required')) {
-      return field === 'region' ? 'Select a state' : `Enter ${LABELS[field].toLowerCase()}`;
+      return field === 'region' ? 'Select a state' : `Enter ${lowerFirst(LABELS[field])}`;
     }
     if (control.hasError('maxlength')) {
       return `${LABELS[field]} must be ${MAX_LENGTH[field]} characters or fewer`;

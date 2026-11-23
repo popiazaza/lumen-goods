@@ -279,6 +279,14 @@ describe('OrderDetailPage', () => {
     expect(row(summary(), '.total')).toBe('Total $67.46');
   });
 
+  it('writes the shipping address out in full, as the review step does', async () => {
+    await show(anOrder());
+
+    expect(text(summary(), 'address')).toBe(
+      'Ada Lovelace 1200 NW Naito Pkwy Portland, Oregon 97209 United States'
+    );
+  });
+
   /**
   The payment step offered at the top of the page, if any.
   */

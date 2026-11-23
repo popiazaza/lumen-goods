@@ -3,6 +3,7 @@ import { Component, computed, input } from '@angular/core';
 import { MatCard } from '@angular/material/card';
 import { MatIcon } from '@angular/material/icon';
 import { OrderDetailDto, OrderLineDto, OrderStatus, RefundDto } from '../../core/api/order.models';
+import { addressLines } from '../checkout/us-address';
 import { paymentMethodLabel, paymentStatusView, refundStatusView } from './order-labels';
 import { StatusBadge } from './status-badge';
 
@@ -46,6 +47,8 @@ export class OrderSummaryPanel {
   The total says "charged" only once the order is paid.
   */
   protected readonly isPaid = computed(() => !NOT_CHARGED.has(this.order().status));
+
+  protected readonly addressLines = computed(() => addressLines(this.order().shippingAddress));
 
   protected readonly methodLabel = computed(() => {
     const { payment } = this.order();
