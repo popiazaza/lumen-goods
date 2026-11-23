@@ -1,6 +1,16 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { CurrencyPipe, formatCurrency } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  computed,
+  inject,
+  linkedSignal,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -42,7 +52,20 @@ export class CartPage {
 
   private readonly sessionApi = inject(SessionApi);
 
+  private readonly injector = inject(Injector);
+
   private readonly busy = signal<ReadonlySet<string>>(new Set());
+
+  private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
+
+  /**
+  Which lines the banner lists; a string, so a re-read cart with the same lines is no change.
+  */
+  private readonly changedLineIds = computed(() =>
+    this.changedLines()
+      .map((line) => line.id)
+      .join(' ')
+  );
 
   protected readonly session = this.sessionApi.session;
 
@@ -87,7 +110,13 @@ export class CartPage {
 
   protected readonly acknowledgingAll = signal(false);
 
-  protected readonly acknowledgeAllError = signal('');
+  /**
+  Why Acknowledge all failed; cleared once the banner lists other lines.
+  */
+  protected readonly acknowledgeAllError = linkedSignal({
+    source: this.changedLineIds,
+    computation: () => '',
+  });
 
   protected readonly blockingCount = computed(
     () => (this.cart()?.lines ?? []).filter((line) => line.blocksCheckout).length
@@ -238,7 +267,20 @@ export class CartPage {
       .acknowledgeAll()
       .pipe(finalize(() => this.acknowledgingAll.set(false)))
       .subscribe({
-        next: () => this.say('Noted the changes to your cart.'),
+        next: () => {
+          this.say('Noted the changes to your cart.');
+          // The button (and often the whole banner) is gone: start again at the heading, not at the top of the page.
+          afterNextRender(
+            {
+              write: () => {
+                if (!this.canAcknowledgeAll()) {
+                  this.heading().nativeElement.focus();
+                }
+              },
+            },
+            { injector: this.injector }
+          );
+        },
         error: (error: unknown) => {
           this.acknowledgeAllError.set(
             problemMessage(error, 'We couldn’t note the changes. Try again.')
