@@ -1,9 +1,9 @@
 import { Component, computed, input, output } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { MatButton } from '@angular/material/button';
-import { MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
-import { MatIcon } from '@angular/material/icon';
-import { MatInput } from '@angular/material/input';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmInput } from '@spartan-ng/helm/input';
+import { HlmLabel } from '@spartan-ng/helm/label';
 
 /**
  * The one-time code step's form: the code field, why the code was refused, the time left and Verify.
@@ -11,7 +11,7 @@ import { MatInput } from '@angular/material/input';
  */
 @Component({
   selector: 'app-one-time-code-form',
-  imports: [ReactiveFormsModule, MatButton, MatFormField, MatHint, MatIcon, MatInput, MatLabel],
+  imports: [ReactiveFormsModule, NgIcon, HlmButton, HlmInput, HlmLabel],
   templateUrl: './one-time-code-form.html',
   styleUrl: './one-time-code-form.scss',
 })

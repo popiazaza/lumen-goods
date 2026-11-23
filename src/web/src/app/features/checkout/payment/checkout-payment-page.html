@@ -13,7 +13,7 @@
 
 @if (inProgressNotice() && (phase() === 'processing' || phase() === 'code')) {
   <div class="banner in-progress" role="status">
-    <mat-icon svgIcon="info" aria-hidden="true" />
+    <ng-icon name="lucideInfo" />
     <p>{{ inProgressNotice() }}</p>
   </div>
 }
@@ -22,17 +22,17 @@
 @switch (currentPhase) {
   @case ('loading') {
     <div class="page-loading" role="status">
-      <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+      <hlm-progress aria-hidden="true"><hlm-progress-indicator /></hlm-progress>
       <p>Loading your order…</p>
     </div>
   }
 
   @case ('load-error') {
     <div class="banner error" role="alert">
-      <mat-icon svgIcon="error" aria-hidden="true" />
+      <ng-icon name="lucideCircleAlert" />
       <div>
         <p>{{ loadError() }}</p>
-        <button matButton="outlined" type="button" (click)="retryLoad()">Retry</button>
+        <button hlmBtn variant="outline" type="button" (click)="retryLoad()">Retry</button>
       </div>
     </div>
   }
@@ -45,7 +45,7 @@
         it: sign in again to come back to this order.
       </p>
       <div class="actions">
-        <a matButton="filled" routerLink="/sign-in" [queryParams]="signInParams()">Sign in</a>
+        <a hlmBtn routerLink="/sign-in" [queryParams]="signInParams()">Sign in</a>
       </div>
     </section>
   }
@@ -55,8 +55,8 @@
       <h2 #phaseHeading id="closed-heading" tabindex="-1">{{ closedHeading() }}</h2>
       <p>{{ closedReason() }}</p>
       <div class="actions">
-        <a matButton="filled" routerLink="/cart">Go to your cart</a>
-        <a matButton routerLink="/orders">Your orders</a>
+        <a hlmBtn routerLink="/cart">Go to your cart</a>
+        <a hlmBtn variant="outline" routerLink="/orders">Your orders</a>
       </div>
     </section>
   }
@@ -68,7 +68,7 @@
   @case ('processing') {
     <section class="state processing" aria-labelledby="processing-heading">
       <h2 #phaseHeading id="processing-heading" tabindex="-1">Confirming your payment…</h2>
-      <mat-progress-bar mode="indeterminate" aria-labelledby="processing-heading" />
+      <hlm-progress aria-labelledby="processing-heading"><hlm-progress-indicator /></hlm-progress>
       <div role="status">
         @if (unsettled()) {
           <p>
@@ -96,7 +96,7 @@
         <!-- The heading already says it; a counter read out every second would drown the page. -->
         <p class="muted waited" aria-hidden="true">{{ waitText() }}</p>
       }
-      <button matButton="filled" type="button" disabled>Pay</button>
+      <button hlmBtn type="button" class="pay" disabled>Pay</button>
     </section>
   }
 
@@ -113,11 +113,11 @@
 
       @if (codeExpired()) {
         <div class="banner error" role="alert">
-          <mat-icon svgIcon="schedule" aria-hidden="true" />
+          <ng-icon name="lucideClock" />
           <div>
             <p><strong>The code has expired.</strong> You have not been charged.</p>
             <button
-              matButton="filled"
+              hlmBtn
               type="button"
               [attr.aria-disabled]="restartingCode()"
               (click)="codeExpiredTryAgain()"
@@ -142,14 +142,14 @@
   @case ('choose') {
     @if (outcome(); as outcome) {
       <div #outcomeBanner class="banner error outcome" role="alert" tabindex="-1">
-        <mat-icon svgIcon="error" aria-hidden="true" />
+        <ng-icon name="lucideCircleAlert" />
         <div>
           <p class="outcome-title">
             <strong>{{ outcome.title }}</strong>
           </p>
           <p>{{ outcome.detail }}</p>
           @if (!outcome.hidesTryAgain) {
-            <button matButton="outlined" type="button" class="try-again" (click)="tryAgain()">
+            <button hlmBtn variant="outline" type="button" class="try-again" (click)="tryAgain()">
               Try again
             </button>
           }
@@ -161,25 +161,21 @@
     }
 
     <form class="checkout-form" novalidate [formGroup]="cardForm" (ngSubmit)="pay()">
-      <h2 id="method-heading">How would you like to pay?</h2>
-      <mat-radio-group class="methods" aria-labelledby="method-heading" [formControl]="method">
-        <mat-radio-button value="card">
-          <span class="method-label">
-            <mat-icon svgIcon="credit_card" aria-hidden="true" />
-            Credit or debit card
-          </span>
-        </mat-radio-button>
-        <mat-radio-button
-          value="wallet"
-          aria-describedby="wallet-note"
-          [disabled]="!walletUsable()"
-        >
-          <span class="method-label">
-            <mat-icon svgIcon="wallet" aria-hidden="true" />
-            Lumen Goods wallet
-          </span>
-        </mat-radio-button>
-      </mat-radio-group>
+      <h2 id="method-heading" class="method-heading">How would you like to pay?</h2>
+      <hlm-radio-group class="methods" aria-labelledby="method-heading" [formControl]="method">
+        <label hlmLabel class="option">
+          <hlm-radio value="card"><hlm-radio-indicator indicator /></hlm-radio>
+          <ng-icon name="lucideCreditCard" />
+          Credit or debit card
+        </label>
+        <label hlmLabel class="option">
+          <hlm-radio value="wallet" aria-describedby="wallet-note" [disabled]="!walletUsable()">
+            <hlm-radio-indicator indicator />
+          </hlm-radio>
+          <ng-icon name="lucideWallet" />
+          Lumen Goods wallet
+        </label>
+      </hlm-radio-group>
       <p id="wallet-note" class="wallet-note muted">
         <app-wallet-note
           [samePaymentOnly]="samePaymentOnly()"
@@ -197,12 +193,13 @@
       <div class="actions">
         <button
           id="pay-button"
-          matButton="filled"
+          hlmBtn
+          size="lg"
           type="submit"
           class="pay"
           [attr.aria-disabled]="submitting()"
         >
-          <mat-icon svgIcon="lock" />
+          <ng-icon name="lucideLock" />
           @if (submitting()) {
             Paying…
           } @else {

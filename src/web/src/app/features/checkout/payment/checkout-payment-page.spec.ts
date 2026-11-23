@@ -50,9 +50,12 @@ describe('CheckoutPaymentPage', () => {
     host().querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
   const input = (id: string) =>
     host().querySelector<HTMLInputElement>(`#${id}`) as HTMLInputElement;
+  /**
+  The radio button labelled "Lumen Goods wallet".
+  */
   const walletInput = () =>
-    host().querySelector<HTMLInputElement>(
-      ':scope mat-radio-button[value="wallet"] input'
+    [...host().querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((radio) =>
+      radio.closest('label')?.textContent?.includes('Lumen Goods wallet')
     ) as HTMLInputElement;
   /**
   Every announcement of this message, with its politeness.

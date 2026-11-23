@@ -1,20 +1,42 @@
+@use '../../../../styles/field';
+
 :host {
   display: block;
 }
 
 .card-fields {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  padding: 0;
-  border: 0;
-  margin: var(--lg-space-4) 0 0;
-  // Room between a hint and the next field's floating label.
-  gap: var(--lg-space-3);
+  padding: var(--lg-space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--lg-radius-card);
+  margin: 0;
+  background: var(--card);
+  box-shadow: var(--lg-shadow-card);
+  gap: var(--lg-space-4);
 
   & legend {
-    margin-bottom: var(--lg-space-3);
-    font: var(--mat-sys-title-medium);
+    width: 100%;
+    color: var(--foreground);
+    // A legend sits on the fieldset's border; floated, it is the card's first row instead.
+    float: left;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.5rem;
   }
+}
+
+.field {
+  @include field.field;
+}
+
+.hint {
+  @include field.hint;
+}
+
+.field-error {
+  @include field.error;
 }
 
 // The same two columns as the other checkout steps' `.row` (checkout.scss).
@@ -22,7 +44,7 @@
   display: grid;
   // Fields of different heights (one with a hint) keep their own height.
   align-items: start;
-  gap: var(--lg-space-3) var(--lg-space-4);
+  gap: var(--lg-space-4);
   grid-template-columns: minmax(0, 1fr);
 
   @media (width >= 600px) {
@@ -30,8 +52,22 @@
   }
 }
 
+// The card's brand, inside the number field at its end.
+.with-brand {
+  position: relative;
+
+  &:has(.brand) input {
+    padding-right: 10rem;
+  }
+}
+
 .brand {
-  padding-right: var(--lg-space-3);
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-label-large);
+  position: absolute;
+  top: 50%;
+  right: var(--lg-space-3);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  pointer-events: none;
+  transform: translateY(-50%);
 }

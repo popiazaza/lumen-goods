@@ -35,7 +35,17 @@ describe('CardDetails', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const errors = () =>
-    [...host().querySelectorAll('mat-error')].map((error) => error.textContent?.trim());
+    [...host().querySelectorAll('.field-error')].map((error) => error.textContent?.trim());
+  /**
+  The text a field is described by (its hint, or its error once shown).
+  */
+  const descriptionOf = (id: string) =>
+    host()
+      .querySelector(`#${id}`)
+      ?.getAttribute('aria-describedby')
+      ?.split(' ')
+      .map((describedBy) => host().querySelector(`#${describedBy}`)?.textContent?.trim())
+      .join(' ');
   const numberField = () =>
     host().querySelector<HTMLInputElement>('#card-number') as HTMLInputElement;
   const typeNumber = (value: string): void => {
@@ -85,11 +95,7 @@ describe('CardDetails', () => {
     expect({
       number: numberField().value,
       brand: host().querySelector('.brand')?.textContent?.trim(),
-      cvcHint: host()
-        .querySelector('#card-cvc')
-        ?.closest('mat-form-field')
-        ?.querySelector('mat-hint')
-        ?.textContent?.trim(),
+      cvcHint: descriptionOf('card-cvc'),
     }).toStrictEqual({
       number: '3782 822463 10005',
       brand: 'American Express',

@@ -1,11 +1,21 @@
 .order-line {
-  margin: 0 0 var(--lg-space-4);
+  margin: 0 0 var(--lg-space-6);
+  color: var(--foreground);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+
+  & strong {
+    font-weight: 600;
+  }
 }
 
+// A step of the payment that is not the form (confirming, the code, signed out, closed): a card.
 .state {
-  padding: var(--lg-space-4);
-  border: 1px solid var(--mat-sys-outline-variant);
+  padding: var(--lg-space-6);
+  border: 1px solid var(--border);
   border-radius: var(--lg-radius-card);
+  background: var(--card);
+  box-shadow: var(--lg-shadow-card);
 
   & h2 {
     margin-top: 0;
@@ -15,9 +25,26 @@
     }
   }
 
-  & mat-progress-bar {
+  & > p {
     margin: 0 0 var(--lg-space-3);
   }
+
+  & hlm-progress {
+    margin: 0 0 var(--lg-space-4);
+  }
+
+  & [role='status'] p {
+    margin: 0 0 var(--lg-space-2);
+  }
+
+  & .actions {
+    margin-top: var(--lg-space-2);
+  }
+}
+
+.waited {
+  margin: 0 0 var(--lg-space-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .outcome:focus-visible,
@@ -25,21 +52,28 @@
   outline-offset: 3px;
 }
 
-.methods {
-  display: flex;
-  flex-direction: column;
+.outcome-title {
+  font-weight: 600;
 }
 
-.method-label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--lg-space-2);
+.try-again {
+  margin-top: var(--lg-space-1);
+}
+
+.method-heading {
+  margin-top: var(--lg-space-2);
 }
 
 .wallet-note {
-  margin-left: var(--lg-space-8);
+  // Under the wallet option's words: past its border, padding, radio and gap.
+  padding-left: calc(var(--lg-space-4) + 1px + 16px + var(--lg-space-3));
+  margin-top: calc(-1 * var(--lg-space-2));
 }
 
-.pay {
+.actions .pay {
   min-width: 12rem;
+}
+
+.pay-note {
+  margin-top: calc(-1 * var(--lg-space-2));
 }
