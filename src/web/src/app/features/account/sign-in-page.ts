@@ -9,12 +9,12 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatButton, MatIconButton } from '@angular/material/button';
-import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
-import { MatIcon } from '@angular/material/icon';
-import { MatInput } from '@angular/material/input';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
 import { finalize } from 'rxjs';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmLabelImports } from '@spartan-ng/helm/label';
 import {
   RATE_LIMITED_PROBLEM,
   httpStatusOf,
@@ -35,14 +35,10 @@ Sign in (`/sign-in?returnUrl=`): email and password; required to check out.
   imports: [
     ReactiveFormsModule,
     RouterLink,
-    MatButton,
-    MatError,
-    MatFormField,
-    MatIcon,
-    MatIconButton,
-    MatInput,
-    MatLabel,
-    MatSuffix,
+    NgIcon,
+    HlmButtonImports,
+    HlmInputImports,
+    HlmLabelImports,
     ErrorSummary,
   ],
   templateUrl: './sign-in-page.html',
@@ -144,6 +140,14 @@ export class SignInPage {
         detail: problemMessage(error, 'Check your connection and try again.'),
       });
     }
+  }
+
+  /**
+  A field's error shows once it is left or the form is submitted (which touches every field).
+  */
+  protected shows(field: 'email' | 'password'): boolean {
+    const control = this.form.controls[field];
+    return control.invalid && control.touched;
   }
 
   protected emailError(): string {
