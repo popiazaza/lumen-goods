@@ -12,7 +12,7 @@ namespace Lumen.Api.Carts;
 /// "quantity limited" notice (<see cref="CartRules.MergedQuantity"/>); the saved line keeps its seen price and
 /// availability. A product only in the guest cart moves over as it was, notices included, even past
 /// <see cref="CartOptions.MaxLines"/> (BR-CART-03): a merge never drops what the customer chose. Such a cart takes no new
-/// products until lines are removed.
+/// products, and its checkout is blocked, until lines are removed.
 /// Safe to replay and to run twice at once: the guest cart is deleted with its xmin as the concurrency check, so of two
 /// merges of the same guest cart only one commits; the other re-reads, finds no guest cart and changes nothing.
 /// Safe to call again after a failure: the merge commits in one SaveChanges or not at all, and the cookie is expired

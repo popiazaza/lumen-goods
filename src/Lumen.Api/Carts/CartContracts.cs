@@ -12,7 +12,14 @@ namespace Lumen.Api.Carts;
 /// </summary>
 /// <param name="ItemCount">Sum of the line quantities, for the mini-cart badge (A-46), not the number of lines.</param>
 /// <param name="Totals">Preview with Standard shipping for each seller present; checkout prices the real order.</param>
-/// <param name="CanCheckout">False when the cart is empty or any line <see cref="CartLineDto.BlocksCheckout"/> (BR-CART-03).</param>
+/// <param name="CanCheckout">
+/// False when the cart is empty, any line <see cref="CartLineDto.BlocksCheckout"/>, or it holds more than
+/// <see cref="MaxLines"/> lines (BR-CART-03).
+/// </param>
+/// <param name="MaxLines">
+/// The most different products the cart may hold (<see cref="CartOptions.MaxLines"/>). Only a sign-in merge can leave
+/// more; then checkout is blocked until lines are removed.
+/// </param>
 /// <example>
 /// <code>
 /// {
@@ -27,7 +34,8 @@ namespace Lumen.Api.Carts;
 ///     "blocksCheckout": true, "addedUtc": "2026-11-20T08:00:00Z" }],
 ///   "itemCount": 4,
 ///   "totals": { "subtotal": 219.60, "shipping": 4.99, "tax": 17.57, "total": 242.16, "isEstimate": true },
-///   "canCheckout": false
+///   "canCheckout": false,
+///   "maxLines": 50
 /// }
 /// </code>
 /// </example>
@@ -35,7 +43,8 @@ public sealed record CartDto(
     IReadOnlyList<CartLineDto> Lines,
     int ItemCount,
     CartTotalsDto Totals,
-    bool CanCheckout)
+    bool CanCheckout,
+    int MaxLines = CartOptions.MaxLinesCeiling)
 {
     public static readonly CartDto Empty = new([], 0, CartTotalsDto.Zero, false);
 }

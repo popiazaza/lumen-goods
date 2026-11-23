@@ -148,6 +148,16 @@ public sealed class CartRulesTests
 
     [Theory]
     [Trait("BR", "BR-CART-03")]
+    [InlineData(50, false)]
+    [InlineData(51, true)]
+    [InlineData(60, true)]
+    public void BR_CART_03_a_cart_above_50_lines_after_a_merge_blocks_checkout(int lineCount, bool blocks)
+    {
+        CartRules.BlocksCheckoutForLines(lineCount, new CartOptions().MaxLines).Should().Be(blocks);
+    }
+
+    [Theory]
+    [Trait("BR", "BR-CART-03")]
     [InlineData(0, true)]
     [InlineData(49, true)]
     [InlineData(50, false)]

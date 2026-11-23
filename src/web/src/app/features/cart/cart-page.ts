@@ -86,6 +86,12 @@ export class CartPage {
   Why Check out is disabled, linked to the button with `aria-describedby`.
   */
   protected readonly blockedReason = computed(() => {
+    const cart = this.cart();
+    const extra = (cart?.lines.length ?? 0) - (cart?.maxLines ?? Infinity);
+    if (extra > 0 && this.blockingCount() === 0) {
+      // Only a sign-in merge can leave a cart above the limit (BR-CART-03).
+      return `An order can have at most ${cart?.maxLines} different products, and your cart has ${cart?.lines.length}. Remove ${extra} to check out.`;
+    }
     const count = this.blockingCount();
     return count === 1
       ? '1 item can’t be ordered as it is. Remove it or lower its quantity to check out.'

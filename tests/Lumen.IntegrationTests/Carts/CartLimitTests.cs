@@ -94,6 +94,30 @@ public sealed class CartLimitTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-CART-03")]
+    public async Task BR_CART_03_a_sign_in_merge_past_50_products_keeps_every_line_and_blocks_checkout_until_one_is_removed()
+    {
+        var products = Enumerable.Range(0, 51).Select(i => CatalogTestSupport.Own($"Cart test {i} {Guid.NewGuid():N}")).ToArray();
+        await factory.InsertAsync(products);
+        var customer = factory.CreateSession();
+        var email = await customer.RegisterAsync();
+        await customer.AddOkAsync(products[50].Id, 1);
+        var (browser, _) = factory.NewBrowser();
+        foreach (var product in products.Take(50))
+        {
+            await browser.AddOkAsync(product.Id, 1);
+        }
+
+        await browser.SignInAsync(email);
+        var merged = await browser.GetCartAsync();
+        var afterRemove = await (await browser.RemoveAsync(merged.Lines[0].Id)).ReadAsync<CartDto>();
+
+        merged.Lines.Should().HaveCount(51).And.OnlyContain(l => !l.BlocksCheckout);
+        (merged.CanCheckout, merged.MaxLines).Should().Be((false, 50), "Place order takes at most 50 lines");
+        (afterRemove.Lines.Count, afterRemove.CanCheckout).Should().Be((50, true));
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-03")]
     public async Task BR_CART_03_a_line_never_exceeds_the_known_available_quantity()
     {
         var product = await factory.OwnProductAsync(onHand: 3);

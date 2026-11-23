@@ -106,7 +106,9 @@ export const aCart = (lines: CartLineDto[], overrides: Partial<CartDto> = {}): C
   lines,
   itemCount: lines.reduce((count, line) => count + line.quantity, 0),
   totals: { subtotal: 49.9, shipping: 4.99, tax: 3.99, total: 58.88, isEstimate: true },
-  canCheckout: lines.length > 0 && lines.every((line) => !line.blocksCheckout),
+  canCheckout:
+    lines.length > 0 && lines.length <= 50 && lines.every((line) => !line.blocksCheckout),
+  maxLines: 50,
   ...overrides,
 });
 

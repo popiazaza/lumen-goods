@@ -23,8 +23,9 @@ public sealed record CartLineState(
 /// - BR-CART-02: a line keeps the price, availability and sellability seen when added; a different price (up or down),
 ///   a worse availability or a product no longer sellable shows a notice until acknowledged. Totals use current prices.
 /// - BR-CART-03: 1 to 10 units per line and never more than the known available quantity; at most
-///   <see cref="CartOptions.MaxLines"/> (50) different products per cart; products that are not sellable or out of
-///   stock cannot be added; a line that became unavailable stays, flagged, and blocks checkout.
+///   <see cref="CartOptions.MaxLines"/> (50) different products per cart, and a cart a merge left above that blocks
+///   checkout; products that are not sellable or out of stock cannot be added; a line that became unavailable stays,
+///   flagged, and blocks checkout.
 /// - BR-CART-01: merging a guest line into a saved line sums the quantities, capped at the known available quantity and 10.
 /// </summary>
 public static class CartRules
@@ -121,6 +122,12 @@ public static class CartRules
     /// </summary>
     public static CartProblem? CheckNewLine(int lineCount, int maxLines) =>
         lineCount >= maxLines ? CartProblems.TooManyLines(maxLines) : null;
+
+    /// <summary>
+    /// BR-CART-03: a cart above the line limit (only a sign-in merge makes one) blocks checkout until lines are removed,
+    /// as Place order takes no more lines than a cart may hold.
+    /// </summary>
+    public static bool BlocksCheckoutForLines(int lineCount, int maxLines) => lineCount > maxLines;
 
     /// <summary>
     /// BR-CART-01: the merged line's quantity when a guest line joins a saved line of the same product: the sum, capped

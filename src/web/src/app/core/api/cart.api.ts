@@ -102,7 +102,15 @@ export interface CartDto {
   */
   itemCount: number;
   totals: CartTotals;
+  /**
+  False when the cart is empty, a line blocks checkout, or it holds more than `maxLines` lines.
+  */
   canCheckout: boolean;
+  /**
+  The most different products the cart may hold (BR-CART-03). Only a sign-in merge can leave
+  more; checkout is then blocked until lines are removed.
+  */
+  maxLines: number;
 }
 
 export const EMPTY_CART: CartDto = {
@@ -110,6 +118,7 @@ export const EMPTY_CART: CartDto = {
   itemCount: 0,
   totals: { subtotal: 0, shipping: 0, tax: 0, total: 0, isEstimate: true },
   canCheckout: false,
+  maxLines: 50,
 };
 
 /**

@@ -10,13 +10,14 @@ namespace Lumen.Api.Carts;
 /// each line's notices and limits from <see cref="CartRules"/>, and the totals preview from <see cref="PricingService"/>
 /// at current prices with Standard shipping per seller (BR-CART-02, BR-SHIP-01, BR-MONEY-02).
 /// </summary>
-internal sealed class CartPresenter(AvailabilityPolicy policy, PricingService pricing, IOptions<CatalogOptions> catalog)
+internal sealed class CartPresenter(
+    AvailabilityPolicy policy, PricingService pricing, IOptions<CatalogOptions> catalog, IOptions<CartOptions> cartOptions)
 {
     public CartDto Present(Cart? cart, HttpRequest request)
     {
         if (cart is null || cart.Lines.Count == 0)
         {
-            return CartDto.Empty;
+            return CartDto.Empty with { MaxLines = cartOptions.Value.MaxLines };
         }
 
         var baseUrl = request.PublicBaseUrl(catalog.Value);
@@ -37,7 +38,8 @@ internal sealed class CartPresenter(AvailabilityPolicy policy, PricingService pr
             lineDtos,
             ItemCount: lines.Sum(l => l.Line.Quantity),
             totals,
-            CanCheckout: lineDtos.All(l => !l.BlocksCheckout));
+            CanCheckout: lineDtos.All(l => !l.BlocksCheckout) && !CartRules.BlocksCheckoutForLines(lineDtos.Count, cartOptions.Value.MaxLines),
+            MaxLines: cartOptions.Value.MaxLines);
     }
 
     private CartLineDto ToDto(CartLine line, Product product, CartLineState state, string baseUrl) => new(
