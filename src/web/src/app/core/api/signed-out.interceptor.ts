@@ -24,14 +24,20 @@ export const signedOutInterceptor: HttpInterceptorFn = (request, next) => {
   const sessionApi = inject(SessionApi);
   const router = inject(Router);
   const authUrl = `${inject(API_BASE_URL)}/auth/`;
+  // Who the call was sent as: a slow call from before a sign-in that fails after it must not sign
+  // out the account that is signed in now.
+  const sentAs = sessionApi.session();
   return next(request).pipe(
     tap({
       error: (error: unknown) => {
+        const now = sessionApi.session();
+        const sameAccount =
+          sentAs.isAuthenticated && now.isAuthenticated && now.email === sentAs.email;
         const lostSession =
           error instanceof HttpErrorResponse &&
           error.status === 401 &&
           !request.url.startsWith(authUrl) &&
-          sessionApi.isAuthenticated();
+          sameAccount;
         if (!lostSession) {
           return;
         }

@@ -263,6 +263,21 @@ describe('CheckoutStore', () => {
     expect(freshStore().address()).toBeNull();
   });
 
+  it('keeps the checkout across a refresh while the session is still loading', () => {
+    session.set(CUSTOMER_SESSION);
+    freshStore().setAddress(US_ADDRESS);
+
+    // After a refresh the session reads anonymous until the API answers.
+    session.set(ANONYMOUS_SESSION);
+    const store = freshStore();
+
+    expect(store.address()).toStrictEqual(US_ADDRESS);
+
+    session.set(CUSTOMER_SESSION);
+
+    expect(store.address()).toStrictEqual(US_ADDRESS);
+  });
+
   it('keeps the checkout while signed out, for the same customer signing in again', () => {
     session.set(CUSTOMER_SESSION);
     const store = freshStore();

@@ -98,6 +98,25 @@ describe('signedOutInterceptor', () => {
     expect(router.url).toBe('/checkout/review');
   });
 
+  it('leaves a slow call sent before a sign-in alone when it fails after it', async () => {
+    await start(ANONYMOUS_SESSION);
+    const slow = firstValueFrom(client.get('/api/v1/orders'));
+
+    const signIn = firstValueFrom(
+      sessionApi.signIn({ email: 'customer@lumen.test', password: 'x' })
+    );
+    http.expectOne('/api/v1/auth/sign-in').flush(CUSTOMER_SESSION);
+    await signIn;
+    http.expectOne('/api/v1/orders').flush({ title: 'Unauthorized' }, UNAUTHORIZED);
+
+    await expect(slow).rejects.toMatchObject({ status: 401 });
+
+    http.expectNone('/api/v1/auth/session');
+
+    expect(sessionApi.session()).toStrictEqual(CUSTOMER_SESSION);
+    expect(router.url).toBe('/checkout/review');
+  });
+
   it('leaves a 401 alone when the tab already knows it is signed out', async () => {
     await start(ANONYMOUS_SESSION);
 
