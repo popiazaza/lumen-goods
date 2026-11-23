@@ -64,7 +64,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-39 | Refunds go back to the original method (wallet: credit, usually within about 5 s; card: mock refund) |
 | A-40 | A refund covers the line + its tax, plus that seller's shipping fee if **all** that seller's lines failed. Total refunds never exceed the amount charged |
 | A-41 | Order numbers look like `LG-7K3M9QX2` (random, not sequential); partner refs are `{orderNo}-{line}` |
-| A-42 | Placing the order locks its prices and reserves own stock for **15 minutes** (not on add-to-cart). The reservation is released when the order expires: the 15 minutes end with no payment in progress, or the fifth payment attempt fails |
+| A-42 | Placing the order locks its prices and reserves own stock for **15 minutes** (not on add-to-cart). The reservation is released when the order expires: the 15 minutes end or all 5 attempts are used, while no payment is in progress or Failed (a Failed charge may have gone through, so the gateway settles it first; BR-STOCK-01) |
 | A-43 | **Partner never answers**: if a partner order was never accepted after retries for 30 min and the partner cannot have it (every send was rejected or never reached it) → refund that line; if a send's outcome is unknown (timeout after sending, 5xx) → flag "Needs attention" for an admin instead, no automatic refund. If Kestrel accepted it but stays undecided for 24 h → flag "Needs attention" for an admin, **no automatic refund** (the goods might still ship) |
 | A-44 | Customers **can't cancel** an order after paying (partners have no cancel; support/returns are a planned feature) |
 | A-45 | Lumen's own items go straight to "Confirmed" when paid; shipping/tracking is out of scope |
