@@ -21,7 +21,7 @@ The spec asks for the latest stable version of everything. As of 2026-11-20:
 
 ## Decision
 
-We use the newest set in which every component is stable and built to work with the others: .NET SDK 10.0.404 and runtime 10.0.15, EF Core 10.0.15, Npgsql EF Core 10.0.3, PostgreSQL 18.7. Everything else was on its latest stable version when this was written (Angular 22.3, TypeScript 6.0 (the newest Angular 22.3 supports; 7.0 is out), Node 26 LTS), and package versions are kept current since.
+We use the newest set in which every component is stable and built to work with the others: .NET SDK 10.0.404 and runtime 10.0.15, EF Core 10.0.15, Npgsql EF Core 10.0.3, PostgreSQL 18.7. Everything else was on its latest stable version when this was written (Angular 22.3, TypeScript 6.0 (the newest Angular 22.3 supports; 7.0 is out), Node 26 LTS).
 
 .NET 11 today means shipping a release-candidate data provider or an untested mix of majors, for no extra support time (both lines end on the same day) and features we do not need. PostgreSQL 19.0 is one day old: no minor release yet, and drivers, tools and managed cloud offerings usually follow a new major by weeks or months; nothing here needs a 19 feature. Adopting a new major before its ecosystem catches up is a real production risk: the launch ends up absorbing other people's early bugs.
 

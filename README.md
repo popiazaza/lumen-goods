@@ -31,7 +31,7 @@ At phone width:
 - Open questions answered with written assumptions, not emails ([ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 - The payment gateway is a mock inside the API process, behind `IPaymentGateway` ([ADR 0005](docs/adr/0005-payments-charge-then-refund-one-partner-order-per-line.md)).
 - The product format is the brief's, plus `lastCheckedUtc` (when Lumen last confirmed a partner's price and stock, A-59); a price-on-request product has `price: null` (A-10). The cart embeds a smaller product shape per line.
-- Limits the brief doesn't set, all configurable: at most 3 unpaid orders per customer (A-58), 50 products per cart and 10 of each, and $999,999.99 per unit (A-62).
+- Limits the brief doesn't set: at most 3 unpaid orders per customer (A-58, configurable), 50 products per cart (configurable, 50 at most), 10 of each, and $999,999.99 per unit (fixed in code; A-62).
 - Kestrel prices are as fresh as its 3-minute feed: it has no per-item price endpoint, so Place order checks only its stock live ([ADR 0004](docs/adr/0004-checkout-consistency-the-order-is-the-price-lock.md)).
 - Lumen's share of Harbor's rate limit (40 a minute, bursts of 5) fits 6 live item checks in Place order's 5 s: beyond 6 Harbor lines, the rest are ordered on a Harbor sync at most 2 minutes old (BR-CHK-02); a partner that then can't supply is refunded (BR-ORD-03).
 
