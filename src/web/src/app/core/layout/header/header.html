@@ -2,7 +2,9 @@
   <div class="bar">
     <button
       #menuToggle
-      matIconButton
+      hlmBtn
+      variant="ghost"
+      size="icon"
       type="button"
       class="menu-toggle"
       aria-label="Menu"
@@ -10,7 +12,7 @@
       [attr.aria-expanded]="menuOpen()"
       (click)="toggleMenu()"
     >
-      <mat-icon [svgIcon]="menuOpen() ? 'close' : 'menu'" />
+      <ng-icon [name]="menuOpen() ? 'lucideX' : 'lucideMenu'" />
     </button>
 
     <a class="brand" routerLink="/">Lumen Goods</a>
@@ -19,14 +21,15 @@
       <label for="site-search" class="cdk-visually-hidden">Search products</label>
       <input
         id="site-search"
+        hlmInput
         type="search"
         formControlName="q"
         placeholder="Search products"
         autocomplete="off"
         enterkeyhint="search"
       />
-      <button matIconButton type="submit" aria-label="Search">
-        <mat-icon svgIcon="search" />
+      <button hlmBtn variant="ghost" size="icon-sm" type="submit" aria-label="Search">
+        <ng-icon name="lucideSearch" />
       </button>
     </form>
 
@@ -51,9 +54,9 @@
               [attr.aria-expanded]="accountOpen()"
               (click)="toggleAccount()"
             >
-              <mat-icon svgIcon="account" />
+              <ng-icon name="lucideCircleUser" />
               <span>Account</span>
-              <mat-icon svgIcon="expand_more" class="chevron" [class.up]="accountOpen()" />
+              <ng-icon name="lucideChevronDown" class="chevron" [class.up]="accountOpen()" />
             </button>
             <div id="account-panel" class="account-panel" [hidden]="!accountOpen()">
               <p class="who">
@@ -62,7 +65,7 @@
               </p>
               @if (hasWallet()) {
                 <p class="balance">
-                  <mat-icon svgIcon="wallet" aria-hidden="true" />
+                  <ng-icon name="lucideWallet" />
                   <span class="label">Wallet balance: </span>
                   @if (wallet.hasValue()) {
                     <strong class="price">{{
@@ -75,6 +78,7 @@
                   }
                 </p>
               }
+              <hr class="divider" />
               <ul class="account-links">
                 <li>
                   <a routerLink="/orders" routerLinkActive="active" ariaCurrentWhenActive="page"
@@ -107,7 +111,7 @@
               ariaCurrentWhenActive="page"
               [queryParams]="signInParams()"
             >
-              <mat-icon svgIcon="account" />
+              <ng-icon name="lucideCircleUser" />
               <span>Sign in</span>
             </a>
           }
@@ -116,16 +120,20 @@
     </nav>
 
     <a
-      matIconButton
+      hlmBtn
+      variant="ghost"
+      size="icon"
       class="cart"
       routerLink="/cart"
       routerLinkActive="active"
       ariaCurrentWhenActive="page"
       [attr.aria-label]="cartLabel()"
-      [matBadge]="itemCount()"
-      [matBadgeHidden]="itemCount() === 0"
     >
-      <mat-icon svgIcon="cart" />
+      <ng-icon name="lucideShoppingCart" />
+      <!-- The count is in the link's name; the badge only shows it. -->
+      @if (itemCount() > 0) {
+        <span hlmBadge class="count" aria-hidden="true">{{ itemCount() }}</span>
+      }
     </a>
   </div>
 </header>

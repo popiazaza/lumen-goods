@@ -107,7 +107,7 @@ describe('Header account area', () => {
       balance: openPanel.querySelector('.balance')?.textContent?.replaceAll(/\s+/gu, ' ').trim(),
       signOut: openPanel.querySelector('button.sign-out')?.textContent?.trim(),
       // Text-only items, so they start on one edge (no icon on Sign out alone).
-      itemIcons: openPanel.querySelectorAll(':scope .account-links mat-icon').length,
+      itemIcons: openPanel.querySelectorAll(':scope .account-links ng-icon').length,
     }).toStrictEqual({
       expanded: 'true',
       panelHidden: false,

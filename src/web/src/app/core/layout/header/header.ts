@@ -3,9 +3,7 @@ import { CurrencyPipe } from '@angular/common';
 import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { MatBadge } from '@angular/material/badge';
-import { MatIconButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
+import { NgIcon } from '@ng-icons/core';
 import {
   NavigationEnd,
   PRIMARY_OUTLET,
@@ -14,6 +12,9 @@ import {
   RouterLinkActive,
 } from '@angular/router';
 import { filter, finalize, switchMap } from 'rxjs';
+import { HlmBadge } from '@spartan-ng/helm/badge';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmInput } from '@spartan-ng/helm/input';
 import { SessionApi } from '../../api/session.api';
 import { WalletApi } from '../../api/wallet.api';
 import { CartStateService } from '../../cart/cart-state.service';
@@ -27,9 +28,10 @@ import { signInQueryParams } from '../../routing/return-url';
     ReactiveFormsModule,
     RouterLink,
     RouterLinkActive,
-    MatBadge,
-    MatIconButton,
-    MatIcon,
+    NgIcon,
+    HlmBadge,
+    HlmButton,
+    HlmInput,
   ],
   templateUrl: './header.html',
   styleUrl: './header.scss',
