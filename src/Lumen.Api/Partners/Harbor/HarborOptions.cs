@@ -31,6 +31,15 @@ public sealed class HarborOptions : PartnerOptions
     public int MaxPagesPerPass { get; set; } = 4000;
 
     /// <summary>
+    /// BR-CHK-02: at most this many lines of one Place order are checked live. Each check is a GET through the shared
+    /// rate limiter (one token every 1.5 s, burst 5), and the whole check has <c>Checkout:PartnerCheckTimeout</c> (5 s),
+    /// so about 8 calls fit when the bucket is full and fewer just after a sync: 6 leaves that margin. The tightest
+    /// lines go first; the rest come back NotChecked and are ordered only on a fresh sync (<c>Checkout:SyncedDataMaxAge</c>).
+    /// </summary>
+    [Range(1, 50)]
+    public int MaxLiveChecks { get; set; } = 6;
+
+    /// <summary>
     /// Incremental passes ask for changes since (newest updated_at seen − this overlap), covering clock skew, second
     /// truncation and items that changed while a pass was paging. Re-reading an item is harmless: upserts are idempotent.
     /// </summary>

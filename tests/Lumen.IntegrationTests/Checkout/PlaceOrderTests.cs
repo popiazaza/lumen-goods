@@ -2,6 +2,8 @@ using System.Net;
 using Lumen.Api.Catalog;
 using Lumen.Api.Checkout;
 using Lumen.Api.Orders;
+using Lumen.Api.Partners;
+using Lumen.Domain.Catalog;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Pricing;
 using Lumen.IntegrationTests.Catalog;
@@ -261,6 +263,68 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         var placed = await shopper.PlaceAsync(await shopper.PreviewAsync());
         placed.StatusCode.Should().Be(HttpStatusCode.Created);
     }
+
+    [Fact]
+    [Trait("BR", "BR-CHK-02")]
+    public async Task BR_CHK_02_harbor_lines_beyond_the_live_checks_are_ordered_on_a_fresh_sync_and_temporarily_unavailable_on_a_stale_one()
+    {
+        // Harbor's rate limit fits 6 live checks (Partners:Harbor:MaxLiveChecks). Six lines with a known quantity are
+        // asked live; the seventh, AVAILABLE with no number, ranks last and is not asked at all.
+        var shopper = await host.NewShopperAsync();
+        var known = new List<Product>();
+        for (var i = 0; i < 6; i++)
+        {
+            known.Add(await host.HarborProductAsync(onHand: 20));
+        }
+
+        var plenty = await host.HarborProductAsync();
+        foreach (var product in known.Append(plenty))
+        {
+            await shopper.AddToCartAsync(product, 1);
+        }
+
+        var preview = await shopper.PreviewAsync();
+        var before = await host.WithDbAsync(db => db.PartnerSyncStates.AsNoTracking()
+            .Where(s => s.Partner == ProductSources.Harbor).Select(s => s.LastSuccessUtc).SingleOrDefaultAsync(Ct));
+        try
+        {
+            await SetHarborLastSyncAsync(host.Clock.GetUtcNow() - TimeSpan.FromMinutes(5));
+            var stale = await shopper.PlaceAsync(preview);
+
+            stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await stale.ReadAsync<PriceChangedProblem>()).Changes.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+            {
+                ProductId = plenty.Id, Kind = CheckoutChangeKind.TemporarilyUnavailable,
+            });
+            host.Harbor.Calls.Should().NotContain(uri => uri.AbsolutePath.EndsWith(plenty.SourceProductId, StringComparison.Ordinal),
+                "a line beyond the live checks is never sent");
+
+            await SetHarborLastSyncAsync(host.Clock.GetUtcNow() - TimeSpan.FromSeconds(30));
+            var placed = await shopper.PlaceAsync(await shopper.PreviewAsync());
+
+            placed.StatusCode.Should().Be(HttpStatusCode.Created, await placed.Content.ReadAsStringAsync(Ct));
+            (await placed.ReadAsync<OrderDetailDto>()).Shipments.SelectMany(s => s.Lines).Should().HaveCount(7);
+        }
+        finally
+        {
+            // The partner sync state is shared by every test in the assembly: leave it as it was.
+            await SetHarborLastSyncAsync(before);
+        }
+    }
+
+    private Task SetHarborLastSyncAsync(DateTimeOffset? at) => host.WithDbAsync(async db =>
+    {
+        var state = await db.PartnerSyncStates.SingleOrDefaultAsync(s => s.Partner == ProductSources.Harbor, Ct);
+        if (state is null)
+        {
+            state = new PartnerSyncState { Partner = ProductSources.Harbor };
+            db.PartnerSyncStates.Add(state);
+        }
+
+        state.LastSuccessUtc = at;
+        await db.SaveChangesAsync(Ct);
+        return 0;
+    });
 
     [Fact]
     [Trait("BR", "BR-CHK-02")]

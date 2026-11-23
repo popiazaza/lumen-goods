@@ -1,5 +1,7 @@
+using Lumen.Api.Catalog;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Orders;
+using Lumen.Api.Partners;
 using Lumen.Api.Partners.Mapping;
 using Lumen.Api.Partners.Ports;
 using Lumen.Api.Partners.Sync;
@@ -79,6 +81,8 @@ internal sealed class PlaceOrderService(
 
     private readonly int _maxUnpaid = options.Value.MaxUnpaidOrdersPerCustomer;
 
+    private readonly TimeSpan _syncedDataMaxAge = options.Value.SyncedDataMaxAge;
+
     public async Task<PlaceOrderOutcome> PlaceAsync(Guid customerId, PlaceOrderRequest request, CancellationToken cancellationToken)
     {
         var checkoutKey = request.CheckoutKey!.Value;
@@ -97,6 +101,9 @@ internal sealed class PlaceOrderService(
                 : new PlaceOrderOutcome.TooManyUnpaidOrders(_maxUnpaid);
         }
 
+        // Read before the cart's products: a sync saves its products before its state, so a state read first never
+        // vouches for product data older than it (BR-CHK-02, TrustFreshSyncAsync).
+        var syncStates = await db.PartnerSyncStates.AsNoTracking().ToListAsync(cancellationToken);
         var lines = await cart.LoadAsync(customerId, cancellationToken);
         if (lines.Count == 0)
         {
@@ -128,8 +135,10 @@ internal sealed class PlaceOrderService(
         var live = await availability.CheckAsync(
             [.. toCheck.Select(l => new PartnerLineToCheck(l.Product.Source, new PartnerLineCheck(
                 l.Line.Id, l.Product.SourceProductId, l.Line.Quantity,
-                reviewed.TryGetValue(l.Product.Id, out var seen) ? seen.UnitPrice : l.Product.PriceUsd!.Value)))],
+                reviewed.TryGetValue(l.Product.Id, out var seen) ? seen.UnitPrice : l.Product.PriceUsd!.Value,
+                l.Product.Quantity)))],
             cancellationToken);
+        live = TrustFreshSync(toCheck, live, syncStates);
         await SaveLiveResultsAsync(toCheck, live, cancellationToken);
         foreach (var line in toCheck)
         {
@@ -198,6 +207,51 @@ internal sealed class PlaceOrderService(
     }
 
     /// <summary>
+    /// BR-CHK-02: a line the partner was not asked about (NotChecked: its rate limit left no room in the time limit) is
+    /// ordered on Lumen's synced data, which the cart rules above have already applied, only when that data is fresh:
+    /// the product's partner data was read at most <see cref="CheckoutOptions.SyncedDataMaxAge"/> ago, and the partner
+    /// has no removals held back by the mass-deletion guard (those products stay listed though they may be gone).
+    /// Otherwise the line is Unreachable, "Temporarily unavailable", as if the partner had not answered. A removal
+    /// shows only after the partner's next full pass (Harbor: every 10 minutes); a line ordered before that is
+    /// refunded if the partner refuses it (BR-ORD-03).
+    /// </summary>
+    private IReadOnlyDictionary<Guid, PartnerLineCheckResult> TrustFreshSync(
+        IReadOnlyList<CheckoutCartLine> checkedLines, IReadOnlyDictionary<Guid, PartnerLineCheckResult> live,
+        IReadOnlyList<PartnerSyncState> syncStates)
+    {
+        var notChecked = checkedLines.Where(l => live[l.Line.Id].Outcome == PartnerLineCheckOutcome.NotChecked).ToList();
+        if (notChecked.Count == 0)
+        {
+            return live;
+        }
+
+        var states = syncStates.ToDictionary(s => s.Partner, StringComparer.Ordinal);
+        var freshSince = time.GetUtcNow() - _syncedDataMaxAge;
+        var results = live.ToDictionary();
+        foreach (var line in notChecked)
+        {
+            var state = states.GetValueOrDefault(line.Product.Source);
+            var check = state is null ? null : new PartnerCheck(state.LastSuccessUtc, state.StockRefreshedUtc);
+            var lastChecked = ProductMapping.LastChecked(line.Product, check);
+            var holdsRemovals = state?.HeldRemovals > 0;
+            if (_syncedDataMaxAge > TimeSpan.Zero && lastChecked >= freshSince && !holdsRemovals)
+            {
+                logger.LogInformation("Place order: {Source} item {Item} was not checked live; ordered on its data from {LastChecked:O}",
+                    line.Product.Source, line.Product.SourceProductId, lastChecked);
+                continue;
+            }
+
+            var why = holdsRemovals
+                ? "the partner has removals held back"
+                : $"its synced data ({lastChecked?.ToString("O") ?? "never read"}) is older than {_syncedDataMaxAge}";
+            results[line.Line.Id] = new PartnerLineCheckResult(line.Line.Id, PartnerLineCheckOutcome.Unreachable,
+                Detail: $"Not checked live, and {why}.");
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// Write-through (BR-CHK-01, BR-CHK-02): saves each partner's live answer to its product row (live price; quantity;
     /// out of stock or no longer sold), so the 409's new total and every later read use what was just learnt. The content
     /// hash is recomputed from the stored result, so the next partner sync compares the partner's data with these
@@ -209,7 +263,7 @@ internal sealed class PlaceOrderService(
     {
         var answers = checkedLines
             .Select(l => (l.Product.Id, Result: live[l.Line.Id]))
-            .Where(a => a.Result.Outcome != PartnerLineCheckOutcome.Unreachable)
+            .Where(a => a.Result.Outcome is not (PartnerLineCheckOutcome.Unreachable or PartnerLineCheckOutcome.NotChecked))
             .ToDictionary(a => a.Id, a => a.Result);
         if (answers.Count == 0)
         {
@@ -288,6 +342,8 @@ internal sealed class PlaceOrderService(
         PartnerLineCheckOutcome.Unavailable => cart.Change(line, CheckoutChangeKind.Unavailable, available: result.AvailableQuantity,
             message: result.AvailableQuantity == 0 ? "Out of stock" : "No longer available"),
         PartnerLineCheckOutcome.Unreachable => cart.Change(line, CheckoutChangeKind.TemporarilyUnavailable),
+        // Only fresh ones reach here: TrustFreshSync turned the rest into Unreachable.
+        PartnerLineCheckOutcome.NotChecked => null,
         _ => null,
     };
 

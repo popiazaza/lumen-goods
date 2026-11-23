@@ -22,6 +22,15 @@ public sealed class CheckoutOptions
     public TimeSpan PartnerCheckTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
+    /// BR-CHK-02: a partner line Place order could not ask about live (Harbor's rate limit allows
+    /// <c>Partners:Harbor:MaxLiveChecks</c> calls in the time limit) is ordered on Lumen's synced data only if that data
+    /// was read at most this long ago; else it is "Temporarily unavailable". Harbor's incremental sync runs every 60 s.
+    /// Zero turns the fallback off: every line must be checked live.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "00:15:00")]
+    public TimeSpan SyncedDataMaxAge { get; init; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>
     /// BR-CHK-03: how many unpaid orders (awaiting payment within their hold, or with a payment in progress) one customer
     /// may hold. Each reserves own stock for its hold, so without a cap one account could empty the shelf by placing
     /// orders it never pays.

@@ -6,7 +6,8 @@ namespace Lumen.Api.Partners.Ports;
 /// Harbor reads each item (<c>GET /v2/catalog/items/{item_code}</c>: price, status, on hand); Kestrel reads quantities
 /// from <c>/stock</c> (it has no price lookup, so its price stays the latest feed's and is not reported as changed).
 /// The caller bounds the whole check with <c>Checkout:PartnerCheckTimeout</c>; an adapter never throws for a partner
-/// that is slow or down, it answers <see cref="PartnerLineCheckOutcome.Unreachable"/> for the lines it could not check.
+/// that is slow or down, it answers <see cref="PartnerLineCheckOutcome.Unreachable"/> for the lines it could not check,
+/// and <see cref="PartnerLineCheckOutcome.NotChecked"/> for lines its rate limit left no room to ask about.
 /// <para>
 /// Write-through: what a check learns is saved before Place order answers. Place order writes each live price
 /// (<see cref="PartnerLineCheckResult.CurrentUnitPriceUsd"/>) and availability (<see cref="PartnerLineCheckResult.AvailableQuantity"/>,
@@ -29,7 +30,9 @@ public interface IPartnerAvailabilityCheck
 /// <param name="LineId">The caller's id for the line (the cart line), echoed in the result.</param>
 /// <param name="SourceProductId">Harbor item_code or Kestrel ref.</param>
 /// <param name="ExpectedUnitPriceUsd">The USD unit price the customer reviewed; a different live price is <see cref="PartnerLineCheckOutcome.PriceChanged"/>.</param>
-public sealed record PartnerLineCheck(Guid LineId, string SourceProductId, int Quantity, decimal ExpectedUnitPriceUsd);
+/// <param name="KnownQuantity">The quantity Lumen's synced data has for the product, or null when the partner gives none
+/// (Harbor AVAILABLE): an adapter that can only ask about some lines asks about the tightest ones first.</param>
+public sealed record PartnerLineCheck(Guid LineId, string SourceProductId, int Quantity, decimal ExpectedUnitPriceUsd, int? KnownQuantity = null);
 
 public enum PartnerLineCheckOutcome
 {
@@ -47,6 +50,14 @@ public enum PartnerLineCheckOutcome
 
     /// <summary>The partner did not answer in time or answered with an error: "Temporarily unavailable".</summary>
     Unreachable,
+
+    /// <summary>
+    /// Not asked at all: the partner's rate limit leaves room for only so many live calls in Place order's time limit
+    /// (Harbor: <c>Partners:Harbor:MaxLiveChecks</c>). Never "the partner did not answer". Place order orders such a
+    /// line on Lumen's synced data only when that data is fresh (<c>Checkout:SyncedDataMaxAge</c>), else treats it as
+    /// <see cref="Unreachable"/>.
+    /// </summary>
+    NotChecked,
 }
 
 /// <param name="CurrentUnitPriceUsd">The live price converted to USD (BR-MONEY-01); null when the partner gives no live price.</param>

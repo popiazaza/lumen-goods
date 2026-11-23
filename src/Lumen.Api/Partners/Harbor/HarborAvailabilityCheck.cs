@@ -15,6 +15,8 @@ namespace Lumen.Api.Partners.Harbor;
 /// - LIMITED with fewer on hand than the line asks for → Short with the number.
 /// - A different price (up or down) → PriceChanged with the live USD price.
 /// - Anything else (429, 5xx, timeout, unreadable body) → Unreachable: never sold without evidence.
+/// - Lines beyond <see cref="HarborOptions.MaxLiveChecks"/> → NotChecked, not sent: Place order then decides on the
+///   freshness of Lumen's synced data.
 /// </summary>
 internal sealed class HarborAvailabilityCheck(
     IHttpClientFactory httpClients,
@@ -38,9 +40,22 @@ internal sealed class HarborAvailabilityCheck(
         var context = new PartnerMappingContext(baseUri, new CategoryMap(settings.CategoryMap), partners.CurrentValue.EffectiveSynonyms(), sanitizer);
         var client = httpClients.CreateClient(HarborCatalogSource.HttpClientName);
 
-        // One GET per line, in parallel: the shared rate limiter queues them if the sync is busy at the same moment.
-        return await Task.WhenAll(lines.Select(line => CheckLineAsync(client, context, line, cancellationToken)));
+        // Harbor's rate limit leaves room for only so many calls in Place order's time limit, so the lines most likely
+        // to have run short are asked first (a known quantity, tightest margin first) and the rest are not sent at all.
+        var ordered = lines.OrderBy(TightnessRank).ToList();
+        var asked = ordered.Take(settings.MaxLiveChecks).ToList();
+        var notAsked = ordered.Skip(settings.MaxLiveChecks)
+            .Select(line => new PartnerLineCheckResult(line.LineId, PartnerLineCheckOutcome.NotChecked,
+                Detail: $"Not asked live: at most {settings.MaxLiveChecks} Harbor checks fit Place order's time limit."));
+
+        // One GET per asked line, in parallel: the shared rate limiter queues them if the sync is busy at the same moment.
+        var answers = await Task.WhenAll(asked.Select(line => CheckLineAsync(client, context, line, cancellationToken)));
+        return [.. answers, .. notAsked];
     }
+
+    /// <summary>Lines with a known quantity first, the smallest margin over what is asked for first; then the rest, largest quantity first.</summary>
+    private static (int, long) TightnessRank(PartnerLineCheck line) =>
+        line.KnownQuantity is { } known ? (0, (long)known - line.Quantity) : (1, -line.Quantity);
 
     private async Task<PartnerLineCheckResult> CheckLineAsync(HttpClient client, PartnerMappingContext context, PartnerLineCheck line, CancellationToken cancellationToken)
     {
