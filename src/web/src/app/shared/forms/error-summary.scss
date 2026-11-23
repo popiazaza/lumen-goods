@@ -11,13 +11,20 @@
   }
 }
 
+// Like every alert's title: bold dark text, the colour on the icon only.
 .title {
   display: flex;
   align-items: center;
   margin: 0 0 var(--lg-space-2);
-  color: var(--mat-sys-error);
+  color: var(--mat-sys-on-surface);
   font: var(--mat-sys-title-medium);
+  font-weight: 700;
   gap: var(--lg-space-2);
+
+  & mat-icon {
+    flex: none;
+    color: var(--lg-alert-accent);
+  }
 }
 
 ul {

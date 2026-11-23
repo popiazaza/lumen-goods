@@ -169,7 +169,8 @@ describe('CheckoutPaymentPage', () => {
     it('offers card and wallet with the balance, and the Pay button names the total', async () => {
       await open(null);
 
-      expect(text('.order-line')).toContain(`Order ${ORDER} · Total $67.46`);
+      // A space before the dot: the hold sits in its own span, and Angular drops a bare line break.
+      expect(text('.order-line')).toContain(`Order ${ORDER} · Total $67.46 · Prices held until `);
       expect(text('#wallet-note')).toBe('Wallet balance: $2,000.00');
       expect(walletInput().disabled).toBeFalsy();
       expect(text('#pay-button')).toBe('Pay $67.46');

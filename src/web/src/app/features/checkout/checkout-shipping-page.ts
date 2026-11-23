@@ -4,6 +4,7 @@ import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-int
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
+import { MatProgressBar } from '@angular/material/progress-bar';
 import { MatRadioButton, MatRadioGroup } from '@angular/material/radio';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -30,6 +31,7 @@ import type { Signal } from '@angular/core';
     RouterLink,
     MatButton,
     MatIcon,
+    MatProgressBar,
     MatRadioButton,
     MatRadioGroup,
     CheckoutSteps,

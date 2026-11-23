@@ -36,7 +36,8 @@ describe('ProductImage', () => {
     expect(host(fixture).querySelector('img')).toBeNull();
     expect(placeholder?.getAttribute('role')).toBe('img');
     expect(placeholder?.getAttribute('aria-label')).toBe('No image of Waxed Canvas Tote');
-    expect(placeholder?.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
+    // A calm monogram, hidden from screen readers: the label above says what is missing.
+    expect(placeholder?.querySelector('.mark')?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('loads the real image again on a later view of the same product', async () => {

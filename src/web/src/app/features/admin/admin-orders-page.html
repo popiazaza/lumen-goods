@@ -5,7 +5,7 @@
 } @else {
   @let q = query();
   <form class="filters" aria-label="Filter orders" (submit)="$event.preventDefault()">
-    <mat-form-field subscriptSizing="dynamic" floatLabel="always">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" floatLabel="always">
       <mat-label>Status</mat-label>
       <mat-select
         multiple
@@ -18,7 +18,7 @@
         }
       </mat-select>
     </mat-form-field>
-    <mat-form-field subscriptSizing="dynamic">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
       <mat-label>Placed from</mat-label>
       <input
         matInput
@@ -29,7 +29,7 @@
         (change)="setDay('from', $event)"
       />
     </mat-form-field>
-    <mat-form-field subscriptSizing="dynamic">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
       <mat-label>Placed to</mat-label>
       <input
         matInput
@@ -50,7 +50,7 @@
 
   @if (isError()) {
     <div class="state" role="alert">
-      <mat-icon svgIcon="error" class="state-icon" />
+      <mat-icon svgIcon="error" />
       <p>{{ errorMessage() }}</p>
       <div class="state-actions">
         <button matButton="filled" type="button" (click)="orders.reload()">
@@ -85,7 +85,7 @@
           <table mat-table [dataSource]="page.items">
             <ng-container matColumnDef="number">
               <th *matHeaderCellDef mat-header-cell scope="col">Order</th>
-              <td *matCellDef="let order" mat-cell>
+              <td *matCellDef="let order" mat-cell class="nowrap">
                 <a [routerLink]="['/admin/orders', order.number]">{{ order.number }}</a>
               </td>
             </ng-container>
@@ -99,7 +99,16 @@
             </ng-container>
             <ng-container matColumnDef="customer">
               <th *matHeaderCellDef mat-header-cell scope="col">Customer</th>
-              <td *matCellDef="let order" mat-cell class="wrap">{{ order.customerEmail }}</td>
+              <!-- A long address breaks before its @, not mid-word. -->
+              <td *matCellDef="let order" mat-cell class="email">
+                @let email = order.customerEmail;
+                @let at = email.lastIndexOf('@');
+                @if (at > 0) {
+                  {{ email.slice(0, at) }}<wbr />{{ email.slice(at) }}
+                } @else {
+                  {{ email }}
+                }
+              </td>
             </ng-container>
             <ng-container matColumnDef="sellers">
               <th *matHeaderCellDef mat-header-cell scope="col">Sold by</th>

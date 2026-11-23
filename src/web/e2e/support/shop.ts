@@ -44,7 +44,7 @@ const removeAll = async (removeButtons: Locator, count: number): Promise<void> =
  */
 export const emptyCart = async (page: Page): Promise<void> => {
   await page.goto('/cart');
-  const empty = page.getByText('Your cart is empty.');
+  const empty = page.getByRole('heading', { name: 'Your cart is empty' });
   const removeButtons = page.getByRole('button', { name: /^Remove /u });
   // eslint-disable-next-line playwright/no-nth-methods -- any line shows the cart has loaded
   await expect(empty.or(removeButtons.first())).toBeVisible();

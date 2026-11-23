@@ -12,6 +12,7 @@ import {
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
+import { MatProgressBar } from '@angular/material/progress-bar';
 import { Router, RouterLink } from '@angular/router';
 import { finalize, noop } from 'rxjs';
 import {
@@ -60,7 +61,15 @@ const SELLER_LIST = /* @__PURE__ */ new Intl.ListFormat('en-US', { type: 'conjun
  */
 @Component({
   selector: 'app-checkout-review-page',
-  imports: [CurrencyPipe, RouterLink, MatButton, MatIcon, AwaitingPaymentNotice, CheckoutSteps],
+  imports: [
+    CurrencyPipe,
+    RouterLink,
+    MatButton,
+    MatIcon,
+    MatProgressBar,
+    AwaitingPaymentNotice,
+    CheckoutSteps,
+  ],
   templateUrl: './checkout-review-page.html',
   styleUrls: ['./checkout.scss', './checkout-review-page.scss'],
 })

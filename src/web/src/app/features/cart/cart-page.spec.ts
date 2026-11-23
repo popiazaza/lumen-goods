@@ -484,8 +484,8 @@ describe('CartPage', () => {
   it('shows the empty state', async () => {
     await open(EMPTY_CART);
 
-    expect(text(host(), '.empty p')).toBe('Your cart is empty.');
-    expect(host().querySelector(':scope .empty a')?.getAttribute('href')).toBe('/');
+    expect(text(host(), '.state h2')).toBe('Your cart is empty');
+    expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe('/');
     expect(host().querySelector('button.checkout')).toBeNull();
   });
 

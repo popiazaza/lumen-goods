@@ -216,5 +216,8 @@
     }
   </div>
 } @else {
-  <p class="muted" role="status">Loading your order summary…</p>
+  <div class="page-loading" role="status">
+    <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+    <p>Loading your order summary…</p>
+  </div>
 }

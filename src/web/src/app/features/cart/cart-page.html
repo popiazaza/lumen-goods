@@ -14,12 +14,10 @@
 
 @if (cart(); as cart) {
   @if (cart.lines.length === 0) {
-    <div class="empty">
+    <div class="state">
       <mat-icon svgIcon="cart" aria-hidden="true" />
-      <p>Your cart is empty.</p>
-      <p class="muted">
-        Browse our own goods and picks from our partner shops; everything goes in one cart.
-      </p>
+      <h2>Your cart is empty</h2>
+      <p>Browse our own goods and picks from our partner shops; everything goes in one cart.</p>
       <a matButton="filled" routerLink="/">Continue shopping</a>
     </div>
   } @else {
@@ -282,5 +280,8 @@
     </div>
   </div>
 } @else {
-  <p class="muted" role="status">Loading your cart…</p>
+  <div class="page-loading" role="status">
+    <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+    <p>Loading your cart…</p>
+  </div>
 }

@@ -2,7 +2,9 @@
 
 @if (query().q) {
   <p class="search-summary">
-    Search results for <strong>“{{ query().q }}”</strong>
+    <span
+      >Search results for <strong>“{{ query().q }}”</strong></span
+    >
     <a routerLink="." [queryParams]="clearSearchParams()">Clear search</a>
   </p>
 }
@@ -20,7 +22,10 @@
 
   <section class="results" aria-labelledby="results-heading">
     <div class="toolbar">
-      <h2 #resultsHeading id="results-heading" class="count" tabindex="-1">{{ countText() }}</h2>
+      <!-- Shown at zero too: focus moves here after filtering, and must never land out of sight. -->
+      <h2 #resultsHeading id="results-heading" class="count" tabindex="-1">
+        {{ countText() }}
+      </h2>
       <button matButton="outlined" type="button" class="filters-button" (click)="openFilters()">
         <mat-icon svgIcon="filter_list" />
         Filters
@@ -66,7 +71,7 @@
 
     @if (isError()) {
       <div class="state" role="alert">
-        <mat-icon svgIcon="error" class="state-icon" />
+        <mat-icon svgIcon="error" />
         @if (isBadRequest()) {
           <h3>Some filters in this link are not valid</h3>
           <p>{{ errorMessage() }}</p>
@@ -149,7 +154,7 @@
         </div>
       } @else {
         <div class="state">
-          <mat-icon svgIcon="search" class="state-icon" />
+          <mat-icon svgIcon="search" />
           <h3>No products match</h3>
           @if (query().q) {
             <p>

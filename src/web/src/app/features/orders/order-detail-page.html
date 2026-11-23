@@ -3,25 +3,24 @@
 @if (errorStatus(); as status) {
   @if (status === 404) {
     <div class="state">
-      <mat-icon svgIcon="info" class="state-icon" />
-      <p>
-        <strong>We can’t find order {{ id() }}.</strong>
-      </p>
+      <mat-icon svgIcon="receipt" aria-hidden="true" />
+      <h2>We can’t find order {{ id() }}</h2>
       <p>Check the order number, or find the order in your order history.</p>
       <a matButton="filled" routerLink="/orders">Your orders</a>
     </div>
   } @else if (status === 401) {
     <div class="state">
-      <mat-icon svgIcon="lock" class="state-icon" />
-      <p><strong>Sign in to see this order.</strong></p>
+      <mat-icon svgIcon="lock" aria-hidden="true" />
+      <h2>Sign in to see this order</h2>
       <a matButton="filled" routerLink="/sign-in" [queryParams]="{ returnUrl: `/orders/${id()}` }"
         >Sign in</a
       >
     </div>
   } @else {
     <div class="state" role="alert">
-      <mat-icon svgIcon="error" class="state-icon" />
-      <p>We couldn’t load this order. Check your connection and try again.</p>
+      <mat-icon svgIcon="error" aria-hidden="true" />
+      <h2>We couldn’t load this order</h2>
+      <p>Check your connection and try again.</p>
       <button matButton="filled" type="button" (click)="order.reload()">
         <mat-icon svgIcon="refresh" />
         Retry
@@ -32,7 +31,8 @@
   <div class="overview">
     <app-status-badge [status]="orderStatus(o)" />
     <p>
-      Placed <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'medium' }}</time>
+      Placed
+      <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'MMM d, y, h:mm a' }}</time>
     </p>
   </div>
 
@@ -98,7 +98,7 @@
       @for (shipment of o.shipments; track shipment.source) {
         <mat-card appearance="outlined" class="shipment">
           <div class="shipment-head">
-            <h3>{{ shipment.sellerName }}</h3>
+            <h3>Sold by {{ shipment.sellerName }}</h3>
             <p class="shipping">
               <mat-icon svgIcon="local_shipping" />
               <span>
@@ -142,5 +142,8 @@
 
   <p><a routerLink="/orders">Back to your orders</a></p>
 } @else {
-  <mat-progress-bar mode="indeterminate" aria-label="Loading the order" />
+  <div class="page-loading" role="status">
+    <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+    <p>Loading the order…</p>
+  </div>
 }

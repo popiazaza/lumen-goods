@@ -104,13 +104,20 @@
   margin: var(--lg-space-2) 0 0;
   list-style: none;
 
-  & a {
+  // One look for every item in the menu and the account panel, links and buttons alike.
+  & a,
+  & button {
     display: flex;
+    width: 100%;
     min-height: 48px;
+    box-sizing: border-box;
     align-items: center;
     padding: 0 var(--lg-space-3);
+    border: 0;
     border-radius: 8px;
+    background: none;
     color: var(--mat-sys-on-surface);
+    cursor: pointer;
     font: var(--mat-sys-label-large);
     gap: var(--lg-space-2);
     text-decoration: none;
@@ -151,9 +158,15 @@
 }
 
 .account-toggle {
-  width: 100%;
-  min-height: 48px;
-  justify-content: flex-start;
+  // Open: a filled pill, like a current page, so the panel's owner is plain to see. Under `.links`
+  // so it outranks the list items' `background: none`.
+  .links &[aria-expanded='true'] {
+    background: var(--mat-sys-secondary-container);
+  }
+
+  & .chevron {
+    margin-left: auto;
+  }
 
   & .chevron.up {
     transform: rotate(180deg);
@@ -161,8 +174,9 @@
 }
 
 // Phone: the panel opens in place inside the menu. Desktop: a dropdown under the button.
+// Its text lines share the links' inset, so everything in it starts on one edge.
 .account-panel {
-  padding: var(--lg-space-2) var(--lg-space-3);
+  padding: var(--lg-space-2);
   border-radius: var(--lg-radius-card);
   background: var(--mat-sys-surface-container);
 
@@ -170,7 +184,8 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    margin: 0 0 var(--lg-space-2);
+    padding: 0 var(--lg-space-3);
+    margin: var(--lg-space-2) 0;
     gap: 0 var(--lg-space-2);
   }
 
@@ -188,25 +203,6 @@
   padding: 0;
   margin: 0;
   list-style: none;
-}
-
-.sign-out {
-  display: flex;
-  width: 100%;
-  min-height: 48px;
-  align-items: center;
-  padding: 0 var(--lg-space-3);
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  color: var(--mat-sys-on-surface);
-  cursor: pointer;
-  font: var(--mat-sys-label-large);
-  gap: var(--lg-space-2);
-
-  &:hover {
-    background: var(--mat-sys-surface-container-high);
-  }
 }
 
 @media (width >= 960px) {
@@ -241,40 +237,43 @@
     margin: 0;
     gap: var(--lg-space-1);
 
-    // Only the bar's own links (Shop, Orders), not the ones in the account panel.
-    & > li > a {
+    // Only the bar's own items (Shop, Orders, Account), not the ones in the account panel.
+    & > li > a,
+    & > li > button {
       position: relative;
+      width: auto;
       min-height: 40px;
+    }
 
-      // The current page: primary text over a straight bar, inset from the rounded hover shape.
-      &.active {
-        background: none;
-        color: var(--mat-sys-primary);
+    // The current page: primary text over a straight bar, inset from the rounded hover shape.
+    & > li > a.active {
+      background: none;
+      color: var(--mat-sys-primary);
 
-        &::after {
-          position: absolute;
-          right: var(--lg-space-3);
-          bottom: 0;
-          left: var(--lg-space-3);
-          height: 3px;
-          border-radius: 3px 3px 0 0;
-          background: var(--mat-sys-primary);
-          content: '';
-        }
+      // The phone list's start bar; the underline replaces it here.
+      &::before {
+        content: none;
+      }
 
-        &:hover {
-          background: var(--mat-sys-surface-container-high);
-        }
+      &::after {
+        position: absolute;
+        right: var(--lg-space-3);
+        bottom: 0;
+        left: var(--lg-space-3);
+        height: 3px;
+        border-radius: 3px 3px 0 0;
+        background: var(--mat-sys-primary);
+        content: '';
+      }
+
+      &:hover {
+        background: var(--mat-sys-surface-container-high);
       }
     }
   }
 
   .account {
     margin-left: var(--lg-space-2);
-  }
-
-  .account-toggle {
-    min-height: 40px;
   }
 
   .account-panel {

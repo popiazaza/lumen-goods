@@ -1,3 +1,5 @@
+@use '../../../styles/state';
+
 :host {
   display: block;
 }
@@ -164,31 +166,7 @@
 }
 
 .state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: var(--lg-space-8) var(--lg-space-4);
-  gap: var(--lg-space-2);
-  text-align: center;
-
-  & h3 {
-    margin: 0;
-    font: var(--mat-sys-title-large);
-    font-family: var(--lg-font-heading);
-  }
-
-  & p {
-    max-width: 40ch;
-    margin: 0 0 var(--lg-space-2);
-    color: var(--mat-sys-on-surface-variant);
-    overflow-wrap: anywhere;
-  }
-}
-
-.state-icon {
-  width: 40px;
-  height: 40px;
-  color: var(--mat-sys-on-surface-variant);
+  @include state.state;
 }
 
 .sheet {
@@ -196,8 +174,10 @@
 }
 
 // Stays in view while the sheet scrolls, so the result count and close button are always there.
+// Above the form fields, whose outlines are positioned and would otherwise show through.
 .sheet-actions {
   position: sticky;
+  z-index: 1;
   bottom: calc(-1 * var(--lg-space-2));
   display: flex;
   justify-content: flex-end;

@@ -98,5 +98,8 @@
     </div>
   </div>
 } @else {
-  <p class="muted" role="status">Loading shipping options…</p>
+  <div class="page-loading" role="status">
+    <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+    <p>Loading shipping options…</p>
+  </div>
 }

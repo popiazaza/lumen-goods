@@ -1,0 +1,36 @@
+// One look for a page's empty, not-found and error states: a centred icon, a short heading in the
+// heading face, a line of text and one filled button.
+
+@mixin state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--lg-space-8) var(--lg-space-4);
+  gap: var(--lg-space-2);
+  text-align: center;
+
+  h2,
+  h3 {
+    margin: 0;
+    font: var(--mat-sys-title-large);
+    font-family: var(--lg-font-heading);
+  }
+
+  // Admin states lead with a bold line instead of a heading.
+  strong {
+    color: var(--mat-sys-on-surface);
+  }
+
+  p {
+    max-width: 40ch;
+    margin: 0 0 var(--lg-space-2);
+    color: var(--mat-sys-on-surface-variant);
+    overflow-wrap: anywhere;
+  }
+
+  > mat-icon {
+    width: 40px;
+    height: 40px;
+    color: var(--mat-sys-on-surface-variant);
+  }
+}

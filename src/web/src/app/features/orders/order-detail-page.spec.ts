@@ -47,7 +47,7 @@ describe('OrderDetailPage', () => {
   const summary = () => host().querySelector('app-order-summary-panel') as HTMLElement;
   const shipment = (seller: string) =>
     [...host().querySelectorAll<HTMLElement>('.shipment')].find(
-      (element) => element.querySelector('h3')?.textContent?.trim() === seller
+      (element) => element.querySelector('h3')?.textContent?.trim() === `Sold by ${seller}`
     ) as HTMLElement;
   const lineBadges = () =>
     [...host().querySelectorAll<HTMLElement>(':scope .line app-status-badge')].map((badge) => ({
@@ -168,6 +168,8 @@ describe('OrderDetailPage', () => {
       kestrel: { shipping: 'Standard shipping, $4.99', name: 'Merino Trail Socks' },
     });
     expect(text(host(), '.overview')).toContain('Processing');
+    // Hours and minutes; seconds are noise on a customer's order.
+    expect(text(host(), '.overview p')).toMatch(/^Placed Nov 20, 2026, \d{1,2}:\d{2} [AP]M$/u);
   });
 
   it('shows a rejected line, its refunded shipping fee, the refund and the net paid', async () => {
@@ -543,7 +545,7 @@ describe('OrderDetailPage', () => {
     await show({ status: 404 });
 
     expect(text(host(), 'h1')).toBe(`Order ${NUMBER}`);
-    expect(text(host(), '.state strong')).toBe(`We can’t find order ${NUMBER}.`);
+    expect(text(host(), '.state h2')).toBe(`We can’t find order ${NUMBER}`);
     expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe('/orders');
     expect(host().querySelector('[role="alert"]')).toBeNull();
   });
@@ -551,7 +553,7 @@ describe('OrderDetailPage', () => {
   it('asks a signed-out customer to sign in', async () => {
     await show({ status: 401 });
 
-    expect(text(host(), '.state strong')).toBe('Sign in to see this order.');
+    expect(text(host(), '.state h2')).toBe('Sign in to see this order');
     expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe(
       `/sign-in?returnUrl=%2Forders%2F${NUMBER}`
     );

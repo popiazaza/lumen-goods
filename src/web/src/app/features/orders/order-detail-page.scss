@@ -20,23 +20,14 @@
   }
 }
 
-.updating,
-.notice {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--lg-space-2);
-
-  & mat-icon {
-    flex: none;
-  }
-}
-
+// Always in the page as a status region; a message box (an info alert) only while it has text.
 .updating {
   margin: 0;
 
   &:not(:empty) {
+    @include alert.alert(info);
+
     margin-bottom: var(--lg-space-4);
-    color: var(--mat-sys-primary);
   }
 }
 
@@ -104,11 +95,16 @@
 
 .shipping {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  // The icon stays beside its text; a long line wraps under the text, not the icon.
+  flex-wrap: nowrap;
+  align-items: flex-start;
   margin: 0;
   color: var(--mat-sys-on-surface-variant);
   gap: var(--lg-space-1) var(--lg-space-2);
+
+  & mat-icon {
+    flex: none;
+  }
 }
 
 .lines {

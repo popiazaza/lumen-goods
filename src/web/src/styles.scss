@@ -51,6 +51,14 @@ html {
     )
   );
 
+  // The cart count is news, not an error: primary, not the default error red.
+  @include mat.badge-overrides(
+    (
+      background-color: var(--mat-sys-primary),
+      text-color: var(--mat-sys-on-primary),
+    )
+  );
+
   // Visible keyboard focus on every Material component (WCAG 2.4.7).
   @include mat.strong-focus-indicators(
     (
@@ -113,6 +121,27 @@ a {
 :focus-visible {
   outline: 3px solid var(--mat-sys-primary);
   outline-offset: 2px;
+}
+
+// An inline SVG sits on the text baseline, which left every icon about 3px high in its button.
+mat-icon > svg {
+  display: block;
+}
+
+// A page's first load, on every page that has no skeleton: an indeterminate bar over a line that
+// says what is loading. The wrapper is the status region; the bar itself is decoration.
+.page-loading {
+  display: grid;
+  max-width: 24rem;
+  margin: var(--lg-space-8) auto;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+  gap: var(--lg-space-3);
+  text-align: center;
+
+  & p {
+    margin: 0;
+  }
 }
 
 .price {

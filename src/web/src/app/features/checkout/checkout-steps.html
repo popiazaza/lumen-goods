@@ -12,7 +12,7 @@
                 {{ $index + 1 }}
               }
             </span>
-            <span>{{ step.label }}</span>
+            <span class="label">{{ step.label }}</span>
             @if (step.done) {
               <span class="cdk-visually-hidden">(done)</span>
             }
@@ -20,7 +20,7 @@
         } @else {
           <span class="step" [attr.aria-current]="step.current ? 'step' : null">
             <span class="marker" aria-hidden="true">{{ $index + 1 }}</span>
-            <span>{{ step.label }}</span>
+            <span class="label">{{ step.label }}</span>
           </span>
         }
       </li>

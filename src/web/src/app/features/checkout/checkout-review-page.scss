@@ -1,22 +1,37 @@
+// Label, value and Change link on one grid per row, so both rows line up; on a phone the label and
+// its link share the first line and the value runs full width below.
 .summary-list {
   display: grid;
   margin: 0 0 var(--lg-space-4);
   gap: var(--lg-space-3);
 
   & > div {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: var(--lg-space-2);
+    display: grid;
+    align-items: baseline;
+    gap: var(--lg-space-1) var(--lg-space-3);
+    grid-template-areas:
+      'label change'
+      'value value';
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    @media (width >= 600px) {
+      grid-template-areas: 'label value change';
+      grid-template-columns: 9rem minmax(0, 1fr) auto;
+    }
   }
 
   & dt {
     font-weight: 600;
+    grid-area: label;
   }
 
   & dd {
-    flex: 1 1 14rem;
     margin: 0;
+    grid-area: value;
+  }
+
+  & a {
+    grid-area: change;
   }
 }
 

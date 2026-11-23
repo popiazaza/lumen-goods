@@ -1,0 +1,10 @@
+@use '../../../styles/state';
+
+// The app's empty-state look, with the page's own h1 as its heading.
+.state {
+  @include state.state;
+
+  & h1 {
+    margin: 0;
+  }
+}

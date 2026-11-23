@@ -13,6 +13,7 @@ import {
 } from '@angular/core';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
+import { MatProgressBar } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, finalize, noop } from 'rxjs';
@@ -46,6 +47,7 @@ const NAME_LIST = /* @__PURE__ */ new Intl.ListFormat('en-US', { type: 'conjunct
     MatButton,
     MatIcon,
     MatIconButton,
+    MatProgressBar,
     AwaitingPaymentNotice,
     ProductImage,
   ],

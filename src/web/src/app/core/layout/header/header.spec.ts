@@ -101,12 +101,15 @@ describe('Header account area', () => {
       email: openPanel.querySelector('.email')?.textContent?.trim(),
       balance: openPanel.querySelector('.balance')?.textContent?.replaceAll(/\s+/gu, ' ').trim(),
       signOut: openPanel.querySelector('button.sign-out')?.textContent?.trim(),
+      // Text-only items, so they start on one edge (no icon on Sign out alone).
+      itemIcons: openPanel.querySelectorAll(':scope .account-links mat-icon').length,
     }).toStrictEqual({
       expanded: 'true',
       panelHidden: false,
       email: 'customer@lumen.test',
       balance: 'Wallet balance: $1,924.54',
       signOut: 'Sign out',
+      itemIcons: 0,
     });
     expect(link('Your orders')?.getAttribute('href')).toBe('/orders');
     expect(link('Admin')).toBeUndefined();

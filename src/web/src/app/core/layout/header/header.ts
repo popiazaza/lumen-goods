@@ -4,7 +4,7 @@ import { Component, ElementRef, computed, inject, signal, viewChild } from '@ang
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatBadge } from '@angular/material/badge';
-import { MatButton, MatIconButton } from '@angular/material/button';
+import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import {
   IsActiveMatchOptions,
@@ -29,7 +29,6 @@ import { signInQueryParams } from '../../routing/return-url';
     RouterLink,
     RouterLinkActive,
     MatBadge,
-    MatButton,
     MatIconButton,
     MatIcon,
   ],

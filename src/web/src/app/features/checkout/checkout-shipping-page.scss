@@ -15,3 +15,11 @@
 .fixed-method {
   margin: 0;
 }
+
+// Material sets radio labels a size down; these match the fixed-method lines in the other cards.
+.method-name,
+.method-fee {
+  font-size: var(--mat-sys-body-large-size);
+  letter-spacing: var(--mat-sys-body-large-tracking);
+  line-height: var(--mat-sys-body-large-line-height);
+}

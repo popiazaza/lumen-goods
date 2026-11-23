@@ -8,7 +8,8 @@
   padding: 0;
   border: 0;
   margin: var(--lg-space-4) 0 0;
-  gap: var(--lg-space-2);
+  // Room between a hint and the next field's floating label.
+  gap: var(--lg-space-3);
 
   & legend {
     margin-bottom: var(--lg-space-3);
@@ -19,6 +20,8 @@
 // The same two columns as the other checkout steps' `.row` (checkout.scss).
 .row {
   display: grid;
+  // Fields of different heights (one with a hint) keep their own height.
+  align-items: start;
   column-gap: var(--lg-space-4);
   grid-template-columns: minmax(0, 1fr);
 

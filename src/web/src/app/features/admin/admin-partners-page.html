@@ -181,7 +181,7 @@
   </div>
 } @else if (partners.status() === 'error') {
   <div class="state" role="alert">
-    <mat-icon svgIcon="error" class="state-icon" />
+    <mat-icon svgIcon="error" />
     <p>We couldn’t load the partner status. Check your connection and try again.</p>
     <button matButton="filled" type="button" (click)="partners.reload()">
       <mat-icon svgIcon="refresh" />
