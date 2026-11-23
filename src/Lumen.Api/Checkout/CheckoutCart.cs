@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Security.Claims;
 using Lumen.Api.Carts;
 using Lumen.Api.Catalog;
 using Lumen.Api.Infrastructure.Data;
@@ -102,11 +101,4 @@ internal sealed class CheckoutCart(LumenDbContext db, IOptions<CatalogOptions> c
         var index = ProductSources.All.ToList().IndexOf(source);
         return index < 0 ? int.MaxValue : index;
     }
-}
-
-internal static class CustomerIdentity
-{
-    /// <summary>The signed-in user's id (ASP.NET Core Identity puts it in the NameIdentifier claim).</summary>
-    public static Guid? CustomerId(this ClaimsPrincipal user) =>
-        Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 }

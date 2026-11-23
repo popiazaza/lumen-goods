@@ -45,7 +45,6 @@ internal static class CartFaults
         factory.Services.GetRequiredService<AvailabilityPolicy>(),
         TimeProvider.System,
         factory.Services.GetRequiredService<IOptions<CartOptions>>(),
-        factory.Services.GetRequiredService<IOptions<IdentityOptions>>(),
         NullLogger<CartService>.Instance);
 
     /// <summary>A guest's request carrying the cart cookie, as sign-in or a cart call receives it.</summary>
