@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Lumen.Api.Catalog;
 using Lumen.Api.Orders;
+using Lumen.Domain.Catalog;
 using Lumen.Domain.Orders;
 using Lumen.IntegrationTests.Catalog;
 using Lumen.IntegrationTests.Infrastructure;
@@ -139,5 +140,111 @@ public sealed class CustomerOrderApiTests(LumenApiFactory factory)
         paidBack.IsUpdating.Should().BeFalse();
         var history = await (await session.GetAsync("/api/v1/orders")).ReadAsync<PagedResult<OrderSummaryDto>>();
         history.Items.Single(o => o.Number == order.Number).StatusText.Should().Be("Partially refunded");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-03")]
+    public async Task BR_ORD_03_a_refund_of_two_lines_lists_them_in_line_order_each_split_into_its_subtotal_and_tax()
+    {
+        var (me, session) = await factory.SignedInCustomerAsync();
+        var order = await factory.OrderAsync(me, OrderStatus.Paid, Now, LineSpec.Own(18.50m), LineSpec.Kestrel(16.22m, 2), LineSpec.Kestrel(9.99m, 3));
+
+        // Both Kestrel lines rejected together: one refund of what the calculator says is owed for the two, its lines
+        // stored last line first, so only the reader's ordering can put them back in line order.
+        await using (var db = factory.NewContext())
+        {
+            var tracked = await db.Orders.Include(o => o.Lines).Include(o => o.Shipments).SingleAsync(o => o.Id == order.Id, Ct);
+            var kestrelLines = tracked.Lines.Where(l => l.Source == ProductSources.Kestrel).OrderByDescending(l => l.LineNumber).ToList();
+            var breakdown = RefundCalculator.Calculate(
+                new PaidOrderSnapshot(
+                    [.. tracked.Lines.Select(l => new PaidOrderLine(l.Id, l.Source, l.LineSubtotal, l.Tax, l.Status))],
+                    [.. tracked.Shipments.Select(s => new PaidShipment(s.Source, s.Fee, s.FeeRefunded))],
+                    tracked.Total,
+                    tracked.RefundedTotal),
+                [.. kestrelLines.Select(l => l.Id)]);
+            var shipment = tracked.Shipments.Single(s => s.Source == ProductSources.Kestrel);
+            var refund = new Refund
+            {
+                OrderId = order.Id,
+                PaymentId = await LineRejection.SucceededPaymentIdAsync(db, order.Id, Ct),
+                Amount = breakdown.Total,
+                ShipmentId = shipment.Id,
+                ShippingAmount = breakdown.Shipping.Single().Fee,
+                Reason = "Not supplied by Kestrel Outfitters (OUT_OF_STOCK)",
+                CreatedUtc = Now,
+                NextAttemptUtc = Now,
+            };
+            foreach (var line in kestrelLines)
+            {
+                var part = breakdown.Lines.Single(l => l.LineId == line.Id);
+                refund.Lines.Add(new RefundLine { OrderId = order.Id, OrderLineId = line.Id, Amount = part.Amount });
+                line.Status = OrderLineStatus.Rejected;
+                line.RefundedAmount = part.Amount;
+            }
+
+            shipment.FeeRefunded = true;
+            tracked.RefundedTotal += breakdown.Total;
+            LineRejection.DeriveOrderStatus(tracked);
+            db.Refunds.Add(refund);
+            await db.SaveChangesAsync(Ct);
+        }
+
+        var response = await session.GetAsync($"/api/v1/orders/{order.Number}");
+        var detail = await response.ReadAsync<OrderDetailDto>();
+
+        var kestrel = detail.Shipments.Single(s => s.SellerName == "Kestrel Outfitters").Lines;
+        kestrel.Select(l => l.LineNumber).Should().Equal(2, 3);
+        var refunded = detail.Refunds.Should().ContainSingle().Subject;
+        refunded.Lines.Should().BeEquivalentTo(
+            [
+                new { LineId = kestrel[0].Id, Subtotal = 32.44m, Tax = 2.60m, Amount = 35.04m },
+                new { LineId = kestrel[1].Id, Subtotal = 29.97m, Tax = 2.40m, Amount = 32.37m },
+            ],
+            options => options.WithStrictOrdering());
+        refunded.LineIds.Should().Equal(kestrel[0].Id, kestrel[1].Id);
+        refunded.TaxAmount.Should().Be(5.00m).And.Be(refunded.Lines.Sum(l => l.Tax));
+        refunded.ShippingAmount.Should().Be(4.99m);
+        refunded.Amount.Should().Be(72.40m);
+        (refunded.Lines.Sum(l => l.Subtotal) + refunded.TaxAmount + refunded.ShippingAmount).Should().Be(refunded.Amount);
+        detail.Totals.Refunded.Should().Be(72.40m);
+
+        // On the wire too, in line order.
+        var wireLines = (await response.ReadJsonAsync()).GetProperty("refunds")[0].GetProperty("lines");
+        wireLines.EnumerateArray().Select(l => l.GetProperty("tax").GetRawText()).Should().Equal("2.60", "2.40");
+
+        // Paid back: the seller's fee is counted on the refund's last line, so the two lines add up to the refund.
+        await using (var db = factory.NewContext())
+        {
+            await db.Refunds.Where(r => r.OrderId == order.Id)
+                .ExecuteUpdateAsync(u => u.SetProperty(r => r.Status, RefundStatus.Succeeded).SetProperty(r => r.CompletedUtc, Now.AddMinutes(1)), Ct);
+        }
+
+        var paidBack = await (await session.GetAsync($"/api/v1/orders/{order.Number}")).ReadAsync<OrderDetailDto>();
+        paidBack.Shipments.Single(s => s.SellerName == "Kestrel Outfitters").Lines.Select(l => l.StatusText)
+            .Should().Equal("Not supplied, refunded $35.04", "Not supplied, refunded $37.36");
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-03")]
+    public async Task BR_ORD_03_one_of_two_harbor_lines_rejected_refunds_its_subtotal_and_tax_but_not_the_shipping()
+    {
+        var (me, session) = await factory.SignedInCustomerAsync();
+        await using var host = OrderJobHost.Start(factory);
+        var outOfStock = LineSpec.Harbor(49.90m, 3);
+        var order = await factory.OrderAsync(me, OrderStatus.Paid, Now, outOfStock, LineSpec.Harbor(12.00m));
+        host.Harbor.Available[outOfStock.Item] = 1;
+
+        await host.RunAsync(order);
+        var detail = await (await session.GetAsync($"/api/v1/orders/{order.Number}")).ReadAsync<OrderDetailDto>();
+
+        var harbor = detail.Shipments.Single();
+        harbor.Lines.Select(l => l.StatusText).Should().Equal("Not supplied, refund pending", "Confirmed by Harbor Supply Co.");
+        harbor.FeeRefunded.Should().BeFalse("the other Harbor line still ships");
+        var refund = detail.Refunds.Should().ContainSingle().Subject;
+        refund.Lines.Should().BeEquivalentTo([new { LineId = harbor.Lines[0].Id, Subtotal = 149.70m, Tax = 11.98m, Amount = 161.68m }]);
+        refund.TaxAmount.Should().Be(11.98m);
+        refund.ShippingAmount.Should().Be(0m);
+        refund.Amount.Should().Be(161.68m);
+        (refund.Lines.Sum(l => l.Subtotal) + refund.TaxAmount + refund.ShippingAmount).Should().Be(refund.Amount);
     }
 }

@@ -29,7 +29,7 @@ const HOST = __ENV.HOST_HEADER || (BASE_URL === COMPOSE_URL ? 'localhost' : '');
 const HEADERS = { Accept: 'application/json', 'Accept-Encoding': 'gzip', ...(HOST ? { Host: HOST } : {}) };
 
 const CATEGORIES = ['apparel', 'footwear', 'bags', 'home', 'outdoor', 'accessories'];
-const SORTS = ['newest', 'price_asc', 'price_desc', 'name_asc'];
+const SORTS = ['featured', 'newest', 'price_asc', 'price_desc', 'name_asc'];
 
 // What one visitor's calls look like, in requests out of 100: mostly listing and product pages, with the app's
 // start-up calls (session, cart, sellers) once per visit of several pages.

@@ -264,14 +264,19 @@ describe('AdminOrderDetailPage', () => {
       heading: text(kestrel, 'h3'),
       status: text(kestrel, 'app-status-badge'),
       referencePartnerIdAttempts: texts(kestrel, 'dd').slice(0, 3),
-      labels: texts(kestrel, 'dt').slice(0, 3),
+      labels: texts(kestrel, 'dt').slice(0, 4),
       lastError: kestrel.querySelector('.last-error'),
     }).toStrictEqual({
       heading: 'Line 2: Kestrel Outfitters',
       status: 'Accepted, awaiting decision',
       referencePartnerIdAttempts: ['LG-7K3M9QX2-2', 'KT-5521', '3'],
-      // It counts every call to the partner: the send and each status check.
-      labels: ['Our reference', 'Partner order or ticket', 'Calls (sends + status checks)'],
+      // It counts every call to the partner: the send and each status check; the next one is a "call" too.
+      labels: [
+        'Our reference',
+        'Partner order or ticket',
+        'Calls (sends + status checks)',
+        'Next call',
+      ],
       lastError: null,
     });
     expect({

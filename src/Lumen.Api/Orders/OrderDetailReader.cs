@@ -205,6 +205,11 @@ internal static class OrderDetailMapping
             .OrderBy(p => p.Line?.LineNumber ?? int.MaxValue)
             .Select(p =>
             {
+                // The split is derived, not stored: a RefundLine keeps one Amount, which LineRejection records as the
+                // whole line's subtotal + tax (RefundCalculator only refunds whole lines), so the line's own Tax is the
+                // tax part. If refunds of part of a line's quantity were added, this would no longer hold: RefundLine
+                // would need to store its subtotal and tax (computed by the calculator per refunded unit, rounded once)
+                // and this would read them instead of deriving them from the line.
                 var tax = Math.Min(p.Line?.Tax ?? 0m, p.Part.Amount);
                 return new RefundLineDto(p.Part.OrderLineId, p.Part.Amount - tax, tax, p.Part.Amount);
             })
