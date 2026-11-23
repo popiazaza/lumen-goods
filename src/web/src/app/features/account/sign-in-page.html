@@ -30,7 +30,7 @@
     }
 
     <form class="account-form" novalidate [formGroup]="form" (ngSubmit)="submit()">
-      <mat-form-field appearance="outline">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>Email address</mat-label>
         <input
           id="sign-in-email"
@@ -47,7 +47,7 @@
         }
       </mat-form-field>
 
-      <mat-form-field appearance="outline">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>Password</mat-label>
         <input
           id="sign-in-password"
