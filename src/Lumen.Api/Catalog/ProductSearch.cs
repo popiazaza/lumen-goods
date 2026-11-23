@@ -174,7 +174,7 @@ internal static class ProductSearch
             var pattern = LikePattern.Contains(text);
             query = query.Where(p =>
                 EF.Functions.ILike(p.Name, pattern, LikePattern.EscapeCharacter)
-                || EF.Functions.ILike(p.Description, pattern, LikePattern.EscapeCharacter));
+                || EF.Functions.ILike(p.DescriptionText, pattern, LikePattern.EscapeCharacter));
         }
 
         if (criteria.Categories.Count > 0)

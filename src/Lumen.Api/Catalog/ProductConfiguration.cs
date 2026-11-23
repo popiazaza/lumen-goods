@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lumen.Domain.Catalog;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -66,7 +67,20 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.HasIndex(p => new { p.FirstSeenUtc, p.Id }).HasFilter("\"IsListed\"").HasDatabaseName("IX_Products_Listed_Newest");
         builder.HasIndex(p => new { p.Name, p.Id }).HasFilter("\"IsListed\"").HasDatabaseName("IX_Products_Listed_Name");
         builder.HasIndex(p => p.Name).HasMethod("gin").HasOperators("gin_trgm_ops").HasDatabaseName("IX_Products_Name_Trgm");
-        builder.HasIndex(p => p.Description).HasMethod("gin").HasOperators("gin_trgm_ops").HasDatabaseName("IX_Products_Description_Trgm");
+        builder.HasIndex(p => p.DescriptionText).HasMethod("gin").HasOperators("gin_trgm_ops").HasDatabaseName("IX_Products_DescriptionText_Trgm");
+
+        // BR-CAT-03: search matches the words a customer reads, not markup. A partner description is sanitised HTML
+        // (A-21): tags become spaces, the entities the sanitiser writes are decoded (&amp; last, so an encoded "&lt;"
+        // stays text), and whitespace runs collapse. Lumen's own descriptions are plain text and are searched as typed.
+        builder.Property(p => p.DescriptionText).HasComputedColumnSql(
+            $$"""
+            CASE WHEN "Source" = '{{ProductSources.Lumen}}' THEN "Description"
+            ELSE btrim(regexp_replace(
+                replace(replace(replace(replace(regexp_replace("Description", '<[^>]*>', ' ', 'g'),
+                    '&lt;', '<'), '&gt;', '>'), '&nbsp;', ' '), '&amp;', '&'),
+                '\s+', ' ', 'g'))
+            END
+            """, stored: true);
 
         builder.Ignore(p => p.IsSellable);
         builder.Ignore(p => p.AvailableQuantity);

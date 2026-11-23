@@ -142,6 +142,12 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("DescriptionText")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("CASE WHEN \"Source\" = 'lumen' THEN \"Description\"\nELSE btrim(regexp_replace(\n    replace(replace(replace(replace(regexp_replace(\"Description\", '<[^>]*>', ' ', 'g'),\n        '&lt;', '<'), '&gt;', '>'), '&nbsp;', ' '), '&amp;', '&'),\n    '\\s+', ' ', 'g'))\nEND", true);
+
                     b.Property<DateTimeOffset>("FirstSeenUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -218,11 +224,11 @@ namespace Lumen.Api.Infrastructure.Data.Migrations
                         .HasDatabaseName("IX_Products_Listed_Category")
                         .HasFilter("\"IsListed\"");
 
-                    b.HasIndex("Description")
-                        .HasDatabaseName("IX_Products_Description_Trgm");
+                    b.HasIndex("DescriptionText")
+                        .HasDatabaseName("IX_Products_DescriptionText_Trgm");
 
-                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Description"), "gin");
-                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Description"), new[] { "gin_trgm_ops" });
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("DescriptionText"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("DescriptionText"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("Name")
                         .HasDatabaseName("IX_Products_Name_Trgm");
