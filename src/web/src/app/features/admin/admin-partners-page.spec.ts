@@ -426,8 +426,13 @@ describe('AdminPartnersPage', () => {
       .flush({ title: 'Forbidden', status }, { status, statusText: 'Denied' });
     await fixture.whenStable();
 
-    expect(text(host(), '.state strong')).toBe('Sign in as an admin to see this page.');
-    expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe('/sign-in');
+    expect(text(host(), 'app-admin-access-denied strong')).toBe(
+      'Sign in as an admin to see this page.'
+    );
+    // Signing in comes back here.
+    expect(host().querySelector(':scope app-admin-access-denied a')?.getAttribute('href')).toBe(
+      '/sign-in?returnUrl=%2Fadmin%2Fpartners'
+    );
     expect(host().querySelector('mat-card')).toBeNull();
     expect(host().textContent?.includes('does not have the admin role')).toBe(status === 403);
   });
@@ -441,7 +446,9 @@ describe('AdminPartnersPage', () => {
       .flush({ title: 'Forbidden', status: 403 }, { status: 403, statusText: 'Forbidden' });
     await fixture.whenStable();
 
-    expect(text(host(), '.state strong')).toBe('Sign in as an admin to see this page.');
+    expect(text(host(), 'app-admin-access-denied strong')).toBe(
+      'Sign in as an admin to see this page.'
+    );
   });
 
   it('offers Retry when the status fails to load', async () => {

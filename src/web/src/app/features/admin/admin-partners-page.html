@@ -1,14 +1,7 @@
 <h1>Partner status</h1>
 
 @if (accessStatus(); as status) {
-  <div class="state">
-    <mat-icon svgIcon="lock" class="state-icon" />
-    <p><strong>Sign in as an admin to see this page.</strong></p>
-    @if (status === 403) {
-      <p>You are signed in with an account that does not have the admin role.</p>
-    }
-    <a matButton="filled" routerLink="/sign-in">Sign in</a>
-  </div>
+  <app-admin-access-denied returnUrl="/admin/partners" [status]="status" />
 } @else if (list(); as partners) {
   <p class="intro">
     Partner catalogues refresh in the background. <strong>Refresh now</strong> asks for a refresh
