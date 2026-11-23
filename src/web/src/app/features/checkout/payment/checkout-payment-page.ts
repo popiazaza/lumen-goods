@@ -432,7 +432,8 @@ export class CheckoutPaymentPage {
       .subscribe(() => this.cardForm.controls.cvc.updateValueAndValidity({ emitEvent: false }));
 
     // The error summary lists only what is still wrong: a corrected field leaves it at once, and
-    // the summary goes when none is left. It never grows before the next Pay.
+    // the summary goes when none is left. It never grows or rewords an item before the next Pay, so
+    // its alert region does not interrupt someone typing.
     this.cardForm.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.refreshProblems());
 
     // Countdown: one announcement at a minute left and one at expiry, never every second.
@@ -832,10 +833,14 @@ export class CheckoutPaymentPage {
     if (shown.length === 0) {
       return;
     }
-    const listed = new Set(shown.map((problem) => problem.fieldId));
-    this.problems.set(
-      this.problemsOf(CARD_FIELDS.filter((field) => listed.has(CARD_FIELD_IDS[field])))
+    const stillWrong = shown.filter((problem) =>
+      CARD_FIELDS.some(
+        (field) => CARD_FIELD_IDS[field] === problem.fieldId && this.cardForm.controls[field].invalid
+      )
     );
+    if (stillWrong.length !== shown.length) {
+      this.problems.set(stillWrong);
+    }
   }
 
   private problemsOf(fields: readonly CardField[]): FormProblem[] {

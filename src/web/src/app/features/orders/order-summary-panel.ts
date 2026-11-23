@@ -62,6 +62,10 @@ export class OrderSummaryPanel {
     if (paidBack === refunds.length) {
       return 'Refunded';
     }
+    // Admins see a failed refund as failed, as in the refunds list below; customers see it pending.
+    if (this.admin() && refunds.some((refund) => refund.status === 'failed')) {
+      return paidBack === 0 ? 'Refund failed' : 'Refunded (some failed)';
+    }
     return paidBack === 0 ? 'Refund pending' : 'Refunded (some pending)';
   });
 

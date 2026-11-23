@@ -310,10 +310,11 @@ describe('CheckoutPaymentPage', () => {
       type('card-expiry', '08/2');
       await settle();
 
-      // Still wrong, so still listed, saying what is wrong now.
+      // Still wrong, so still listed, and worded as at Pay: the alert region must not interrupt
+      // someone typing. The field's own error shows what is wrong now.
       expect(listed()).toStrictEqual([
         'Enter a valid card number: check it for typos',
-        'Enter the expiry date as MM/YY, like 08/29',
+        'Enter the expiry date',
         'Enter the security code',
       ]);
 
