@@ -81,11 +81,11 @@ internal static class KestrelStockCsv
 {
     // Units are whole numbers with an optional ASCII minus. Parsed with an explicit NumberFormatInfo, never a culture
     // (InvariantGlobalization is on, and a culture's rules can change), like KestrelPrice.
-    private static readonly NumberFormatInfo UnitsFormat = new()
+    private static readonly NumberFormatInfo UnitsFormat = NumberFormatInfo.ReadOnly(new()
     {
         NegativeSign = "-",
         PositiveSign = "+",
-    };
+    });
 
     private static readonly CsvReaderOptions Options = new()
     {
