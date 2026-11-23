@@ -1,3 +1,4 @@
+@use '../../../styles/alert';
 @use '../orders/order-page';
 
 :host {
@@ -14,18 +15,9 @@
 }
 
 .conflict {
-  display: flex;
-  padding: var(--lg-space-3);
-  border-radius: 8px;
-  border-left: 4px solid var(--lg-status-warning);
-  margin-bottom: var(--lg-space-4);
-  background: var(--mat-sys-surface-container);
-  gap: var(--lg-space-2);
+  @include alert.alert(warning);
 
-  & > mat-icon {
-    flex: none;
-    color: var(--lg-status-warning);
-  }
+  margin-bottom: var(--lg-space-4);
 
   & p {
     margin: 0 0 var(--lg-space-2);
