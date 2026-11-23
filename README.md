@@ -27,9 +27,11 @@ At phone width:
 
 ## Deviations from the brief
 
-- .NET 10 LTS and PostgreSQL 18, not the newest majors, whose ecosystems are not stable yet ([ADR 0007](docs/adr/0007-dotnet-10-lts-and-postgresql-18.md)).
+- .NET 10 LTS and PostgreSQL 18, not the newest majors. .NET 11's PostgreSQL provider was still a release candidate when the build started; it went stable hours later, too late to switch majors safely before hand-in. It's a one-commit upgrade, and PostgreSQL 19 has no minor release yet ([ADR 0007](docs/adr/0007-dotnet-10-lts-and-postgresql-18.md)).
 - Open questions answered with written assumptions, not emails ([ASSUMPTIONS.md](docs/ASSUMPTIONS.md)).
 - The payment gateway is a mock inside the API process, behind `IPaymentGateway` ([ADR 0005](docs/adr/0005-payments-charge-then-refund-one-partner-order-per-line.md)).
+- The product format is the brief's, plus `lastCheckedUtc` (when Lumen last confirmed a partner's price and stock, A-59); a price-on-request product has `price: null` (A-10). The cart embeds a smaller product shape per line.
+- Limits the brief doesn't set: at most 3 unpaid orders per customer (A-58, configurable), 50 products per cart (configurable, 50 at most), 10 of each, and $999,999.99 per unit (fixed in code; A-62).
 - Kestrel prices are as fresh as its 3-minute feed: it has no per-item price endpoint, so Place order checks only its stock live ([ADR 0004](docs/adr/0004-checkout-consistency-the-order-is-the-price-lock.md)).
 - Lumen's share of Harbor's rate limit (40 a minute, bursts of 5) fits 6 live item checks in Place order's 5 s: beyond 6 Harbor lines, the rest are ordered on a Harbor sync at most 2 minutes old (BR-CHK-02); a partner that then can't supply is refunded (BR-ORD-03).
 
@@ -237,7 +239,7 @@ commercial licences; handlers and mapping are written by hand.
 |---|---|
 | .NET SDK / runtime | 10.0.404 / 10.0.15 (LTS), C# 14 |
 | ASP.NET Core, EF Core, Identity | 10.0.15 |
-| Npgsql EF Core provider | 10.0.3 |
+| Npgsql EF Core provider | 10.0.4 |
 | PostgreSQL | 18.7 |
 | Angular, Angular Material | 22.3.0 |
 | TypeScript / Node.js | 6.0.3 / 26.13.1 (LTS) |
