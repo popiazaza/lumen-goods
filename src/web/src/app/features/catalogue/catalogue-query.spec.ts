@@ -127,8 +127,8 @@ describe('catalogue query (URL state)', () => {
     }
   );
 
-  it('drops an impossible price range (min above max)', () => {
-    expect(parse('minPrice=50&maxPrice=10')).toMatchObject({ minPrice: null, maxPrice: null });
+  it('keeps an impossible price range (min above max) for the API to reject with a message', () => {
+    expect(parse('minPrice=50&maxPrice=10')).toMatchObject({ minPrice: 50, maxPrice: 10 });
     expect(parse('minPrice=10&maxPrice=10')).toMatchObject({ minPrice: 10, maxPrice: 10 });
   });
 

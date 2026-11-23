@@ -59,17 +59,6 @@ A seller id as the API writes them (`harbor`, `kestrel`, `north-fjord`); anythin
 const SELLER_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/u;
 
 /**
-The price range in the URL. An impossible range has no "right" half to keep, so it is dropped.
-*/
-const parsePriceRange = (params: ParamMap): Pick<CatalogueQuery, 'minPrice' | 'maxPrice'> => {
-  const minPrice = parsePrice(params.get('minPrice'));
-  const maxPrice = parsePrice(params.get('maxPrice'));
-  return minPrice !== null && maxPrice !== null && minPrice > maxPrice
-    ? { minPrice: null, maxPrice: null }
-    : { minPrice, maxPrice };
-};
-
-/**
  * Reads the catalogue state from the URL. Unknown or malformed values are dropped rather than sent to the API, so a mistyped shared link still shows products instead of an error.
  *
  * Sellers are configuration on the API, so only their shape is checked here; `restrictSellers`
@@ -82,7 +71,10 @@ export const parseCatalogueQuery = (params: ParamMap): CatalogueQuery => {
     q: (params.get('q') ?? '').trim().slice(0, MAX_QUERY_LENGTH),
     categories: pickKnown(params.getAll('category'), PRODUCT_CATEGORIES),
     sellers: canonicalSellers(params.getAll('seller')),
-    ...parsePriceRange(params),
+    // A min above the max is kept, not dropped: the API rejects it with a message, which the page
+    // shows with the price chip to remove, instead of silently showing every price.
+    minPrice: parsePrice(params.get('minPrice')),
+    maxPrice: parsePrice(params.get('maxPrice')),
     inStock: params.get('inStock') === 'true',
     sort: isOneOf(sort, PRODUCT_SORTS) ? sort : DEFAULT_SORT,
     page: page !== null && PAGE_PATTERN.test(page) ? Number(page) : 1,
