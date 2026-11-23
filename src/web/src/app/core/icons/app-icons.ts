@@ -7,7 +7,9 @@ import {
 import { MatIconRegistry } from '@angular/material/icon';
 import { provideIcons } from '@ng-icons/core';
 import {
+  lucideArrowLeft,
   lucideBan,
+  lucideCheck,
   lucideChevronDown,
   lucideChevronLeft,
   lucideChevronRight,
@@ -15,6 +17,13 @@ import {
   lucideCircleCheck,
   lucideCircleUser,
   lucideCircleX,
+  lucideClock,
+  lucideCompass,
+  lucideCreditCard,
+  lucideEye,
+  lucideEyeOff,
+  lucideInfo,
+  lucideLock,
   lucideMenu,
   lucideMinus,
   lucidePlus,
@@ -22,7 +31,10 @@ import {
   lucideSearch,
   lucideShoppingCart,
   lucideSlidersHorizontal,
+  lucideTrash2,
   lucideTriangleAlert,
+  lucideTruck,
+  lucideUnlink,
   lucideWallet,
   lucideX,
 } from '@ng-icons/lucide';
@@ -36,7 +48,9 @@ import { DomSanitizer } from '@angular/platform-browser';
  * icons here.
  */
 const LUCIDE_ICONS = {
+  lucideArrowLeft,
   lucideBan,
+  lucideCheck,
   lucideChevronDown,
   lucideChevronLeft,
   lucideChevronRight,
@@ -44,6 +58,13 @@ const LUCIDE_ICONS = {
   lucideCircleCheck,
   lucideCircleUser,
   lucideCircleX,
+  lucideClock,
+  lucideCompass,
+  lucideCreditCard,
+  lucideEye,
+  lucideEyeOff,
+  lucideInfo,
+  lucideLock,
   lucideMenu,
   lucideMinus,
   lucidePlus,
@@ -51,7 +72,10 @@ const LUCIDE_ICONS = {
   lucideSearch,
   lucideShoppingCart,
   lucideSlidersHorizontal,
+  lucideTrash2,
   lucideTriangleAlert,
+  lucideTruck,
+  lucideUnlink,
   lucideWallet,
   lucideX,
 } as const;

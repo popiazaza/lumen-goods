@@ -46,6 +46,9 @@ export const HLM_NATIVE_SELECT_VALUE_ACCESSOR = {
       [class]="_computedSelectClass()"
       [attr.data-size]="size()"
       [attr.aria-invalid]="_ariaInvalid() ? 'true' : null"
+      [attr.aria-describedby]="ariaDescribedby()"
+      [attr.autocomplete]="autocomplete()"
+      [required]="required()"
       [attr.data-invalid]="_invalid?.() ? 'true' : null"
       [attr.data-dirty]="_dirty?.() ? 'true' : null"
       [attr.data-touched]="_touched?.() ? 'true' : null"
@@ -74,6 +77,11 @@ export class HlmNativeSelect implements ControlValueAccessor {
   public readonly selectId = input<string>(`hlm-native-select-${HlmNativeSelect._id++}`);
 
   public readonly selectClass = input<ClassValue>('');
+
+  // Lumen: passed to the inner <select>, which is the labelled control.
+  public readonly ariaDescribedby = input<string | null>(null, { alias: 'aria-describedby' });
+  public readonly autocomplete = input<string | null>(null);
+  public readonly required = input<boolean, BooleanInput>(false, { transform: booleanAttribute });
 
   protected readonly _computedSelectClass = computed(() =>
     hlm(

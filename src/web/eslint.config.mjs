@@ -123,7 +123,7 @@ export default [
       // inside), labelled by the <label> around them; the rule only knows native controls.
       '@angular-eslint/template/label-has-associated-control': [
         'error',
-        { controlComponents: ['hlm-checkbox', 'hlm-switch'] },
+        { controlComponents: ['hlm-checkbox', 'hlm-radio', 'hlm-switch'] },
       ],
     },
   },
