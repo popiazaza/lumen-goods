@@ -5,7 +5,7 @@
 } @else {
   @let q = query();
   <form class="filters" aria-label="Filter orders" (submit)="$event.preventDefault()">
-    <mat-form-field subscriptSizing="dynamic" floatLabel="always">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" floatLabel="always">
       <mat-label>Status</mat-label>
       <mat-select
         multiple
@@ -18,7 +18,7 @@
         }
       </mat-select>
     </mat-form-field>
-    <mat-form-field subscriptSizing="dynamic">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
       <mat-label>Placed from</mat-label>
       <input
         matInput
@@ -29,7 +29,7 @@
         (change)="setDay('from', $event)"
       />
     </mat-form-field>
-    <mat-form-field subscriptSizing="dynamic">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
       <mat-label>Placed to</mat-label>
       <input
         matInput

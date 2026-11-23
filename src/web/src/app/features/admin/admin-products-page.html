@@ -14,7 +14,7 @@
   @let q = query();
   <div class="filters">
     <form class="search" role="search" (submit)="submitSearch($event)">
-      <mat-form-field subscriptSizing="dynamic">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>Search name or SKU</mat-label>
         <input matInput type="search" name="q" [formControl]="search" />
       </mat-form-field>
@@ -23,7 +23,7 @@
         Search
       </button>
     </form>
-    <mat-form-field subscriptSizing="dynamic">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
       <mat-label>Status</mat-label>
       <mat-select [value]="q.status" (selectionChange)="setStatus($event.value)">
         @for (option of statusOptions; track option.value) {
@@ -31,7 +31,7 @@
         }
       </mat-select>
     </mat-form-field>
-    <mat-form-field subscriptSizing="dynamic">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
       <mat-label>Category</mat-label>
       <mat-select [value]="q.category ?? ''" (selectionChange)="setCategory($event.value)">
         <mat-option value="">All categories</mat-option>

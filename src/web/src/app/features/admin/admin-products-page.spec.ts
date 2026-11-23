@@ -10,6 +10,7 @@ import {
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
+import { MatFormFieldHarness } from '@angular/material/form-field/testing';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -115,6 +116,15 @@ describe('AdminProductsPage', () => {
 
     await expect(status.getValueText()).resolves.toBe('Inactive');
     await expect(category.getValueText()).resolves.toBe('Home');
+  });
+
+  it('uses the shop’s outlined fields for its filters', async () => {
+    await open('/admin/products');
+
+    const fields = await loader.getAllHarnesses(MatFormFieldHarness);
+    const appearances = await Promise.all(fields.map((field) => field.getAppearance()));
+
+    expect(new Set(appearances)).toStrictEqual(new Set(['outline']));
   });
 
   it('searches on submit and filters by status, each starting at page 1', async () => {

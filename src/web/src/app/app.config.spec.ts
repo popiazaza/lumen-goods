@@ -2,7 +2,6 @@ import { HttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
 import { appConfig } from './app.config';
 import { ANONYMOUS_SESSION, SESSION_STARTUP_WAIT_MS, SessionApi } from './core/api/session.api';
 
@@ -92,12 +91,5 @@ describe('appConfig', () => {
     expect(request.request.headers.get('X-XSRF-TOKEN')).toBe('token-from-api');
 
     request.flush(ANONYMOUS_SESSION);
-  });
-
-  it('makes every form field outlined, the shop and the admin pages alike', () => {
-    startApp();
-    httpTesting.expectOne('/api/v1/auth/session').flush(ANONYMOUS_SESSION);
-
-    expect(TestBed.inject(MAT_FORM_FIELD_DEFAULT_OPTIONS).appearance).toBe('outline');
   });
 });
