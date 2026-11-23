@@ -126,18 +126,6 @@ export const EMPTY_CART: CartDto = {
 };
 
 /**
-422: the product is unknown, no longer sold or out of stock (`reason` says which).
-*/
-export const CART_PRODUCT_UNAVAILABLE_PROBLEM = 'urn:lumen:problem:cart-product-unavailable';
-/**
-422: the line would go above 10 or the stock left (`maxQuantity`, `inCart`).
-*/
-export const CART_QUANTITY_LIMIT_PROBLEM = 'urn:lumen:problem:cart-quantity-limit';
-/**
-404: the line is gone (removed in another tab).
-*/
-export const CART_LINE_NOT_FOUND_PROBLEM = 'urn:lumen:problem:cart-line-not-found';
-/**
  * 409: the guest cart this request's cookie named is gone, merged into an account by a sign-in
  * (another tab) that raced the request. Read `GET /cart` again (now the customer's) and retry.
  */

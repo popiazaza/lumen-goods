@@ -4,8 +4,10 @@ import { adminRoutes } from './features/admin/admin.routes';
 import { checkoutRoutes } from './features/checkout/checkout.routes';
 import { ordersRoutes } from './features/orders/orders.routes';
 
-// Every page is lazy (`loadComponent`); the child route tables are plain arrays so guards
-// (signed-in for checkout and orders, admin role for /admin) can be added on the parents.
+// Every page is lazy (`loadComponent`); the child route tables are plain arrays so guards can be
+// added on the parents (admin role for /admin here; checkout.routes.ts adds signed-in for checkout).
+// The order pages have no guard: they read the API and show their own sign-in prompt on a 401, which
+// also covers a session that ends while an order page is open.
 export const routes: Routes = [
   {
     path: '',
