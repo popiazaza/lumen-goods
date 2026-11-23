@@ -10,6 +10,7 @@ import {
   SOCKS_LINE,
   aCardPayment,
   aSettledOrderDetail,
+  anOrder,
   anOrderDetail,
   anOrderLine,
 } from '../../testing/order-fixtures';
@@ -252,6 +253,12 @@ describe('OrderDetailPage', () => {
     );
 
     expect(text(summary(), '.method')).toBe('Lumen wallet');
+  });
+
+  it('says Total, not Total charged, while nothing has been charged', async () => {
+    await show(anOrder());
+
+    expect(row(summary(), '.total')).toBe('Total $67.46');
   });
 
   it('refreshes every few seconds while a line is waiting, then stops (BR-ORD-02)', async () => {

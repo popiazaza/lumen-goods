@@ -15,7 +15,7 @@
       <dd>{{ o.totals.tax | currency }}</dd>
     </div>
     <div class="total">
-      <dt>Total charged</dt>
+      <dt>{{ isPaid() ? 'Total charged' : 'Total' }}</dt>
       <dd>{{ o.totals.total | currency }}</dd>
     </div>
     @if (o.totals.refunded > 0) {
