@@ -3,19 +3,27 @@
 @use '@angular/cdk';
 @use '@angular/material' as mat;
 @use './styles/theme-colors' as lumen;
+// Self-hosted variable fonts (OFL), bundled from npm and served from our own origin: no third-party
+// request, and the CSP's font-src 'self' holds. unicode-range means a browser fetches only the
+// subsets a page uses (Latin: about 50 KB for Inter, 40 KB for Fraunces).
+@use '@fontsource-variable/inter/wght.css' as inter;
+@use '@fontsource-variable/fraunces/wght.css' as fraunces;
 
 // `.cdk-visually-hidden`: text for screen readers only.
 @include cdk.a11y-visually-hidden();
 
-// System font stack: no web-font download, Roboto where the OS ships it.
+// Inter for everything people read and compare (tabular figures for prices); Fraunces, a soft
+// serif, for the wordmark and page and section headings only, through --lg-font-heading. The
+// fallbacks cover the moment before the fonts load (font-display: swap).
 $font-family:
-  roboto,
+  'Inter Variable',
   system-ui,
   -apple-system,
   'Segoe UI',
   'Helvetica Neue',
   arial,
   sans-serif;
+$heading-family: 'Fraunces Variable', georgia, 'Times New Roman', serif;
 
 html {
   height: 100%;
@@ -42,6 +50,7 @@ html {
     )
   );
 
+  --lg-font-heading: #{$heading-family};
   --lg-space-1: 4px;
   --lg-space-2: 8px;
   --lg-space-3: 12px;
@@ -80,6 +89,7 @@ h1 {
   margin: 0 0 var(--lg-space-6);
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-headline-medium);
+  font-family: var(--lg-font-heading);
 
   // Headings receive programmatic focus after navigation; no ring for that.
   &:focus {
