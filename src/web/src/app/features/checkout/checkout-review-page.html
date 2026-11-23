@@ -1,6 +1,8 @@
 <app-checkout-steps current="review" />
 <h1>Review your order</h1>
 
+<app-awaiting-payment-notice />
+
 @if (changed(); as changed) {
   <div #changesBanner class="banner warning changed" role="alert" tabindex="-1">
     <mat-icon svgIcon="warning" aria-hidden="true" />

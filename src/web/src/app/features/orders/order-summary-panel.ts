@@ -52,6 +52,23 @@ export class OrderSummaryPanel {
     return payment ? paymentMethodLabel(payment) : '';
   });
 
+  /**
+   * `totals.refunded` counts every refund recorded, so it says which of them are still on their
+   * way back (pending, or failed and being retried): the refunds' own statuses, from the API.
+   */
+  protected readonly refundedLabel = computed(() => {
+    const { refunds } = this.order();
+    const paidBack = refunds.filter((refund) => refund.status === 'succeeded').length;
+    if (paidBack === refunds.length) {
+      return 'Refunded';
+    }
+    // Admins see a failed refund as failed, as in the refunds list below; customers see it pending.
+    if (this.admin() && refunds.some((refund) => refund.status === 'failed')) {
+      return paidBack === 0 ? 'Refund failed' : 'Refunded (some failed)';
+    }
+    return paidBack === 0 ? 'Refund pending' : 'Refunded (some pending)';
+  });
+
   protected readonly paymentStatus = paymentStatusView;
 
   protected readonly refundStatus = refundStatusView;

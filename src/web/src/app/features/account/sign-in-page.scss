@@ -1,0 +1,12 @@
+@use '../../../styles/alert';
+
+// The session ended under the shopper (signed out in another tab, or it expired).
+.signed-out {
+  @include alert.alert(info);
+
+  margin-bottom: var(--lg-space-4);
+
+  & p {
+    margin: 0;
+  }
+}

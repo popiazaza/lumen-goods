@@ -431,6 +431,11 @@ export class CheckoutPaymentPage {
       .pipe(takeUntilDestroyed())
       .subscribe(() => this.cardForm.controls.cvc.updateValueAndValidity({ emitEvent: false }));
 
+    // The error summary lists only what is still wrong: a corrected field leaves it at once, and
+    // the summary goes when none is left. It never grows or rewords an item before the next Pay, so
+    // its alert region does not interrupt someone typing.
+    this.cardForm.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.refreshProblems());
+
     // Countdown: one announcement at a minute left and one at expiry, never every second.
     effect(() => {
       if (this.phase() !== 'code') {
@@ -593,6 +598,8 @@ export class CheckoutPaymentPage {
   private showOutcome(payment: PaymentStatusDto): void {
     this.inProgressNotice.set('');
     this.outcome.set(outcomeOf(payment));
+    // The security code is asked again for every attempt, as card forms do; the rest stays.
+    this.cardForm.controls.cvc.reset();
     if (payment.method === 'wallet') {
       // A declined wallet payment means the balance moved since it was read (another tab), so
       // show the balance now and offer the card, which is what the decline message suggests.
@@ -814,14 +821,37 @@ export class CheckoutPaymentPage {
   }
 
   private showProblems(): void {
+    this.problems.set(this.problemsOf(CARD_FIELDS));
+    afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
+  }
+
+  /**
+  The summary's fields that are still invalid, with their messages as they read now.
+  */
+  private refreshProblems(): void {
+    const shown = this.problems();
+    if (shown.length === 0) {
+      return;
+    }
+    const stillWrong = shown.filter((problem) =>
+      CARD_FIELDS.some(
+        (field) =>
+          CARD_FIELD_IDS[field] === problem.fieldId && this.cardForm.controls[field].invalid
+      )
+    );
+    if (stillWrong.length !== shown.length) {
+      this.problems.set(stillWrong);
+    }
+  }
+
+  private problemsOf(fields: readonly CardField[]): FormProblem[] {
     const serverErrors = this.serverErrors();
-    this.problems.set(
-      CARD_FIELDS.filter((field) => this.cardForm.controls[field].invalid).map((field) => ({
+    return fields
+      .filter((field) => this.cardForm.controls[field].invalid)
+      .map((field) => ({
         fieldId: CARD_FIELD_IDS[field],
         message: cardFieldError(this.cardForm, field, serverErrors),
-      }))
-    );
-    afterNextRender({ write: () => this.summary()?.focus() }, { injector: this.injector });
+      }));
   }
 
   // ---- Loading and following the payment ------------------------------------------------------
@@ -892,7 +922,7 @@ export class CheckoutPaymentPage {
   }
 
   /**
-  Focuses the form again after a decline; everything typed is still there.
+  Focuses the form again after a decline; everything typed is still there but the security code.
   */
   protected tryAgain(): void {
     this.outcome.set(null);

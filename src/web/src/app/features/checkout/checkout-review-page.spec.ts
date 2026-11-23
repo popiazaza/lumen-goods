@@ -15,10 +15,11 @@ import {
   CheckoutPreviewDto,
   SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM,
 } from '../../core/api/checkout.api';
+import { SessionApi } from '../../core/api/session.api';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../core/icons/app-icons';
-import { US_ADDRESS, aCart, aPreview } from '../../testing/fixtures';
-import { anOrder } from '../../testing/order-fixtures';
+import { CUSTOMER_SESSION, US_ADDRESS, aCart, aPreview } from '../../testing/fixtures';
+import { anOrder, anOrderDetail } from '../../testing/order-fixtures';
 import { CheckoutReviewPage } from './checkout-review-page';
 
 @Component({ selector: 'app-stub-page', template: '<h1>Elsewhere</h1>' })
@@ -314,6 +315,33 @@ describe('CheckoutReviewPage', () => {
 
     placeButton().click();
     http.expectNone('/api/v1/checkout/orders');
+  });
+
+  it('points to the payment of the order this checkout placed, which holds its own items', async () => {
+    const ready = TestBed.inject(SessionApi).ready();
+    http.expectOne('/api/v1/auth/session').flush(CUSTOMER_SESSION);
+    await ready;
+    store.setAddress(US_ADDRESS);
+    store.setShippingMethod('express');
+    store.setOrderNumber('LG-WAIT1');
+    fixture = TestBed.createComponent(CheckoutReviewPage);
+    fixture.detectChanges();
+    await vi.waitFor(() =>
+      http
+        .expectOne(PREVIEW_URL)
+        .flush(aPreview({ blockers: [aChange({ kind: 'unavailable', message: 'Out of stock' })] }))
+    );
+    await vi.waitFor(() =>
+      http
+        .expectOne('/api/v1/orders/LG-WAIT1')
+        .flush(anOrderDetail({ number: 'LG-WAIT1', status: 'awaiting_payment', canPay: true }))
+    );
+    await fixture.whenStable();
+
+    expect(text('app-awaiting-payment-notice')).toContain('Order LG-WAIT1 is waiting for payment');
+    expect(host().querySelector(':scope app-awaiting-payment-notice a')?.getAttribute('href')).toBe(
+      '/checkout/payment?order=LG-WAIT1'
+    );
   });
 
   it('lists the API’s reasons when it refuses the address (400), with a way to change it', async () => {

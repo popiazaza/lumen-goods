@@ -22,6 +22,7 @@ import {
   problemTypeOf,
 } from '../../core/api/problem-details';
 import { SessionApi } from '../../core/api/session.api';
+import { SIGNED_OUT_REASON } from '../../core/api/signed-out.interceptor';
 import { safeReturnUrl } from '../../core/routing/return-url';
 import { ErrorSummary, FormProblem } from '../../shared/forms/error-summary';
 import { AfterSignIn } from './after-sign-in';
@@ -45,7 +46,7 @@ Sign in (`/sign-in?returnUrl=`): email and password; required to check out.
     ErrorSummary,
   ],
   templateUrl: './sign-in-page.html',
-  styleUrl: './account-form.scss',
+  styleUrls: ['./account-form.scss', './sign-in-page.scss'],
 })
 export class SignInPage {
   private readonly sessionApi = inject(SessionApi);
@@ -61,7 +62,14 @@ export class SignInPage {
   */
   readonly returnUrl = input<string>();
 
+  /**
+  Why the shopper is here: `signed-out` when the session ended under them (`signedOutInterceptor`).
+  */
+  readonly reason = input<string>();
+
   protected readonly session = this.sessionApi.session;
+
+  protected readonly signedOut = computed(() => this.reason() === SIGNED_OUT_REASON);
 
   protected readonly forCheckout = computed(() =>
     safeReturnUrl(this.returnUrl()).startsWith('/checkout')

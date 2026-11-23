@@ -31,6 +31,7 @@ describe('Header account area', () => {
   const toggle = () =>
     host().querySelector<HTMLButtonElement>('button[aria-controls="account-panel"]');
   const panel = () => host().querySelector<HTMLElement>('#account-panel');
+  const searchBox = () => host().querySelector<HTMLInputElement>('#site-search');
 
   const render = async (session: Session): Promise<void> => {
     TestBed.configureTestingModule({
@@ -40,6 +41,7 @@ describe('Header account area', () => {
           { path: 'cart', component: StubPage },
           { path: 'orders', component: StubPage },
           { path: 'admin', component: StubPage },
+          { path: 'admin/products', component: StubPage },
           { path: 'sign-in', component: StubPage },
         ]),
         provideHttpClient(),
@@ -137,10 +139,26 @@ describe('Header account area', () => {
     expect(focus).toHaveBeenCalledWith();
   });
 
+  it('shows the catalogue’s search in the search box, never another page’s query', async () => {
+    await render(ADMIN_SESSION);
+    const router = TestBed.inject(Router);
+
+    await router.navigateByUrl('/?q=tote');
+    await fixture.whenStable();
+
+    expect(searchBox()?.value).toBe('tote');
+
+    await router.navigateByUrl('/admin/products?q=cotton%20market');
+    await fixture.whenStable();
+
+    expect(searchBox()?.value).toBe('');
+  });
+
   it('signs out: forgets the checkout, shows the guest cart and goes home', async () => {
     sessionStorage.setItem(
       CHECKOUT_STORAGE_KEY,
       JSON.stringify({
+        owner: CUSTOMER_SESSION.email,
         checkoutKey: 'k',
         address: US_ADDRESS,
         shippingMethod: null,

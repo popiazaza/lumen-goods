@@ -34,6 +34,7 @@ import {
 } from '../../core/api/problem-details';
 import { CartStateService } from '../../core/cart/cart-state.service';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
+import { AwaitingPaymentNotice } from './awaiting-payment-notice';
 import { CheckoutSteps } from './checkout-steps';
 import { stateName } from './us-address';
 
@@ -59,7 +60,7 @@ const SELLER_LIST = /* @__PURE__ */ new Intl.ListFormat('en-US', { type: 'conjun
  */
 @Component({
   selector: 'app-checkout-review-page',
-  imports: [CurrencyPipe, RouterLink, MatButton, MatIcon, CheckoutSteps],
+  imports: [CurrencyPipe, RouterLink, MatButton, MatIcon, AwaitingPaymentNotice, CheckoutSteps],
   templateUrl: './checkout-review-page.html',
   styleUrls: ['./checkout.scss', './checkout-review-page.scss'],
 })

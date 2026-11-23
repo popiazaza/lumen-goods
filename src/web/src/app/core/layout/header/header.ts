@@ -9,6 +9,7 @@ import { MatIcon } from '@angular/material/icon';
 import {
   IsActiveMatchOptions,
   NavigationEnd,
+  PRIMARY_OUTLET,
   Router,
   RouterLink,
   RouterLinkActive,
@@ -126,7 +127,11 @@ export class Header {
         this.accountOpen.set(false);
         this.currentUrl.set(event.urlAfterRedirects);
         // Keep the field in sync with the URL so Back and shared links show the current search.
-        const q = this.router.parseUrl(event.urlAfterRedirects).queryParamMap.get('q') ?? '';
+        // Only the catalogue's own `q` (the root path): other pages, such as the admin product
+        // search, have queries of their own.
+        const url = this.router.parseUrl(event.urlAfterRedirects);
+        const isCatalogue = url.root.children[PRIMARY_OUTLET] === undefined;
+        const q = isCatalogue ? (url.queryParamMap.get('q') ?? '') : '';
         this.searchForm.controls.q.setValue(q, { emitEvent: false });
       });
   }

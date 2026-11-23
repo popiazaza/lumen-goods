@@ -7,7 +7,12 @@
       <a [routerLink]="continueUrl()">Continue</a>
     </p>
   } @else {
-    @if (forCheckout()) {
+    @if (signedOut()) {
+      <div class="signed-out" role="status">
+        <mat-icon svgIcon="info" aria-hidden="true" />
+        <p><strong>You were signed out.</strong> Sign in to continue; your cart is saved.</p>
+      </div>
+    } @else if (forCheckout()) {
       <p class="intro">Sign in to check out. Your cart is saved and comes with you.</p>
     }
 

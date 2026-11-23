@@ -69,7 +69,12 @@ export default [
         'error',
         {
           allow: {
-            '@angular/common/http': ['provideHttpClient', 'withFetch', 'withXsrfConfiguration'],
+            '@angular/common/http': [
+              'provideHttpClient',
+              'withFetch',
+              'withInterceptors',
+              'withXsrfConfiguration',
+            ],
             '@angular/core': [
               'Component',
               'Directive',

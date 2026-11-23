@@ -125,6 +125,7 @@ describe('app routes', () => {
     sessionStorage.setItem(
       CHECKOUT_STORAGE_KEY,
       JSON.stringify({
+        owner: CUSTOMER_SESSION.email,
         checkoutKey: 'key-1',
         address: US_ADDRESS,
         shippingMethod: 'standard',

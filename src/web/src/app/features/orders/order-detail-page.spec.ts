@@ -62,6 +62,7 @@ describe('OrderDetailPage', () => {
     line: itemAt(lineBadges(), 1).text,
     refund: text(summary(), '.refunds li app-status-badge'),
     updating: text(host(), '.updating'),
+    total: row(summary(), '.refunded'),
   });
 
   /**
@@ -217,7 +218,9 @@ describe('OrderDetailPage', () => {
       struckFee: '$4.99',
       lineTotal: 'You don’t pay: $16.22',
     });
-    expect(text(host(), '.notice')).toContain('1 item couldn’t be supplied.');
+    expect(text(host(), '.notice')).toBe(
+      '1 item couldn’t be supplied. You don’t pay for it: the refund goes back to how you paid. The rest of your order goes ahead.'
+    );
     expect({
       refunded: row(summary(), '.refunded'),
       netPaid: row(summary(), '.refunded + .total'),
@@ -235,6 +238,19 @@ describe('OrderDetailPage', () => {
 
     expect(refund).toContain('$22.51');
     expect(refund).toContain('to Visa ending 1111');
+  });
+
+  it('does not say the rest goes ahead when nothing in the order could be supplied', async () => {
+    const order = oneLineOrder({
+      status: 'rejected',
+      statusText: 'Not supplied, refund pending',
+      refundedAmount: 17.52,
+    });
+    await show({ ...order, status: 'refunded', statusText: 'Refund pending' });
+
+    expect(text(host(), '.notice')).toBe(
+      '1 item couldn’t be supplied. You don’t pay for it: the refund goes back to how you paid.'
+    );
   });
 
   it('summarises the payment: card brand and last 4, or the wallet', async () => {
@@ -459,6 +475,7 @@ describe('OrderDetailPage', () => {
       refund: 'Pending',
       updating:
         'Your refund is on its way back to your Visa ending 1111. This page updates by itself.',
+      total: 'Refund pending −$22.51',
     });
 
     // A failed attempt is retried by the API: still pending for the customer, still refreshing.
@@ -470,6 +487,7 @@ describe('OrderDetailPage', () => {
       line: 'Not supplied, refund pending',
       refund: 'Pending',
       updating: expect.stringContaining('Your refund is on its way back'),
+      total: 'Refund pending −$22.51',
     });
 
     await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
@@ -480,6 +498,7 @@ describe('OrderDetailPage', () => {
       line: 'Not supplied, refunded $22.51',
       refund: 'Refunded',
       updating: '',
+      total: 'Refunded −$22.51',
     });
     expect(announcer.announce).toHaveBeenCalledWith(
       'Merino Trail Socks: Not supplied, refunded $22.51',
