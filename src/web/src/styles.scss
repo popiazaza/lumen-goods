@@ -120,6 +120,22 @@ mat-icon > svg {
   display: block;
 }
 
+// A page's first load, on every page that has no skeleton: an indeterminate bar over a line that
+// says what is loading. The wrapper is the status region; the bar itself is decoration.
+.page-loading {
+  display: grid;
+  max-width: 24rem;
+  margin: var(--lg-space-8) auto;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+  gap: var(--lg-space-3);
+  text-align: center;
+
+  & p {
+    margin: 0;
+  }
+}
+
 .price {
   font-variant-numeric: tabular-nums;
   font-weight: 600;

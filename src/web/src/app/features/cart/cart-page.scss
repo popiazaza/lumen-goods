@@ -1,4 +1,6 @@
 @use '../../../styles/alert';
+@use '../../../styles/totals';
+@use '../../../styles/state';
 
 :host {
   display: block;
@@ -56,21 +58,8 @@
   }
 }
 
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--lg-space-2);
-
-  & > mat-icon {
-    width: 48px;
-    height: 48px;
-    color: var(--mat-sys-on-surface-variant);
-  }
-
-  & p {
-    margin: 0;
-  }
+.state {
+  @include state.state;
 }
 
 .layout {
@@ -185,22 +174,51 @@
   justify-content: space-between;
 }
 
+// Drawn like the product page's outlined quantity field, a size smaller: the same corner, outline
+// and focus, which goes on the whole control rather than a box inside it.
 .stepper {
   display: inline-flex;
   align-items: center;
+  padding: var(--lg-space-1);
   border: 1px solid var(--mat-sys-outline);
-  border-radius: 24px;
+  border-radius: var(--mat-sys-corner-extra-small);
+
+  &:hover {
+    border-color: var(--mat-sys-on-surface);
+  }
+
+  &:focus-within {
+    border-color: var(--mat-sys-primary);
+    box-shadow: inset 0 0 0 1px var(--mat-sys-primary);
+  }
 
   & input {
     width: 3rem;
     height: 40px;
+    padding: 0;
     border: 0;
     appearance: textfield;
     background: transparent;
     color: var(--mat-sys-on-surface);
     font: var(--mat-sys-body-large);
     text-align: center;
+
+    &:focus-visible {
+      outline: none;
+    }
+
+    // The buttons either side step the quantity; the browser's own arrows only crowd the number.
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      margin: 0;
+      appearance: none;
+    }
   }
+}
+
+// The first action lines up with the stepper's edge, not with its own padding.
+.line-actions > .remove:first-child {
+  margin-left: calc(-1 * var(--lg-space-3));
 }
 
 .summary {
@@ -222,20 +240,5 @@
 }
 
 .totals {
-  display: grid;
-  margin: 0;
-  gap: var(--lg-space-2) var(--lg-space-4);
-  grid-template-columns: 1fr auto;
-
-  & dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-
-  & .grand {
-    padding-top: var(--lg-space-2);
-    border-top: 1px solid var(--mat-sys-outline-variant);
-    font: var(--mat-sys-title-medium);
-  }
+  @include totals.totals;
 }
