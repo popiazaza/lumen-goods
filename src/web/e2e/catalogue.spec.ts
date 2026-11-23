@@ -23,6 +23,28 @@ const inFilters = async (
 
 test.describe('catalogue', () => {
   test(
+    'opens on Featured: the three shops take turns, so page 1 shows all of them',
+    { tag: ['@BR-CAT-03', '@phone'] },
+    async ({ page }) => {
+      const sellers = page.getByRole('main').getByText(/^Sold by /u);
+
+      await page.goto('/');
+      await expect(page.getByRole('combobox', { name: 'Sort by' })).toHaveText(/Featured/u);
+      // Not whichever partner synced last, as a "newest" first page would be.
+      await expect
+        .poll(async () => {
+          const names = await sellers.allTextContents();
+          return names.slice(0, 3);
+        })
+        .toStrictEqual([
+          `Sold by ${SHOPS.lumen}`,
+          `Sold by ${SHOPS.harbor}`,
+          `Sold by ${SHOPS.kestrel}`,
+        ]);
+    }
+  );
+
+  test(
     'search, seller filters, sort and page are kept in the URL and survive a reload',
     { tag: ['@BR-CAT-03', '@phone'] },
     async ({ page, isMobile }) => {

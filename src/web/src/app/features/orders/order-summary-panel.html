@@ -72,7 +72,13 @@
             @for (line of refundedLines(refund); track line.id) {
               <div>
                 <dt>{{ line.name }}</dt>
-                <dd>{{ line.refundedAmount | currency }}</dd>
+                <dd>{{ line.subtotal | currency }}</dd>
+              </div>
+            }
+            @if (refund.taxAmount > 0) {
+              <div>
+                <dt>Tax</dt>
+                <dd>{{ refund.taxAmount | currency }}</dd>
               </div>
             }
             @if (refund.shippingAmount > 0) {

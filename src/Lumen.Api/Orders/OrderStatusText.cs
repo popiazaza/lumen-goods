@@ -28,7 +28,9 @@ public static class OrderStatusText
         OrderStatus.AwaitingPayment => paymentUnsettled ? "Confirming your payment" : "Awaiting payment",
         OrderStatus.PaymentProcessing => awaitingOneTimeCode ? "Waiting for your one-time code" : "Confirming your payment",
         OrderStatus.Paid => "Processing",
-        OrderStatus.Completed => "Completed",
+        // Every line is confirmed by its seller; nothing has shipped (shipping is out of scope, A-45), so not "Completed",
+        // which reads as delivered.
+        OrderStatus.Completed => "Confirmed",
         OrderStatus.PartiallyRefunded => refundPending ? "Partial refund pending" : "Partially refunded",
         OrderStatus.Refunded => refundPending ? "Refund pending" : "Refunded",
         OrderStatus.Expired => "Expired",

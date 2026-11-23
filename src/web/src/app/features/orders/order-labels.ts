@@ -62,7 +62,7 @@ export const ADMIN_ORDER_STATUS_LABELS: Readonly<Record<OrderStatus, string>> = 
   awaiting_payment: 'Awaiting payment',
   payment_processing: 'Payment in progress',
   paid: 'Paid, in progress',
-  completed: 'Completed',
+  completed: 'Confirmed',
   partially_refunded: 'Partially refunded',
   refunded: 'Refunded',
   expired: 'Expired',

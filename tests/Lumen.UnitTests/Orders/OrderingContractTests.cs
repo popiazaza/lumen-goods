@@ -278,7 +278,8 @@ public sealed class OrderingContractTests
             new ShippingAddressDto("Ada Lovelace", "1200 NW Naito Pkwy", null, "Portland", "OR", "97209", "US"),
             ShippingMethod.Express,
             new PaymentSummaryDto(Guid.NewGuid(), PaymentMethod.Wallet, PaymentStatus.Succeeded, 92.98m, null, null, At.AddMinutes(1)),
-            [new RefundDto(Guid.NewGuid(), 40.03m, RefundStatus.Succeeded, "Not supplied by Kestrel Outfitters", [line.Id], 4.99m, At, At)],
+            [new RefundDto(Guid.NewGuid(), 40.03m, RefundStatus.Succeeded, "Not supplied by Kestrel Outfitters", [line.Id], 4.99m, At, At,
+                [new RefundLineDto(line.Id, 32.44m, 2.60m, 35.04m)], 2.60m)],
             CanPay: false,
             IsUpdating: false,
             AwaitingOneTimeCode: false);

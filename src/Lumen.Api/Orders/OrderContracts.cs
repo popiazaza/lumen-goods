@@ -40,7 +40,7 @@ public sealed record OrderSummaryDto(
 /// are grouped by seller under their shipment, each with its own status (BR-ORD-02) and any refund (BR-ORD-03).
 /// The confirmation and detail pages poll while <see cref="IsUpdating"/>.
 /// </summary>
-/// <param name="StatusText">Customer wording for <see cref="Status"/> (paid is shown as "Processing").</param>
+/// <param name="StatusText">Customer wording for <see cref="Status"/> (paid is shown as "Processing", completed as "Confirmed": every seller confirmed, nothing shipped yet).</param>
 /// <param name="HoldExpiresUtc">Until when the order can be paid (15-minute price and stock hold).</param>
 /// <param name="CanPay">The order awaits payment, its hold lasts and attempts are left: show the payment step.</param>
 /// <param name="IsUpdating">
@@ -146,6 +146,8 @@ public sealed record PaymentSummaryDto(
 /// <param name="Status">pending | succeeded | failed (a failed refund is retried; it is still owed).</param>
 /// <param name="LineIds">The order lines it covers (<see cref="OrderLineDto.Id"/>).</param>
 /// <param name="ShippingAmount">The seller's shipping fee it pays back (every line of that seller was rejected); 0.00 when none.</param>
+/// <param name="Lines">What it pays back per line, split into the line's subtotal and its tax, in <see cref="LineIds"/> order.</param>
+/// <param name="TaxAmount">The tax it pays back: the sum of its lines' tax. Amount = the lines' subtotals + TaxAmount + ShippingAmount.</param>
 public sealed record RefundDto(
     Guid Id,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Amount,
@@ -154,4 +156,14 @@ public sealed record RefundDto(
     IReadOnlyList<Guid> LineIds,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal ShippingAmount,
     DateTime CreatedUtc,
-    DateTime? CompletedUtc);
+    DateTime? CompletedUtc,
+    IReadOnlyList<RefundLineDto> Lines,
+    [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal TaxAmount);
+
+/// <summary>One order line a refund pays back (BR-ORD-03): its subtotal and its own tax, labelled apart for the customer.</summary>
+/// <param name="Amount">Subtotal + tax: the line's <see cref="OrderLineDto.RefundedAmount"/>.</param>
+public sealed record RefundLineDto(
+    Guid LineId,
+    [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Subtotal,
+    [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Tax,
+    [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Amount);

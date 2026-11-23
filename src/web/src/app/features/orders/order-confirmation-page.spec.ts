@@ -182,6 +182,8 @@ describe('OrderConfirmationPage', () => {
             reason: 'Not supplied by Kestrel Outfitters',
             lineIds: [socks.id],
             shippingAmount: 4.99,
+            lines: [{ lineId: socks.id, subtotal: 16.22, tax: 1.3, amount: 17.52 }],
+            taxAmount: 1.3,
             createdUtc: '2026-11-20T08:05:00Z',
             completedUtc: status === 'succeeded' ? '2026-11-20T08:06:00Z' : null,
           },

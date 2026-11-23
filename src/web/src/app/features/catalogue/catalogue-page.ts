@@ -22,7 +22,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { MatSelect } from '@angular/material/select';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
-import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
+import { httpStatusOf, problemMessage, validationErrorsOf } from '../../core/api/problem-details';
 import { PRODUCT_SORTS, ProductPage, ProductSort, ProductsApi } from '../../core/api/products.api';
 import { Seller } from '../../core/api/sellers.api';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
@@ -164,9 +164,17 @@ export class CataloguePage {
 
   protected readonly isBadRequest = computed(() => httpStatusOf(this.results.error()) === 400);
 
-  protected readonly errorMessage = computed(() =>
-    problemMessage(this.results.error(), 'Some filters in this link are not valid.')
-  );
+  /**
+   * What is wrong with the link: the API's own messages for the parameters it rejected ("minPrice
+   * cannot be greater than maxPrice."), else its detail or title.
+   */
+  protected readonly errorMessage = computed(() => {
+    const error = this.results.error();
+    const messages = Object.values(validationErrorsOf(error)).flat();
+    return messages.length > 0
+      ? messages.join(' ')
+      : problemMessage(error, 'Some filters in this link are not valid.');
+  });
 
   protected readonly countText = computed(() => {
     const page = this.page();

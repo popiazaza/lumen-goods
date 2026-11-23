@@ -67,9 +67,15 @@ if (app.Configuration.GetValue("Docs:Enabled", app.Environment.IsDevelopment()))
 {
     app.MapOpenApi("/api/openapi/{documentName}.json");
     // No default fonts: Scalar would fetch them from its CDN, which the CSP (font-src 'self') blocks; system fonts it is.
+    // No vendor chrome either: the "Ask AI" agent, MCP and telemetry call Scalar's services, and the developer tools
+    // toolbar (deploy, SDK generation) advertises Scalar's products; this page documents Lumen's API and nothing else.
     app.MapScalarApiReference("/api/docs", options => options
         .WithOpenApiRoutePattern("/api/openapi/{documentName}.json")
-        .DisableDefaultFonts());
+        .DisableDefaultFonts()
+        .DisableAgent()
+        .DisableMcp()
+        .DisableTelemetry()
+        .HideDeveloperTools());
 }
 
 await app.Services.InitializeDatabaseAsync(app.Lifetime.ApplicationStopping);

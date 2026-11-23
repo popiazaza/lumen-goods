@@ -80,7 +80,13 @@ public sealed class OpenApiDocumentTests(LumenApiFactory factory)
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.Should().Be("text/html");
-        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).Should().Contain("\"url\":\"api/openapi/v1.json\"")
+        var page = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        page.Should().Contain("\"url\":\"api/openapi/v1.json\"")
             .And.Contain("\"withDefaultFonts\":false", "Scalar's CDN fonts would break the font-src 'self' CSP");
+        // No vendor chrome: no "Ask AI" agent, no developer toolbar (deploy, SDK generation), no MCP, no telemetry.
+        page.Should().Contain("\"showDeveloperTools\":\"never\"")
+            .And.MatchRegex("\"agent\":\\{[^}]*\"disabled\":true")
+            .And.MatchRegex("\"mcp\":\\{[^}]*\"disabled\":true")
+            .And.Contain("\"telemetry\":false");
     }
 }

@@ -21,12 +21,12 @@
     </dd>
   </div>
   <div>
-    <dt>Attempts</dt>
+    <dt>Calls (sends + status checks)</dt>
     <dd>{{ order.attempts }}</dd>
   </div>
   @if (order.nextAttemptUtc) {
     <div>
-      <dt>Next attempt</dt>
+      <dt>Next call</dt>
       <dd>{{ order.nextAttemptUtc | date: 'medium' }}</dd>
     </div>
   }

@@ -42,7 +42,7 @@ public sealed class OrderPresentationTests
     [InlineData(OrderStatus.AwaitingPayment, "Awaiting payment")]
     [InlineData(OrderStatus.PaymentProcessing, "Confirming your payment")]
     [InlineData(OrderStatus.Paid, "Processing")]
-    [InlineData(OrderStatus.Completed, "Completed")]
+    [InlineData(OrderStatus.Completed, "Confirmed")]
     [InlineData(OrderStatus.PartiallyRefunded, "Partially refunded")]
     [InlineData(OrderStatus.Refunded, "Refunded")]
     [InlineData(OrderStatus.Expired, "Expired")]

@@ -39,7 +39,11 @@ public sealed class PartnerOrder
     /// <summary>The partner's reason for a rejection (e.g. <c>INSUFFICIENT_STOCK</c>, <c>OUT_OF_STOCK:K-7731</c>) or why it was given up.</summary>
     public string? Reason { get; set; }
 
-    /// <summary>Calls made so far (submits and polls that failed or were answered).</summary>
+    /// <summary>
+    /// Calls to the partner so far: every send (and resend) of the order plus every status check (Kestrel polls its
+    /// ticket until it decides), whatever their outcome. Counted when the job claims the call, so one accepted Kestrel
+    /// order usually shows 1 send + its polls. The admin page labels it "Calls (sends + status checks)".
+    /// </summary>
     public int Attempts { get; set; }
 
     /// <summary>
