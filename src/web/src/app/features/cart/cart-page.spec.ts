@@ -207,6 +207,56 @@ describe('CartPage', () => {
     );
   });
 
+  it('acknowledges every change at once from the banner', async () => {
+    await open(aCart([KESTREL_SOCKS, LUMEN_MUG]));
+
+    button(host(), 'Acknowledge all changes').click();
+    const request = http.expectOne('/api/v1/cart/acknowledge');
+
+    expect(request.request.method).toBe('POST');
+
+    request.flush(
+      aCart([
+        {
+          ...KESTREL_SOCKS,
+          unitPriceSeen: 17.31,
+          notices: { ...GONE_TOTE.notices, unavailable: null },
+        },
+        LUMEN_MUG,
+      ])
+    );
+    await fixture.whenStable();
+
+    expect(host().querySelector('.banner.notices')).toBeNull();
+    expect(announcer.announce).toHaveBeenCalledWith('Noted the changes to your cart.', 'polite');
+  });
+
+  it('offers Acknowledge all only while a change can be accepted', async () => {
+    // Only an unavailable line changed: it stays until it is removed.
+    await open(aCart([LUMEN_MUG, GONE_TOTE], { canCheckout: false }));
+
+    expect(text(host(), '.banner.notices p')).toBe(
+      '1 item in your cart changed since you added it. Check the notes below.'
+    );
+    expect(host().querySelector('.acknowledge-all')).toBeNull();
+  });
+
+  it('says so when Acknowledge all fails, and shows the cart as it is now', async () => {
+    await open(aCart([KESTREL_SOCKS]));
+
+    button(host(), 'Acknowledge all changes').click();
+    http
+      .expectOne('/api/v1/cart/acknowledge')
+      .flush('down', { status: 503, statusText: 'Service Unavailable' });
+    http.expectOne('/api/v1/cart').flush(aCart([KESTREL_SOCKS]));
+    await fixture.whenStable();
+
+    expect(text(host(), '.banner-error')).toBe('We couldn’t note the changes. Try again.');
+    expect(button(host(), 'Acknowledge all changes').getAttribute('aria-disabled')).not.toBe(
+      'true'
+    );
+  });
+
   it('blocks checkout with the reason while a line cannot be bought', async () => {
     await open(aCart([LUMEN_MUG, GONE_TOTE], { canCheckout: false }));
     const checkout = host().querySelector<HTMLButtonElement>(

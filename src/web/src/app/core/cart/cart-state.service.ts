@@ -125,6 +125,13 @@ export class CartStateService {
     return this.track(this.api.acknowledge(lineId));
   }
 
+  /**
+  Accepts the notices of every line at once (`POST /cart/acknowledge`).
+  */
+  acknowledgeAll(): Observable<CartDto> {
+    return this.track(this.api.acknowledgeAll());
+  }
+
   setMergeNotice(message: string | null): void {
     this.merged.set(message);
   }

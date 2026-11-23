@@ -78,6 +78,17 @@ export class CartPage {
     (this.cart()?.lines ?? []).filter((line) => this.lineViews().get(line.id)?.notices.length)
   );
 
+  /**
+   * The banner offers "Acknowledge all" while at least one line has notices the shopper can accept; an unavailable line or a quantity above stock stays until it is fixed.
+   */
+  protected readonly canAcknowledgeAll = computed(() =>
+    this.changedLines().some((line) => this.lineViews().get(line.id)?.canAcknowledge)
+  );
+
+  protected readonly acknowledgingAll = signal(false);
+
+  protected readonly acknowledgeAllError = signal('');
+
   protected readonly blockingCount = computed(
     () => (this.cart()?.lines ?? []).filter((line) => line.blocksCheckout).length
   );
@@ -215,6 +226,26 @@ export class CartPage {
       this.cartState.acknowledge(line.id),
       () => `Noted the changes to ${line.product.name}.`
     );
+  }
+
+  protected acknowledgeAll(): void {
+    if (this.acknowledgingAll()) {
+      return;
+    }
+    this.acknowledgingAll.set(true);
+    this.acknowledgeAllError.set('');
+    this.cartState
+      .acknowledgeAll()
+      .pipe(finalize(() => this.acknowledgingAll.set(false)))
+      .subscribe({
+        next: () => this.say('Noted the changes to your cart.'),
+        error: (error: unknown) => {
+          this.acknowledgeAllError.set(
+            problemMessage(error, 'We couldn’t note the changes. Try again.')
+          );
+          this.cartState.reload().subscribe({ error: noop });
+        },
+      });
   }
 
   protected remove(line: CartLineDto): void {
