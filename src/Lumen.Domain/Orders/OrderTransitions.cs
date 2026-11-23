@@ -46,7 +46,7 @@ public static class OrderTransitions
     /// ticket (Accepted = RECEIVED) and decides later. BR-ORD-04: one never accepted within the deadline is given
     /// up; an accepted one is never given up automatically, because the goods may still ship. When an admin resolves
     /// its line, the partner order is closed in the same step (<see cref="PartnerOrderUpdates.ResolveByAdmin"/>). One
-    /// sent but never answered (Submitted) goes to Confirmed or GivenUp when an admin confirms or rejects its line.
+    /// sent with an unknown outcome (Submitted) goes to Confirmed or GivenUp when an admin confirms or rejects its line.
     /// </summary>
     public static readonly TransitionTable<PartnerOrderStatus> PartnerOrder = new(PartnerOrderStatus.Pending,
     [

@@ -164,7 +164,7 @@ sequenceDiagram
         OJ->>P: POST with the same reference<br/>every time, or poll the ticket
         alt Harbor 201 or 200, Kestrel CONFIRMED
             OJ->>DB: line Confirmed
-        else Harbor 400/409/422, Kestrel 400 or REJECTED, or never reached it in 30 min
+        else Harbor 400/409/422, Kestrel REJECTED or a 400 no earlier send can have reached, or never reached it in 30 min
             OJ->>DB: line Rejected and<br/>Refund Pending
             RJ->>G: refund, key = refund id<br/>(wallet: credit instead)
             RJ->>DB: Refund Succeeded
@@ -235,7 +235,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 |---|---|
 | Conditional `UPDATE ... WHERE` | stock reservation, payment claim, wallet debit |
 | `xmin` row versions | products, carts, orders, payments, partner orders, refunds, wallets |
-| Locks in a fixed order | Place order: the customer row (`FOR NO KEY UPDATE`) before product rows; payment and expiry: the order row (`FOR UPDATE`) before product rows; products by id |
+| Locks in a fixed order | Place order: the customer row (`FOR NO KEY UPDATE`) before product rows; payment and expiry: the order row (the claim's conditional `UPDATE`, or `FOR UPDATE` when recording an outcome or expiring) before product rows; products by id |
 | `FOR UPDATE SKIP LOCKED` + lease | partner order and refund claims |
 | In-process only | sync lock and Harbor token buckets, so one replica (§10) |
 

@@ -43,7 +43,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-23 | Harbor rate limit: fixed 60-second window per key; `Retry-After` = whole seconds to the window reset. Image requests also need the key and count toward the limit (literal reading of "every request") |
 | A-24 | Harbor cursor is opaque to Lumen (the stand-in uses a keyset cursor); `updated_since` is strictly-after; any change (including stock after an order) bumps `updated_at`; items are never hard-deleted, only discontinued |
 | A-25 | Harbor LIMITED = 1–10 on hand in the stand-in (so both "low" and "in stock" mappings get exercised). Invalid parameters → 400 with the standard error body |
-| A-26 | A Harbor 409/422 does **not** use up the `external_ref`; Lumen never reuses a ref anyway |
+| A-26 | A Harbor 400/409/422 does **not** use up the `external_ref`; Lumen never reuses a ref anyway |
 | A-27 | Kestrel: the 2–4 s delay and 1-in-10 503 apply to every authenticated feed request (including 304s); unknown ticket → 404 empty body; ordering an inactive product → accepted, then REJECTED out of stock |
 | A-28 | Kestrel delivery has no region/line2 fields: Street = "line1, line2"; the region is not sent |
 | A-29 | Partner data can change during a demo via a **command-line tool inside each stand-in** (e.g. `set-stock`, `set-price`), never an HTTP endpoint |
