@@ -221,10 +221,11 @@
   margin-left: calc(-1 * var(--lg-space-3));
 }
 
+// Outlined like the seller groups beside it and the order page's summary.
 .summary {
   padding: var(--lg-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
   border-radius: var(--lg-radius-card);
-  background: var(--mat-sys-surface-container-low);
 
   & h2 {
     margin: 0 0 var(--lg-space-3);

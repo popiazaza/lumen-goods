@@ -51,6 +51,14 @@ html {
     )
   );
 
+  // The cart count is news, not an error: primary, not the default error red.
+  @include mat.badge-overrides(
+    (
+      background-color: var(--mat-sys-primary),
+      text-color: var(--mat-sys-on-primary),
+    )
+  );
+
   // Visible keyboard focus on every Material component (WCAG 2.4.7).
   @include mat.strong-focus-indicators(
     (
