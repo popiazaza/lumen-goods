@@ -16,6 +16,7 @@
     [attr.aria-label]="alt() ? `No image of ${alt()}` : null"
     [attr.aria-hidden]="alt() ? null : 'true'"
   >
-    <mat-icon svgIcon="image" aria-hidden="true" />
+    <!-- The shop's monogram on a tint, not a generic picture glyph that reads as broken. -->
+    <span class="mark" aria-hidden="true">L</span>
   </div>
 }

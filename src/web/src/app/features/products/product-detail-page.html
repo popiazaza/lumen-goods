@@ -107,13 +107,13 @@
       }
       @if (addError()) {
         <p class="add-error" role="alert">
-          <mat-icon svgIcon="error" />
+          <mat-icon svgIcon="error" aria-hidden="true" />
           <span>{{ addError() }}</span>
         </p>
       }
       @if (addedMessage()) {
         <p class="added">
-          <mat-icon svgIcon="check_circle" />
+          <mat-icon svgIcon="check_circle" aria-hidden="true" />
           <span>{{ addedMessage() }}</span>
           <a routerLink="/cart">View cart</a>
         </p>
@@ -122,7 +122,7 @@
       @if (product.lastCheckedUtc; as checkedUtc) {
         <p class="updated">
           Lumen last checked this price and stock with {{ sellerName() }} on
-          <time [attr.datetime]="checkedUtc">{{ checkedUtc | date: 'medium' }}</time>
+          <time [attr.datetime]="checkedUtc">{{ checkedUtc | date: 'MMM d, y, h:mm a' }}</time>
         </p>
       }
     </div>
@@ -158,11 +158,13 @@
     </div>
   } @else if (isNotFound()) {
     <div class="state">
+      <mat-icon svgIcon="search" aria-hidden="true" />
       <p>This product isn’t in the shop, or the link is mistyped.</p>
       <a matButton="filled" routerLink="/" [queryParams]="lastQuery.params()">Back to the shop</a>
     </div>
   } @else if (isError()) {
     <div class="state" role="alert">
+      <mat-icon svgIcon="error" aria-hidden="true" />
       <p>We couldn’t load this product. Check your connection and try again.</p>
       <button matButton="filled" type="button" (click)="product.reload()">
         <mat-icon svgIcon="refresh" />

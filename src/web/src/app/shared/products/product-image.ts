@@ -1,6 +1,5 @@
 import { NgOptimizedImage } from '@angular/common';
 import { Component, input, linkedSignal } from '@angular/core';
-import { MatIcon } from '@angular/material/icon';
 
 /**
  * A product image in a fixed square, with a neutral placeholder when there is no image or it
@@ -10,7 +9,7 @@ import { MatIcon } from '@angular/material/icon';
  */
 @Component({
   selector: 'app-product-image',
-  imports: [NgOptimizedImage, MatIcon],
+  imports: [NgOptimizedImage],
   templateUrl: './product-image.html',
   styleUrl: './product-image.scss',
 })
