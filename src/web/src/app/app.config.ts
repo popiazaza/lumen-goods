@@ -17,6 +17,7 @@ import {
   withComponentInputBinding,
   withInMemoryScrolling,
 } from '@angular/router';
+import { MAT_FORM_FIELD_DEFAULT_OPTIONS, MatFormFieldDefaultOptions } from '@angular/material/form-field';
 import { routes } from './app.routes';
 import { loadSessionOnStartup } from './core/api/session.api';
 import { signedOutInterceptor } from './core/api/signed-out.interceptor';
@@ -47,5 +48,10 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(loadSessionOnStartup),
     { provide: DEFAULT_CURRENCY_CODE, useValue: 'USD' },
     provideAppIcons(),
+    // One field style for the shop and the admin pages.
+    {
+      provide: MAT_FORM_FIELD_DEFAULT_OPTIONS,
+      useValue: { appearance: 'outline' } satisfies MatFormFieldDefaultOptions,
+    },
   ],
 };

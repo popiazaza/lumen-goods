@@ -20,7 +20,7 @@
     }
 
     <form class="account-form" novalidate [formGroup]="form" (ngSubmit)="submit()">
-      <mat-form-field appearance="outline">
+      <mat-form-field>
         <mat-label>Email address</mat-label>
         <input
           id="register-email"
@@ -38,7 +38,7 @@
       </mat-form-field>
 
       <!-- Dynamic, so the longer hint and a multi-rule error wrap instead of being clipped. -->
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-form-field subscriptSizing="dynamic">
         <mat-label>Password</mat-label>
         <input
           id="register-password"

@@ -90,7 +90,8 @@
     <mat-card appearance="outlined" class="section">
       <h2>Price and stock</h2>
       <div class="pair">
-        <mat-form-field>
+        <!-- Floated, so the label starts at the field's edge instead of after the $ sign. -->
+        <mat-form-field floatLabel="always">
           <mat-label>Price</mat-label>
           <span matTextPrefix>$&nbsp;</span>
           <input matInput formControlName="price" inputmode="decimal" autocomplete="off" />

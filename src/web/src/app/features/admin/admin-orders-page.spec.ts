@@ -215,6 +215,11 @@ describe('AdminOrdersPage', () => {
       sellers: 'Lumen Goods, Kestrel Outfitters',
       total: '$75.46',
     });
+    // The number never breaks; a long email may break only before its @.
+    expect(paid.querySelector('.mat-column-number')?.classList).toContain('nowrap');
+    expect(paid.querySelector('.mat-column-customer wbr')?.nextSibling?.textContent?.trim()).toBe(
+      '@lumengoods.test'
+    );
     expect(
       [...attention.querySelectorAll('app-status-badge')].map((badge) => badge.textContent?.trim())
     ).toStrictEqual(['Processing', 'Needs attention']);

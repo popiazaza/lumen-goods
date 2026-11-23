@@ -85,7 +85,7 @@
           <table mat-table [dataSource]="page.items">
             <ng-container matColumnDef="number">
               <th *matHeaderCellDef mat-header-cell scope="col">Order</th>
-              <td *matCellDef="let order" mat-cell>
+              <td *matCellDef="let order" mat-cell class="nowrap">
                 <a [routerLink]="['/admin/orders', order.number]">{{ order.number }}</a>
               </td>
             </ng-container>
@@ -99,7 +99,16 @@
             </ng-container>
             <ng-container matColumnDef="customer">
               <th *matHeaderCellDef mat-header-cell scope="col">Customer</th>
-              <td *matCellDef="let order" mat-cell class="wrap">{{ order.customerEmail }}</td>
+              <!-- A long address breaks before its @, not mid-word. -->
+              <td *matCellDef="let order" mat-cell class="email">
+                @let email = order.customerEmail;
+                @let at = email.lastIndexOf('@');
+                @if (at > 0) {
+                  {{ email.slice(0, at) }}<wbr />{{ email.slice(at) }}
+                } @else {
+                  {{ email }}
+                }
+              </td>
             </ng-container>
             <ng-container matColumnDef="sellers">
               <th *matHeaderCellDef mat-header-cell scope="col">Sold by</th>

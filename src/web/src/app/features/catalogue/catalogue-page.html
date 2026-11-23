@@ -37,7 +37,7 @@
           ({{ filterCount() }})
         }
       </button>
-      <mat-form-field class="sort" appearance="outline" subscriptSizing="dynamic">
+      <mat-form-field class="sort" subscriptSizing="dynamic">
         <mat-label>Sort by</mat-label>
         <mat-select [value]="query().sort" (selectionChange)="apply({ sort: $event.value })">
           @for (option of sortOptions; track option.value) {

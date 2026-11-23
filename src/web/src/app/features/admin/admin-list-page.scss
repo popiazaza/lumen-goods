@@ -1,6 +1,8 @@
 // The admin list pages (orders, products): a filter bar, a table that scrolls inside its own
 // labelled region on narrow screens (WCAG 1.4.10), and a paginator.
+@use '@angular/material' as mat;
 @use '../orders/order-page';
+@use '../../../styles/scroll-region';
 
 :host {
   display: block;
@@ -37,6 +39,12 @@
   & mat-form-field {
     max-width: 20rem;
     flex: 1 1 12rem;
+
+    // A phone gets one full-width field per row, not a ragged 20rem edge.
+    @media (width < 600px) {
+      max-width: none;
+      flex-basis: 100%;
+    }
   }
 
   & .search {
@@ -47,6 +55,11 @@
 
     & mat-form-field {
       max-width: none;
+    }
+
+    // As tall as the outlined field beside it.
+    & button {
+      height: 56px;
     }
   }
 }
@@ -79,9 +92,16 @@
 }
 
 .table-scroll {
+  @include scroll-region.scroll-shadows;
+  // The edge shadows sit behind the table, so it must not paint its own background.
+  @include mat.table-overrides(
+    (
+      background-color: transparent,
+    )
+  );
+
   border: 1px solid var(--mat-sys-outline-variant);
   border-radius: var(--lg-radius-card);
-  overflow-x: auto;
 
   & table {
     width: 100%;
@@ -106,7 +126,9 @@ td {
   white-space: nowrap;
 }
 
+// Enough room that a product name or seller list wraps at words, not every other word.
 .wrap {
+  min-width: 10rem;
   overflow-wrap: anywhere;
 }
 
@@ -130,4 +152,14 @@ td {
 td > a:not([matButton]) {
   display: inline-block;
   min-height: 24px;
+}
+
+.nowrap,
+.badges {
+  white-space: nowrap;
+}
+
+// Breaks only where the markup allows (before the @), or mid-word if one part alone is too long.
+.email {
+  overflow-wrap: break-word;
 }
