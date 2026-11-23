@@ -20,7 +20,7 @@
     </div>
     @if (o.totals.refunded > 0) {
       <div class="refunded">
-        <dt>Refunded</dt>
+        <dt>{{ refundedLabel() }}</dt>
         <dd>−{{ o.totals.refunded | currency }}</dd>
       </div>
       <div class="total">
