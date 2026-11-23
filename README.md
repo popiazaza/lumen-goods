@@ -239,7 +239,7 @@ commercial licences; handlers and mapping are written by hand.
 |---|---|
 | .NET SDK / runtime | 10.0.404 / 10.0.15 (LTS), C# 14 |
 | ASP.NET Core, EF Core, Identity | 10.0.15 |
-| Npgsql EF Core provider | 10.0.3 |
+| Npgsql EF Core provider | 10.0.4 |
 | PostgreSQL | 18.7 |
 | Angular, Angular Material | 22.3.0 |
 | TypeScript / Node.js | 6.0.3 / 26.13.1 (LTS) |

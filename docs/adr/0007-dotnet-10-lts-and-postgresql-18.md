@@ -40,7 +40,7 @@ We use the newest set in which every component is stable and built to work with 
 - .NET 11 adds no support time (both lines end on 2028-11-14);
 - nothing here needs an EF Core 11 or C# 15 feature.
 
-The upgrade is still the one-commit change described under Consequences, and it is the first thing to do after hand-in. PostgreSQL 19 still waits for its first minor release.
+The upgrade is still the one-commit change described under Consequences, and it is the first thing to do after hand-in. Meanwhile the 10.x line moved on to Npgsql EF Core 10.0.4, which is what we pin now. PostgreSQL 19 still waits for its first minor release.
 
 ## More information
 
