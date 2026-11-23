@@ -79,7 +79,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-48 | Guest cart lives 30 days in a cookie-identified server cart |
 | A-49 | A product that disappears or is deactivated stays in the cart marked "No longer available"; checkout is blocked until it's removed |
 | A-50 | Registration: unique email, ASP.NET Identity password rules with a minimum length of 8; no email verification or password reset (no email infrastructure yet) |
-| A-51 | **Single launch country: US.** The spec never names a country; inferred from USD-only prices, "sales tax", the sample addresses (Portland, OR, US) and "more countries" being a planned feature. The country is a config value; addresses use US rules (50 states + DC, 5-digit or ZIP+4) |
+| A-51 | **Single launch country: US.** The spec never names a country; inferred from USD-only prices, "sales tax", the sample addresses (Portland, OR, US) and "more countries" being a planned feature. The country is a config value; addresses use US rules (the form offers the 50 states + DC; the API also accepts PR, GU, VI, AS and MP; 5-digit or ZIP+4) |
 | A-52 | Admin can't hard-delete own products (orders reference them); deactivate/reactivate only. Stock edits are rejected if they'd drop below what's already reserved |
 | A-53 | "Refresh now" runs a sync immediately in the background; a second click while running shows "running" |
 | A-54 | "Live products" = visible in the shop; "recent errors" = last 50 sync/order errors |
