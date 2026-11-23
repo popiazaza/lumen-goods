@@ -197,6 +197,11 @@ The second terminal in PowerShell:
 $env:Partners__Harbor__BaseUrl='http://127.0.0.1:8081'; $env:Partners__Kestrel__BaseUrl='http://127.0.0.1:8082'; dotnet watch --project src/Lumen.Api
 ```
 
+Partner images synced by the container API show placeholders in this loop: their stored URLs point at `harbor:8080`
+and `kestrel:8080`, and your API fetches images only from the partner URLs it was given (`127.0.0.1:8081` and `:8082`).
+Press *Refresh now* for both partners on http://localhost:4200/admin/partners; the full pass stores URLs your API can
+fetch. Do the same after switching back to the container API.
+
 Once per clone, `git config core.hooksPath .githooks` adds the Conventional Commit check and fast pre-push tests.
 
 ## Libraries and why

@@ -43,7 +43,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-23 | Harbor rate limit: fixed 60-second window per key; `Retry-After` = whole seconds to the window reset. Image requests also need the key and count toward the limit (literal reading of "every request") |
 | A-24 | Harbor cursor is opaque to Lumen (the stand-in uses a keyset cursor); `updated_since` is strictly-after; any change (including stock after an order) bumps `updated_at`; items are never hard-deleted, only discontinued |
 | A-25 | Harbor LIMITED = 1–10 on hand in the stand-in (so both "low" and "in stock" mappings get exercised). Invalid parameters → 400 with the standard error body |
-| A-26 | A Harbor 409/422 does **not** use up the `external_ref`; Lumen never reuses a ref anyway |
+| A-26 | A Harbor 400/409/422 does **not** use up the `external_ref`; Lumen never reuses a ref anyway |
 | A-27 | Kestrel: the 2–4 s delay and 1-in-10 503 apply to every authenticated feed request (including 304s); unknown ticket → 404 empty body; ordering an inactive product → accepted, then REJECTED out of stock |
 | A-28 | Kestrel delivery has no region/line2 fields: Street = "line1, line2"; the region is not sent |
 | A-29 | Partner data can change during a demo via a **command-line tool inside each stand-in** (e.g. `set-stock`, `set-price`), never an HTTP endpoint |
@@ -61,7 +61,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-36 | Card form: number, name, expiry (not in the past), CVC. Only brand + last 4 digits are stored |
 | A-37 | Stolen-card decline shows the customer a generic "card declined" message; the admin sees the real reason |
 | A-38 | **Wallet**: seeded customer has **$2,000.00** (enough for the >1.000 EUR item); newly registered customers start with **$500.00** (mock money). No top-up. **One payment method per payment attempt** (wallet *or* card, no split); after a declined attempt the customer may switch method |
-| A-39 | Refunds go back to the original method (wallet: instant credit; card: mock refund) |
+| A-39 | Refunds go back to the original method (wallet: credit, usually within about 5 s; card: mock refund) |
 | A-40 | A refund covers the line + its tax, plus that seller's shipping fee if **all** that seller's lines failed. Total refunds never exceed the amount charged |
 | A-41 | Order numbers look like `LG-7K3M9QX2` (random, not sequential); partner refs are `{orderNo}-{line}` |
 | A-42 | Placing the order locks its prices and reserves own stock for **15 minutes** (not on add-to-cart). The reservation is released when the order expires: the 15 minutes end with no payment in progress, or the fifth payment attempt fails |
@@ -79,10 +79,10 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-48 | Guest cart lives 30 days in a cookie-identified server cart |
 | A-49 | A product that disappears or is deactivated stays in the cart marked "No longer available"; checkout is blocked until it's removed |
 | A-50 | Registration: unique email, ASP.NET Identity password rules with a minimum length of 8; no email verification or password reset (no email infrastructure yet) |
-| A-51 | **Single launch country: US.** The spec never names a country; inferred from USD-only prices, "sales tax", the sample addresses (Portland, OR, US) and "more countries" being a planned feature. The country is a config value; addresses use US rules (50 states + DC, 5-digit or ZIP+4) |
+| A-51 | **Single launch country: US.** The spec never names a country; inferred from USD-only prices, "sales tax", the sample addresses (Portland, OR, US) and "more countries" being a planned feature. The country is a config value; addresses use US rules (the form offers the 50 states + DC; the API also accepts PR, GU, VI, AS and MP; 5-digit or ZIP+4) |
 | A-52 | Admin can't hard-delete own products (orders reference them); deactivate/reactivate only. Stock edits are rejected if they'd drop below what's already reserved |
 | A-53 | "Refresh now" runs a sync immediately in the background; a second click while running shows "running" |
-| A-54 | "Live products" = visible in the shop; "recent errors" = last 50 sync/order errors |
+| A-54 | "Live products" = visible in the shop; "recent errors" = sync and order errors: the last 50 are kept per partner, the API returns the newest 10, and the page shows 5 until "Show all" |
 | A-55 | `docker compose up --build` includes the front-end build, migrations and seeding; no manual steps. Plain HTTP on `localhost` |
 | A-56 | **Deviation from "latest stable versions"**, see [ADR 0007](adr/0007-dotnet-10-lts-and-postgresql-18.md): **.NET 10 LTS** and **PostgreSQL 18.7** on purpose: .NET 11 is GA but its PostgreSQL provider is not stable yet; adopting a brand-new major before its ecosystem catches up is a risk not worth taking for a production launch. PostgreSQL 19 was released on 2026-11-19, the day before the build started; 18.7 is its newest proven line |
 | A-57 | English-only UI |

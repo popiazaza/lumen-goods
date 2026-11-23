@@ -51,7 +51,7 @@ public sealed class PartnerSyncError
 
     public DateTimeOffset OccurredUtc { get; set; }
 
-    /// <summary>What was being done, e.g. "catalogue", "stock", "image", "order".</summary>
+    /// <summary>What was being done: "catalogue", "stock", "data" or "order".</summary>
     public required string Operation { get; set; }
 
     public int? StatusCode { get; set; }

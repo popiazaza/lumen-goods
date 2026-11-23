@@ -30,8 +30,10 @@ Why: for a browser app on one origin, Microsoft's guidance and the IETF best pra
 
 - Good: injected script cannot take the session away, only act within the open page; the CSP and Angular's sanitisation narrow that further.
 - Good: integration tests prove that a call without the header is rejected and that a token from before sign-in is refused after it.
+- Good: Data Protection keys are kept on the `api-keys` volume (`DataProtection:KeysPath`), so recreating the API container keeps everyone signed in.
 - Bad: GET endpoints skip the check, so no GET may ever change state. That is a convention, and reviews have to hold it.
-- Bad: the cookie is a self-contained ticket, so revoking a session waits for Identity's periodic security-stamp check. Data Protection keys are not persisted: recreating the API container signs everyone out, and a second replica needs a shared key ring.
+- Bad: the cookie is a self-contained ticket, so revoking a session waits for Identity's periodic security-stamp check.
+- Bad: a second replica needs a shared key ring.
 - Bad: no `__Host-` cookie prefix, because it requires `Secure` and the demo runs on HTTP; production behind TLS should add it.
 - Later: mobile apps or third-party clients get an OpenID Connect provider and bearer tokens of their own, with the web staying on cookies or moving to a BFF. Passkeys, built into Identity since .NET 10, can be added on top.
 

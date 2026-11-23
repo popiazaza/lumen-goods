@@ -24,7 +24,7 @@ public sealed record PartnerStatusResponse(
     int HeldRemovals,
     IReadOnlyList<PartnerErrorResponse> RecentErrors);
 
-/// <param name="Operation">catalogue, stock or data.</param>
+/// <param name="Operation">catalogue, stock, data or order.</param>
 public sealed record PartnerErrorResponse(DateTime OccurredUtc, string Operation, int? StatusCode, string Message);
 
 public sealed record PartnerRefreshResponse(string Partner, DateTime? RefreshRequestedUtc, bool RemovalsConfirmed);

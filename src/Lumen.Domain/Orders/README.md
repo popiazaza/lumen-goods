@@ -80,11 +80,12 @@ stateDiagram-v2
 
 Written in the transaction that marks the order Paid, then sent by a background job; every retry reuses the reference
 `{orderNo}-{line}`, so a resend never orders twice (BR-ORD-01). Harbor answers synchronously (201, or 200 for a reference
-it already has: Confirmed; 409/422: Rejected). Kestrel returns a ticket (RECEIVED = Accepted) and decides later. A partner
+it already has: Confirmed; 400/409/422: Rejected). Kestrel returns a ticket (RECEIVED = Accepted) and decides later. A partner
 order not accepted within 30 minutes of payment is given up and its line refunded, but only when the partner cannot have
 it (every send was rejected or never reached it); when a send's outcome is unknown (a timeout after sending, a 5xx) the
 line needs an admin instead. An accepted one is never given up automatically, it needs an admin after 24 hours (BR-ORD-04). When the admin confirms or rejects that line, the partner
-order is closed in the same step (`PartnerOrderUpdates.ResolveByAdmin`), so polling stops.
+order is closed in the same step (`PartnerOrderUpdates.ResolveByAdmin`), so polling stops. A line whose send has an
+unknown outcome (Submitted) is resolved the same way, but its partner order goes to Confirmed or GivenUp instead.
 
 **Unknown outcomes (BR-ORD-04).** A send may have reached the partner when it timed out after sending, got a 5xx, the
 process stopped before the answer was saved, or Kestrel answered 400 to a resend after such a send or after it had
@@ -98,10 +99,10 @@ stateDiagram-v2
     [*] --> Pending
     Pending --> Submitted: sent, same reference on every retry
     Pending --> GivenUp: not accepted within 30 min
-    Submitted --> Confirmed: Harbor created the order
+    Submitted --> Confirmed: Harbor created the order, or an admin confirmed the line
     Submitted --> Accepted: Kestrel ticket RECEIVED
-    Submitted --> Rejected: Harbor 409 or 422
-    Submitted --> GivenUp: not accepted within 30 min
+    Submitted --> Rejected: Harbor 400, 409 or 422, Kestrel 400
+    Submitted --> GivenUp: not accepted within 30 min, or an admin rejected the line
     Accepted --> Confirmed: Kestrel CONFIRMED
     Accepted --> Rejected: Kestrel REJECTED
     Accepted --> ClosedByAdmin: admin resolved the line

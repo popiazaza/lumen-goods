@@ -6,7 +6,7 @@ namespace Lumen.Api.Partners.Ports;
 /// <summary>
 /// Port: one partner's catalogue, already translated into Lumen's vocabulary (the anti-corruption layer). Adapters
 /// rely only on the partner's published contract; the sync engine never sees partner formats.
-/// Ordering will get its own port (IPartnerOrderGateway) next to this one.
+/// Ordering has its own port, <see cref="IPartnerOrderGateway"/>, next to this one.
 /// </summary>
 public interface IPartnerCatalogSource
 {

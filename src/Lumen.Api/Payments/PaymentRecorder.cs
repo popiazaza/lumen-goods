@@ -134,7 +134,8 @@ internal sealed class PaymentRecorder(
     {
         if (payment.Status == PaymentStatus.Created && result.Status != GatewayChargeStatus.Processing)
         {
-            // Created is written only if the process stopped before the gateway call was recorded as sent.
+            // A payment is saved as Processing from the start, so Created is never stored; this keeps the move along the
+            // transition table if one ever is.
             payment.Status = PaymentTransitions.Payment.Move(payment.Status, PaymentStatus.Processing);
         }
 

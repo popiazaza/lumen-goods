@@ -5,7 +5,8 @@ namespace Lumen.Api.Orders;
 /// <summary>
 /// A refund to the original payment method (BR-ORD-03): recorded (Pending, with its parts from
 /// <see cref="RefundCalculator"/>) in the transaction that rejects the lines, then sent outside it. Wallet refunds
-/// credit the balance in the recording transaction. Status changes go through <see cref="OrderTransitions.Refund"/>.
+/// too: the refund job credits the balance in a transaction of its own. Status changes go through
+/// <see cref="OrderTransitions.Refund"/>.
 /// <para>
 /// What it pays back is in rows the database keeps unique, so nothing is ever refunded twice, however often a
 /// rejection is seen or a job retried: each <see cref="RefundLine"/> names an order line (unique across all refunds),
