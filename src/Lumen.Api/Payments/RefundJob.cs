@@ -215,10 +215,13 @@ internal sealed class RefundExecutor(
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            // IX_WalletTransactions_RefundId_Refund: this refund was already credited; never credit it twice.
+            // IX_WalletTransactions_RefundId_Refund: a wallet transaction for this refund already exists, so the wallet
+            // was credited by an earlier run whose success was not recorded. Never credit it twice, but do record the
+            // success: the money is with the customer, and a refund left Pending would be retried into this same
+            // violation on every run, and show "Refund pending" for ever.
             await transaction.RollbackAsync(CancellationToken.None);
-            logger.LogWarning("Refund {Refund} was already credited to the wallet", refundId);
-            return (await db.Refunds.AsNoTracking().SingleAsync(r => r.Id == refundId, cancellationToken)).Status;
+            logger.LogWarning("Refund {Refund} was already credited to the wallet; recording it as succeeded", refundId);
+            return await CompleteAsync(refundId, payment, succeeded: true, error: null, cancellationToken);
         }
 
         metrics.RefundFinished(PaymentMethod.Wallet, RefundStatus.Succeeded);
@@ -242,7 +245,7 @@ internal sealed class RefundExecutor(
         metrics.RefundFinished(payment.Method, refund.Status);
         if (succeeded)
         {
-            logger.LogInformation("Refund {Refund}: {Amount} USD refunded to the card", refundId, refund.Amount);
+            logger.LogInformation("Refund {Refund}: {Amount} USD refunded ({Method})", refundId, refund.Amount, payment.Method);
         }
         else
         {
