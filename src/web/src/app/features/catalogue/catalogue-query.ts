@@ -23,7 +23,10 @@ export interface CatalogueQuery {
   page: number;
 }
 
-export const DEFAULT_SORT: ProductSort = 'newest';
+/**
+BR-CAT-03: the shops taken in turn, each newest first, so the shop opens on all of them.
+*/
+export const DEFAULT_SORT: ProductSort = 'featured';
 
 export const DEFAULT_CATALOGUE_QUERY: CatalogueQuery = {
   q: '',
@@ -37,6 +40,7 @@ export const DEFAULT_CATALOGUE_QUERY: CatalogueQuery = {
 };
 
 export const SORT_LABELS: Readonly<Record<ProductSort, string>> = {
+  featured: 'Featured',
   newest: 'Newest',
   price_asc: 'Price: low to high',
   price_desc: 'Price: high to low',

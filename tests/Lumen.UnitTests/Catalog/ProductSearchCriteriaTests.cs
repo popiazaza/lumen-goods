@@ -13,12 +13,12 @@ public sealed class ProductSearchCriteriaTests
     }
 
     [Fact]
-    public void An_empty_query_is_the_first_page_of_24_newest_first_with_no_filters()
+    public void An_empty_query_is_the_first_page_of_24_featured_with_no_filters()
     {
         var criteria = Parse(new ProductSearchParameters());
 
         criteria.Should().BeEquivalentTo(new ProductSearchCriteria(
-            null, [], [], null, null, InStockOnly: false, ProductSort.Newest, new PageRequest(1, 24)),
+            null, [], [], null, null, InStockOnly: false, ProductSort.Featured, new PageRequest(1, 24)),
             options => options.ComparingByMembers<ProductSearchCriteria>());
     }
 

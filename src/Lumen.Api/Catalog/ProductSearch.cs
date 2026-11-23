@@ -4,6 +4,8 @@ using System.Globalization;
 using Lumen.Domain.Catalog;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Lumen.Api.Catalog;
 
@@ -32,7 +34,7 @@ public sealed class ProductSearchParameters
     [FromQuery(Name = "inStock"), Description("true: only products that can be bought now (sellable, in or low stock).")]
     public string? InStock { get; set; }
 
-    [FromQuery(Name = "sort"), Description("newest (default), price_asc, price_desc or name_asc.")]
+    [FromQuery(Name = "sort"), Description("featured (default: the shops taken in turn, each newest first), newest, price_asc, price_desc or name_asc.")]
     public string? Sort { get; set; }
 
     [FromQuery(Name = "page"), Description("1-based page number. Default 1.")]
@@ -44,6 +46,7 @@ public sealed class ProductSearchParameters
 
 public enum ProductSort
 {
+    Featured,
     Newest,
     PriceAsc,
     PriceDesc,
@@ -65,6 +68,7 @@ public sealed record ProductSearchCriteria(
 
     public static readonly IReadOnlyDictionary<string, ProductSort> SortNames = new Dictionary<string, ProductSort>(StringComparer.Ordinal)
     {
+        ["featured"] = ProductSort.Featured,
         ["newest"] = ProductSort.Newest,
         ["price_asc"] = ProductSort.PriceAsc,
         ["price_desc"] = ProductSort.PriceDesc,
@@ -119,7 +123,7 @@ public sealed record ProductSearchCriteria(
             Fail("inStock", "inStock must be true or false.");
         }
 
-        var sort = ProductSort.Newest;
+        var sort = ProductSort.Featured;
         if (!string.IsNullOrWhiteSpace(input.Sort) && !SortNames.TryGetValue(input.Sort.Trim().ToLowerInvariant(), out sort))
         {
             Fail("sort", $"Unknown sort '{input.Sort}'. Use one of: {string.Join(", ", SortNames.Keys)}.");
@@ -225,6 +229,34 @@ internal static class ProductSearch
         // Name and newest follow the listing indexes (Name, Id) and (FirstSeenUtc, Id), the latter read backwards.
         ProductSort.NameAsc => products.OrderBy(p => p.Name).ThenBy(p => p.Id),
         // BR-CAT-03: "newest" is when Lumen first saw the product, not when it last changed.
-        _ => products.OrderByDescending(p => p.FirstSeenUtc).ThenByDescending(p => p.Id),
+        ProductSort.Newest => products.OrderByDescending(p => p.FirstSeenUtc).ThenByDescending(p => p.Id),
+        // BR-CAT-03 "featured" (the default): the shops take turns, each showing its newest first, so the first page is
+        // a mix of every shop rather than whichever partner synced last. The turn is ROW_NUMBER() over the filtered
+        // rows, so it is computed in SQL and paging stays exact. Within a turn Lumen's own product comes first, then the
+        // partners by source; (turn, source) is unique, so the order is total without another tie-breaker.
+        _ => products
+            .OrderBy(p => CatalogDbFunctions.SellerTurn(p.Source, p.FirstSeenUtc, p.Id))
+            .ThenBy(p => p.Source != ProductSources.Lumen)
+            .ThenBy(p => p.Source),
     };
+}
+
+/// <summary>Database functions the catalogue's SQL uses; they only run inside a query.</summary>
+public static class CatalogDbFunctions
+{
+    /// <summary>
+    /// BR-CAT-03 "featured": the product's place in its seller's newest-first list (1 for the newest), among the rows the
+    /// query selects: <c>ROW_NUMBER() OVER (PARTITION BY "Source" ORDER BY "FirstSeenUtc" DESC, "Id" DESC)</c>.
+    /// </summary>
+    public static long SellerTurn(string source, DateTimeOffset firstSeenUtc, Guid id) =>
+        throw new InvalidOperationException($"{nameof(SellerTurn)} can only be used inside a database query.");
+
+    public static void Register(ModelBuilder builder)
+    {
+        builder.HasDbFunction(typeof(CatalogDbFunctions).GetMethod(nameof(SellerTurn))!)
+            .HasTranslation(arguments => new RowNumberExpression(
+                [arguments[0]],
+                [new OrderingExpression(arguments[1], ascending: false), new OrderingExpression(arguments[2], ascending: false)],
+                LongTypeMapping.Default));
+    }
 }

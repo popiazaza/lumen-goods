@@ -221,6 +221,33 @@ describe('CataloguePage', () => {
     expect(host().querySelector('.applied')).toBeNull();
   });
 
+  it('opens on Featured (the shops in turn) and keeps Newest one choice away', async () => {
+    const first = await open('/');
+
+    expect({
+      sort: first.request.params.get('sort'),
+      shown: text('mat-select'),
+    }).toStrictEqual({ sort: 'featured', shown: 'Featured' });
+
+    host().querySelector<HTMLElement>('mat-select')?.click();
+    await harness.fixture.whenStable();
+    const options = [...document.querySelectorAll<HTMLElement>('mat-option')];
+
+    expect(options.map((element) => element.textContent?.trim())).toStrictEqual([
+      'Featured',
+      'Newest',
+      'Price: low to high',
+      'Price: high to low',
+      'Name: A to Z',
+    ]);
+
+    options.find((element) => element.textContent?.trim() === 'Newest')?.click();
+    await expectUrl('/?sort=newest');
+    const newest = await respond(aPage([LAMP, TOTE]));
+
+    expect(newest.request.params.get('sort')).toBe('newest');
+  });
+
   it('changes the sort from the select and resets the page', async () => {
     await open('/?page=2', aPage([TOTE], { page: 2, totalPages: 2, totalCount: 25 }));
 

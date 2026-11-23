@@ -21,7 +21,7 @@ export const PRODUCT_CATEGORIES = [
 ] as const;
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 
-export const PRODUCT_SORTS = ['newest', 'price_asc', 'price_desc', 'name_asc'] as const;
+export const PRODUCT_SORTS = ['featured', 'newest', 'price_asc', 'price_desc', 'name_asc'] as const;
 export type ProductSort = (typeof PRODUCT_SORTS)[number];
 
 export type AvailabilityStatus = 'in_stock' | 'low_stock' | 'out_of_stock';

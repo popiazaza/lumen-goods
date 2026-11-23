@@ -62,8 +62,10 @@ describe('catalogue query (URL state)', () => {
       page: '3',
     });
     expect(
-      catalogueQueryParams({ ...FULL, sort: 'newest', page: 1, inStock: false })
+      catalogueQueryParams({ ...FULL, sort: 'featured', page: 1, inStock: false })
     ).not.toHaveProperty('sort');
+    // Newest is no longer the default, so links to it keep their sort.
+    expect(catalogueQueryParams({ ...FULL, sort: 'newest' })).toHaveProperty('sort', 'newest');
   });
 
   it('round-trips: parse(serialise(state)) gives the same state', () => {
@@ -166,7 +168,7 @@ describe('catalogue query (URL state)', () => {
   it('builds the API request with the page size and an explicit sort', () => {
     const search = toProductSearch(DEFAULT_CATALOGUE_QUERY);
 
-    expect(search).toMatchObject({ sort: 'newest', page: 1, pageSize: 24 });
+    expect(search).toMatchObject({ sort: 'featured', page: 1, pageSize: 24 });
     // No search text: the request leaves q out.
     expect(search.q).toBeUndefined();
   });

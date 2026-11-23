@@ -60,5 +60,6 @@ public sealed class LumenDbContext(DbContextOptions<LumenDbContext> options)
         // hand-written SQL always quotes them the same way.
         builder.HasPostgresExtension("pg_trgm");
         builder.ApplyConfigurationsFromAssembly(typeof(LumenDbContext).Assembly);
+        CatalogDbFunctions.Register(builder);
     }
 }
