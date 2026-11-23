@@ -7,10 +7,18 @@
   background:
     linear-gradient(to right, $surface 30%, transparent) left center / 40px 100% no-repeat local,
     linear-gradient(to left, $surface 30%, transparent) right center / 40px 100% no-repeat local,
-    radial-gradient(farthest-side at 0 50%, rgb(0 0 0 / 20%), transparent) left center / 14px 100%
-      no-repeat scroll,
-    radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 20%), transparent) right center / 14px
-      100% no-repeat scroll,
+    radial-gradient(
+        farthest-side at 0 50%,
+        color-mix(in srgb, var(--mat-sys-shadow) 20%, transparent),
+        transparent
+      )
+      left center / 14px 100% no-repeat scroll,
+    radial-gradient(
+        farthest-side at 100% 50%,
+        color-mix(in srgb, var(--mat-sys-shadow) 20%, transparent),
+        transparent
+      )
+      right center / 14px 100% no-repeat scroll,
     $surface;
   overflow-x: auto;
 }

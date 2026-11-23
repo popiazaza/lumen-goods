@@ -22,14 +22,8 @@
 
   <section class="results" aria-labelledby="results-heading">
     <div class="toolbar">
-      <!-- Zero is said by the empty state below; the heading stays for screen readers. -->
-      <h2
-        #resultsHeading
-        id="results-heading"
-        class="count"
-        tabindex="-1"
-        [class.cdk-visually-hidden]="page()?.totalCount === 0"
-      >
+      <!-- Shown at zero too: focus moves here after filtering, and must never land out of sight. -->
+      <h2 #resultsHeading id="results-heading" class="count" tabindex="-1">
         {{ countText() }}
       </h2>
       <button matButton="outlined" type="button" class="filters-button" (click)="openFilters()">

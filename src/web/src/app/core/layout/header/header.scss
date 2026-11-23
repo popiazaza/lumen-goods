@@ -158,8 +158,9 @@
 }
 
 .account-toggle {
-  // Open: a filled pill, like a current page, so the panel's owner is plain to see.
-  &[aria-expanded='true'] {
+  // Open: a filled pill, like a current page, so the panel's owner is plain to see. Under `.links`
+  // so it outranks the list items' `background: none`.
+  .links &[aria-expanded='true'] {
     background: var(--mat-sys-secondary-container);
   }
 

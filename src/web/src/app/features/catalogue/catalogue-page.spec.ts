@@ -307,8 +307,8 @@ describe('CataloguePage', () => {
 
     expect(text('.state h3')).toBe('No products match');
     expect(text('.state p')).toBe('Nothing matches “zzz” with these filters.');
-    // "0 products" over "No products match" says it twice; the count stays for screen readers.
-    expect(host().querySelector('#results-heading')?.classList).toContain('cdk-visually-hidden');
+    // The count stays visible at zero: focus moves to it after filtering (WCAG 2.4.7).
+    expect(host().querySelector('#results-heading')?.classList).not.toContain('cdk-visually-hidden');
     expect(text('.search-summary span')).toBe('Search results for “zzz”');
 
     button('Clear all filters').click();
