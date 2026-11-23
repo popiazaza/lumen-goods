@@ -27,6 +27,7 @@ public sealed class OpenApiDocumentTests(LumenApiFactory factory)
 
         var texts = Texts(document.RootElement).ToList();
         texts.Should().NotContain(t => t.Contains("&lt;", StringComparison.Ordinal), "a cref's C# signature is not shown");
+        texts.Should().NotContain(t => t.Contains("&amp;", StringComparison.Ordinal), "XML escapes are decoded");
         texts.Should().NotContain(t => t.Contains("PlaceOrderRequest.Lines", StringComparison.Ordinal));
         texts.Should().NotContain(t => t.Split('\n').Any(line => line.StartsWith("    ", StringComparison.Ordinal)),
             "four spaces would make Markdown show the text as code");

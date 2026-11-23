@@ -27,7 +27,6 @@ namespace Lumen.Api.Payments;
 /// <example>
 /// <code>
 /// { "method": "card", "card": { "number": "4242 0000 0000 0034", "name": "Ada Lovelace", "expiryMonth": 12, "expiryYear": 2028, "cvc": "123" } }
-/// { "method": "wallet", "card": null }
 /// </code>
 /// </example>
 public sealed record PayRequest([Required] PaymentMethod? Method, CardDetailsDto? Card);

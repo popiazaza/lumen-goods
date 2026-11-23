@@ -15,9 +15,10 @@ describe('password rules', () => {
     expect(passwordProblems('ABCDEFG1!')).toStrictEqual(['Add a lower-case letter (a-z).']);
   });
 
-  it('counts a space as a symbol and an accented letter as no symbol, as ASP.NET Identity does', () => {
+  it('counts anything but an ASCII letter or digit as a symbol, a space or é included, as ASP.NET Identity does', () => {
     expect(passwordProblems('Shopper 2026')).toStrictEqual([]);
-    expect(passwordProblems('Shoppé2026')).toStrictEqual(['Add a symbol, such as ! or #.']);
+    expect(passwordProblems('Shoppé2026')).toStrictEqual([]);
+    expect(passwordProblems('Größe2026')).toStrictEqual([]);
   });
 
   it('leaves an empty value to the required validator', () => {

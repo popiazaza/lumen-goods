@@ -171,8 +171,9 @@ internal sealed class PaymentRecorder(
                 var expires = result.OneTimeCodeExpiresUtc ?? codes.ExpiresAt(issued);
                 payment.OneTimeCodeExpiresUtc = expires;
                 // A length, not a clock time: the admin page shows the event's own time in the viewer's time zone.
+                // Counted from that time (now), not from when the gateway issued the code, so the two add up.
                 await writer.AddEventAsync(payment, PaymentEventType.OneTimeCodeRequested, now, null,
-                    $"One-time code issued; valid for {Validity(expires - issued)}", cancellationToken);
+                    $"One-time code issued; valid for {Validity(expires - now)}", cancellationToken);
                 return true;
 
             case GatewayChargeStatus.Error or GatewayChargeStatus.NotFound when payment.Status == PaymentStatus.Processing:
@@ -236,15 +237,16 @@ internal sealed class PaymentRecorder(
         }
     }
 
-    /// <summary>"5 minutes", "1 minute" or, for a window that is not whole minutes, "90 seconds".</summary>
+    /// <summary>"5 minutes", "4 minutes 20 seconds", "1 second"; a window already past reads "0 seconds".</summary>
     internal static string Validity(TimeSpan validity)
     {
-        var seconds = (long)Math.Round(validity.TotalSeconds, MidpointRounding.AwayFromZero);
-        return (seconds % 60, seconds / 60) switch
+        var seconds = Math.Max(0, (long)Math.Round(validity.TotalSeconds, MidpointRounding.AwayFromZero));
+        static string Unit(long n, string unit) => n == 1 ? $"1 {unit}" : $"{n} {unit}s";
+        return (seconds / 60, seconds % 60) switch
         {
-            (0, 1) => "1 minute",
-            (0, var minutes) when minutes > 0 => $"{minutes} minutes",
-            _ => seconds == 1 ? "1 second" : $"{seconds} seconds",
+            (0, var s) => Unit(s, "second"),
+            (var m, 0) => Unit(m, "minute"),
+            (var m, var s) => $"{Unit(m, "minute")} {Unit(s, "second")}",
         };
     }
 }
