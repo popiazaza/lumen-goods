@@ -209,6 +209,36 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
     }
 
     [Fact]
+    [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_another_customer_cannot_pay_read_or_complete_a_payment_of_my_order()
+    {
+        var (owner, order) = await OrderAsync();
+        var other = await host.NewShopperAsync();
+        var otherBalance = await other.WalletBalanceAsync();
+
+        // Nothing started yet: paying it by wallet or card, or reading its payment, is 404 as for an unknown number.
+        (await other.PayByWalletAsync(order.Number)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await other.PayByCardAsync(order.Number, "4111111111111111")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await other.Session.GetAsync($"/api/v1/orders/{order.Number}/payments/current")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        await host.ChargesFinishedAsync();
+        var untouched = await host.OrderAsync(order.Number);
+        (untouched.Status, untouched.Payments.Count, untouched.FailedPaymentAttempts).Should().Be((OrderStatus.AwaitingPayment, 0, 0));
+        (await host.GatewayChargesAsync(untouched.Id)).Should().BeEmpty();
+        (await other.WalletBalanceAsync()).Should().Be(otherBalance);
+
+        // The owner's payment waits for a one-time code: the other customer can neither read it nor complete it.
+        var waiting = await owner.PayByCardAndWaitAsync(order.Number, "4242000000000034");
+        waiting.Status.Should().Be(PaymentStatus.RequiresAction);
+        (await other.Session.GetAsync($"/api/v1/orders/{order.Number}/payments/current")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await other.SubmitCodeAsync(order.Number, "123456")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var stillWaiting = await owner.PaymentAsync(order.Number);
+        (stillWaiting.PaymentId, stillWaiting.Status, stillWaiting.NeedsOneTimeCode).Should().Be((waiting.PaymentId, PaymentStatus.RequiresAction, true));
+        (await host.OrderAsync(order.Number)).Payments.Should().ContainSingle();
+        (await other.WalletBalanceAsync()).Should().Be(otherBalance);
+    }
+
+    [Fact]
     [Trait("BR", "BR-PAY-03")]
     public async Task BR_PAY_03_the_one_time_code_approves_at_4_59()
     {
