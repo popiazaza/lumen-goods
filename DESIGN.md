@@ -63,9 +63,9 @@ Ports bind to 127.0.0.1. Start order: `db` healthy, then `api` healthy (migrated
 | `Orders` | Order APIs, partner order job, line rejection and refunds | BR-ORD-01..04 |
 | `Wallets` | Balance, log, opening balances | BR-PAY-06 |
 | `Partners/Ports` | `IPartnerCatalogSource`, `IPartnerStockSource`, `IPartnerAvailabilityCheck`, `IPartnerOrderGateway` | |
-| `Partners/Harbor`, `Kestrel` | One anti-corruption adapter per partner | BR-CAT-01/02 |
+| `Partners/Harbor`, `Kestrel` | One anti-corruption adapter per partner; Harbor's rate gate (`HarborHttp.cs`) | BR-CAT-01/02 |
 | `Partners/Sync` | Partner-neutral engine: schedule, hash, upsert, mass-deletion guard | BR-SYNC-01/02 |
-| `Partners/Mapping`, `Http`, `Media`, `Admin` | Category map, FX, sanitiser; resilience, Harbor rate gate; image proxy; Partner status | BR-MONEY-01 |
+| `Partners/Mapping`, `Http`, `Media`, `Admin` | Category map, FX, sanitiser; resilience; image proxy; Partner status | BR-MONEY-01 |
 | `Admin`, `Identity` | Own products; cookie session and roles, cart merge on sign-in, wallet on registration | BR-ADM-01, BR-CART-01, BR-PAY-06 |
 | `Infrastructure` | DbContext, migrations, seeding, two-decimal JSON, XSRF filter | |
 
@@ -176,7 +176,7 @@ Each step claims in a short transaction, calls out with none open, then records 
 
 ### (c) Lifecycles
 
-Orders, order lines, partner orders, payments and refunds each move through a transition table in `Lumen.Domain/Orders`; a move that is not in its table throws. All five state diagrams are in [Orders/README.md][orders-readme], generated from those tables and checked by `TransitionTableTests`, so they cannot drift from the code. The order's own lifecycle:
+Orders, order lines, partner orders, payments and refunds each move through a transition table in `Lumen.Domain/Orders` (payments: `Lumen.Domain/Payments`); a move that is not in its table throws. All five state diagrams are in [Orders/README.md][orders-readme], generated from those tables and checked by `TransitionTableTests`, so they cannot drift from the code. The order's own lifecycle:
 
 ```mermaid
 stateDiagram-v2
