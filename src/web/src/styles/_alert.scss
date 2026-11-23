@@ -15,7 +15,6 @@ $tones: (
 @mixin alert($tone: info, $dense: false) {
   @include tone($tone);
 
-
   display: flex;
   align-items: flex-start;
   padding: var(--lg-space-4);
