@@ -17,6 +17,7 @@ import {
   withComponentInputBinding,
   withInMemoryScrolling,
 } from '@angular/router';
+import { provideSpartanHlm } from '@spartan-ng/helm/utils';
 import { routes } from './app.routes';
 import { loadSessionOnStartup } from './core/api/session.api';
 import { signedOutInterceptor } from './core/api/signed-out.interceptor';
@@ -47,5 +48,6 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(loadSessionOnStartup),
     { provide: DEFAULT_CURRENCY_CODE, useValue: 'USD' },
     provideAppIcons(),
+    provideSpartanHlm(),
   ],
 };

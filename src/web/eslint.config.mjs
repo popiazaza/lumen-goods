@@ -25,7 +25,11 @@ export default [
   },
   {
     // Angular's build cache holds generated JavaScript; Playwright writes its reports and traces.
-    ignores: ['.angular/**', 'playwright-report/**', 'test-results/**'],
+    // libs/ui holds spartan/ui's helm components as its CLI generates them (spartan's `hlm`
+    // selectors and `Hlm*` names, its own code style), kept that way so a regenerated component
+    // diffs cleanly against ours. Prettier still formats them and the strict compiler and
+    // template type-checker still check them.
+    ignores: ['.angular/**', 'playwright-report/**', 'test-results/**', 'libs/ui/**'],
   },
   {
     files: ['**/*.ts'],
@@ -91,6 +95,8 @@ export default [
               'withComponentInputBinding',
               'withInMemoryScrolling',
             ],
+            // spartan/ui's providers (the CDK overlay defaults its helm components expect).
+            '@spartan-ng/helm/utils': ['provideSpartanHlm'],
             // A Playwright fixture declaration (e2e/support).
             '@playwright/test': ['test.extend'],
             './checkout-step.guard': ['checkoutStepGuard'],

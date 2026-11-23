@@ -1,9 +1,68 @@
-import { EnvironmentProviders, inject, provideEnvironmentInitializer } from '@angular/core';
+import {
+  EnvironmentProviders,
+  inject,
+  makeEnvironmentProviders,
+  provideEnvironmentInitializer,
+} from '@angular/core';
 import { MatIconRegistry } from '@angular/material/icon';
+import { provideIcons } from '@ng-icons/core';
+import {
+  lucideBan,
+  lucideChevronDown,
+  lucideChevronLeft,
+  lucideChevronRight,
+  lucideCircleAlert,
+  lucideCircleCheck,
+  lucideCircleUser,
+  lucideCircleX,
+  lucideMenu,
+  lucideMinus,
+  lucidePlus,
+  lucideRefreshCw,
+  lucideSearch,
+  lucideShoppingCart,
+  lucideSlidersHorizontal,
+  lucideTriangleAlert,
+  lucideWallet,
+  lucideX,
+} from '@ng-icons/lucide';
 import { DomSanitizer } from '@angular/platform-browser';
 
-// Material Icons paths (Apache-2.0), inlined so the shop makes no third-party font requests
-// and icons render offline. Add new icons here and use them as <mat-icon svgIcon="name" />.
+/**
+ * The app's icons: Lucide (ISC licence) through ng-icons, which bundles each SVG as a string, so
+ * icons make no third-party request and render offline. Use them as
+ * `<ng-icon name="lucideSearch" />`; ng-icon hides itself from assistive technology unless given
+ * an `aria-hidden` of its own, so the text or `aria-label` beside it carries the meaning. Add new
+ * icons here.
+ */
+const LUCIDE_ICONS = {
+  lucideBan,
+  lucideChevronDown,
+  lucideChevronLeft,
+  lucideChevronRight,
+  lucideCircleAlert,
+  lucideCircleCheck,
+  lucideCircleUser,
+  lucideCircleX,
+  lucideMenu,
+  lucideMinus,
+  lucidePlus,
+  lucideRefreshCw,
+  lucideSearch,
+  lucideShoppingCart,
+  lucideSlidersHorizontal,
+  lucideTriangleAlert,
+  lucideWallet,
+  lucideX,
+} as const;
+
+/**
+A Lucide icon this app registers.
+*/
+export type AppIconName = keyof typeof LUCIDE_ICONS;
+
+// Material Icons paths (Apache-2.0) for the pages still on Angular Material, used there as
+// <mat-icon svgIcon="name" />. Remove with Material once the last page has moved to spartan/ui.
 const ICON_PATHS: Readonly<Record<string, string>> = {
   menu: 'M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z',
   close:
@@ -53,10 +112,7 @@ const ICON_PATHS: Readonly<Record<string, string>> = {
   arrow_back: 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z',
 };
 
-/**
-Registers the app's SVG icons with Angular Material's icon registry.
-*/
-export const provideAppIcons = (): EnvironmentProviders =>
+const registerMaterialIcons = (): EnvironmentProviders =>
   provideEnvironmentInitializer(() => {
     const registry = inject(MatIconRegistry);
     const sanitizer = inject(DomSanitizer);
@@ -66,3 +122,9 @@ export const provideAppIcons = (): EnvironmentProviders =>
       registry.addSvgIconLiteral(name, sanitizer.bypassSecurityTrustHtml(svg));
     }
   });
+
+/**
+Registers the app's icons with ng-icons, and the Material ones with Material's icon registry.
+*/
+export const provideAppIcons = (): EnvironmentProviders =>
+  makeEnvironmentProviders([provideIcons(LUCIDE_ICONS), registerMaterialIcons()]);

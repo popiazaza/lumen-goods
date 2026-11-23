@@ -1,6 +1,7 @@
 import config from 'ultracite/prettier';
 
-// tailwindFunctions is an option of prettier-plugin-tailwindcss; this project has no Tailwind.
+// tailwindFunctions is an option of prettier-plugin-tailwindcss, which this project does not
+// install: the helm components in libs/ui keep the class order spartan generates.
 const { tailwindFunctions: _tailwindFunctions, ...ultracite } = config;
 
 /**

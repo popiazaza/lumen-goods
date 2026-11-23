@@ -18,7 +18,11 @@
     // ES2023 built-ins (findLast, toSorted) are inside Angular 22's browser baseline
     // ("Baseline widely available"); ES2024+ ones such as Error.isError are not.
     "lib": ["ES2023", "DOM"],
-    "module": "preserve"
+    "module": "preserve",
+    // spartan/ui helm components, copied into libs/ui (spartan's Angular CLI layout).
+    "paths": {
+      "@spartan-ng/helm/*": ["./libs/ui/*/src/index.ts"]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
