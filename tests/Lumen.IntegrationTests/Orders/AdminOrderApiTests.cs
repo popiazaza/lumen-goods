@@ -149,9 +149,13 @@ public sealed class AdminOrderApiTests(LumenApiFactory factory)
         var resolved = await response.ReadAsync<AdminOrderDto>();
         resolved.Order.Shipments.Single(s => s.SellerName == "Kestrel Outfitters").Lines.Single().StatusText.Should().Be("Not supplied, refund pending");
         resolved.Order.StatusText.Should().Be("Partial refund pending");
-        resolved.Order.Refunds.Should().ContainSingle().Which.Reason.Should().Be("Not supplied by Kestrel Outfitters (rejected by an admin: Kestrel support: lost in the warehouse)");
+        // The admin view names the admin who decided; the customer's reason stops before the bracket.
+        var refundReason = resolved.Order.Refunds.Should().ContainSingle().Which.Reason;
+        refundReason.Should().Be("Not supplied by Kestrel Outfitters (rejected by admin admin@lumengoods.test: Kestrel support: lost in the warehouse)");
+        OrderDetailMapping.CustomerReason(refundReason).Should().Be("Not supplied by Kestrel Outfitters");
         var partnerOrder = resolved.PartnerOrders.Single();
         partnerOrder.Status.Should().Be(PartnerOrderStatus.ClosedByAdmin);
+        partnerOrder.Reason.Should().Be("Closed by admin admin@lumengoods.test, line rejected: Kestrel support: lost in the warehouse");
         partnerOrder.NeedsAttention.Should().BeFalse();
         partnerOrder.NextAttemptUtc.Should().BeNull();
 
@@ -165,6 +169,7 @@ public sealed class AdminOrderApiTests(LumenApiFactory factory)
         (await host.RunAsync(order)).Steps.Should().BeEmpty();
         host.Kestrel.CallsFor($"{order.Number}-2").Should().HaveCount(polls, "a closed partner order is not polled again");
         var after = await factory.ReloadAsync(order);
+        after.Line(2).StatusReason.Should().Be("Rejected by admin admin@lumengoods.test: Kestrel support: lost in the warehouse");
         after.Refunds.Should().ContainSingle().Which.Amount.Should().Be(40.03m);
         after.RefundedTotal.Should().Be(40.03m);
     }
@@ -191,6 +196,8 @@ public sealed class AdminOrderApiTests(LumenApiFactory factory)
         resolved.Order.Status.Should().Be(OrderStatus.Completed);
         resolved.Order.Refunds.Should().BeEmpty();
         resolved.PartnerOrders.Single().Status.Should().Be(PartnerOrderStatus.ClosedByAdmin);
+        resolved.PartnerOrders.Single().Reason.Should().Be("Closed by admin admin@lumengoods.test, line confirmed");
+        (await factory.ReloadAsync(order)).Line(2).StatusReason.Should().Be("Confirmed by admin admin@lumengoods.test");
 
         // Kestrel rejecting it after all is a late answer: ignored, logged, nothing refunded.
         var stored = await factory.ReloadAsync(order);

@@ -11,4 +11,13 @@ internal static class ClaimsPrincipalExtensions
     /// </summary>
     public static Guid? CustomerId(this ClaimsPrincipal user) =>
         Guid.TryParse(user.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+
+    /// <summary>
+    /// Who the signed-in user is, for audit text an admin reads: their email (Identity's Email claim, or the user name,
+    /// which is the email in Lumen), else their id.
+    /// </summary>
+    public static string SignedInAs(this ClaimsPrincipal user) =>
+        user.FindFirstValue(ClaimTypes.Email) is { Length: > 0 } email ? email
+        : user.Identity?.Name is { Length: > 0 } name ? name
+        : user.CustomerId()?.ToString() ?? "an unknown user";
 }
