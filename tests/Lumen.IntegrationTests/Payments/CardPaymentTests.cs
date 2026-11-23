@@ -126,6 +126,34 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
     }
 
     [Fact]
+    [Trait("BR", "BR-PAY-02")]
+    public async Task BR_PAY_02_no_full_card_number_or_cvc_reaches_the_logs()
+    {
+        const string Cvc = "739";
+        var (shopper, order) = await OrderAsync();
+        var (otherShopper, otherOrder) = await OrderAsync();
+        var logsBefore = host.Logs.Records.Count;
+
+        var paid = await shopper.PayByCardAsync(order.Number, "4111 1111 1111 1111", Cvc);
+        var refused = await otherShopper.PayByCardAsync(otherOrder.Number, "4111 1111 1111 1112", Cvc);
+        await host.ChargesFinishedAsync();
+
+        var payment = await AcceptedAsync(paid);
+        (await shopper.PaymentAsync(order.Number)).Status.Should().Be(PaymentStatus.Succeeded);
+        refused.StatusCode.Should().Be(HttpStatusCode.BadRequest, "a Luhn failure is a validation error");
+        var logs = host.Logs.Records.Skip(logsBefore).ToList();
+        logs.Should().Contain(r => r.Contains($"charge {payment.PaymentId}", StringComparison.Ordinal),
+            "the charge was logged, so the capture saw the payment");
+        foreach (var secret in new[] { "4111111111111111", "4111 1111 1111 1111", "411111111111", "4111111111111112", "4111 1111 1111 1112" })
+        {
+            logs.Should().NotContain(r => r.Contains(secret, StringComparison.Ordinal), $"no log record carries the card number ({secret})");
+        }
+
+        logs.Should().NotContain(r => System.Text.RegularExpressions.Regex.IsMatch(r, $@"(?<![0-9A-Za-z]){Cvc}(?![0-9A-Za-z])"),
+            "no log record carries the CVC");
+    }
+
+    [Fact]
     [Trait("BR", "BR-CHK-01")]
     public async Task BR_CHK_01_the_gateway_is_charged_the_order_total_never_an_amount_from_the_client()
     {

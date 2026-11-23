@@ -54,6 +54,9 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
 
     public QueryHook Queries { get; } = new();
 
+    /// <summary>Everything the API logged, at every level (BR-PAY-02: no card number or CVC in the logs).</summary>
+    public LogCapture Logs { get; } = new();
+
     public WebApplicationFactory<Program> App { get; private set; } = null!;
 
     public static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -78,6 +81,7 @@ public sealed class CheckoutHost(LumenApiFactory factory) : IAsyncLifetime
             builder.UseSetting("Partners:Kestrel:Password", StubKestrel.Password);
             builder.UseSetting("Partners:Kestrel:Resilience:MaxRetries", "1");
             builder.UseSetting("Partners:Kestrel:Resilience:RetryBaseDelay", "00:00:00");
+            builder.ConfigureLogging(Logs.AddTo);
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(Clock);
