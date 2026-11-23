@@ -13,13 +13,14 @@ $tones: (
 
 /// The box. `$dense` is for messages inside a table row or a card on the admin pages.
 @mixin alert($tone: info, $dense: false) {
-  --lg-alert-accent: #{map.get($tones, $tone)};
+  @include tone($tone);
+
 
   display: flex;
   align-items: flex-start;
   padding: var(--lg-space-4);
   border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: 4px;
+  border-radius: var(--lg-radius-alert);
   border-left: 4px solid var(--lg-alert-accent);
   background: var(--mat-sys-surface-container-lowest);
   color: var(--mat-sys-on-surface);
@@ -38,5 +39,9 @@ $tones: (
 
 /// Switches an alert's colour, for a variant class on the same element (`.banner.error`).
 @mixin tone($tone) {
+  @if not map.has-key($tones, $tone) {
+    @error 'Unknown alert tone "#{$tone}"; use one of #{map.keys($tones)}.';
+  }
+
   --lg-alert-accent: #{map.get($tones, $tone)};
 }

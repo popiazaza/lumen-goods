@@ -118,11 +118,29 @@
       background: var(--mat-sys-surface-container-high);
     }
 
-    // Phone menu and account panel (lists): the current page is a filled pill, as in an M3
-    // navigation drawer. The top bar's links override this below.
+    // Phone menu and account panel (lists): the current page is a filled pill with a primary bar
+    // at its start and bolder primary text, so it shows without relying on the fill colour
+    // (WCAG 1.4.1). The top bar's links override this below.
     &.active {
+      position: relative;
       background: var(--mat-sys-secondary-container);
-      color: var(--mat-sys-on-secondary-container);
+      color: var(--mat-sys-primary);
+      font-weight: 700;
+
+      &::before {
+        position: absolute;
+        top: var(--lg-space-2);
+        bottom: var(--lg-space-2);
+        left: 0;
+        width: 3px;
+        border-radius: 0 3px 3px 0;
+        background: var(--mat-sys-primary);
+        content: '';
+      }
+
+      &:hover {
+        background: var(--mat-sys-surface-container-highest);
+      }
     }
   }
 }
