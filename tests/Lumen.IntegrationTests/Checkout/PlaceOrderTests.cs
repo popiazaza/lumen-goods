@@ -662,6 +662,28 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
 
         responses.Select(r => r.StatusCode).Should().AllBeEquivalentTo(HttpStatusCode.BadRequest);
         (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
+
+        // The handler's own checks: each a 400 naming the field, never a 500 (a duplicate product would break the
+        // order's per-product lookup), and nothing created.
+        var duplicate = new { productId = line.ProductId, quantity = 1, unitPrice = line.UnitPrice };
+        (object?[] Lines, string Field, string Message)[] cases =
+        [
+            ([duplicate, duplicate], "lines", "Each product appears once."),
+            ([null], "lines[0]", "Each line needs its product id and quantity."),
+            ([new { productId = line.ProductId, quantity = 1, unitPrice = -0.01m }], "lines[0].unitPrice", "The reviewed unit price cannot be negative."),
+        ];
+        foreach (var (lines, field, message) in cases)
+        {
+            var response = await CheckoutHost.SendJsonAsync(shopper.Session, HttpMethod.Post, "/api/v1/checkout/orders", new
+            {
+                checkoutKey = Guid.NewGuid(), lines, expectedTotal = preview.Total, shippingAddress = CheckoutHost.Address, shippingMethod = "standard",
+            });
+
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest, field);
+            (await response.ReadJsonAsync()).GetProperty("errors").GetProperty(field)[0].GetString().Should().Be(message);
+        }
+
+        (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
     }
 
     [Fact]
