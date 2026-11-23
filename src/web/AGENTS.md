@@ -11,16 +11,17 @@ npm test         # Vitest, runs once (npm run test:watch to watch)
 npm run lint     # ultracite check: ESLint (Ultracite + angular-eslint, incl. template a11y), Prettier, Stylelint; tsc -p e2e
 npm run fix      # ultracite fix: formats and applies the safe autofixes
 npm run e2e      # Playwright browser tests against the running compose stack (E2E_BASE_URL, default http://localhost:8080)
-npx playwright test --grep @BR-CHK-01   # one business rule's browser tests
+E2E_COMPOSE=1 npx playwright test --grep @BR-CHK-01   # one rule's browser tests (this one edits Harbor via docker compose)
 npx playwright show-report              # last run's HTML report; traces open from it (or npx playwright show-trace <zip>)
 docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to http://api:8080
 ```
 
 ## Layout
 
-- `src/app/core/`: app-wide code: `api/` (typed API services), `cart/`, `catalogue/` (seller names, last catalogue query), `layout/` (header, footer), `routing/` (titles, focus), `icons/`.
+- `src/app/core/`: app-wide code: `api/` (typed API services), `cart/`, `catalogue/` (seller names, last catalogue query), `layout/` (header, footer), `routing/` (titles, focus), `checkout/` (checkout state), `icons/`.
 - `src/app/features/<area>/`: catalogue, products, cart, account, checkout, orders, admin. Pages are `<name>-page.ts`, lazy via `loadComponent`; child routes in `<area>.routes.ts`.
-- `src/app/shared/`: presentational pieces used by more than one feature (price, stock badge, product image).
+- `src/app/shared/`: presentational pieces used by more than one feature (price, stock badge, product image, `forms/`).
+- `src/app/features/not-found/`: the 404 page.
 - `src/app/testing/`: test data builders for specs; never imported by app code.
 - Theme: `src/styles.scss` (M3 `mat.theme`, `--lg-*` tokens); palette in `src/styles/_theme-colors.scss` (generated).
 
@@ -42,7 +43,7 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 - One typed service per API resource in `src/app/core/api/` (e.g. `products.api.ts` exporting `ProductsApi`) built on `HttpClient`. Components never call `HttpClient` directly.
 - Give components signals (`rxResource` over the service's Observable, `httpResource`, `toSignal`) and render explicit loading, empty and error states. `resource.value()` throws in the error state: read it behind `hasValue()`.
 - The catalogue's URL is its state: `features/catalogue/catalogue-query.ts` parses and writes the query params; controls navigate, they never hold filter state of their own. Filter and sort navigations pass `scroll: 'manual'` so the page does not jump; paging keeps the router's scroll-to-top.
-- Partners are API configuration: the seller list, valid `seller` values and names come from `GET /sellers` (`SellerDirectory`). Never hard-code partner ids in the client.
+- Partners are API configuration: the seller list, valid `seller` values and names come from `GET /sellers` (`SellerDirectory`). Never hard-code partner ids in the client (the fallback display names in `seller-directory.ts`, used before `/sellers` answers, are the one exception).
 - Errors are RFC 9457 `ProblemDetails`: show `title`/`detail`, map `errors` onto form fields.
 - XSRF: `SessionApi` (`session.api.ts`) loads `GET /api/v1/auth/session` at start-up, which sets the `XSRF-TOKEN` cookie; `HttpClient` echoes it as `X-XSRF-TOKEN` on every POST/PUT/PATCH/DELETE. Read the user from `SessionApi.session()`.
 
