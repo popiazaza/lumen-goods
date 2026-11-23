@@ -106,12 +106,12 @@ Announce the code's remaining time once at this point, then at expiry (never eve
 */
 export const CODE_WARNING_MS = 60_000;
 /**
- * The code's length when the API does not say. The gateway's code length is configured on the server
- * (`Payments:OneTimeCode`, 4 to 8 digits) and the API exposes it only through the test code it shows,
- * so the page asks for that many digits when it has one and 6 otherwise: a shorter or longer code
- * would only be refused by the gateway and use up a payment attempt.
+ * The range of code lengths the server may be configured with (`Payments:OneTimeCode`, 4 to 8 digits).
+ * The API exposes the length only through the test code it shows: with one, the page asks for exactly
+ * that many digits (a wrong length would only be refused by the gateway and use up a payment attempt);
+ * without one, any length in this range is sent, so a configured length is never blocked here.
  */
-export const DEFAULT_CODE_LENGTH = 6;
+export const CODE_LENGTH_RANGE = { min: 4, max: 8 } as const;
 
 /**
 Statuses during which the charge is still running: keep polling. `error` is retried once by the server.
@@ -372,9 +372,9 @@ export class CheckoutPaymentPage {
   protected readonly testCode = computed(() => this.payment()?.testOneTimeCode ?? null);
 
   /**
-  How many digits the code has (see `DEFAULT_CODE_LENGTH`); the messages and the check use the same number.
+  How many digits the code has, when the API shows it (see `CODE_LENGTH_RANGE`); the messages and the check agree.
   */
-  protected readonly codeLength = computed(() => this.testCode()?.length ?? DEFAULT_CODE_LENGTH);
+  protected readonly codeLength = computed(() => this.testCode()?.length ?? null);
 
   /**
    * After a Failed payment the gateway could not settle, only that same card payment may be tried
@@ -969,10 +969,11 @@ export class CheckoutPaymentPage {
     if (control.invalid) {
       control.markAsTouched();
       const length = this.codeLength();
+      const digits =
+        length === null ? `${CODE_LENGTH_RANGE.min} to ${CODE_LENGTH_RANGE.max}` : String(length);
+      const named = length === null ? 'the code' : `the ${length}-digit code`;
       this.codeError.set(
-        control.hasError('required')
-          ? `Enter the ${length}-digit code`
-          : `The code must be ${length} digits`
+        control.hasError('required') ? `Enter ${named}` : `The code must be ${digits} digits`
       );
       return;
     }
@@ -1074,12 +1075,20 @@ const CODE_CHARACTERS = /^[\d\s-]+$/u;
 /**
 Exactly `length` digits once spaces and dashes are taken out (a pasted "123 456" is fine).
 */
-const validCode = (control: AbstractControl<string>, length: number): ValidationErrors | null => {
+const validCode = (
+  control: AbstractControl<string>,
+  length: number | null
+): ValidationErrors | null => {
   const raw = control.value ?? '';
   if (!raw.trim()) {
     return null;
   }
-  return CODE_CHARACTERS.test(raw) && digitsOf(raw).length === length ? null : { code: true };
+  const count = digitsOf(raw).length;
+  const isRightLength =
+    length === null
+      ? count >= CODE_LENGTH_RANGE.min && count <= CODE_LENGTH_RANGE.max
+      : count === length;
+  return isRightLength && CODE_CHARACTERS.test(raw) ? null : { code: true };
 };
 
 /**

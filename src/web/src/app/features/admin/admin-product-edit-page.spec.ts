@@ -7,13 +7,14 @@ import {
   TestRequest,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { MatSelectHarness } from '@angular/material/select/testing';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { OwnMediaFile } from '../../core/api/admin-products.api';
+import { SessionApi } from '../../core/api/session.api';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { anAdminProduct } from '../../testing/order-fixtures';
 import { AdminProductEditPage } from './admin-product-edit-page';
@@ -21,6 +22,11 @@ import { unsavedChangesGuard } from './unsaved-changes.guard';
 
 @Component({ selector: 'app-stub-list-page', template: '<h1>Products</h1>' })
 class StubListPage {}
+
+/**
+Whether an admin is signed in, as `SessionApi.isAuthenticated()` says.
+*/
+const signedIn = signal(true);
 
 const text = (root: ParentNode | null | undefined, selector: string) =>
   root?.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
@@ -128,8 +134,10 @@ describe('AdminProductEditPage', () => {
         provideHttpClientTesting(),
         provideAppIcons(),
         { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
+        { provide: SessionApi, useValue: { isAuthenticated: signedIn.asReadonly() } },
       ],
     });
+    signedIn.set(true);
     http = TestBed.inject(HttpTestingController);
     router = TestBed.inject(Router);
     vi.spyOn(TestBed.inject(LiveAnnouncer), 'announce').mockResolvedValue(undefined);
@@ -497,6 +505,15 @@ describe('AdminProductEditPage', () => {
 
     await expect(leave).resolves.toBeTruthy();
     expect(router.url).toBe('/admin/products');
+  });
+
+  it('leaves without asking once the admin is signed out, as there is nothing left to save', async () => {
+    await openMug();
+    await type('Name', 'Enamel Camp Mug, large');
+    signedIn.set(false);
+
+    await expect(router.navigateByUrl('/admin/products')).resolves.toBeTruthy();
+    expect(document.querySelector('mat-dialog-container')).toBeNull();
   });
 
   it('leaves without asking when nothing was changed', async () => {

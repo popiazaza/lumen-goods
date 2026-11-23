@@ -398,6 +398,28 @@ describe('CartPage', () => {
     });
   });
 
+  it('lowers a line still above stock without claiming it was capped', async () => {
+    const short: CartLineDto = {
+      ...LUMEN_MUG,
+      quantity: 4,
+      maxQuantity: 2,
+      notices: { ...LUMEN_MUG.notices, quantityLimited: { requested: 4, allowed: 2 } },
+      blocksCheckout: true,
+    };
+    await open(aCart([short], { canCheckout: false }));
+    const line = lineOf('Enamel Camp Mug');
+
+    button(line, 'Decrease quantity of Enamel Camp Mug').click();
+    const request = http.expectOne('/api/v1/cart/lines/line-mug');
+
+    expect(request.request.body).toStrictEqual({ quantity: 3 });
+
+    request.flush(aCart([{ ...short, quantity: 3 }], { canCheckout: false }));
+    await fixture.whenStable();
+
+    expect(lineOf('Enamel Camp Mug').textContent).not.toContain('the most you can buy');
+  });
+
   it('steps the quantity within 1 and the line’s maximum and announces the new total', async () => {
     await open(aCart([{ ...KESTREL_SOCKS, notices: LUMEN_MUG.notices }]));
     const line = lineOf('Merino Trail Socks');

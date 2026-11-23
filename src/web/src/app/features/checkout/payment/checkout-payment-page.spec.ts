@@ -957,6 +957,22 @@ describe('CheckoutPaymentPage', () => {
       http.expectNone(`${CURRENT_URL}/one-time-code`);
     });
 
+    it('accepts any configurable length when the API shows no test code', async () => {
+      await open(needsCode({ testOneTimeCode: null }));
+
+      expect({
+        empty: await verify(''),
+        short: await verify('123'),
+        long: await verify('123456789'),
+      }).toStrictEqual({
+        empty: 'Enter the code',
+        short: 'The code must be 4 to 8 digits',
+        long: 'The code must be 4 to 8 digits',
+      });
+
+      http.expectNone(`${CURRENT_URL}/one-time-code`);
+    });
+
     it('focuses the outcome when Try again after expiry finds the code step still open', async () => {
       vi.setSystemTime(Date.parse('2026-11-20T08:00:00Z'));
       await open(needsCode());

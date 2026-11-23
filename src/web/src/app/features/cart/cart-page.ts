@@ -269,7 +269,8 @@ export class CartPage {
     // quantity above it says so instead of changing silently.
     const max = Math.max(line.maxQuantity, 1);
     const next = quantity < line.quantity ? Math.max(quantity, 1) : Math.min(quantity, max);
-    const isCapped = quantity > max;
+    // Capped only when raising past the ceiling, not when lowering a line that is still above it.
+    const isCapped = quantity > line.quantity && quantity > max;
     const showRealQuantity = () => {
       if (input) {
         input.value = String(line.quantity);
@@ -294,7 +295,7 @@ export class CartPage {
         const updated = cart.lines.find((candidate) => candidate.id === line.id);
         const parts = [`${line.product.name}: quantity ${updated?.quantity ?? next}.`];
         if (isCapped) {
-          const note = `We changed the quantity from ${quantity} to ${next}, the most you can buy.`;
+          const note = `We changed the quantity from ${quantity} to ${updated?.quantity ?? next}, the most you can buy.`;
           this.setLineNote(line.id, note);
           parts.push(note);
         }

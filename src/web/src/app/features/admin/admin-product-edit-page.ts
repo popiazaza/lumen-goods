@@ -41,6 +41,7 @@ import {
   problemOf,
 } from '../../core/api/problem-details';
 import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
+import { SessionApi } from '../../core/api/session.api';
 import { categoryLabel } from '../../shared/products/product-labels';
 import { registerOrderIcons } from '../orders/order-icons';
 import { AdminAccessDenied } from './admin-access-denied';
@@ -105,6 +106,8 @@ export class AdminProductEditPage implements HasUnsavedChanges {
   private readonly snackBar = inject(MatSnackBar);
 
   private readonly announcer = inject(LiveAnnouncer);
+
+  private readonly session = inject(SessionApi);
 
   private readonly destroyRef = inject(DestroyRef);
 
@@ -362,15 +365,17 @@ export class AdminProductEditPage implements HasUnsavedChanges {
   }
 
   /**
-  Back to the saved version: the admin drops their edits after a conflict.
-  */
-  /**
-  Edits not saved yet: leaving asks first (`unsavedChangesGuard`).
-  */
+   * Edits not saved yet: leaving asks first (`unsavedChangesGuard`). Not once the form is gone: after a
+   * 401 or 403 the page shows access denied and the sign-in redirect must go through, and after the
+   * admin signed out there is nothing left to save.
+   */
   hasUnsavedChanges(): boolean {
-    return this.form.dirty;
+    return this.form.dirty && !this.accessStatus() && this.session.isAuthenticated();
   }
 
+  /**
+  Back to the saved version: the admin drops their edits after a conflict.
+  */
   protected useSavedVersion(): void {
     const latest = this.conflict();
     if (!latest) {
