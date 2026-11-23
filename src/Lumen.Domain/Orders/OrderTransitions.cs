@@ -15,7 +15,7 @@ public static class OrderTransitions
     public static readonly TransitionTable<OrderStatus> Order = new(OrderStatus.AwaitingPayment,
     [
         new(OrderStatus.AwaitingPayment, OrderStatus.PaymentProcessing, "payment started (atomic claim)"),
-        new(OrderStatus.AwaitingPayment, OrderStatus.Expired, "hold over, no payment in progress or Failed"),
+        new(OrderStatus.AwaitingPayment, OrderStatus.Expired, "hold over or attempts used up, no payment in progress, none Failed"),
         new(OrderStatus.PaymentProcessing, OrderStatus.Paid, "payment succeeded"),
         new(OrderStatus.PaymentProcessing, OrderStatus.AwaitingPayment, "payment failed, can retry"),
         new(OrderStatus.PaymentProcessing, OrderStatus.Expired, "payment failed, no attempts or hold left"),

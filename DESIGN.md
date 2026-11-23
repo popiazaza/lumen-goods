@@ -182,7 +182,7 @@ Orders, order lines, partner orders, payments and refunds each move through a tr
 stateDiagram-v2
     [*] --> AwaitingPayment
     AwaitingPayment --> PaymentProcessing: payment started (atomic claim)
-    AwaitingPayment --> Expired: hold over, no payment in progress or Failed
+    AwaitingPayment --> Expired: hold over or attempts used up, no payment in progress, none Failed
     PaymentProcessing --> Paid: payment succeeded
     PaymentProcessing --> AwaitingPayment: payment failed, can retry
     PaymentProcessing --> Expired: payment failed, no attempts or hold left
