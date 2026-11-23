@@ -45,6 +45,7 @@ import { categoryLabel } from '../../shared/products/product-labels';
 import { registerOrderIcons } from '../orders/order-icons';
 import { AdminAccessDenied } from './admin-access-denied';
 import { ChosenImages } from './chosen-images';
+import { HasUnsavedChanges } from './unsaved-changes.guard';
 import { ImageLibrary } from './image-library';
 import {
   MAX_ATTRIBUTES,
@@ -96,7 +97,7 @@ const categoryOption = (value: ProductCategory) => ({ value, label: categoryLabe
   templateUrl: './admin-product-edit-page.html',
   styleUrl: './admin-product-edit-page.scss',
 })
-export class AdminProductEditPage {
+export class AdminProductEditPage implements HasUnsavedChanges {
   private readonly api = inject(AdminProductsApi);
 
   private readonly router = inject(Router);
@@ -363,6 +364,13 @@ export class AdminProductEditPage {
   /**
   Back to the saved version: the admin drops their edits after a conflict.
   */
+  /**
+  Edits not saved yet: leaving asks first (`unsavedChangesGuard`).
+  */
+  hasUnsavedChanges(): boolean {
+    return this.form.dirty;
+  }
+
   protected useSavedVersion(): void {
     const latest = this.conflict();
     if (!latest) {

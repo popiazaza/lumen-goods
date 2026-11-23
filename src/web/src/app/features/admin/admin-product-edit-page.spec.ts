@@ -17,6 +17,7 @@ import { OwnMediaFile } from '../../core/api/admin-products.api';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { anAdminProduct } from '../../testing/order-fixtures';
 import { AdminProductEditPage } from './admin-product-edit-page';
+import { unsavedChangesGuard } from './unsaved-changes.guard';
 
 @Component({ selector: 'app-stub-list-page', template: '<h1>Products</h1>' })
 class StubListPage {}
@@ -97,8 +98,16 @@ describe('AdminProductEditPage', () => {
         provideRouter(
           [
             { path: 'admin/products', component: StubListPage },
-            { path: 'admin/products/new', component: AdminProductEditPage },
-            { path: 'admin/products/:id', component: AdminProductEditPage },
+            {
+              path: 'admin/products/new',
+              component: AdminProductEditPage,
+              canDeactivate: [unsavedChangesGuard],
+            },
+            {
+              path: 'admin/products/:id',
+              component: AdminProductEditPage,
+              canDeactivate: [unsavedChangesGuard],
+            },
           ],
           withComponentInputBinding()
         ),
@@ -458,6 +467,36 @@ describe('AdminProductEditPage', () => {
     await harness.fixture.whenStable();
 
     expect(errorOf('SKU (optional)')).toBe("Another own product already has SKU 'LG-MUG-01'.");
+  });
+
+  it('asks before leaving unsaved edits, and stays unless the admin discards them', async () => {
+    await openMug();
+    await type('Name', 'Enamel Camp Mug, large');
+    const dialogButton = (name: string) =>
+      [...document.querySelectorAll<HTMLButtonElement>('mat-dialog-container button')].find(
+        (element) => element.textContent?.trim() === name
+      );
+
+    const stay = router.navigateByUrl('/admin/products');
+    await vi.waitFor(() => expect(dialogButton('Keep editing')).toBeTruthy());
+    dialogButton('Keep editing')?.click();
+
+    expect(await stay).toBeFalsy();
+    expect(router.url).toBe(`/admin/products/${MUG.id}`);
+
+    const leave = router.navigateByUrl('/admin/products');
+    await vi.waitFor(() => expect(dialogButton('Discard changes')).toBeTruthy());
+    dialogButton('Discard changes')?.click();
+
+    expect(await leave).toBeTruthy();
+    expect(router.url).toBe('/admin/products');
+  });
+
+  it('leaves without asking when nothing was changed', async () => {
+    await openMug();
+
+    expect(await router.navigateByUrl('/admin/products')).toBeTruthy();
+    expect(document.querySelector('mat-dialog-container')).toBeNull();
   });
 
   it('says when the product does not exist', async () => {
