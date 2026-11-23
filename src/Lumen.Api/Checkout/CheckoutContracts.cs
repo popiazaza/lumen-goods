@@ -123,7 +123,7 @@ public sealed record PlaceOrderRequest(
 {
     /// <summary>
     /// The most lines one order may have: as many as the largest cart (<see cref="CartOptions.MaxLinesCeiling"/>). It
-    /// bounds an order's total, which the own-product price cap relies on (OwnProductValidation.MaxPrice).
+    /// bounds an order's total, which the unit price cap relies on (PriceLimits.MaxUnitPriceUsd).
     /// </summary>
     public const int MaxLines = CartOptions.MaxLinesCeiling;
 }

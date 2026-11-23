@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Lumen.Api.Catalog;
 using Lumen.Domain.Catalog;
 using Lumen.Domain.Money;
+using Lumen.Domain.Pricing;
 
 namespace Lumen.Api.Admin;
 
@@ -29,20 +30,6 @@ internal static partial class OwnProductValidation
     public const int MaxAttributeValueLength = 200;
     public const int MaxImages = 8;
     public const int MaxOnHand = 1_000_000;
-
-    /// <summary>
-    /// BR-ADM-01: the highest own-product price. An order's money columns are numeric(12,2), so its total must stay at
-    /// or below 9,999,999,999.99, or saving the order fails (Place order answered 500). The largest order this price
-    /// allows, with every setting at the top of its validated range:
-    /// <code>
-    /// lines     50 lines (PlaceOrderRequest.MaxLines) x 10 units (CartLine.MaxQuantity) x 999,999.99 =   499,999,995.00
-    /// tax       at most 100 % of the lines (Pricing:TaxRate is 0 to 1)                                 =   499,999,995.00
-    /// shipping  at most 3 shipments, one per seller, x 1,000.00 (Pricing fees are 0 to 1000)           =         3,000.00
-    /// total                                                                                             = 1,000,002,990.00
-    /// </code>
-    /// One more digit (9,999,999.99) would make that 10,000,002,990.00, which does not fit.
-    /// </summary>
-    public const decimal MaxPrice = 999_999.99m;
 
     public static Dictionary<string, string[]> Validate(IOwnProductInput input, OwnMediaLibrary media, out OwnProductFields? fields)
     {
@@ -91,9 +78,9 @@ internal static partial class OwnProductValidation
         {
             Fail("price", "Price can have at most 2 decimal places.");
         }
-        else if (price > MaxPrice)
+        else if (price > PriceLimits.MaxUnitPriceUsd)
         {
-            Fail("price", string.Create(CultureInfo.InvariantCulture, $"Price can be at most ${MaxPrice:N2}."));
+            Fail("price", string.Create(CultureInfo.InvariantCulture, $"Price can be at most ${PriceLimits.MaxUnitPriceUsd:N2}."));
         }
 
         if (input.OnHand is not { } onHand)

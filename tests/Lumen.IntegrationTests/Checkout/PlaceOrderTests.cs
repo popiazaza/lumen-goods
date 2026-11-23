@@ -1,5 +1,4 @@
 using System.Net;
-using Lumen.Api.Admin;
 using Lumen.Api.Catalog;
 using Lumen.Api.Checkout;
 using Lumen.Api.Orders;
@@ -203,6 +202,28 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         var placed = await shopper.PlaceAsync(again);
         placed.StatusCode.Should().Be(HttpStatusCode.Created);
         (await placed.ReadAsync<OrderDetailDto>()).Shipments.Single().Lines.Single().UnitPrice.Should().Be(44.90m);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CAT-02")]
+    public async Task BR_CAT_02_a_live_harbor_price_above_999_999_99_refuses_the_line_and_the_write_through_makes_it_not_sellable()
+    {
+        // Saved as the live price, $1,000,000.00 a unit would let 50 lines of 10 overflow the order totals.
+        var shopper = await host.NewShopperAsync();
+        var tote = await host.HarborProductAsync(49.90m);
+        await shopper.AddToCartAsync(tote, 1);
+        var preview = await shopper.PreviewAsync();
+        host.Harbor.Set(tote.SourceProductId, 100_000_000);
+
+        var response = await shopper.PlaceAsync(preview);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await response.ReadAsync<PriceChangedProblem>();
+        problem.Changes.Should().ContainSingle().Which.Should().BeEquivalentTo(new { Kind = CheckoutChangeKind.Unavailable, Message = "No longer available" });
+        problem.NewTotal.Should().BeNull();
+        var saved = await host.ProductAsync(tote.Id);
+        (saved.IsActive, saved.PriceUsd).Should().Be((false, 49.90m), "the price above the cap is never stored, and the product is not sellable");
+        (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
     }
 
     [Fact]
@@ -580,7 +601,8 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
     }
 
     [Fact]
-    public async Task Place_order_with_more_than_50_lines_is_a_validation_error_naming_lines()
+    [Trait("BR", "BR-CART-03")]
+    public async Task BR_CART_03_place_order_with_more_than_50_lines_is_a_validation_error_naming_lines()
     {
         var shopper = await host.NewShopperAsync();
         await shopper.AddToCartAsync(await host.OwnProductAsync(), 1);
@@ -603,7 +625,7 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         // overflow the numeric(12,2) order columns, and Place order answered 500.
         var shopper = await host.NewShopperAsync();
         var products = Enumerable.Range(0, PlaceOrderRequest.MaxLines)
-            .Select(i => CatalogTestSupport.Own($"Largest order item {i} {Guid.NewGuid():N}", OwnProductValidation.MaxPrice, onHand: 10))
+            .Select(i => CatalogTestSupport.Own($"Largest order item {i} {Guid.NewGuid():N}", PriceLimits.MaxUnitPriceUsd, onHand: 10))
             .ToArray();
         await host.InsertAsync(products);
         foreach (var product in products)

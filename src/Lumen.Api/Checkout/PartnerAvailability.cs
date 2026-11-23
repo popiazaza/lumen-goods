@@ -1,6 +1,7 @@
 using Lumen.Api.Partners.Harbor;
 using Lumen.Api.Partners.Kestrel;
 using Lumen.Api.Partners.Ports;
+using Lumen.Domain.Pricing;
 using Microsoft.Extensions.Options;
 
 namespace Lumen.Api.Checkout;
@@ -40,7 +41,7 @@ internal sealed class PartnerAvailability(
             .Select(group => CheckPartnerAsync(group.Key, [.. group.Select(l => l.Line)], budget, linked.Token)));
         cancellationToken.ThrowIfCancellationRequested();
 
-        var results = perPartner.SelectMany(r => r).ToDictionary(r => r.LineId);
+        var results = perPartner.SelectMany(r => r).Select(WithinPriceCap).ToDictionary(r => r.LineId);
         foreach (var (_, line) in lines)
         {
             // An adapter that left a line out did not check it: not sold on a guess.
@@ -48,6 +49,23 @@ internal sealed class PartnerAvailability(
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// A live USD price above <see cref="PriceLimits.MaxUnitPriceUsd"/> is a data error, whichever adapter reported it
+    /// (the partners' own converter already refuses one): the line is Unavailable, so Place order refuses it and its
+    /// write-through makes the product not sellable, as for an invalid price. An order of such lines could not be saved.
+    /// </summary>
+    private PartnerLineCheckResult WithinPriceCap(PartnerLineCheckResult result)
+    {
+        if (result.CurrentUnitPriceUsd is not { } price || price <= PriceLimits.MaxUnitPriceUsd)
+        {
+            return result;
+        }
+
+        logger.LogWarning("Live check priced line {LineId} at {Price} USD, above the highest unit price Lumen sells; not sold", result.LineId, price);
+        return new PartnerLineCheckResult(result.LineId, PartnerLineCheckOutcome.Unavailable,
+            Detail: $"Live price {price} USD is above the highest unit price Lumen sells.");
     }
 
     private async Task<IReadOnlyList<PartnerLineCheckResult>> CheckPartnerAsync(

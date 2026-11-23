@@ -10,8 +10,8 @@ using Microsoft.Extensions.FileProviders;
 namespace Lumen.UnitTests.Admin;
 
 /// <summary>
-/// The own-product price cap (BR-ADM-01): the admin form's limit, and the arithmetic behind it, which keeps the largest
-/// possible order inside the order tables' numeric(12,2) money columns.
+/// The unit price cap (PriceLimits.MaxUnitPriceUsd, BR-ADM-01): the admin form's limit, and the arithmetic behind it, which
+/// keeps the largest possible order inside the order tables' numeric(12,2) money columns, own or partner products alike.
 /// </summary>
 public sealed class OwnProductValidationTests
 {
@@ -29,7 +29,7 @@ public sealed class OwnProductValidationTests
     [Trait("BR", "BR-ADM-01")]
     public void BR_ADM_01_a_price_up_to_999_999_99_is_accepted_and_a_cent_more_is_refused()
     {
-        OwnProductValidation.MaxPrice.Should().Be(999_999.99m);
+        PriceLimits.MaxUnitPriceUsd.Should().Be(999_999.99m);
 
         Validate(999_999.99m).Should().BeEmpty();
         Validate(1_000_000.00m).Should().BeEquivalentTo(new Dictionary<string, string[]>
@@ -47,8 +47,8 @@ public sealed class OwnProductValidationTests
         // fees, with a line from each seller so all three shipments are charged.
         var pricing = new PricingService(new PricingOptions { TaxRate = 1m, StandardShippingFee = 1000m, ExpressShippingFee = 1000m });
 
-        var largest = pricing.Price(LargestOrder(OwnProductValidation.MaxPrice), ShippingMethod.Express);
-        var oneDigitMore = pricing.Price(LargestOrder(OwnProductValidation.MaxPrice * 10 + 0.09m), ShippingMethod.Express);
+        var largest = pricing.Price(LargestOrder(PriceLimits.MaxUnitPriceUsd), ShippingMethod.Express);
+        var oneDigitMore = pricing.Price(LargestOrder(PriceLimits.MaxUnitPriceUsd * 10 + 0.09m), ShippingMethod.Express);
 
         (largest.Subtotal, largest.TaxTotal, largest.ShippingTotal, largest.GrandTotal)
             .Should().Be((499_999_995.00m, 499_999_995.00m, 3_000.00m, 1_000_002_990.00m));

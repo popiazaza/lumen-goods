@@ -50,6 +50,20 @@ public sealed class PartnerAvailabilityTests
     }
 
     [Fact]
+    [Trait("BR", "BR-CAT-02")]
+    public async Task BR_CAT_02_a_live_price_above_999_999_99_usd_from_any_adapter_makes_the_line_unavailable()
+    {
+        var atCap = Line("harbor");
+        var aboveCap = Line("harbor");
+        var sut = Create(new Priced("harbor", new() { [atCap.Line.LineId] = 999_999.99m, [aboveCap.Line.LineId] = 1_000_000.00m }));
+
+        var results = await sut.CheckAsync([atCap, aboveCap], Ct);
+
+        results[atCap.Line.LineId].Should().BeEquivalentTo(new { Outcome = PartnerLineCheckOutcome.Ok, CurrentUnitPriceUsd = 999_999.99m });
+        results[aboveCap.Line.LineId].Should().BeEquivalentTo(new { Outcome = PartnerLineCheckOutcome.Unavailable, CurrentUnitPriceUsd = (decimal?)null });
+    }
+
+    [Fact]
     public async Task No_partner_lines_means_no_partner_call()
     {
         (await Create(new Throwing("harbor")).CheckAsync([], Ct)).Should().BeEmpty();
@@ -82,6 +96,15 @@ public sealed class PartnerAvailabilityTests
 
         public Task<IReadOnlyList<PartnerLineCheckResult>> CheckAsync(IReadOnlyList<PartnerLineCheck> lines, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PartnerLineCheckResult>>([.. lines.Select(l => new PartnerLineCheckResult(l.LineId, outcome))]);
+    }
+
+    private sealed class Priced(string partner, Dictionary<Guid, decimal> prices) : IPartnerAvailabilityCheck
+    {
+        public string Partner => partner;
+
+        public Task<IReadOnlyList<PartnerLineCheckResult>> CheckAsync(IReadOnlyList<PartnerLineCheck> lines, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PartnerLineCheckResult>>(
+                [.. lines.Select(l => new PartnerLineCheckResult(l.LineId, PartnerLineCheckOutcome.Ok, prices[l.LineId]))]);
     }
 
     private sealed class Throwing(string partner) : IPartnerAvailabilityCheck

@@ -9,7 +9,7 @@ public sealed class CartOptions
 
     /// <summary>
     /// The highest <see cref="MaxLines"/> allowed. Place order takes at most this many lines, so a full cart can always be
-    /// ordered, and the own-product price cap is worked out from it (OwnProductValidation.MaxPrice).
+    /// ordered, and the unit price cap is worked out from it (PriceLimits.MaxUnitPriceUsd).
     /// </summary>
     public const int MaxLinesCeiling = 50;
 

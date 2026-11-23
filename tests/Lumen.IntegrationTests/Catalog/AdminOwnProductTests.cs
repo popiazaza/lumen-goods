@@ -3,6 +3,7 @@ using Lumen.Api.Admin;
 using Lumen.Api.Catalog;
 using Lumen.Api.Identity;
 using Lumen.Domain.Catalog;
+using Lumen.Domain.Pricing;
 using Lumen.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using static Lumen.IntegrationTests.Catalog.CatalogTestSupport;
@@ -145,7 +146,7 @@ public sealed class AdminOwnProductTests(LumenApiFactory factory)
     [Trait("BR", "BR-ADM-01")]
     public async Task BR_ADM_01_the_price_can_be_at_most_999_999_99_so_the_largest_order_fits_the_order_columns()
     {
-        var (admin, atMax) = await CreateAsync(NewProduct($"{NewMarker()} Brass Telescope", price: OwnProductValidation.MaxPrice));
+        var (admin, atMax) = await CreateAsync(NewProduct($"{NewMarker()} Brass Telescope", price: PriceLimits.MaxUnitPriceUsd));
 
         var above = await admin.PostAsJsonAsync(Products, NewProduct($"{NewMarker()} Gold Telescope", price: 1_000_000.00m));
         var editAbove = await admin.PutAsJsonAsync($"{Products}/{atMax.Id}", EditOf(atMax) with { Price = 1_000_000.00m });

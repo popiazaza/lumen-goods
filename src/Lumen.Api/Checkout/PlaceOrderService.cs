@@ -235,7 +235,7 @@ internal sealed class PlaceOrderService(
             }
             else if (result.Outcome == PartnerLineCheckOutcome.Unavailable)
             {
-                product.IsActive = false; // discontinued, unknown, or without a valid price: not sellable
+                product.IsActive = false; // discontinued, unknown, without a valid price, or above PriceLimits.MaxUnitPriceUsd: not sellable
             }
 
             var after = ProductContent.From(product).ComputeHash();

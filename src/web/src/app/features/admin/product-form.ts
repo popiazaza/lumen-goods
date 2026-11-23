@@ -19,8 +19,8 @@ export const MAX_ATTRIBUTES = 20;
 export const MAX_IMAGES = 8;
 export const MAX_ON_HAND = 1_000_000;
 /**
-The highest price, as OwnProductValidation.MaxPrice: the largest possible order (50 lines of 10
-units) must still fit the order's money columns.
+The highest price, as PriceLimits.MaxUnitPriceUsd on the API: the largest possible order
+(50 lines of 10 units) must still fit the order's money columns.
 */
 export const MAX_PRICE = 999_999.99;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{1,31}$/u;
