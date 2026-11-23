@@ -330,10 +330,10 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 | Stand-ins | Their own Container Apps | Test environments only |
 
 **Production settings that differ from compose.** Front Door, not nginx, is then the edge:
-- `AllowedHosts` and `Catalog:PublicBaseUrl` name the real host; `ForwardedHeaders` trusts Front Door's addresses, so per-IP limits see the client.
+- `AllowedHosts` and `Catalog:PublicBaseUrl` name the real host. `ForwardedHeaders:KnownProxies` takes single addresses only; trusting Front Door's published address ranges needs a small code change (bind `KnownNetworks`). Until then, per-IP limits see Front Door's address, not the client's.
 - TLS with HSTS at the edge; the API keeps `Auth:CookieSecurePolicy` at `Always`.
-- Kestrel's own `MaxRequestBodySize` applies, since nginx's 1 MB cap is no longer in front.
-- Seeding stays off. The first admin is created once by an operator (§10).
+- Request bodies are capped in the API itself (`RequestLimits:MaxRequestBodySize`, 1 MB), since nginx's cap is no longer in front.
+- Seeding stays off. The first admin then needs the one-off command in §10, which is not built yet.
 - Base images pinned by digest, not only by tag.
 
 **Sizing on App Service Premium v4.** Premium v4 runs on Dadsv6 virtual machines ([announcement](https://techcommunity.microsoft.com/blog/appsonazureblog/announcing-general-availability-of-premium-v4-for-azure-app-service/4446204)), whose AMD EPYC 9004 (Genoa) processors boost to 3.7 GHz ([Dadsv6](https://learn.microsoft.com/azure/virtual-machines/sizes/general-purpose/dadsv6-series)). A plan scales out to 30 instances ([limits](https://learn.microsoft.com/azure/azure-resource-manager/management/azure-subscription-service-limits#app-service-limits)). The sizing starts from §7's lower figure, about 600 catalogue requests/s per test-machine CPU, with two assumptions:

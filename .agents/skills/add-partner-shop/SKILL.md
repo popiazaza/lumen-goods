@@ -14,8 +14,8 @@ few places listed in step 4.
 - Write down the partner's endpoints, auth, paging, rate limits, error format, currency and number format, and how
   it reports stock, removals and order decisions (synchronous like Harbor, or later like Kestrel).
 - If the demo needs it, add a stand-in under `src/StandIns/<Name>.StandIn/`. Copy the shape of
-  `HarborSupply.StandIn`: its own SQLite file, a demo CLI, conformance tests in `tests/<Name>.StandIn.Tests/`. Add both projects to `LumenGoods.slnx`, and raise the expected
-  count in `Both_partner_stand_ins_exist` (`StandInIsolationTests.cs`).
+  `HarborSupply.StandIn`: its own SQLite file, a demo CLI, conformance tests in `tests/<Name>.StandIn.Tests/`. Add both projects to `LumenGoods.slnx`,
+  and raise the expected count in `Both_partner_stand_ins_exist` (`StandInIsolationTests.cs`).
 - **Hard rule:** a stand-in shares no code, DTOs or database with Lumen. `tests/Lumen.UnitTests/Architecture/StandInIsolationTests.cs`
   and each stand-in's `IsolationTests.cs` enforce it. Never add an endpoint or field to a stand-in to make Lumen's
   side easier: adapt in Lumen.

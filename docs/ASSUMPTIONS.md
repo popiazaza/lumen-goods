@@ -49,7 +49,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-29 | Partner data can change during a demo via a **command-line tool inside each stand-in** (e.g. `set-stock`, `set-price`), never an HTTP endpoint |
 | A-30 | Stock changes count as catalogue changes for the 15-minute rule |
 | A-60 | Harbor's `media[].href` is resolved against the configured base URL, its path included: `/media/x.png` under `https://gw/harbor/` is `https://gw/harbor/media/x.png`. With compose's base URL (no path) this is the service origin |
-| A-61 | Kestrel's pictures are fetched with Kestrel's credentials, so they must be on its base URL's origin (the stand-in serves them there). A partner that serves pictures from another host would need that host added with credentials; not supported today |
+| A-61 | Kestrel's pictures are fetched with Kestrel's credentials, so they must be on its base URL's origin (the stand-in serves them there). Other hosts can be allowed with `ImageOrigins`, but they get no credentials, so a picture host that needs Kestrel's credentials is not supported today |
 
 ## D. Checkout, payment, orders
 

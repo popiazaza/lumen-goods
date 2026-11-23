@@ -225,7 +225,7 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | Testcontainers | Integration tests on real PostgreSQL 18, so constraints, row locks and races behave as in production |
 | CsCheck | Property-based tests: the money rules hold for thousands of random carts, not only the worked examples |
 
-Licences mattered: everything that ships is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
+Licences mattered: every library above, and every package the API and web app ship, is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
 PostgreSQL licence). MediatR, AutoMapper, MassTransit and FluentAssertions are left out because they moved to
 commercial licences; handlers and mapping are written by hand.
 
