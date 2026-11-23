@@ -1,5 +1,6 @@
 // Shared by the checkout steps.
 @use '../../../styles/alert';
+@use '../../../styles/totals';
 
 :host {
   display: block;
@@ -84,27 +85,13 @@ h2 {
 }
 
 .totals {
-  display: grid;
+  @include totals.totals;
+
   max-width: 24rem;
   margin: 0 0 0 auto;
-  gap: var(--lg-space-2) var(--lg-space-4);
-  grid-template-columns: 1fr auto;
 
-  & dt {
+  & dt:not(.grand) {
     color: var(--mat-sys-on-surface-variant);
-  }
-
-  & dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-
-  & .grand {
-    padding-top: var(--lg-space-2);
-    border-top: 1px solid var(--mat-sys-outline-variant);
-    color: var(--mat-sys-on-surface);
-    font: var(--mat-sys-title-medium);
   }
 }
 

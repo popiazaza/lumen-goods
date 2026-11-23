@@ -1,3 +1,5 @@
+@use '../../../styles/totals';
+
 :host {
   display: block;
   max-width: 48rem;
@@ -122,23 +124,10 @@ p {
 }
 
 .totals {
-  display: grid;
+  @include totals.totals;
+
   max-width: 24rem;
   margin: 0 0 var(--lg-space-3);
-  gap: var(--lg-space-2) var(--lg-space-4);
-  grid-template-columns: 1fr auto;
-
-  & dd {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-
-  & .grand {
-    padding-top: var(--lg-space-2);
-    border-top: 1px solid var(--mat-sys-outline-variant);
-    font: var(--mat-sys-title-medium);
-  }
 }
 
 .actions {
