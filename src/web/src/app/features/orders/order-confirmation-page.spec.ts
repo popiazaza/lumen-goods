@@ -344,6 +344,28 @@ describe('OrderConfirmationPage', () => {
     expect(text('h1')).toBe('Order LG-7K3M9QX2');
   });
 
+  it('asks a signed-out visitor to sign in, and comes back here after', async () => {
+    fixture = TestBed.createComponent(OrderConfirmationPage);
+    fixture.componentRef.setInput('id', 'LG-7K3M9QX2');
+    fixture.detectChanges();
+    http
+      .expectOne(ORDER_URL)
+      .flush({ title: 'Unauthorized' }, { status: 401, statusText: 'Unauthorized' });
+    await fixture.whenStable();
+
+    expect({
+      heading: text('h1'),
+      alert: host().querySelector('[role="alert"]'),
+      message: text('p'),
+      signIn: host().querySelector('a[href^="/sign-in"]')?.getAttribute('href'),
+    }).toStrictEqual({
+      heading: 'Order LG-7K3M9QX2',
+      alert: null,
+      message: 'Sign in to see this order.',
+      signIn: '/sign-in?returnUrl=%2Forders%2FLG-7K3M9QX2%2Fconfirmation',
+    });
+  });
+
   it('says so when the order is not in the account', async () => {
     fixture = TestBed.createComponent(OrderConfirmationPage);
     fixture.componentRef.setInput('id', 'LG-7K3M9QX2');

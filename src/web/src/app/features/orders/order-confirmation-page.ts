@@ -47,7 +47,18 @@ const isStillChanging = (order: OrderDetailDto): boolean =>
   hasPaymentFailed(order) ||
   (order.status === 'awaiting_payment' && !order.canPay);
 
-type ConfirmationState = 'loading' | 'loaded' | 'not-found' | 'error';
+type ConfirmationState = 'loading' | 'loaded' | 'not-found' | 'signed-out' | 'error';
+
+/**
+What a first read that failed means for the page: no such order, no session, or a fault.
+*/
+const failedState = (error: unknown): ConfirmationState => {
+  const status = httpStatusOf(error);
+  if (status === 404) {
+    return 'not-found';
+  }
+  return status === 401 ? 'signed-out' : 'error';
+};
 
 const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
   pending: 'schedule',
@@ -210,7 +221,7 @@ export class OrderConfirmationPage {
           this.order.set(read.order);
           this.state.set('loaded');
         } else if (!this.order()) {
-          this.state.set(httpStatusOf(read.error) === 404 ? 'not-found' : 'error');
+          this.state.set(failedState(read.error));
         }
       });
   }
