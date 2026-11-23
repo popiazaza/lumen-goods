@@ -1,6 +1,6 @@
-import { formatCurrency } from '@angular/common';
 import { CartLineDto } from '../../core/api/cart.api';
 import { AvailabilityStatus } from '../../core/api/products.api';
+import { formatUsd } from '../../shared/format';
 
 export type NoticeTone = 'info' | 'warning' | 'blocking';
 
@@ -15,8 +15,6 @@ export interface CartLineNotice {
   icon: string;
   text: string;
 }
-
-const usd = (amount: number) => formatCurrency(amount, 'en-US', '$', 'USD', '1.2-2');
 
 const AVAILABILITY_TEXT: Readonly<Record<AvailabilityStatus, string>> = {
   in_stock: 'in stock',
@@ -50,7 +48,7 @@ export const noticesOf = (line: CartLineDto): CartLineNotice[] => {
       kind: 'price',
       tone: 'warning',
       icon: 'info',
-      text: `Price ${direction} from ${usd(priceChanged.from)} to ${usd(priceChanged.to)} since you added it.`,
+      text: `Price ${direction} from ${formatUsd(priceChanged.from)} to ${formatUsd(priceChanged.to)} since you added it.`,
     });
   }
 

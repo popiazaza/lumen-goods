@@ -455,6 +455,56 @@ describe('CartPage', () => {
     expect(text(lineOf('Enamel Camp Mug'), '.line-error')).toBe('Only 2 available.');
   });
 
+  it('lowers a typed quantity above the line’s maximum to it and says so on the line', async () => {
+    await open(aCart([LUMEN_MUG]));
+    const box = lineOf('Enamel Camp Mug').querySelector<HTMLInputElement>('input') as HTMLInputElement;
+
+    box.value = '50';
+    box.dispatchEvent(new Event('change'));
+    const request = http.expectOne('/api/v1/cart/lines/line-mug');
+
+    expect(request.request.body).toStrictEqual({ quantity: 10 });
+
+    request.flush(aCart([{ ...LUMEN_MUG, quantity: 10, lineTotal: 185 }]));
+    await fixture.whenStable();
+
+    expect(text(lineOf('Enamel Camp Mug'), '.line-note')).toBe(
+      'We changed the quantity from 50 to 10, the most you can buy.'
+    );
+  });
+
+  it('says so when a typed quantity is above a line already at its maximum', async () => {
+    await open(aCart([{ ...KESTREL_SOCKS, quantity: 2 }]));
+    const box = lineOf('Merino Trail Socks').querySelector<HTMLInputElement>(
+      'input'
+    ) as HTMLInputElement;
+
+    box.value = '7';
+    box.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+
+    http.expectNone('/api/v1/cart/lines/line-socks');
+    expect({ box: box.value, note: text(lineOf('Merino Trail Socks'), '.line-note') }).toStrictEqual(
+      { box: '2', note: '2 is the most you can buy.' }
+    );
+  });
+
+  it('shows the real quantity again when a typed change is refused', async () => {
+    await open(aCart([LUMEN_MUG]));
+    const box = lineOf('Enamel Camp Mug').querySelector<HTMLInputElement>('input') as HTMLInputElement;
+
+    box.value = '5';
+    box.dispatchEvent(new Event('change'));
+    http.expectOne('/api/v1/cart/lines/line-mug').flush(
+      { type: 'urn:lumen:problem:cart-quantity-limit', title: 'Only 4 available' },
+      { status: 422, statusText: 'Unprocessable Entity' }
+    );
+    http.expectOne('/api/v1/cart').flush(aCart([LUMEN_MUG]));
+    await fixture.whenStable();
+
+    expect(box.value).toBe('2');
+  });
+
   it('removes a line and offers Undo, which adds it back', async () => {
     await open(aCart([LUMEN_MUG, KESTREL_SOCKS]));
 

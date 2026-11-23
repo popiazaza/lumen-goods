@@ -27,6 +27,7 @@ import { PRODUCT_SORTS, ProductPage, ProductSort, ProductsApi } from '../../core
 import { Seller } from '../../core/api/sellers.api';
 import { LastCatalogueQuery } from '../../core/catalogue/last-catalogue-query';
 import { SellerDirectory } from '../../core/catalogue/seller-directory';
+import { formatUsd } from '../../shared/format';
 import { categoryLabel } from '../../shared/products/product-labels';
 import { CatalogueFilters } from './catalogue-filters';
 import {
@@ -55,7 +56,6 @@ interface FilterChip {
   removal: CatalogueChange;
 }
 
-const usd = /* @__PURE__ */ new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const count = /* @__PURE__ */ new Intl.NumberFormat('en-US');
 
 /**
@@ -360,7 +360,7 @@ export class CataloguePage {
 
 const priceRangeLabel = (min: number | null, max: number | null): string => {
   if (min !== null && max !== null) {
-    return `${usd.format(min)} – ${usd.format(max)}`;
+    return `${formatUsd(min)} – ${formatUsd(max)}`;
   }
-  return min === null ? `Up to ${usd.format(max ?? 0)}` : `From ${usd.format(min)}`;
+  return min === null ? `Up to ${formatUsd(max ?? 0)}` : `From ${formatUsd(min)}`;
 };

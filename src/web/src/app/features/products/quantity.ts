@@ -1,7 +1,10 @@
 import { ProductDto } from '../../core/api/products.api';
 
 /**
- * Most units one "Add to cart" can add. A UX cap, not stock control: the server checks stock again when the line is added and at checkout.
+ * Most units the product page's selector offers. A UX cap mirroring the server's per-line limit
+ * (BR-CART-03, `CartLine.MaxQuantity`), which the product API does not return; it is not business
+ * logic: the server checks the limit and the stock again when the line is added (and answers with
+ * its own message), and the cart page uses each line's `maxQuantity` from the API instead.
  */
 export const MAX_QUANTITY_PER_ADD = 10;
 

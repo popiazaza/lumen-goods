@@ -116,6 +116,13 @@
                         {{ error }}
                       </p>
                     }
+                    @if (lineNotes()[line.id]; as note) {
+                      <!-- Announced with the new quantity; shown here so it is not only spoken. -->
+                      <p class="line-note">
+                        <mat-icon svgIcon="info" aria-hidden="true" />
+                        {{ note }}
+                      </p>
+                    }
 
                     <div class="controls">
                       <div
@@ -143,7 +150,7 @@
                           inputmode="numeric"
                           min="1"
                           [id]="`qty-${line.id}`"
-                          [max]="view?.max ?? 10"
+                          [max]="line.maxQuantity"
                           [value]="line.quantity"
                           [disabled]="line.maxQuantity === 0"
                           [attr.aria-describedby]="
@@ -156,7 +163,7 @@
                           type="button"
                           disabledInteractive
                           [disabled]="
-                            line.quantity >= (view?.max ?? 10) ||
+                            line.quantity >= line.maxQuantity ||
                             isBusy(line.id) ||
                             line.maxQuantity === 0
                           "

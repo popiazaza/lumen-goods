@@ -10,6 +10,7 @@ import { RouterLink } from '@angular/router';
 import { OrderDetailDto, OrderLineDto } from '../../core/api/order.models';
 import { OrdersApi } from '../../core/api/orders.api';
 import { httpStatusOf } from '../../core/api/problem-details';
+import { joinNames } from '../../shared/format';
 import { ProductImage } from '../../shared/products/product-image';
 import { registerOrderIcons } from './order-icons';
 import {
@@ -192,9 +193,3 @@ export class OrderDetailPage {
     });
   }
 }
-
-/**
-"A", "A and B", "A, B and C".
-*/
-export const joinNames = (names: readonly string[]): string =>
-  names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
