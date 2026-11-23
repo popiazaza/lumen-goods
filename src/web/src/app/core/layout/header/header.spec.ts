@@ -40,6 +40,7 @@ describe('Header account area', () => {
           { path: 'cart', component: StubPage },
           { path: 'orders', component: StubPage },
           { path: 'admin', component: StubPage },
+          { path: 'admin/products', component: StubPage },
           { path: 'sign-in', component: StubPage },
         ]),
         provideHttpClient(),
@@ -135,6 +136,22 @@ describe('Header account area', () => {
 
     expect(panel()?.hidden).toBeTruthy();
     expect(focus).toHaveBeenCalledWith();
+  });
+
+  it('shows the catalogue’s search in the search box, never another page’s query', async () => {
+    await render(ADMIN_SESSION);
+    const search = () => host().querySelector<HTMLInputElement>('#site-search')?.value;
+    const router = TestBed.inject(Router);
+
+    await router.navigateByUrl('/?q=tote');
+    await fixture.whenStable();
+
+    expect(search()).toBe('tote');
+
+    await router.navigateByUrl('/admin/products?q=cotton%20market');
+    await fixture.whenStable();
+
+    expect(search()).toBe('');
   });
 
   it('signs out: forgets the checkout, shows the guest cart and goes home', async () => {
