@@ -16,7 +16,16 @@ public sealed record SessionResponse(bool IsAuthenticated, string? Email, IReadO
     public static readonly SessionResponse Anonymous = new(false, null, []);
 }
 
-public sealed record RegisterRequest([Required, EmailAddress, MaxLength(256)] string Email, [Required, MinLength(8), MaxLength(128)] string Password);
+/// <summary>
+/// <c>POST /api/v1/auth/register</c>. The password needs at least 8 characters with an upper-case letter, a lower-case
+/// letter, a number and a symbol (<see cref="PasswordRules"/>); a refused one is a 400 validation problem under
+/// <c>Password</c>, one plain sentence per rule it misses.
+/// </summary>
+public sealed record RegisterRequest(
+    [Required, EmailAddress, MaxLength(256)] string Email,
+    [Required,
+     MinLength(PasswordRules.MinLength, ErrorMessage = "Use at least {1} characters."),
+     MaxLength(PasswordRules.MaxLength, ErrorMessage = "Use at most {1} characters.")] string Password);
 
 public sealed record SignInRequest([Required, EmailAddress] string Email, [Required] string Password);
 
@@ -81,7 +90,7 @@ internal static class AuthEndpoints
                 // Keys match the request property names, as the built-in request validation reports them.
                 return TypedResults.ValidationProblem(created.Errors
                     .GroupBy(e => e.Code.Contains("Password", StringComparison.Ordinal) ? nameof(RegisterRequest.Password) : nameof(RegisterRequest.Email))
-                    .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray()));
+                    .ToDictionary(g => g.Key, g => g.Select(e => e.Description).Distinct(StringComparer.Ordinal).ToArray()));
             }
 
             var roleAdded = await users.AddToRoleAsync(user, Roles.Customer);

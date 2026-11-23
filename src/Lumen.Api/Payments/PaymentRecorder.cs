@@ -168,9 +168,11 @@ internal sealed class PaymentRecorder(
                 payment.Status = PaymentTransitions.Payment.Move(payment.Status, PaymentStatus.RequiresAction);
                 payment.StatusChangedUtc = issued;
                 payment.OneTimeCodeIssuedUtc = issued;
-                payment.OneTimeCodeExpiresUtc = result.OneTimeCodeExpiresUtc ?? codes.ExpiresAt(issued);
+                var expires = result.OneTimeCodeExpiresUtc ?? codes.ExpiresAt(issued);
+                payment.OneTimeCodeExpiresUtc = expires;
+                // A length, not a clock time: the admin page shows the event's own time in the viewer's time zone.
                 await writer.AddEventAsync(payment, PaymentEventType.OneTimeCodeRequested, now, null,
-                    $"One-time code issued; it expires at {payment.OneTimeCodeExpiresUtc:yyyy-MM-dd HH:mm:ss} UTC", cancellationToken);
+                    $"One-time code issued; valid for {Validity(expires - issued)}", cancellationToken);
                 return true;
 
             case GatewayChargeStatus.Error or GatewayChargeStatus.NotFound when payment.Status == PaymentStatus.Processing:
@@ -232,5 +234,17 @@ internal sealed class PaymentRecorder(
                 logger.LogDebug("Payment {Payment} changed concurrently; re-reading it", paymentId);
             }
         }
+    }
+
+    /// <summary>"5 minutes", "1 minute" or, for a window that is not whole minutes, "90 seconds".</summary>
+    internal static string Validity(TimeSpan validity)
+    {
+        var seconds = (long)Math.Round(validity.TotalSeconds, MidpointRounding.AwayFromZero);
+        return (seconds % 60, seconds / 60) switch
+        {
+            (0, 1) => "1 minute",
+            (0, var minutes) when minutes > 0 => $"{minutes} minutes",
+            _ => seconds == 1 ? "1 second" : $"{seconds} seconds",
+        };
     }
 }

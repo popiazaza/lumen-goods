@@ -210,21 +210,27 @@ describe('Sign in and register', () => {
   it('registers, putting the API’s field errors under their fields', async () => {
     await harness.navigateByUrl('/register?returnUrl=%2Fcheckout%2Faddress');
     type('register-email', 'taken@lumen.test');
-    type('register-password', 'longenough');
+    type('register-password', 'Long-enough1');
 
     await submit();
     http.expectOne('/api/v1/auth/register').flush(
       {
         title: 'One or more validation errors occurred.',
         status: 400,
-        errors: { Email: ["Username 'taken@lumen.test' is already taken."] },
+        errors: {
+          Email: ['There is already an account with this email address. Sign in instead.'],
+        },
       },
       { status: 400, statusText: 'Bad Request' }
     );
     await harness.fixture.whenStable();
 
-    expect(text('mat-error')).toBe("Username 'taken@lumen.test' is already taken.");
-    expect(text('app-error-summary li')).toBe("Username 'taken@lumen.test' is already taken.");
+    expect(text('mat-error')).toBe(
+      'There is already an account with this email address. Sign in instead.'
+    );
+    expect(text('app-error-summary li')).toBe(
+      'There is already an account with this email address. Sign in instead.'
+    );
 
     type('register-email', 'new@lumen.test');
     await submit();
@@ -235,14 +241,31 @@ describe('Sign in and register', () => {
     expect(url()).toBe('/checkout/address');
   });
 
-  it('asks for a password of at least 8 characters before calling the API', async () => {
+  it('states the password rules in the hint', async () => {
+    await harness.navigateByUrl('/register');
+
+    expect(text('mat-hint')).toBe(
+      'At least 8 characters, with an upper-case letter, a lower-case letter, a number and a symbol'
+    );
+  });
+
+  it('says what the password still misses before calling the API', async () => {
     await harness.navigateByUrl('/register');
     type('register-email', 'new@lumen.test');
     type('register-password', 'short');
 
     await submit();
 
-    expect(text('app-error-summary li')).toBe('Use at least 8 characters');
+    expect(text('app-error-summary li')).toBe(
+      'Use at least 8 characters. Add an upper-case letter (A-Z). Add a number (0-9). Add a symbol, such as ! or #.'
+    );
+
+    type('register-password', 'abcdefgh');
+    await submit();
+
+    expect(text('app-error-summary li')).toBe(
+      'Add an upper-case letter (A-Z). Add a number (0-9). Add a symbol, such as ! or #.'
+    );
   });
 });
 

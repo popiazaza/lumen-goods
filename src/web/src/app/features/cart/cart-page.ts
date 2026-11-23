@@ -31,6 +31,8 @@ export const MAX_LINE_QUANTITY = 10;
 
 const money = (amount: number): string => formatCurrency(amount, 'en-US', '$', 'USD', '1.2-2');
 
+const NAME_LIST = /* @__PURE__ */ new Intl.ListFormat('en-US', { type: 'conjunction' });
+
 /**
  * The cart (`/cart`): lines grouped by seller, quantities, notices for lines whose price or stock
  * changed (BR-CART-02), estimated totals, and Checkout, blocked while a line cannot be bought
@@ -147,9 +149,22 @@ export class CartPage {
       : `${count} items can’t be ordered as they are. Remove them or lower their quantities to check out.`;
   });
 
-  protected readonly hasUnavailable = computed(() =>
-    (this.cart()?.lines ?? []).some((line) => line.notices.unavailable)
-  );
+  /**
+  Names the lines the totals leave out (the API prices only what can be ordered), so the summary's item count and
+  amounts never seem to contradict a line's own total.
+  */
+  protected readonly excludedNote = computed(() => {
+    const names = (this.cart()?.lines ?? [])
+      .filter((line) => line.notices.unavailable)
+      .map((line) => line.product.name);
+    if (names.length === 0) {
+      return null;
+    }
+    const list = NAME_LIST.format(names);
+    return names.length === 1
+      ? `Not included, as it can’t be ordered: ${list}.`
+      : `Not included, as they can’t be ordered: ${list}.`;
+  });
 
   protected readonly lineErrors = signal<Readonly<Record<string, string>>>({});
 

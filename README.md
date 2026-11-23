@@ -90,11 +90,12 @@ wallet: a customer can hold at most 3 unpaid orders at a time (BR-CHK-03), and e
    If anything changed since the review, Place order stops and shows old → new.
 4. **Pay** by card (test cards above) or wallet.
 5. **Follow the order** on *Orders*: partner lines move from "Awaiting …" to "Confirmed by …". To see a partner
-   fail to supply a paid line, set a Kestrel item's stock to 0 after Place order, before paying:
+   fail to supply a paid line, set the stock of the Kestrel item in your order to 0 after Place order, before paying.
+   `list` prints each item's ref next to its name; use the ref of yours (K-7735 below stands for it):
 
    ```bash
    docker compose exec kestrel dotnet KestrelOutfitters.StandIn.dll list
-   docker compose exec kestrel dotnet KestrelOutfitters.StandIn.dll set-stock K-7735 0
+   docker compose exec kestrel dotnet KestrelOutfitters.StandIn.dll set-stock K-7735 0   # your item's ref
    ```
 
    That line becomes "Not supplied, refunded $X" (the line and its tax, plus the shipment fee if nothing else ships
@@ -216,7 +217,7 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | HtmlSanitizer | Partner descriptions are untrusted HTML; an allow-list over a real HTML parser, not regular expressions |
 | CsvHelper | Kestrel's `;`-separated stock CSV, read by header name with invariant number parsing |
 | Microsoft.Extensions.Http.Resilience | Polly v8 pipelines per partner client (timeouts, retries that honour `Retry-After`, circuit breaker), all from configuration |
-| Scalar | The API reference at `/api/docs`, over the OpenAPI document ASP.NET Core 10 generates itself |
+| Scalar | The API reference at `/api/docs`, over the OpenAPI document ASP.NET Core 10 generates itself from the handlers and our `///` comments (`Infrastructure/OpenApi/XmlDocTextTransformer.cs` tidies the C# the comment generator leaves in). Its CDN fonts are off, so the `font-src 'self'` CSP holds here too |
 | OpenTelemetry | Vendor-neutral traces, metrics and logs over OTLP: the Aspire dashboard locally, any backend in production |
 | Angular with Angular Material | Router, typed forms and an HTTP client with XSRF support in one framework; Material gives accessible components and an M3 theme |
 | Fontsource (Inter, Fraunces) | The two typefaces as npm packages, bundled into the build and served from our own origin: no font CDN request, and the `font-src 'self'` CSP holds |
