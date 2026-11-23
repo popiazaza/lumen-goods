@@ -48,6 +48,8 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 | A-28 | Kestrel delivery has no region/line2 fields: Street = "line1, line2"; the region is not sent |
 | A-29 | Partner data can change during a demo via a **command-line tool inside each stand-in** (e.g. `set-stock`, `set-price`), never an HTTP endpoint |
 | A-30 | Stock changes count as catalogue changes for the 15-minute rule |
+| A-60 | Harbor's `media[].href` is resolved against the configured base URL, its path included: `/media/x.png` under `https://gw/harbor/` is `https://gw/harbor/media/x.png`. With compose's base URL (no path) this is the service origin |
+| A-61 | Kestrel's pictures are fetched with Kestrel's credentials, so they must be on its base URL's origin (the stand-in serves them there). Other hosts can be allowed with `ImageOrigins`, but they get no credentials, so a picture host that needs Kestrel's credentials is not supported today |
 
 ## D. Checkout, payment, orders
 
@@ -55,7 +57,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 |---|---|
 | A-31 | Partner orders are placed **only after** payment succeeds (partners have no cancel). One partner order **per line** |
 | A-32 | Payment is **charged once** at checkout; whatever a partner can't supply is **refunded automatically** |
-| A-33 | Card 0059: the back end retries once with the **same payment id**; if that also fails the customer's "Try again" reuses the same payment |
+| A-33 | Card 0059: the back end retries once with the **same payment id**; if that also fails, Lumen asks the gateway: charged → paid; not charged → the order can be paid any way; unknown → "Try again" reuses the same payment id and card (BR-PAY-05) |
 | A-34 | Card 0042: the customer sees "Confirming your payment…" for up to ~20 s; leaving or refreshing the page doesn't cancel it |
 | A-35 | **OTP**: one code entry per challenge; wrong code → that attempt is declined and the customer can try again (new code). Max **5** payment attempts per order. No SMS: the payment page shows a hint "test code: 123456" |
 | A-36 | Card form: number, name, expiry (not in the past), CVC. Only brand + last 4 digits are stored |
@@ -76,7 +78,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 |---|---|
 | A-46 | Mini-cart count = total quantity, not number of lines |
 | A-47 | Guest cart merge: same product → quantities added, capped by availability and 10 per line; registering also merges |
-| A-48 | Guest cart lives 30 days in a cookie-identified server cart |
+| A-48 | Guest cart lives 30 days after its last use, in a cookie-identified server cart |
 | A-49 | A product that disappears or is deactivated stays in the cart marked "No longer available"; checkout is blocked until it's removed |
 | A-50 | Registration: unique email, ASP.NET Identity password rules with a minimum length of 8; no email verification or password reset (no email infrastructure yet) |
 | A-51 | **Single launch country: US.** The spec never names a country; inferred from USD-only prices, "sales tax", the sample addresses (Portland, OR, US) and "more countries" being a planned feature. The country is a config value; addresses use US rules (the form offers the 50 states + DC; the API also accepts PR, GU, VI, AS and MP; 5-digit or ZIP+4) |

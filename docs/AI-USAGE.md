@@ -43,7 +43,7 @@ person decided, how its output was checked, and where it was wrong.
 | The partner mass-deletion guard froze all price and stock updates, not just removals | reviewer | `a987330` |
 | Refunded line ids stored as JSON allowed a line to be refunded twice | reviewer | `6bb52d9` |
 | Compose published ports on every interface while the demo admin password is public | reviewer | `6b52dfd` |
-| `DateTimeOffset` serialised as `+00:00` where the product format requires `Z` | test | `f0cb457` |
+| `DateTimeOffset` serialised as `+00:00` where the product format requires `Z` | test | `636e557` |
 | A commit message claimed 34 seeded Kestrel products; the seed has 37 | author check before push | amended before push |
 | A partner order whose send timed out was refunded at the 30-minute deadline, though the partner may have accepted it and shipped | reviewer | `8e2ee7c` |
 | An admin's confirm or reject could cross a resend already on its way to the partner | second reviewer, checking the fixes | `9a5b7c0` |
@@ -52,7 +52,7 @@ person decided, how its output was checked, and where it was wrong.
 | Going back from Payment to Review and placing the order again created a second order holding the same stock | reviewer | `efdfb22` |
 | Customers saw the partner's internal code in a refund reason (`OUT_OF_STOCK:K-7735`) | screenshots for the PR | `3b2afb9` |
 | The payment diagram in the orders README did not render (a second colon in a label), and three docs disagreed with the code | writing DESIGN.md | `7e633df` |
-| Anyone could lock any account, the admin included, with 5 wrong passwords, and concurrent wrong passwords slipped past the lockout | security audit (final review round) | `5f2fec1` |
+| Mass lockouts were free (no per-IP limit on sign-in), and concurrent wrong passwords slipped past the lockout. A targeted lockout of one account is still possible from one IP: DESIGN §10 | security audit (final review round) | `5f2fec1` |
 | One free account could keep own stock out of sale by placing unpaid orders | security audit | `5662ff0` (BR-CHK-03) |
 | An API restart signed everyone out and broke the next form submission (Data Protection keys were not persisted) | "standout candidate" review | `96d1b8b` |
 | A repeated checkout key that met the unpaid-order limit got 409 instead of its own order | reviewer of the round's merged changes | `9307308` |

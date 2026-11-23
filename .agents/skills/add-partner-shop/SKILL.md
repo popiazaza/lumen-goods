@@ -14,7 +14,8 @@ few places listed in step 4.
 - Write down the partner's endpoints, auth, paging, rate limits, error format, currency and number format, and how
   it reports stock, removals and order decisions (synchronous like Harbor, or later like Kestrel).
 - If the demo needs it, add a stand-in under `src/StandIns/<Name>.StandIn/`. Copy the shape of
-  `HarborSupply.StandIn`: its own SQLite file, a demo CLI, conformance tests in `tests/<Name>.StandIn.Tests/`.
+  `HarborSupply.StandIn`: its own SQLite file, a demo CLI, conformance tests in `tests/<Name>.StandIn.Tests/`. Add both projects to `LumenGoods.slnx`,
+  and raise the expected count in `Both_partner_stand_ins_exist` (`StandInIsolationTests.cs`).
 - **Hard rule:** a stand-in shares no code, DTOs or database with Lumen. `tests/Lumen.UnitTests/Architecture/StandInIsolationTests.cs`
   and each stand-in's `IsolationTests.cs` enforce it. Never add an endpoint or field to a stand-in to make Lumen's
   side easier: adapt in Lumen.
@@ -41,8 +42,8 @@ entities removed (`Product.DescriptionText`).
   (resilience, auth handler), then `services.AddPartner(...)`.
 - `src/Lumen.Api/Checkout/PartnerAvailability.cs` and `src/Lumen.Api/Orders/PartnerOrderGateways.cs`: register the
   availability check and the order gateway.
-- `src/Lumen.Api/appsettings.json`: a `Partners:<Name>` section (base URL, credentials, intervals, category map,
-  resilience) and an entry in `Catalog:Sellers` (the display name).
+- `src/Lumen.Api/appsettings.json`: a `Partners:<Name>` section (its required `Name`, base URL, credentials, intervals,
+  category map, resilience) and an entry in `Catalog:Sellers` (the display name).
 - `docker-compose.yml`: the stand-in service and the `Partners__<Name>__*` environment variables of `api`.
 
 ## 4. Check the few partner-aware places

@@ -67,7 +67,7 @@ New registrations start with a $500.00 wallet.
 
 ### Test cards
 
-Any name, a future expiry and any 3-digit CVC. After a decline, pay the same order again with another card or the
+Any name, a future expiry and any 3-digit CVC (4 digits for Amex). After a decline, pay the same order again with another card or the
 wallet: a customer can hold at most 3 unpaid orders at a time (BR-CHK-03), and each unpaid order is released after 15 minutes.
 
 | Card | Result |
@@ -150,7 +150,7 @@ cd src/web && npx playwright install chromium && npm run e2e   # http://localhos
 ```
 
 A load test ([k6](tests/load/catalogue.js)) sends catalogue, search and product requests through nginx at a fixed
-rate, and fails when p95 goes over 200 ms or more than 1 % of requests fail. Results and the Azure sizing that
+rate, and fails when p95 goes over 200 ms, more than 1 % of requests fail, or more than 0.1 % can't be sent on time. Results and the Azure sizing that
 follows from them: [DESIGN.md §7–8](DESIGN.md#7-scale-path).
 
 ```bash
@@ -225,7 +225,7 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | Testcontainers | Integration tests on real PostgreSQL 18, so constraints, row locks and races behave as in production |
 | CsCheck | Property-based tests: the money rules hold for thousands of random carts, not only the worked examples |
 
-Licences mattered: every library above is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
+Licences mattered: every library above, and every package the API and web app ship, is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
 PostgreSQL licence). MediatR, AutoMapper, MassTransit and FluentAssertions are left out because they moved to
 commercial licences; handlers and mapping are written by hand.
 

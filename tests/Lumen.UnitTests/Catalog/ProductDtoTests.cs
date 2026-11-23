@@ -57,7 +57,7 @@ public sealed class ProductDtoTests
 
     [Fact]
     [Trait("BR", "BR-CAT-01")]
-    public void Low_stock_quantity_is_reported_with_its_quantity()
+    public void BR_CAT_01_low_stock_quantity_is_reported_with_its_quantity()
     {
         var availability = Serialize(PartnerProduct()).GetProperty("availability");
 

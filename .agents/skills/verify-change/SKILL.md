@@ -18,7 +18,7 @@ Read the diff for each of these; each one has bitten this project before.
 - [ ] No partner order before the payment succeeded.
 - [ ] Stand-ins share nothing with Lumen: no project reference, DTO or database. No stand-in endpoint or field added for Lumen's convenience.
 - [ ] Package versions only in `Directory.Packages.props`, never in a `.csproj`. No MediatR, AutoMapper, MassTransit or FluentAssertions (commercial licences).
-- [ ] Time comes from `TimeProvider`; tests use `FakeTimeProvider`, never `Thread.Sleep` or `Task.Delay` to wait.
+- [ ] Time comes from `TimeProvider`; tests use `FakeTimeProvider`, never a fixed sleep to wait; poll for a condition with a deadline.
 - [ ] A value a reviewer might ask to change is configuration (`IOptions<T>` with validation, default in `src/Lumen.Api/appsettings.json`).
 - [ ] Customer-facing text never claims what the server doesn't know (for example "You have not been charged" while a charge may still settle).
 

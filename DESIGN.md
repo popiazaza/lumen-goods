@@ -42,7 +42,7 @@ flowchart TB
 | Service | Built from | Host port | State |
 |---|---|---|---|
 | `web` | `src/web/Dockerfile` (Angular build, nginx) | 8080 | none |
-| `api` | `src/Lumen.Api/Dockerfile` | none | none |
+| `api` | `src/Lumen.Api/Dockerfile` | none | volume `api-keys` (Data Protection keys) |
 | `db` | `postgres:18.7-alpine3.24` | none | volume `db-data` |
 | `harbor` | `src/StandIns/HarborSupply.StandIn/Dockerfile` | 8081 | own SQLite |
 | `kestrel` | `src/StandIns/KestrelOutfitters.StandIn/Dockerfile` | 8082 | own SQLite |
@@ -58,7 +58,7 @@ Ports bind to 127.0.0.1. Start order: `db` healthy, then `api` healthy (migrated
 |---|---|---|
 | `Catalog` | Product API: search, filters, sorts, paging | BR-CAT-01..03 |
 | `Carts` | Guest and customer carts, notices, merge on sign-in | BR-CART-01..03 |
-| `Checkout` | Preview; Place order: live checks, re-pricing, stock reservation | BR-CHK-01/02, BR-STOCK-01 |
+| `Checkout` | Preview; Place order: live checks, re-pricing, stock reservation, the unpaid-order limit | BR-CHK-01..03, BR-STOCK-01 |
 | `Payments` | Card and wallet payments, `IPaymentGateway` and its mock, payment window and refund jobs | BR-PAY-01..07 |
 | `Orders` | Order APIs, partner order job, line rejection and refunds | BR-ORD-01..04 |
 | `Wallets` | Balance, log, opening balances | BR-PAY-06 |
@@ -75,9 +75,9 @@ Ports bind to 127.0.0.1. Start order: `db` healthy, then `api` healthy (migrated
 | `Catalog` | `AvailabilityPolicy`, product sources and categories | BR-CAT-01 |
 | `Pricing` | `PricingService`: tax per line, shipment per seller | BR-MONEY-02, BR-SHIP-01 |
 | `Orders` | Transition tables, status derivation, `RefundCalculator` | BR-PAY-01, BR-STOCK-01, BR-ORD-01..04 |
-| `Payments` | Test cards, card validation, one-time code, payment window | BR-PAY-01..05, BR-PAY-07 |
+| `Payments` | Test cards, card validation, one-time code, payment window, the payment transition table | BR-PAY-01..05, BR-PAY-07 |
 
-Ports keep JSON, XML and CSV out of the engine. Each adapter declares what it can do (`IncrementalChanges`, `StockInCatalogue`, `DecidesLater`) and reports failures as results or a `PartnerException`, never as unhandled errors. Hosted jobs, every 5 s unless `Jobs:Enabled=false`: `PartnerSyncJob` (one per partner), `PartnerOrderJob`, `PaymentWindowJob` (expiry, stuck payments), `RefundJob`. Card charges run in `DetachedPaymentRunner`, outside the request.
+Ports keep JSON, XML and CSV out of the engine. Each adapter declares what it can do (`IncrementalChanges`, `StockInCatalogue`, `DecidesLater`) and reports failures as results or a `PartnerException`, never as unhandled errors. Hosted jobs, every 5 s unless `Jobs:Enabled=false`: `PartnerSyncJob` (one per partner), `PartnerOrderJob`, `PaymentWindowJob` (expiry, stuck payments), `RefundJob`, and hourly `GuestCartCleanupJob` (guest carts past their lifetime). Card charges run in `DetachedPaymentRunner`, outside the request.
 
 ## 4. Runtime views
 
@@ -258,7 +258,7 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 - Data Protection keys live on a volume, so a restart keeps sessions and XSRF tokens valid. In production they would be encrypted with a key vault.
 - API answers carry `Cache-Control: no-cache, no-store`.
 
-**Configuration over code.** Every setting a reviewer may change is an `IOptions<T>` validated at start-up, set in `src/Lumen.Api/appsettings.json` and overridable by environment variables.
+**Configuration over code.** Every business setting a reviewer may change is an `IOptions<T>` validated at start-up, set in `src/Lumen.Api/appsettings.json` and overridable by environment variables. A few deployment switches (`Auth:CookieSecurePolicy`, `DataProtection:KeysPath`, `Docs:Enabled`) are read directly from configuration.
 
 **Observability.** OpenTelemetry, set up in one file (`Infrastructure/Telemetry/TelemetryExtensions.cs`). Traces cover requests, partner HTTP calls, SQL (Npgsql) and Lumen's own spans: a `card charge` span per gateway call, tagged with order number, payment id and `first_try` or `automatic_retry` (card 0059 shows the failed call and its retry in the Pay request's trace), and a `partner order send` or `poll` span per partner order, tagged with partner, reference and outcome. Metrics cover requests, HTTP calls, the runtime and the `Lumen` meter: counters `lumen.payments`, `lumen.partner_orders` and `lumen.refunds`, and gauges `lumen.partner_orders.waiting`, `lumen.refunds.pending` and `lumen.partner_sync.age`, read every 10 s by a background refresh (one indexed query each, 5 s timeout) and reported from that snapshot, so a slow or unreachable database never holds up an export, and never on a request. `/health` is not traced, and client spans that would start a trace of their own (the jobs' polling queries, catalogue fetches) are not sampled, so they don't bury the traces worth reading; their metrics remain. Traces, metrics and logs go out over OTLP only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set: locally to the Aspire dashboard (compose profile `observability`), on Azure to Azure Monitor (§8). Otherwise nothing is exported, and neither tracing nor the gauge refresh is set up.
 
@@ -328,6 +328,13 @@ Lumen cannot engineer this away. It needs a higher limit, more keys, or a bulk o
 | Messaging | Service Bus fed by an outbox | When the row queues outgrow PostgreSQL |
 | Storage | Blob Storage | Shared Data Protection keys, product images |
 | Stand-ins | Their own Container Apps | Test environments only |
+
+**Production settings that differ from compose.** Front Door, not nginx, is then the edge:
+- `AllowedHosts` and `Catalog:PublicBaseUrl` name the real host. `ForwardedHeaders:KnownProxies` takes single addresses only; trusting Front Door's published address ranges needs a small code change (bind `KnownNetworks`). Until then, per-IP limits see Front Door's address, not the client's.
+- TLS with HSTS at the edge; the API keeps `Auth:CookieSecurePolicy` at `Always`.
+- Request bodies are capped in the API itself (`RequestLimits:MaxRequestBodySize`, 1 MB), since nginx's cap is no longer in front.
+- Seeding stays off. The first admin then needs the one-off command in §10, which is not built yet.
+- Base images pinned by digest, not only by tag.
 
 **Sizing on App Service Premium v4.** Premium v4 runs on Dadsv6 virtual machines ([announcement](https://techcommunity.microsoft.com/blog/appsonazureblog/announcing-general-availability-of-premium-v4-for-azure-app-service/4446204)), whose AMD EPYC 9004 (Genoa) processors boost to 3.7 GHz ([Dadsv6](https://learn.microsoft.com/azure/virtual-machines/sizes/general-purpose/dadsv6-series)). A plan scales out to 30 instances ([limits](https://learn.microsoft.com/azure/azure-resource-manager/management/azure-subscription-service-limits#app-service-limits)). The sizing starts from §7's lower figure, about 600 catalogue requests/s per test-machine CPU, with two assumptions:
 
@@ -399,7 +406,8 @@ PostgreSQL vCores come from about 1.4 ms of CPU per request (§7): requests/s ×
 | Two large units kept whole: the payment page (1,054 lines of TypeScript, 215 of template) and `PartnerOrderProcessor` (571 lines) | Both move money and are well covered (1,000 lines of page spec, `PartnerOrderJobTests`); splitting them in the last days risked regressions for no change in behaviour | The next change to either: the page into card form, one-time-code panel and status poller; the processor into claim, send and give-up steps |
 | Typed Reactive Forms, not Angular 22 Signal Forms | Mature and documented, and every form's tests are written against them | A form being reworked anyway: move it to Signal Forms, one form at a time |
 | `ILogger` message templates, no `LoggerMessage` source generators | Logs are already structured; at today's volume the saved allocations don't matter | Busy hot paths (sync, partner order job): generated `[LoggerMessage]` methods, with CA1848 as a warning |
-| Account lockout per email plus per-IP limits | Stops mass lockouts and password spraying with no extra service | Targeted lockouts from many IPs: a step-up (CAPTCHA or email code) after a few failures instead of a hard lock |
+| Account lockout per email plus per-IP limits | Stops mass lockouts and password spraying with no extra service | Targeted lockouts: one IP can lock an account and repeat it every 5 minutes, so a step-up (CAPTCHA or email code) after a few failures instead of a hard lock |
+| The first admin comes only from seeding (`Seed:Enabled`), which also creates the published demo customer | Compose and the demo need no extra step | The first production deploy: a one-off command that grants the Admin role to a registered account, with seeding left off |
 | Migrations run at API start-up | `docker compose up` needs no extra step | A second replica or a real pipeline: a `dotnet ef migrations bundle` step before deploy (§8). A migration that rewrites a large table (`SearchDescriptionText` adds a stored column to `Products`) then runs in steps: add the column, backfill in batches, build the index `CONCURRENTLY` |
 
 [adr2]: docs/adr/0002-modular-monolith-in-one-api-host.md
