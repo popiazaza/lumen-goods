@@ -14,11 +14,13 @@ namespace Lumen.Api.Orders;
 /// <param name="StatusText">What the customer sees: "Awaiting payment", "Processing", "Partial refund pending", "Partially refunded", ...</param>
 /// <param name="ItemCount">Sum of the line quantities.</param>
 /// <param name="SellerNames">The shops the items came from, e.g. ["Lumen Goods", "Kestrel Outfitters"].</param>
+/// <param name="CanPay">As <see cref="OrderDetailDto.CanPay"/>: the order awaits payment, its hold lasts and attempts are left, so the list offers "Pay now".</param>
+/// <param name="AwaitingOneTimeCode">The current payment waits for the customer's one-time code (not expired yet), so the list offers "Enter the code".</param>
 /// <example>
 /// <code>
 /// { "number": "LG-7K3M9QX2", "status": "partially_refunded", "statusText": "Partially refunded",
 ///   "createdUtc": "2026-11-20T08:00:00Z", "total": 75.46, "refundedTotal": 22.51, "itemCount": 3,
-///   "sellerNames": ["Lumen Goods", "Kestrel Outfitters"] }
+///   "sellerNames": ["Lumen Goods", "Kestrel Outfitters"], "canPay": false, "awaitingOneTimeCode": false }
 /// </code>
 /// </example>
 public sealed record OrderSummaryDto(
@@ -29,7 +31,9 @@ public sealed record OrderSummaryDto(
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Total,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal RefundedTotal,
     int ItemCount,
-    IReadOnlyList<string> SellerNames);
+    IReadOnlyList<string> SellerNames,
+    bool CanPay,
+    bool AwaitingOneTimeCode);
 
 /// <summary>
 /// <c>GET /api/v1/orders/{number}</c> (the customer's own order; another's is 404) and the answer to Place order. Lines

@@ -132,6 +132,46 @@ describe('OrderListPage', () => {
     expect(text(host(), '.count')).toBe('2 orders');
   });
 
+  it('offers Pay now or Enter the code where the order can be paid, and nothing elsewhere', async () => {
+    const request = await openOrders();
+    request.flush(
+      aPagedResult([
+        anOrderSummary({
+          number: 'LG-UNPAID01',
+          status: 'awaiting_payment',
+          statusText: 'Awaiting payment',
+          canPay: true,
+        }),
+        anOrderSummary({
+          number: 'LG-CODE0001',
+          status: 'payment_processing',
+          statusText: 'Waiting for your one-time code',
+          awaitingOneTimeCode: true,
+        }),
+        // Hold over or no attempts left.
+        anOrderSummary({
+          number: 'LG-LATE0001',
+          status: 'awaiting_payment',
+          statusText: 'Awaiting payment',
+        }),
+        PROCESSING,
+      ])
+    );
+    await harness.fixture.whenStable();
+
+    expect(
+      cards().map((card) => {
+        const pay = card.querySelector(':scope a.pay');
+        return pay && { name: text(card, 'a.pay'), href: pay.getAttribute('href') };
+      })
+    ).toStrictEqual([
+      { name: 'Pay now for order LG-UNPAID01', href: '/checkout/payment?order=LG-UNPAID01' },
+      { name: 'Enter the code for order LG-CODE0001', href: '/checkout/payment?order=LG-CODE0001' },
+      null,
+      null,
+    ]);
+  });
+
   it('pages through the history with ?page=, asking the API for that page', async () => {
     const first = await openOrders();
     first.flush(pageOf(1));

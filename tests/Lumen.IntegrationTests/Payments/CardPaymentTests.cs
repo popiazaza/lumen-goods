@@ -252,14 +252,39 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
         var history = await (await shopper.Session.GetAsync("/api/v1/orders")).ReadAsync<PagedResult<OrderSummaryDto>>();
         var detail = await (await shopper.Session.GetAsync($"/api/v1/orders/{order.Number}")).ReadAsync<OrderDetailDto>();
 
-        history.Items.Single(o => o.Number == order.Number).StatusText.Should().Be("Waiting for your one-time code");
+        var listed = history.Items.Single(o => o.Number == order.Number);
+        (listed.StatusText, listed.AwaitingOneTimeCode, listed.CanPay).Should().Be(("Waiting for your one-time code", true, false));
         (detail.Status, detail.StatusText).Should().Be((OrderStatus.PaymentProcessing, "Waiting for your one-time code"));
         detail.Payment!.Status.Should().Be(PaymentStatus.RequiresAction);
 
         // Once the code has run out, nothing waits for the customer any more.
         host.Clock.Advance(TimeSpan.FromSeconds(5 * 60 + 1));
         var afterExpiry = await (await shopper.Session.GetAsync("/api/v1/orders")).ReadAsync<PagedResult<OrderSummaryDto>>();
-        afterExpiry.Items.Single(o => o.Number == order.Number).StatusText.Should().NotBe("Waiting for your one-time code");
+        var expired = afterExpiry.Items.Single(o => o.Number == order.Number);
+        expired.StatusText.Should().NotBe("Waiting for your one-time code");
+        expired.AwaitingOneTimeCode.Should().BeFalse();
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-02")]
+    [Trait("BR", "BR-PAY-03")]
+    public async Task BR_PAY_03_the_order_list_offers_payment_exactly_when_the_order_page_does()
+    {
+        var (shopper, order) = await OrderAsync();
+        async Task<(bool Listed, bool Detail)> CanPayAsync()
+        {
+            var history = await (await shopper.Session.GetAsync("/api/v1/orders")).ReadAsync<PagedResult<OrderSummaryDto>>();
+            var detail = await (await shopper.Session.GetAsync($"/api/v1/orders/{order.Number}")).ReadAsync<OrderDetailDto>();
+            return (history.Items.Single(o => o.Number == order.Number).CanPay, detail.CanPay);
+        }
+
+        (await CanPayAsync()).Should().Be((true, true), "placed, not paid yet, within its hold");
+
+        await shopper.PayByCardAndWaitAsync(order.Number, "4242000000000018");
+        (await CanPayAsync()).Should().Be((true, true), "a declined attempt leaves 4 more");
+
+        host.Clock.Advance(TimeSpan.FromMinutes(15));
+        (await CanPayAsync()).Should().Be((false, false), "the hold is over");
     }
 
     [Fact]

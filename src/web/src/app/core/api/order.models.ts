@@ -101,6 +101,14 @@ export interface OrderSummaryDto {
   */
   itemCount: number;
   sellerNames: string[];
+  /**
+  Awaiting payment, hold not over, attempts left: offer Pay now (as `OrderDetailDto.canPay`).
+  */
+  canPay: boolean;
+  /**
+  The current payment waits for the customer's one-time code: offer Enter the code.
+  */
+  awaitingOneTimeCode: boolean;
 }
 
 export interface OrderLineDto {

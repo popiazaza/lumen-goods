@@ -30,8 +30,8 @@ internal static class OrderEndpoints
     }
 
     private static async Task<Results<Ok<PagedResult<OrderSummaryDto>>, ValidationProblem, UnauthorizedHttpResult>> ListOrders(
-        ClaimsPrincipal user, LumenDbContext db, SellerDirectory sellers, TimeProvider clock, CancellationToken cancellationToken,
-        string? page = null, string? pageSize = null)
+        ClaimsPrincipal user, LumenDbContext db, SellerDirectory sellers, PaymentWindowPolicy paymentWindow, TimeProvider clock,
+        CancellationToken cancellationToken, string? page = null, string? pageSize = null)
     {
         if (CustomerId(user) is not { } customerId)
         {
@@ -58,6 +58,7 @@ internal static class OrderEndpoints
                 o.CreatedUtc,
                 o.Total,
                 o.RefundedTotal,
+                o.FailedPaymentAttempts,
                 ItemCount = o.Lines.Sum(l => l.Quantity),
                 Sources = o.Shipments.Select(s => s.Source).ToList(),
                 RefundPending = o.Refunds.Any(r => r.Status != RefundStatus.Succeeded),
@@ -69,7 +70,10 @@ internal static class OrderEndpoints
         var items = rows
             .Select(r => new OrderSummaryDto(
                 r.Number, r.Status, OrderStatusText.ForOrder(r.Status, r.RefundPending, r.AwaitingCode), r.CreatedUtc.UtcDateTime, r.Total, r.RefundedTotal, r.ItemCount,
-                sellers.Names(r.Sources)))
+                sellers.Names(r.Sources),
+                // The same test as the order page's CanPay (OrderDetailReader), so the list and the page agree.
+                CanPay: r.Status == OrderStatus.AwaitingPayment && paymentWindow.CanStartAttempt(r.FailedPaymentAttempts, r.CreatedUtc, now),
+                AwaitingOneTimeCode: r.Status == OrderStatus.PaymentProcessing && r.AwaitingCode))
             .ToList();
         return TypedResults.Ok(PagedResult<OrderSummaryDto>.Create(items, paging, total));
     }

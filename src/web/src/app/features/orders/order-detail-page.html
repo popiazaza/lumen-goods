@@ -43,6 +43,31 @@
     }
   </p>
 
+  @if (payAction(); as action) {
+    <div class="notice pay">
+      @if (action === 'enter-code') {
+        <mat-icon svgIcon="lock" />
+        <p>Your card issuer asked for a one-time code to approve this payment.</p>
+        <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: o.number }"
+          >Enter the code</a
+        >
+      } @else {
+        <mat-icon svgIcon="credit_card" />
+        @if (action === 'pay-after-failure') {
+          <p>
+            We couldn’t confirm your last payment. You can try the same card again: you won’t be
+            charged twice.
+          </p>
+        } @else {
+          <p>This order is placed but not paid yet.</p>
+        }
+        <a matButton="filled" routerLink="/checkout/payment" [queryParams]="{ order: o.number }"
+          >Pay now</a
+        >
+      }
+    </div>
+  }
+
   @if (rejectedCount() > 0) {
     <div class="notice">
       <mat-icon svgIcon="info" />

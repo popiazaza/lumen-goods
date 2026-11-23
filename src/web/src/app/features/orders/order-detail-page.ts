@@ -35,6 +35,20 @@ const lineStatusOf = (line: OrderLineDto): StatusView =>
   lineStatusView(line.status, line.statusText);
 
 /**
+The card issuer waits for the customer's one-time code (card 0034, BR-PAY-03).
+*/
+const isAwaitingCode = (order: OrderDetailDto): boolean =>
+  order.status === 'payment_processing' && order.payment?.status === 'requires_action';
+
+/**
+ * What the customer can do to pay, as on the confirmation page: enter the one-time code the
+ * payment waits for, or pay while the API says the order can still be paid (`canPay`). After a
+ * Failed payment the card may have been charged (BR-PAY-05), so the page never calls the order
+ * unpaid then: paying again continues that payment.
+ */
+type PayAction = 'enter-code' | 'pay' | 'pay-after-failure';
+
+/**
  * One of the customer's orders (`/orders/:id`, the order number): every line with its seller and
  * its own status (BR-ORD-02), shipments, refunds (BR-ORD-03), totals and payment. Re-reads the
  * order every few seconds while something can still change on its own (a payment, a partner, a
@@ -90,6 +104,24 @@ export class OrderDetailPage {
   );
 
   /**
+   * Pay an unpaid order from here, not only from its confirmation page: the payment step opens for
+   * `/checkout/payment?order=`. Null when there is nothing to pay.
+   */
+  protected readonly payAction = computed((): PayAction | null => {
+    const order = this.detail();
+    if (!order) {
+      return null;
+    }
+    if (isAwaitingCode(order)) {
+      return 'enter-code';
+    }
+    if (!order.canPay) {
+      return null;
+    }
+    return order.payment?.status === 'failed' ? 'pay-after-failure' : 'pay';
+  });
+
+  /**
   What the page is waiting for while it refreshes itself.
   */
   protected readonly waitingText = computed(() => {
@@ -98,7 +130,9 @@ export class OrderDetailPage {
       return '';
     }
     const reasons: string[] = [];
-    if (order.status === 'payment_processing') {
+    if (isAwaitingCode(order)) {
+      reasons.push('Waiting for your one-time code.');
+    } else if (order.status === 'payment_processing') {
       reasons.push('Waiting for your payment to be confirmed.');
     }
     const shops = order.shipments
