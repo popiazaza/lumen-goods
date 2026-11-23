@@ -115,6 +115,31 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
     }
 
     [Fact]
+    [Trait("BR", "BR-PAY-01")]
+    public async Task BR_PAY_01_a_checkout_key_used_by_another_customer_is_409_and_reveals_nothing()
+    {
+        var first = await host.NewShopperAsync();
+        await first.AddToCartAsync(await host.OwnProductAsync(18.50m), 1);
+        var key = Guid.NewGuid();
+        var placed = await first.PlaceAsync(await first.PreviewAsync(), key);
+        placed.StatusCode.Should().Be(HttpStatusCode.Created);
+        var firstOrder = await placed.ReadAsync<OrderDetailDto>();
+
+        var second = await host.NewShopperAsync();
+        var mug = await host.OwnProductAsync(18.50m, onHand: 5);
+        await second.AddToCartAsync(mug, 1);
+        var response = await second.PlaceAsync(await second.PreviewAsync(), key);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body = await response.Content.ReadAsStringAsync(Ct);
+        (await response.ReadJsonAsync()).GetProperty("type").GetString().Should().Be(CheckoutProblemTypes.CheckoutKeyTaken);
+        body.Should().NotContain(firstOrder.Number, "another customer's order is never revealed");
+        (await host.WithDbAsync(db => db.Orders.AnyAsync(o => o.CustomerId == second.Id, Ct))).Should().BeFalse();
+        (await host.ProductAsync(mug.Id)).Reserved.Should().Be(0);
+        (await host.OrderAsync(firstOrder.Number)).CustomerId.Should().Be(first.Id, "the first customer's order is untouched");
+    }
+
+    [Fact]
     [Trait("BR", "BR-STOCK-01")]
     public async Task BR_STOCK_01_two_customers_racing_for_the_last_unit_get_one_order_and_one_409()
     {
@@ -179,6 +204,35 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         var placed = await shopper.PlaceAsync(confirmed);
         placed.StatusCode.Should().Be(HttpStatusCode.Created);
         (await placed.ReadAsync<OrderDetailDto>()).Totals.Total.Should().Be(82.56m);
+    }
+
+    [Theory]
+    [Trait("BR", "BR-CART-03")]
+    [InlineData(false, 0, CheckoutChangeKind.Unavailable, null, "No longer available")]
+    [InlineData(true, 3, CheckoutChangeKind.QuantityLimited, 3, "Only 3 left")]
+    public async Task BR_CART_03_an_own_product_unsellable_since_the_review_returns_409_and_reserves_nothing(
+        bool stillActive, int onHandNow, CheckoutChangeKind kind, int? available, string message)
+    {
+        var shopper = await host.NewShopperAsync();
+        var mug = await host.OwnProductAsync(18.50m, onHand: 10);
+        var tee = await host.OwnProductAsync(25.00m, onHand: 5);
+        await shopper.AddToCartAsync(mug, 1);
+        await shopper.AddToCartAsync(tee, 4);
+        var preview = await shopper.PreviewAsync();
+
+        // An admin deactivates the tee, or sells stock elsewhere, between the review and Place order.
+        await host.WithDbAsync(db => db.Products.Where(p => p.Id == tee.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.IsActive, stillActive).SetProperty(p => p.OnHand, onHandNow), Ct));
+        var key = Guid.NewGuid();
+        var response = await shopper.PlaceAsync(preview, key);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await response.ReadAsync<PriceChangedProblem>();
+        problem.Changes.Should().ContainSingle().Which.Should().BeEquivalentTo(new { ProductId = tee.Id, Kind = kind, Available = available, Message = message });
+        (problem.NewTotal, problem.CanConfirm).Should().Be(((decimal?)null, false));
+        (await host.WithDbAsync(db => db.Orders.AnyAsync(o => o.CustomerId == shopper.Id, Ct))).Should().BeFalse("nothing is created");
+        (await host.ProductAsync(mug.Id)).Reserved.Should().Be(0, "nothing is reserved for an order that was not created");
+        (await host.ProductAsync(tee.Id)).Reserved.Should().Be(0);
     }
 
     [Fact]
