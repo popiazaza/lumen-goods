@@ -208,18 +208,20 @@ describe('AdminOrdersPage', () => {
       customer: text(paid, '.mat-column-customer'),
       sellers: text(paid, '.mat-column-sellers'),
       total: text(paid, '.mat-column-total'),
+      // The number never breaks; a long email may break only before its @.
+      numberNowrap: paid.querySelector(':scope .mat-column-number')?.classList.contains('nowrap'),
+      emailBreak: paid
+        .querySelector(':scope .mat-column-customer wbr')
+        ?.nextSibling?.textContent?.trim(),
     }).toStrictEqual({
       number: 'LG-7K3M9QX2',
       href: '/admin/orders/LG-7K3M9QX2',
       customer: 'customer@lumengoods.test',
       sellers: 'Lumen Goods, Kestrel Outfitters',
       total: '$75.46',
+      numberNowrap: true,
+      emailBreak: '@lumengoods.test',
     });
-    // The number never breaks; a long email may break only before its @.
-    expect(paid.querySelector('.mat-column-number')?.classList).toContain('nowrap');
-    expect(paid.querySelector('.mat-column-customer wbr')?.nextSibling?.textContent?.trim()).toBe(
-      '@lumengoods.test'
-    );
     expect(
       [...attention.querySelectorAll('app-status-badge')].map((badge) => badge.textContent?.trim())
     ).toStrictEqual(['Processing', 'Needs attention']);

@@ -9,14 +9,14 @@
   grid-template-columns: 1fr auto;
   row-gap: var(--lg-space-2);
 
-  & dd {
+  dd {
     padding-left: var(--lg-space-4);
     margin: 0;
     font-variant-numeric: tabular-nums;
     text-align: right;
   }
 
-  & .grand {
+  .grand {
     padding-top: var(--lg-space-2);
     border-top: 1px solid var(--mat-sys-outline-variant);
     color: var(--mat-sys-on-surface);

@@ -31,7 +31,8 @@
   <div class="overview">
     <app-status-badge [status]="orderStatus(o)" />
     <p>
-      Placed <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'MMM d, y, h:mm a' }}</time>
+      Placed
+      <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'MMM d, y, h:mm a' }}</time>
     </p>
   </div>
 

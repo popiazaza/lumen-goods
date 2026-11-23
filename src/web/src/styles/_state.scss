@@ -9,26 +9,26 @@
   gap: var(--lg-space-2);
   text-align: center;
 
-  & h2,
-  & h3 {
+  h2,
+  h3 {
     margin: 0;
     font: var(--mat-sys-title-large);
     font-family: var(--lg-font-heading);
   }
 
   // Admin states lead with a bold line instead of a heading.
-  & strong {
+  strong {
     color: var(--mat-sys-on-surface);
   }
 
-  & p {
+  p {
     max-width: 40ch;
     margin: 0 0 var(--lg-space-2);
     color: var(--mat-sys-on-surface-variant);
     overflow-wrap: anywhere;
   }
 
-  & > mat-icon {
+  > mat-icon {
     width: 40px;
     height: 40px;
     color: var(--mat-sys-on-surface-variant);

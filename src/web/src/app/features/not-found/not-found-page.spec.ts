@@ -15,8 +15,10 @@ describe('NotFoundPage', () => {
       MatButtonHarness.with({ text: 'Go to the shop' })
     );
 
-    expect(host.querySelector('.state h1')?.textContent).toBe('Page not found');
-    expect(await (await shop.host()).getAttribute('href')).toBe('/');
-    expect(await shop.getAppearance()).toBe('filled');
+    const shopHost = await shop.host();
+
+    expect(host.querySelector(':scope .state h1')?.textContent).toBe('Page not found');
+    await expect(shopHost.getAttribute('href')).resolves.toBe('/');
+    await expect(shop.getAppearance()).resolves.toBe('filled');
   });
 });
