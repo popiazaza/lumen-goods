@@ -31,7 +31,9 @@ internal sealed class CartPresenter(
             .Where(l => l.State.Unavailable is null && l.State.UnitPrice is not null)
             .Select(l => new PricingLine(l.Product.Id, l.Product.Source, l.State.UnitPrice!.Value, l.Line.Quantity))
             .ToList();
-        var totals = payable.Count == 0 ? CartTotalsDto.Zero : Totals(pricing.Price(payable, ShippingMethod.Standard));
+        var totals = payable.Count == 0
+            ? CartTotalsDto.Zero
+            : Totals(payable.Sum(l => l.Quantity), pricing.Price(payable, ShippingMethod.Standard));
 
         var lineDtos = lines.Select(l => ToDto(l.Line, l.Product, l.State, baseUrl)).ToList();
         return new CartDto(
@@ -61,8 +63,8 @@ internal sealed class CartPresenter(
         state.BlocksCheckout,
         line.AddedUtc.UtcDateTime);
 
-    private static CartTotalsDto Totals(PriceQuote quote) =>
-        new(quote.Subtotal, quote.ShippingTotal, quote.TaxTotal, quote.GrandTotal);
+    private static CartTotalsDto Totals(int itemCount, PriceQuote quote) =>
+        new(itemCount, quote.Subtotal, quote.ShippingTotal, quote.TaxTotal, quote.GrandTotal);
 
     private string SellerName(string source) =>
         catalog.Value.Sellers.FirstOrDefault(s => s.Source == source)?.Name ?? source;

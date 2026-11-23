@@ -10,7 +10,10 @@ namespace Lumen.Api.Carts;
 /// <c>GET /api/v1/cart</c> and the answer to every cart change: the whole cart, priced by the server at current prices
 /// (BR-CART-02). An empty cart has no lines and zero totals. Money always has two decimals; enums are snake_case.
 /// </summary>
-/// <param name="ItemCount">Sum of the line quantities, for the mini-cart badge (A-46), not the number of lines.</param>
+/// <param name="ItemCount">
+/// Sum of all the line quantities, unavailable lines included, for the mini-cart badge (A-46), not the number of lines.
+/// The summary's "Subtotal (n items)" uses <see cref="CartTotalsDto.ItemCount"/> instead.
+/// </param>
 /// <param name="Totals">Preview with Standard shipping for each seller present; checkout prices the real order.</param>
 /// <param name="CanCheckout">
 /// False when the cart is empty, any line <see cref="CartLineDto.BlocksCheckout"/>, or it holds more than
@@ -33,7 +36,7 @@ namespace Lumen.Api.Carts;
 ///                  "unavailable": null, "quantityLimited": { "requested": 4, "allowed": 2 } },
 ///     "blocksCheckout": true, "addedUtc": "2026-11-20T08:00:00Z" }],
 ///   "itemCount": 4,
-///   "totals": { "subtotal": 219.60, "shipping": 4.99, "tax": 17.57, "total": 242.16, "isEstimate": true },
+///   "totals": { "itemCount": 4, "subtotal": 219.60, "shipping": 4.99, "tax": 17.57, "total": 242.16, "isEstimate": true },
 ///   "canCheckout": false,
 ///   "maxLines": 50
 /// }
@@ -133,13 +136,18 @@ public enum CartLineUnavailableReason
 /// (BR-MONEY-02). Lines that are <see cref="CartLineNoticesDto.Unavailable"/> are left out; a line above the available
 /// quantity counts at its current quantity until reduced.
 /// </summary>
+/// <param name="ItemCount">
+/// Sum of the quantities the subtotal covers: <see cref="CartDto.ItemCount"/> without the unavailable lines, so
+/// "Subtotal (n items)" matches the amount next to it.
+/// </param>
 public sealed record CartTotalsDto(
+    int ItemCount,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Subtotal,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Shipping,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Tax,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Total)
 {
-    public static readonly CartTotalsDto Zero = new(0m, 0m, 0m, 0m);
+    public static readonly CartTotalsDto Zero = new(0, 0m, 0m, 0m, 0m);
 
     /// <summary>
     /// Always true: the cart shows shipping, tax and total as estimates ("Estimated shipping"), because shipping assumes

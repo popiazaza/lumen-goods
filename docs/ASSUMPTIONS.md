@@ -76,7 +76,7 @@ Contract interpretations for the partner stand-ins live in each stand-in's READM
 
 | ID | Assumption |
 |---|---|
-| A-46 | Mini-cart count = total quantity, not number of lines |
+| A-46 | Mini-cart count = total quantity, not number of lines, including lines that can't be ordered (they are still in the cart). The cart summary's "Subtotal (n items)" counts only the units the subtotal covers (`totals.itemCount`) and names the lines left out |
 | A-47 | Guest cart merge: same product → quantities added, capped by availability and 10 per line; registering also merges |
 | A-48 | Guest cart lives 30 days after its last use, in a cookie-identified server cart |
 | A-49 | A product that disappears or is deactivated stays in the cart marked "No longer available"; checkout is blocked until it's removed |
