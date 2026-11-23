@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Lumen.Api.Catalog;
 using Lumen.Domain.Catalog;
 using Lumen.Domain.Money;
+using Lumen.Domain.Pricing;
 
 namespace Lumen.Api.Admin;
 
@@ -28,9 +30,6 @@ internal static partial class OwnProductValidation
     public const int MaxAttributeValueLength = 200;
     public const int MaxImages = 8;
     public const int MaxOnHand = 1_000_000;
-
-    /// <summary>The products.PriceUsd column is numeric(12,2).</summary>
-    public const decimal MaxPrice = 9_999_999_999.99m;
 
     public static Dictionary<string, string[]> Validate(IOwnProductInput input, OwnMediaLibrary media, out OwnProductFields? fields)
     {
@@ -79,9 +78,9 @@ internal static partial class OwnProductValidation
         {
             Fail("price", "Price can have at most 2 decimal places.");
         }
-        else if (price > MaxPrice)
+        else if (price > PriceLimits.MaxUnitPriceUsd)
         {
-            Fail("price", $"Price can be at most {MaxPrice:0.00}.");
+            Fail("price", string.Create(CultureInfo.InvariantCulture, $"Price can be at most ${PriceLimits.MaxUnitPriceUsd:N2}."));
         }
 
         if (input.OnHand is not { } onHand)

@@ -225,6 +225,22 @@ describe('CartPage', () => {
     expect(TestBed.inject(Router).url).toBe('/');
   });
 
+  it('blocks checkout with how many to remove when a merge left more lines than an order takes (BR-CART-03)', async () => {
+    const lines = Array.from({ length: 52 }, (_, i) =>
+      aCartLine({ id: `line-${i}`, product: { ...LUMEN_MUG.product, id: `product-${i}` } })
+    );
+    await open(aCart(lines, { canCheckout: false }));
+
+    expect({
+      disabled: host().querySelector('button.checkout')?.getAttribute('aria-disabled'),
+      reason: text(host(), '#checkout-blocked'),
+    }).toStrictEqual({
+      disabled: 'true',
+      reason:
+        'An order can have at most 50 different products, and your cart has 52. Remove 2 to check out.',
+    });
+  });
+
   it('goes to checkout when the cart can be bought', async () => {
     await open(aCart([LUMEN_MUG]));
 

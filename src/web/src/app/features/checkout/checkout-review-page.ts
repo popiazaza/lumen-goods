@@ -229,6 +229,12 @@ export class CheckoutReviewPage {
       this.placeError.set('We can’t ship to this address. Change it and try again.');
       return;
     }
+    // More lines than an order takes (BR-CART-03): the API's message says what to do.
+    const [tooManyLines] = errors['lines'] ?? [];
+    if (tooManyLines) {
+      this.placeError.set(tooManyLines);
+      return;
+    }
     this.placeError.set(
       problemMessage(error, 'We couldn’t place your order. You have not been charged. Try again.')
     );

@@ -1,4 +1,5 @@
 using Lumen.Api.Identity;
+using Lumen.Api.Infrastructure.RateLimiting;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Lumen.Api.Carts;
@@ -26,15 +27,20 @@ internal static class CartEndpoints
             });
 
         cart.MapGet("", GetCart).WithName("GetCart");
-        cart.MapPost("/lines", AddLine).WithName("AddCartLine")
+
+        // Every change is rate limited per customer, or per client IP for a guest: each cookieless add creates a guest
+        // cart row that is kept for 30 days.
+        var changes = cart.MapGroup("").RequireRateLimiting(RateLimitPolicies.CartWrite)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+        changes.MapPost("/lines", AddLine).WithName("AddCartLine")
             .ProducesProblem(StatusCodes.Status409Conflict).ProducesProblem(StatusCodes.Status422UnprocessableEntity);
-        cart.MapPut("/lines/{lineId:guid}", UpdateLine).WithName("UpdateCartLine")
+        changes.MapPut("/lines/{lineId:guid}", UpdateLine).WithName("UpdateCartLine")
             .ProducesProblem(StatusCodes.Status404NotFound).ProducesProblem(StatusCodes.Status422UnprocessableEntity);
-        cart.MapDelete("/lines/{lineId:guid}", RemoveLine).WithName("RemoveCartLine")
+        changes.MapDelete("/lines/{lineId:guid}", RemoveLine).WithName("RemoveCartLine")
             .ProducesProblem(StatusCodes.Status404NotFound);
-        cart.MapPost("/lines/{lineId:guid}/acknowledge", AcknowledgeLine).WithName("AcknowledgeCartLine")
+        changes.MapPost("/lines/{lineId:guid}/acknowledge", AcknowledgeLine).WithName("AcknowledgeCartLine")
             .ProducesProblem(StatusCodes.Status404NotFound);
-        cart.MapPost("/acknowledge", AcknowledgeAll).WithName("AcknowledgeCart");
+        changes.MapPost("/acknowledge", AcknowledgeAll).WithName("AcknowledgeCart");
         return api;
     }
 

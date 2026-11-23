@@ -81,7 +81,7 @@ public sealed class OrderingContractTests
     {
         var json = Serialize(Cart());
 
-        json.EnumerateObject().Select(p => p.Name).Should().Equal("lines", "itemCount", "totals", "canCheckout");
+        json.EnumerateObject().Select(p => p.Name).Should().Equal("lines", "itemCount", "totals", "canCheckout", "maxLines");
         json.GetProperty("lines")[0].EnumerateObject().Select(p => p.Name).Should().Equal(
             "id", "product", "quantity", "maxQuantity", "unitPrice", "unitPriceSeen", "lineTotal", "notices", "blocksCheckout", "addedUtc");
         json.GetProperty("lines")[0].GetProperty("addedUtc").GetString().Should().Be("2026-11-20T08:00:00Z");

@@ -68,6 +68,56 @@ public sealed class CartLimitTests(LumenApiFactory factory)
 
     [Fact]
     [Trait("BR", "BR-CART-03")]
+    public async Task BR_CART_03_a_cart_holds_at_most_50_different_products_but_more_of_one_already_in_it_is_fine()
+    {
+        var products = Enumerable.Range(0, 51).Select(i => CatalogTestSupport.Own($"Cart test {i} {Guid.NewGuid():N}")).ToArray();
+        await factory.InsertAsync(products);
+        var (guest, _) = factory.NewBrowser();
+        foreach (var product in products.Take(50))
+        {
+            await guest.AddOkAsync(product.Id, 1);
+        }
+
+        var problem = await (await guest.AddAsync(products[50].Id, 1)).ShouldBeProblemAsync(HttpStatusCode.UnprocessableEntity, CartProblems.LineLimitType);
+        var moreOfOne = await guest.AddOkAsync(products[0].Id, 2);
+
+        problem.GetProperty("title").GetString().Should().Be("Maximum 50 products per cart");
+        problem.GetProperty("detail").GetString().Should().Be("Your cart can hold up to 50 different products. Remove one to add another.");
+        problem.GetProperty("maxLines").GetInt32().Should().Be(50);
+        moreOfOne.Lines.Should().HaveCount(50).And.NotContain(l => l.Product.Id == products[50].Id);
+        moreOfOne.LineFor(products[0]).Quantity.Should().Be(3);
+
+        // Removing a line makes room again.
+        await guest.RemoveAsync(moreOfOne.LineFor(products[1]).Id);
+        (await guest.AddOkAsync(products[50].Id, 1)).Lines.Should().HaveCount(50).And.Contain(l => l.Product.Id == products[50].Id);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-03")]
+    public async Task BR_CART_03_a_sign_in_merge_past_50_products_keeps_every_line_and_blocks_checkout_until_one_is_removed()
+    {
+        var products = Enumerable.Range(0, 51).Select(i => CatalogTestSupport.Own($"Cart test {i} {Guid.NewGuid():N}")).ToArray();
+        await factory.InsertAsync(products);
+        var customer = factory.CreateSession();
+        var email = await customer.RegisterAsync();
+        await customer.AddOkAsync(products[50].Id, 1);
+        var (browser, _) = factory.NewBrowser();
+        foreach (var product in products.Take(50))
+        {
+            await browser.AddOkAsync(product.Id, 1);
+        }
+
+        await browser.SignInAsync(email);
+        var merged = await browser.GetCartAsync();
+        var afterRemove = await (await browser.RemoveAsync(merged.Lines[0].Id)).ReadAsync<CartDto>();
+
+        merged.Lines.Should().HaveCount(51).And.OnlyContain(l => !l.BlocksCheckout);
+        (merged.CanCheckout, merged.MaxLines).Should().Be((false, 50), "Place order takes at most 50 lines");
+        (afterRemove.Lines.Count, afterRemove.CanCheckout).Should().Be((50, true));
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-03")]
     public async Task BR_CART_03_a_line_never_exceeds_the_known_available_quantity()
     {
         var product = await factory.OwnProductAsync(onHand: 3);

@@ -147,6 +147,40 @@ public sealed class CartRulesTests
     }
 
     [Theory]
+    [Trait("BR", "BR-CART-03")]
+    [InlineData(50, false)]
+    [InlineData(51, true)]
+    [InlineData(60, true)]
+    public void BR_CART_03_a_cart_above_50_lines_after_a_merge_blocks_checkout(int lineCount, bool blocks)
+    {
+        CartRules.BlocksCheckoutForLines(lineCount, new CartOptions().MaxLines).Should().Be(blocks);
+    }
+
+    [Theory]
+    [Trait("BR", "BR-CART-03")]
+    [InlineData(0, true)]
+    [InlineData(49, true)]
+    [InlineData(50, false)]
+    [InlineData(51, false)] // a merge on sign-in may leave a cart above the limit
+    public void BR_CART_03_a_cart_takes_a_new_product_only_while_it_holds_fewer_than_50(int lineCount, bool allowed)
+    {
+        var problem = CartRules.CheckNewLine(lineCount, new CartOptions().MaxLines);
+
+        (problem is null).Should().Be(allowed);
+        if (problem is not null)
+        {
+            problem.Should().BeEquivalentTo(new
+            {
+                Status = 422,
+                Type = CartProblems.LineLimitType,
+                Title = "Maximum 50 products per cart",
+                Detail = "Your cart can hold up to 50 different products. Remove one to add another.",
+            });
+            problem.Extensions["maxLines"].Should().Be(50);
+        }
+    }
+
+    [Theory]
     [Trait("BR", "BR-CART-01")]
     [InlineData(1, 2, null, 3, null)]
     [InlineData(5, 9, null, 10, 14)]

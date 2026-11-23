@@ -76,8 +76,8 @@ internal static class CheckoutEndpoints
     /// <summary>
     /// The built-in validation (AddValidation) has already refused a missing checkout key, address or lines, an empty
     /// line list, a line without a product id and a quantity outside 1 to 10. What is left here is what attributes cannot
-    /// say: values that need the whole request (duplicates, the address rules for the launch country) and the total, which
-    /// is keyed by its JSON name.
+    /// say: values that need the whole request (too many lines, duplicates, the address rules for the launch country) and
+    /// the total, which is keyed by its JSON name.
     /// </summary>
     private static async Task<Results<Created<OrderDetailDto>, Ok<OrderDetailDto>, JsonHttpResult<PriceChangedProblem>, ValidationProblem, ProblemHttpResult, UnauthorizedHttpResult>> PlaceOrder(
         PlaceOrderRequest request,
@@ -122,7 +122,11 @@ internal static class CheckoutEndpoints
             }
         }
 
-        if (lines.Where(l => l is not null).GroupBy(l => l.ProductId).Any(g => g.Count() > 1))
+        if (lines.Count > PlaceOrderRequest.MaxLines)
+        {
+            errors["lines"] = [$"An order can have at most {PlaceOrderRequest.MaxLines} lines. Remove some from your cart and review it again."];
+        }
+        else if (lines.Where(l => l is not null).GroupBy(l => l.ProductId).Any(g => g.Count() > 1))
         {
             errors["lines"] = ["Each product appears once."];
         }

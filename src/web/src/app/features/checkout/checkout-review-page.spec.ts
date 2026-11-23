@@ -337,6 +337,23 @@ describe('CheckoutReviewPage', () => {
     );
   });
 
+  it('shows the API’s message when the order has more lines than it takes (BR-CART-03)', async () => {
+    await open();
+    const message =
+      'An order can have at most 50 lines. Remove some from your cart and review it again.';
+
+    placeButton().click();
+    http
+      .expectOne('/api/v1/checkout/orders')
+      .flush(
+        { title: 'The order is not valid', status: 400, errors: { lines: [message] } },
+        { status: 400, statusText: 'Bad Request' }
+      );
+    await fixture.whenStable();
+
+    expect(text('.place-error p')).toBe(message);
+  });
+
   it('starts a new checkout key when the API says this one is taken (409)', async () => {
     await open();
     const key = store.checkoutKey();

@@ -96,7 +96,10 @@ internal sealed class CartService(
         return cart;
     }
 
-    /// <summary>BR-CART-03: adds <paramref name="quantity"/> units of a product, to its line if there is one.</summary>
+    /// <summary>
+    /// BR-CART-03: adds <paramref name="quantity"/> units of a product, to its line if there is one, or as a new line
+    /// while the cart holds fewer than <see cref="CartOptions.MaxLines"/>.
+    /// </summary>
     public Task<CartEdit> AddAsync(HttpContext http, Guid productId, int quantity, CancellationToken cancellationToken) =>
         EditAsync(http, createIfMissing: true, async (cart, now) =>
         {
@@ -119,6 +122,12 @@ internal sealed class CartService(
                 line.Quantity += quantity;
                 line.QuantityLimitedFrom = null;
                 return null;
+            }
+
+            // After the product's own checks: telling a customer the product is out of stock is more use than "cart full".
+            if (CartRules.CheckNewLine(cart.Lines.Count, options.Value.MaxLines) is { } full)
+            {
+                return full;
             }
 
             // BR-CART-02: what the customer saw when adding it.

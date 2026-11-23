@@ -143,6 +143,33 @@ public sealed class SyncPolicyTests
         Mapper("1.0850").ToContent(Snapshot(), null, [])!.ComputeHash().Should().Be(atOldRate.ComputeHash(), "same input, same hash");
     }
 
+    [Theory]
+    [Trait("BR", "BR-CAT-02")]
+    [InlineData("1.0850", 921_658.98, "EUR", 999_999.99)]
+    [InlineData("1.0850", 921_659.00, "EUR", null)] // 1,000,000.02 USD
+    [InlineData("2", 9_999_999.99, "EUR", null)] // within the partner's own cap, but 19,999,999.98 USD
+    [InlineData("1.0850", 999_999.99, "USD", 999_999.99)]
+    [InlineData("1.0850", 1_000_000.00, "USD", null)]
+    public void BR_CAT_02_a_partner_price_above_999_999_99_usd_once_converted_is_a_data_error_and_not_sellable(
+        string eurToUsd, double price, string currency, double? usd)
+    {
+        var problems = new List<string>();
+
+        var content = Mapper(eurToUsd).ToContent(Snapshot(price: (decimal)price, currency: currency), null, problems)!;
+
+        // An order of 50 lines of 10 at a higher price could not be saved (PriceLimits.MaxUnitPriceUsd).
+        content.PriceUsd.Should().Be((decimal?)usd);
+        if (usd is null)
+        {
+            content.SourcePrice.Should().BeNull();
+            problems.Should().ContainSingle().Which.Should().Contain("above the highest unit price Lumen sells").And.Contain("not sellable");
+        }
+        else
+        {
+            problems.Should().BeEmpty();
+        }
+    }
+
     [Fact]
     public void The_hash_of_a_stored_product_matches_the_hash_it_was_written_with()
     {

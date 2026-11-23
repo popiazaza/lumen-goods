@@ -251,7 +251,8 @@ One PostgreSQL database; money is `numeric(12,2)`. The database rules out these 
 - XML DTDs are refused (no XXE).
 - The image proxy fetches only from allow-listed origins and follows no redirects (SSRF guard).
 - The card number and CVC stay in memory; only brand and last 4 digits are stored, and `CardDetails` never prints them.
-- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP (taken from X-Forwarded-For only when the peer is nginx, `ForwardedHeaders:KnownProxies`, or loopback, which ASP.NET Core trusts by default); sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer. A 429 is ProblemDetails with `Retry-After`.
+- Rate limits ([`Infrastructure/RateLimiting`](src/Lumen.Api/Infrastructure/RateLimiting)): sign-in and registration per client IP (taken from X-Forwarded-For only when the peer is nginx, `ForwardedHeaders:KnownProxies`, or loopback, which ASP.NET Core trusts by default); sign-ins for one email run one at a time, so every wrong password counts towards the lockout; Place order and payment start per customer; cart changes per customer, or per client IP for a guest (each cookieless add would otherwise create a guest cart kept 30 days). A 429 is ProblemDetails with `Retry-After`.
+- Size limits hold in the API itself, since on Azure Front Door sends `/api` straight to it (§8), past nginx: request bodies up to 1 MB (`RequestLimits:MaxRequestBodySize`, Kestrel's limit, 413 as ProblemDetails), 50 lines per cart and per Place order, unit prices up to $999,999.99, own and partner (a partner price above it once in USD is a data error, not sellable), so the largest order fits the order totals (A-62).
 - At most 3 unpaid orders per customer (BR-CHK-03), so one account cannot keep own stock reserved.
 - nginx answers only for `localhost` and `127.0.0.1` and the API's `AllowedHosts` matches, against DNS rebinding. Another hostname needs both changed.
 - Data Protection keys live on a volume, so a restart keeps sessions and XSRF tokens valid. In production they would be encrypted with a key vault.
@@ -382,6 +383,8 @@ PostgreSQL vCores come from about 1.4 ms of CPU per request (§7): requests/s ×
 | Add a span, counter or gauge | `Api/Infrastructure/Telemetry/TelemetryExtensions.cs` (`LumenTelemetry`, `LumenMetrics`) | `Int/Infrastructure/TelemetryTests.cs` |
 | Unpaid orders per customer | Config `Checkout:MaxUnpaidOrdersPerCustomer` | `Int/Checkout/PlaceOrderTests.cs` (BR-CHK-03) |
 | Rate limits | Config `RateLimiting:*` | `Int/Identity/RateLimitTests.cs` |
+| Request body limit | Config `RequestLimits:MaxRequestBodySize` (and `client_max_body_size` in `src/web/nginx.conf`) | `Int/Infrastructure/PipelineTests.cs` |
+| Products per cart | Config `Cart:MaxLines` (up to `CartOptions.MaxLinesCeiling`, which also caps Place order and bounds `PriceLimits.MaxUnitPriceUsd`) | `Int/Carts/CartLimitTests.cs` (BR-CART-03), `Unit/Admin/OwnProductValidationTests.cs` |
 | Serve another hostname | `src/web/nginx.conf` `server_name`; `AllowedHosts` of `api` in `docker-compose.yml` | the compose smoke test in `.github/workflows/ci.yml` |
 
 ## 10. Decisions I'd revisit

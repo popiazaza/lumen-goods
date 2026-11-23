@@ -18,6 +18,11 @@ export const MAX_DESCRIPTION_LENGTH = 5000;
 export const MAX_ATTRIBUTES = 20;
 export const MAX_IMAGES = 8;
 export const MAX_ON_HAND = 1_000_000;
+/**
+The highest price, as PriceLimits.MaxUnitPriceUsd on the API: the largest possible order
+(50 lines of 10 units) must still fit the order's money columns.
+*/
+export const MAX_PRICE = 999_999.99;
 const SKU_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{1,31}$/u;
 /**
 Dollars with at most two decimals, e.g. "18", "18.5", "18.50".
@@ -100,7 +105,12 @@ export const createProductForm = (reserved: () => number): ProductForm =>
     }),
     price: new FormControl('', {
       nonNullable: true,
-      validators: [Validators.required, Validators.pattern(PRICE_PATTERN), positive],
+      validators: [
+        Validators.required,
+        Validators.pattern(PRICE_PATTERN),
+        positive,
+        atMostMaxPrice,
+      ],
     }),
     onHand: new FormControl<number | null>(0, {
       validators: [
@@ -202,6 +212,9 @@ export const fieldError = (field: ProductField, errors: ValidationErrors | null)
   if (errors['positive']) {
     return 'Price must be more than $0.00.';
   }
+  if (errors['maxPrice']) {
+    return `Price can be at most $${MAX_PRICE.toLocaleString('en-US', { minimumFractionDigits: 2 })}.`;
+  }
   if (errors['wholeNumber']) {
     return 'Enter a whole number.';
   }
@@ -234,6 +247,13 @@ const notBlank = (control: AbstractControl<string>): ValidationErrors | null =>
 const positive = (control: AbstractControl<string>): ValidationErrors | null => {
   const { value } = control;
   return value && PRICE_PATTERN.test(value) && Number(value) <= 0 ? { positive: true } : null;
+};
+
+const atMostMaxPrice = (control: AbstractControl<string>): ValidationErrors | null => {
+  const { value } = control;
+  return value && PRICE_PATTERN.test(value) && Number(value) > MAX_PRICE
+    ? { maxPrice: true }
+    : null;
 };
 
 const wholeNumber = (control: AbstractControl<number | null>): ValidationErrors | null => {

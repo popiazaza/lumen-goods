@@ -156,6 +156,19 @@ describe('AdminProductEditPage', () => {
     });
   });
 
+  it('caps the price as the API does, so the largest order still fits the order totals (BR-ADM-01)', async () => {
+    await openNew();
+
+    await type('Price', '1000000');
+    const above = errorOf('Price');
+    await type('Price', '999999.99');
+
+    expect({ above, atMax: errorOf('Price') ?? null }).toStrictEqual({
+      above: 'Price can be at most $999,999.99.',
+      atMax: null,
+    });
+  });
+
   it('creates a product with attributes and images, then returns to the list', async () => {
     await openNew();
 

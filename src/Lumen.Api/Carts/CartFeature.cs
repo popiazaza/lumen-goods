@@ -8,6 +8,19 @@ public sealed class CartOptions
     public const string SectionName = "Cart";
 
     /// <summary>
+    /// The highest <see cref="MaxLines"/> allowed. Place order takes at most this many lines, so a full cart can always be
+    /// ordered, and the unit price cap is worked out from it (PriceLimits.MaxUnitPriceUsd).
+    /// </summary>
+    public const int MaxLinesCeiling = 50;
+
+    /// <summary>
+    /// BR-CART-03: the most different products (lines) one cart may hold. Adding another product to a full cart is a 422;
+    /// adding units to a line already in it is not limited by this.
+    /// </summary>
+    [Range(1, MaxLinesCeiling)]
+    public int MaxLines { get; init; } = MaxLinesCeiling;
+
+    /// <summary>
     /// How long a guest cart and its cookie live without being used (BR-CART-01, A-48). Sliding: every change, and a
     /// visit at least a day after the last renewal, starts the period again.
     /// </summary>
@@ -60,11 +73,11 @@ internal static class CartFeature
     /// Cart endpoints under /api/v1, for guests and customers alike; 403 for a signed-in account without the customer
     /// role (the admin). Every one answers 200 with the whole <see cref="CartDto"/>, or 409
     /// <see cref="CartProblems.CartChangedType"/> when the guest cart the cookie names is gone (merged by a sign-in racing
-    /// the request: re-read the cart):
+    /// the request: re-read the cart). Changes (all but GET) get 429 past <c>RateLimiting:CartWritesPerShopper</c>:
     /// <list type="bullet">
     /// <item><c>GET /cart</c> (an empty cart when there is none; never creates one)</item>
     /// <item><c>POST /cart/lines</c> <see cref="AddCartLineRequest"/> (creates the cart, and for a guest the cookie, on
-    /// first add); 400 quantity not 1 to 10; 422 <see cref="CartProblems"/></item>
+    /// first add); 400 quantity not 1 to 10; 422 <see cref="CartProblems"/>, including a new product in a full cart</item>
     /// <item><c>PUT /cart/lines/{lineId}</c> <see cref="UpdateCartLineRequest"/>; 404 not your line; 422 raising past the limit</item>
     /// <item><c>DELETE /cart/lines/{lineId}</c>; 404 not your line</item>
     /// <item><c>POST /cart/lines/{lineId}/acknowledge</c>: accept the line's notices (seen price and availability := current); 404 not your line</item>

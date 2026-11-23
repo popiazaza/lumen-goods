@@ -32,6 +32,12 @@ public static class CartProblems
     /// </summary>
     public const string QuantityLimitType = "urn:lumen:problem:cart-quantity-limit";
 
+    /// <summary>
+    /// The cart already holds the most different products it may (<see cref="CartOptions.MaxLines"/>). Extension
+    /// <c>maxLines</c>. Removing a line makes room; adding units to a line already in the cart is still allowed.
+    /// </summary>
+    public const string LineLimitType = "urn:lumen:problem:cart-line-limit";
+
     public const string LineNotFoundType = "urn:lumen:problem:cart-line-not-found";
 
     /// <summary>
@@ -75,6 +81,12 @@ public static class CartProblems
             ? string.Create(CultureInfo.InvariantCulture, $"Only {available} of this item are available, and your cart already has {inCart}.")
             : string.Create(CultureInfo.InvariantCulture, $"Only {available} of this item are available."),
         new Dictionary<string, object?> { ["maxQuantity"] = Math.Min(available, CartLine.MaxQuantity), ["inCart"] = inCart });
+
+    public static CartProblem TooManyLines(int maxLines) => new(
+        StatusCodes.Status422UnprocessableEntity, LineLimitType,
+        string.Create(CultureInfo.InvariantCulture, $"Maximum {maxLines} products per cart"),
+        string.Create(CultureInfo.InvariantCulture, $"Your cart can hold up to {maxLines} different products. Remove one to add another."),
+        new Dictionary<string, object?> { ["maxLines"] = maxLines });
 
     public static CartProblem CartChanged() => new(
         StatusCodes.Status409Conflict, CartChangedType, "Your cart was updated; reload it",

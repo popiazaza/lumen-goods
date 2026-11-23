@@ -6,6 +6,7 @@ using Lumen.Api.Partners;
 using Lumen.Domain.Catalog;
 using Lumen.Domain.Orders;
 using Lumen.Domain.Pricing;
+using Lumen.IntegrationTests.Carts;
 using Lumen.IntegrationTests.Catalog;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -203,6 +204,28 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         var placed = await shopper.PlaceAsync(again);
         placed.StatusCode.Should().Be(HttpStatusCode.Created);
         (await placed.ReadAsync<OrderDetailDto>()).Shipments.Single().Lines.Single().UnitPrice.Should().Be(44.90m);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CAT-02")]
+    public async Task BR_CAT_02_a_live_harbor_price_above_999_999_99_refuses_the_line_and_the_write_through_makes_it_not_sellable()
+    {
+        // Saved as the live price, $1,000,000.00 a unit would let 50 lines of 10 overflow the order totals.
+        var shopper = await host.NewShopperAsync();
+        var tote = await host.HarborProductAsync(49.90m);
+        await shopper.AddToCartAsync(tote, 1);
+        var preview = await shopper.PreviewAsync();
+        host.Harbor.Set(tote.SourceProductId, 100_000_000);
+
+        var response = await shopper.PlaceAsync(preview);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var problem = await response.ReadAsync<PriceChangedProblem>();
+        problem.Changes.Should().ContainSingle().Which.Should().BeEquivalentTo(new { Kind = CheckoutChangeKind.Unavailable, Message = "No longer available" });
+        problem.NewTotal.Should().BeNull();
+        var saved = await host.ProductAsync(tote.Id);
+        (saved.IsActive, saved.PriceUsd).Should().Be((false, 49.90m), "the price above the cap is never stored, and the product is not sellable");
+        (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
     }
 
     [Fact]
@@ -639,5 +662,49 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
 
         responses.Select(r => r.StatusCode).Should().AllBeEquivalentTo(HttpStatusCode.BadRequest);
         (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-CART-03")]
+    public async Task BR_CART_03_place_order_with_more_than_50_lines_is_a_validation_error_naming_lines()
+    {
+        var shopper = await host.NewShopperAsync();
+        await shopper.AddToCartAsync(await host.OwnProductAsync(), 1);
+        var lines = Enumerable.Range(0, PlaceOrderRequest.MaxLines + 1).Select(_ => new PlaceOrderLineDto(Guid.NewGuid(), 1, 10.00m)).ToList();
+
+        var response = await shopper.PlaceAsync(new PlaceOrderRequest(Guid.NewGuid(), lines, 100.00m, CheckoutHost.Address));
+
+        var problem = await response.ShouldBeProblemAsync(HttpStatusCode.BadRequest);
+        problem.GetProperty("errors").EnumerateObject().Select(p => p.Name).Should().Equal("lines");
+        problem.GetProperty("errors").GetProperty("lines")[0].GetString()
+            .Should().Be("An order can have at most 50 lines. Remove some from your cart and review it again.");
+        (await host.WithDbAsync(db => db.Orders.CountAsync(o => o.CustomerId == shopper.Id, Ct))).Should().Be(0);
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ADM-01")]
+    public async Task BR_ADM_01_the_largest_order_at_the_highest_own_price_is_placed_instead_of_overflowing_the_order_columns()
+    {
+        // 50 lines of 10 units at the highest price the admin may set: before the cap, one such line could already
+        // overflow the numeric(12,2) order columns, and Place order answered 500.
+        var shopper = await host.NewShopperAsync();
+        var products = Enumerable.Range(0, PlaceOrderRequest.MaxLines)
+            .Select(i => CatalogTestSupport.Own($"Largest order item {i} {Guid.NewGuid():N}", PriceLimits.MaxUnitPriceUsd, onHand: 10))
+            .ToArray();
+        await host.InsertAsync(products);
+        foreach (var product in products)
+        {
+            await shopper.AddToCartAsync(product, 10);
+        }
+
+        var preview = await shopper.PreviewAsync();
+        var response = await shopper.PlaceAsync(preview);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync(Ct));
+        var order = await response.ReadAsync<OrderDetailDto>();
+        // Per line: 10 x 999,999.99 = 9,999,999.90, tax 8 % = 799,999.99 (rounded per line); Standard shipping 4.99.
+        (order.Totals.Subtotal, order.Totals.Tax, order.Totals.Shipping, order.Totals.Total)
+            .Should().Be((499_999_995.00m, 39_999_999.50m, 4.99m, 539_999_999.49m));
+        (await host.OrderAsync(order.Number)).Total.Should().Be(539_999_999.49m);
     }
 }
