@@ -291,6 +291,45 @@ describe('CheckoutPaymentPage', () => {
       ]);
     });
 
+    it('drops each problem from the summary as its field is corrected, then the summary', async () => {
+      await open(null);
+      type('card-number', '4111111111111112');
+      type('card-name', 'Ada Lovelace');
+      await pay();
+      const listed = () =>
+        [...host().querySelectorAll(':scope app-error-summary li')].map((li) =>
+          li.textContent?.trim()
+        );
+
+      expect(listed()).toStrictEqual([
+        'Enter a valid card number: check it for typos',
+        'Enter the expiry date',
+        'Enter the security code',
+      ]);
+
+      type('card-expiry', '08/2');
+      await settle();
+
+      // Still wrong, so still listed, saying what is wrong now.
+      expect(listed()).toStrictEqual([
+        'Enter a valid card number: check it for typos',
+        'Enter the expiry date as MM/YY, like 08/29',
+        'Enter the security code',
+      ]);
+
+      type('card-number', '4111111111111111');
+      type('card-expiry', '0829');
+      await settle();
+
+      expect(listed()).toStrictEqual(['Enter the security code']);
+
+      type('card-cvc', '123');
+      await settle();
+
+      expect(host().querySelector('app-error-summary')).toBeNull();
+      http.expectNone(`${ORDER_URL}/payments`);
+    });
+
     it('sends digits only, the expiry as month and year, and never an amount', async () => {
       await open(null);
       fillCard('4111 1111 1111 1111');
@@ -578,9 +617,15 @@ describe('CheckoutPaymentPage', () => {
           'Payment declined. You have not been charged. Try another card or pay from your wallet. 4 attempts left.',
       });
       expect(document.activeElement).toBe(host().querySelector('.outcome'));
-      expect({ number: input('card-number').value, name: input('card-name').value }).toStrictEqual({
+      expect({
+        number: input('card-number').value,
+        name: input('card-name').value,
+        cvc: input('card-cvc').value,
+      }).toStrictEqual({
         number: '4242 0000 0000 0018',
         name: 'Ada Lovelace',
+        // Asked again for the next attempt; not left in the form.
+        cvc: '',
       });
 
       host().querySelector<HTMLButtonElement>('.try-again')?.click();
