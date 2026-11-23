@@ -390,6 +390,7 @@ public sealed class CardPaymentTests(CheckoutHost host) : IClassFixture<Checkout
         (await shopper.PaymentAsync(order.Number)).Should().BeEquivalentTo(new
         {
             Status = PaymentStatus.Failed, RetryMode = PaymentRetryMode.SamePaymentOnly, CanRetry = true,
+            DeclineMessage = PaymentStatusReader.FailedMessage,
         });
         foreach (var refused in new[] { await shopper.PayByWalletAsync(order.Number), await shopper.PayByCardAsync(order.Number, "4111111111111111") })
         {

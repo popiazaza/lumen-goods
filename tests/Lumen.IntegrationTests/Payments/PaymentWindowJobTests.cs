@@ -205,6 +205,55 @@ public sealed class PaymentWindowJobTests(CheckoutHost host) : IClassFixture<Che
     }
 
     [Fact]
+    [Trait("BR", "BR-PAY-03")]
+    [Trait("BR", "BR-PAY-05")]
+    [Trait("BR", "BR-STOCK-01")]
+    public async Task BR_PAY_05_a_fifth_attempt_that_fails_holds_the_order_until_the_gateway_says_it_never_charged()
+    {
+        // Each step in its own scope, as the payment window job runs it. Called directly, not through RunJobAsync, so
+        // payments other tests leave due cannot push this one out of a run's batch.
+        async Task SettleAsync(Guid paymentId)
+        {
+            await using var scope = host.App.Services.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<PaymentHousekeeping>().SettleIfDueAsync(paymentId, Ct);
+        }
+
+        async Task<bool> ExpireAsync(Guid orderId)
+        {
+            await using var scope = host.App.Services.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<PaymentHousekeeping>().ExpireIfDueAsync(orderId, Ct);
+        }
+
+        var (shopper, order, mugId) = await OrderAsync(quantity: 1);
+        var payment = await StuckPaymentAsync(order, PaymentStatus.Error, MockGatewayChargeStatus.Error);
+        await host.WithDbAsync(db => db.Orders.Where(o => o.Number == order.Number)
+            .ExecuteUpdateAsync(s => s.SetProperty(o => o.FailedPaymentAttempts, 4), Ct));
+        host.Gateway.StatusUnavailable.Add(payment.Id);
+
+        // Its automatic retry never ran: the fifth attempt closes as Failed, which may have charged, so nothing expires.
+        host.Clock.Advance(TimeSpan.FromSeconds(31));
+        await SettleAsync(payment.Id);
+        var held = await host.OrderAsync(order.Number);
+        (held.Status, held.FailedPaymentAttempts, held.Payments.Single().Status).Should().Be((OrderStatus.AwaitingPayment, 5, PaymentStatus.Failed));
+        (await ExpireAsync(held.Id)).Should().BeFalse();
+        (await host.ProductAsync(mugId)).Reserved.Should().Be(1);
+
+        // Nothing left to try: the customer is told to wait for the card provider, not to try again.
+        var shown = await shopper.PaymentAsync(order.Number);
+        (shown.Status, shown.RetryMode, shown.DeclineMessage)
+            .Should().Be((PaymentStatus.Failed, PaymentRetryMode.None, PaymentStatusReader.FailedAwaitingGatewayMessage));
+
+        // The gateway answers that it never charged: Declined, then the order expires and its stock is released.
+        host.Gateway.StatusUnavailable.Clear();
+        await SettleAsync(payment.Id);
+        (await ExpireAsync(held.Id)).Should().BeTrue();
+        var expired = await host.OrderAsync(order.Number);
+        (expired.Status, expired.FailedPaymentAttempts, expired.Payments.Single().Status)
+            .Should().Be((OrderStatus.Expired, 5, PaymentStatus.Declined), "the failed attempt was counted once, when it failed");
+        (await host.ProductAsync(mugId)).Reserved.Should().Be(0);
+    }
+
+    [Fact]
     [Trait("BR", "BR-STOCK-01")]
     [Trait("BR", "BR-PAY-05")]
     public async Task BR_STOCK_01_failed_payments_the_gateway_cannot_settle_never_stop_other_orders_expiring_or_payments_closing()

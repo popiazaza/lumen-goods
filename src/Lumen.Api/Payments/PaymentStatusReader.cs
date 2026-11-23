@@ -17,8 +17,18 @@ internal sealed class PaymentStatusReader(
     OneTimeCodePolicy codes,
     TimeProvider time)
 {
-    /// <summary>Customer wording for a payment that ended Failed and the gateway could not settle yet (BR-PAY-05).</summary>
+    /// <summary>
+    /// Customer wording for a payment that ended Failed and the gateway could not settle yet, while the customer may
+    /// try again (<see cref="PaymentRetryMode.SamePaymentOnly"/>, BR-PAY-05).
+    /// </summary>
     public const string FailedMessage = "We could not confirm your payment. Try again with the same card; you will not be charged twice.";
+
+    /// <summary>
+    /// The same, once no new attempt can start (hold over or no attempts left): the customer can only wait for the
+    /// gateway's answer. Charged → the order is paid; not charged → it expires (BR-PAY-05, BR-STOCK-01).
+    /// </summary>
+    public const string FailedAwaitingGatewayMessage = "We could not confirm your payment yet, and we are checking with the card provider. "
+        + "If your card was charged, your order will be paid; if not, the order will be cancelled and you will not be charged.";
 
     /// <param name="settle">
     /// First bring the payment up to date (an expired code, an error past its retry window, a stuck charge, a Failed
@@ -47,21 +57,21 @@ internal sealed class PaymentStatusReader(
     {
         var now = time.GetUtcNow();
         var needsCode = payment.Status == PaymentStatus.RequiresAction && payment.OneTimeCodeExpiresUtc > now;
-        var declineMessage = payment.Status switch
-        {
-            PaymentStatus.Declined or PaymentStatus.Expired => payment.DeclineReason is { } reason
-                ? DeclineMessages.ForCustomer(reason)
-                : DeclineMessages.GenericDecline,
-            PaymentStatus.Failed => FailedMessage,
-            _ => null,
-        };
-
         var retryMode = order.Status != OrderStatus.AwaitingPayment
             || !window.CanStartAttempt(order.FailedPaymentAttempts, order.CreatedUtc, now)
                 ? PaymentRetryMode.None
                 : payment.Status == PaymentStatus.Failed
                     ? PaymentRetryMode.SamePaymentOnly
                     : PaymentRetryMode.AnyMethod;
+
+        var declineMessage = payment.Status switch
+        {
+            PaymentStatus.Declined or PaymentStatus.Expired => payment.DeclineReason is { } reason
+                ? DeclineMessages.ForCustomer(reason)
+                : DeclineMessages.GenericDecline,
+            PaymentStatus.Failed => retryMode == PaymentRetryMode.SamePaymentOnly ? FailedMessage : FailedAwaitingGatewayMessage,
+            _ => null,
+        };
 
         return new PaymentStatusDto(
             payment.Id,
