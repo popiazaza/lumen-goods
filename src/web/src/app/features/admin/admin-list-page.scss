@@ -89,14 +89,15 @@
   }
 }
 
-th,
-td {
-  vertical-align: top;
+// Body cells align to the top (a name above its SKU); header labels sit in the middle of their row.
+th {
+  vertical-align: middle;
 }
 
 td {
   padding-top: var(--lg-space-3);
   padding-bottom: var(--lg-space-3);
+  vertical-align: top;
 }
 
 .number {

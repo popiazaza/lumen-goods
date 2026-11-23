@@ -28,6 +28,11 @@ The role the API gives administrators (`Lumen.Api.Identity.Roles.Admin`).
 export const ADMIN_ROLE = 'admin';
 
 /**
+The role the API gives shoppers (`Lumen.Api.Identity.Roles.Customer`). Only customers have a wallet (BR-PAY-06).
+*/
+export const CUSTOMER_ROLE = 'customer';
+
+/**
 How long the first render waits for the session before showing the shop signed out.
 */
 export const SESSION_STARTUP_WAIT_MS = 3000;
@@ -50,6 +55,8 @@ export class SessionApi {
   readonly isAuthenticated = computed(() => this.current().isAuthenticated);
 
   readonly isAdmin = computed(() => this.current().roles.includes(ADMIN_ROLE));
+
+  readonly isCustomer = computed(() => this.current().roles.includes(CUSTOMER_ROLE));
 
   private remember(session: Session): void {
     this.current.set(session);

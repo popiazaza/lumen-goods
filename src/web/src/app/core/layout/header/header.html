@@ -58,26 +58,33 @@
             >
               <mat-icon svgIcon="account" />
               <span>Account</span>
-              <mat-icon svgIcon="expand_more" class="chevron" [class.up]="accountOpen()" />
+              <mat-icon
+                svgIcon="expand_more"
+                class="chevron"
+                iconPositionEnd
+                [class.up]="accountOpen()"
+              />
             </button>
             <div id="account-panel" class="account-panel" [hidden]="!accountOpen()">
               <p class="who">
                 <span class="label">Signed in as </span>
                 <span class="email">{{ session().email }}</span>
               </p>
-              <p class="balance">
-                <mat-icon svgIcon="wallet" aria-hidden="true" />
-                <span class="label">Wallet balance: </span>
-                @if (wallet.hasValue()) {
-                  <strong class="price">{{
-                    wallet.value().balance | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
-                  }}</strong>
-                } @else if (wallet.status() === 'error') {
-                  <span>unavailable</span>
-                } @else {
-                  <span>loading…</span>
-                }
-              </p>
+              @if (hasWallet()) {
+                <p class="balance">
+                  <mat-icon svgIcon="wallet" aria-hidden="true" />
+                  <span class="label">Wallet balance: </span>
+                  @if (wallet.hasValue()) {
+                    <strong class="price">{{
+                      wallet.value().balance | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US'
+                    }}</strong>
+                  } @else if (wallet.status() === 'error') {
+                    <span>unavailable</span>
+                  } @else {
+                    <span>loading…</span>
+                  }
+                </p>
+              }
               <ul class="account-links">
                 <li>
                   <a routerLink="/orders" routerLinkActive="active" ariaCurrentWhenActive="page"

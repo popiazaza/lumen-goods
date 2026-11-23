@@ -1,0 +1,46 @@
+// One look for every inline message: errors, warnings, notices and progress. A neutral surface with
+// a coloured edge and icon, so the text stays dark and the app's buttons and links sit on white
+// instead of clashing with a tinted box. The icon and the words carry the meaning; the colour only
+// adds to it (WCAG 1.4.1).
+@use 'sass:map';
+
+$tones: (
+  error: var(--mat-sys-error),
+  warning: var(--lg-status-warning),
+  success: var(--lg-status-success),
+  info: var(--mat-sys-primary),
+);
+
+/// The box. `$dense` is for messages inside a table row or a card on the admin pages.
+@mixin alert($tone: info, $dense: false) {
+  @include tone($tone);
+
+  display: flex;
+  align-items: flex-start;
+  padding: var(--lg-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--lg-radius-alert);
+  border-left: 4px solid var(--lg-alert-accent);
+  background: var(--mat-sys-surface-container-lowest);
+  color: var(--mat-sys-on-surface);
+  gap: var(--lg-space-3);
+
+  @if $dense {
+    padding: var(--lg-space-2) var(--lg-space-3);
+    gap: var(--lg-space-2);
+  }
+
+  > mat-icon {
+    flex: none;
+    color: var(--lg-alert-accent);
+  }
+}
+
+/// Switches an alert's colour, for a variant class on the same element (`.banner.error`).
+@mixin tone($tone) {
+  @if not map.has-key($tones, $tone) {
+    @error 'Unknown alert tone "#{$tone}"; use one of #{map.keys($tones)}.';
+  }
+
+  --lg-alert-accent: #{map.get($tones, $tone)};
+}

@@ -152,7 +152,7 @@ describe('CartPage', () => {
   it('shows each change on its line, a summary banner, and Acknowledge only where it applies', async () => {
     await open(aCart([KESTREL_SOCKS, LUMEN_MUG, GONE_TOTE], { canCheckout: false }));
 
-    expect(text(host(), '.banner.notices p')).toBe(
+    expect(text(host(), '.banner.changes p')).toBe(
       '2 items in your cart changed since you added them. Check the notes below.'
     );
 
@@ -200,7 +200,7 @@ describe('CartPage', () => {
     await fixture.whenStable();
 
     expect(lineOf('Merino Trail Socks').querySelector('.notices')).toBeNull();
-    expect(host().querySelector('.banner.notices')).toBeNull();
+    expect(host().querySelector('.banner.changes')).toBeNull();
     expect(announcer.announce).toHaveBeenCalledWith(
       'Noted the changes to Merino Trail Socks.',
       'polite'
@@ -227,7 +227,7 @@ describe('CartPage', () => {
     );
     await fixture.whenStable();
 
-    expect(host().querySelector('.banner.notices')).toBeNull();
+    expect(host().querySelector('.banner.changes')).toBeNull();
     expect(announcer.announce).toHaveBeenCalledWith('Noted the changes to your cart.', 'polite');
     // The button went away with the banner: focus starts again at the heading.
     expect(document.activeElement).toBe(host().querySelector('h1'));
@@ -237,7 +237,7 @@ describe('CartPage', () => {
     // Only an unavailable line changed: it stays until it is removed.
     await open(aCart([LUMEN_MUG, GONE_TOTE], { canCheckout: false }));
 
-    expect(text(host(), '.banner.notices p')).toBe(
+    expect(text(host(), '.banner.changes p')).toBe(
       '1 item in your cart changed since you added it. Check the notes below.'
     );
     expect(host().querySelector('.acknowledge-all')).toBeNull();
@@ -283,7 +283,7 @@ describe('CartPage', () => {
       );
     await fixture.whenStable();
 
-    expect(text(host(), '.banner.notices p')).toBe(
+    expect(text(host(), '.banner.changes p')).toBe(
       '1 item in your cart changed since you added it. Check the notes below.'
     );
     expect(host().querySelector('.banner-error')).toBeNull();
