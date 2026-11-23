@@ -54,7 +54,7 @@
 
   @if (isError()) {
     <div class="state" role="alert">
-      <mat-icon svgIcon="error" class="state-icon" />
+      <mat-icon svgIcon="error" />
       <p>{{ errorMessage() }}</p>
       <div class="state-actions">
         <button matButton="filled" type="button" (click)="products.reload()">

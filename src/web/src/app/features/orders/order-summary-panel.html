@@ -42,7 +42,7 @@
     @if (payment.completedUtc) {
       <p class="muted">
         <time [attr.datetime]="payment.completedUtc">{{
-          payment.completedUtc | date: 'medium'
+          payment.completedUtc | date: 'MMM d, y, h:mm a'
         }}</time>
       </p>
     }
@@ -84,7 +84,7 @@
           </dl>
           <p class="muted">
             <time [attr.datetime]="refund.createdUtc">{{
-              refund.createdUtc | date: 'medium'
+              refund.createdUtc | date: 'MMM d, y, h:mm a'
             }}</time>
             @if (o.payment) {
               · to {{ methodLabel() }}

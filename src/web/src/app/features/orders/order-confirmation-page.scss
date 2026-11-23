@@ -1,3 +1,4 @@
+@use '../../../styles/alert';
 @use '../../../styles/totals';
 
 :host {
@@ -21,25 +22,21 @@ p {
   font: var(--mat-sys-body-medium);
 }
 
-.thanks,
-.confirming {
-  display: flex;
-  padding: var(--lg-space-4);
-  border-radius: var(--lg-radius-card);
-  background: var(--mat-sys-surface-container-low);
-  gap: var(--lg-space-3);
-
-  & > mat-icon {
-    flex: none;
-    color: var(--lg-status-success);
-  }
+// The app's alert boxes (styles/_alert.scss): success once paid, info while it waits.
+.thanks {
+  @include alert.alert(success);
 }
 
 .confirming {
-  margin: 0 0 var(--lg-space-3);
+  @include alert.alert(info);
 
-  & > mat-icon {
-    color: var(--mat-sys-on-surface-variant);
+  margin: 0 0 var(--lg-space-3);
+}
+
+.thanks,
+.confirming {
+  & p:last-child {
+    margin-bottom: 0;
   }
 }
 

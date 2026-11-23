@@ -4,7 +4,7 @@
   <app-admin-access-denied [status]="status" [returnUrl]="`/admin/orders/${id()}`" />
 } @else if (errorStatus(); as status) {
   <div class="state" [attr.role]="status === 404 ? null : 'alert'">
-    <mat-icon class="state-icon" [svgIcon]="status === 404 ? 'info' : 'error'" />
+    <mat-icon [svgIcon]="status === 404 ? 'info' : 'error'" />
     @if (status === 404) {
       <p>
         <strong>There is no order {{ id() }}.</strong>

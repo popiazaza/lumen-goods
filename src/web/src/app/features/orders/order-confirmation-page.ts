@@ -12,6 +12,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
+import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
 import { Subscription, catchError, map, of, repeat, takeWhile } from 'rxjs';
 import { OrdersApi } from '../../core/api/orders.api';
@@ -76,7 +77,7 @@ const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
  */
 @Component({
   selector: 'app-order-confirmation-page',
-  imports: [CurrencyPipe, RouterLink, MatButton, MatIcon],
+  imports: [CurrencyPipe, RouterLink, MatButton, MatIcon, MatProgressBar],
   templateUrl: './order-confirmation-page.html',
   styleUrl: './order-confirmation-page.scss',
 })

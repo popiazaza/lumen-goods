@@ -1,21 +1,10 @@
 // Shared by the order and admin pages: page states and the "label: value" fact lists.
+@use '../../../styles/state' as page-state;
 
-/// Signed-out, empty, not-found and error states: an icon, a message and the next action.
+/// Signed-out, empty, not-found and error states: the app's one state look (styles/_state.scss).
 @mixin state {
   .state {
-    display: grid;
-    gap: var(--lg-space-3);
-    justify-items: start;
-
-    & p {
-      margin: 0;
-    }
-  }
-
-  .state-icon {
-    width: 40px;
-    height: 40px;
-    color: var(--mat-sys-on-surface-variant);
+    @include page-state.state;
   }
 }
 

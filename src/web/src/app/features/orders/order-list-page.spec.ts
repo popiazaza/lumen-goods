@@ -227,7 +227,7 @@ describe('OrderListPage', () => {
     request.flush(aPagedResult([]));
     await harness.fixture.whenStable();
 
-    expect(text(host(), '.state strong')).toBe('No orders yet.');
+    expect(text(host(), '.state h2')).toBe('No orders yet');
     expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe('/');
     expect(host().querySelector('.pager')).toBeNull();
   });
@@ -240,7 +240,7 @@ describe('OrderListPage', () => {
     );
     await harness.fixture.whenStable();
 
-    expect(text(host(), '.state strong')).toBe('Sign in to see your orders.');
+    expect(text(host(), '.state h2')).toBe('Sign in to see your orders');
     expect(host().querySelector(':scope .state a')?.getAttribute('href')).toBe(
       '/sign-in?returnUrl=%2Forders'
     );
