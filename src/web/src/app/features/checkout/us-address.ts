@@ -62,7 +62,9 @@ const STATE_NAMES = /* @__PURE__ */ new Map(US_STATES);
 
 const stateName = (code: string): string => STATE_NAMES.get(code) ?? code;
 
-const COUNTRY_NAMES: ReadonlyMap<string, string> = /* @__PURE__ */ new Map([['US', 'United States']]);
+const COUNTRY_NAMES: ReadonlyMap<string, string> = /* @__PURE__ */ new Map([
+  ['US', 'United States'],
+]);
 
 /**
  * An address as the shopper reads it, one line per entry, with the state and country written out

@@ -8,7 +8,7 @@ import { openConfirmDialog } from './confirm-dialog';
 A page with a form that leaving would throw away.
 */
 export interface HasUnsavedChanges {
-  hasUnsavedChanges(): boolean;
+  hasUnsavedChanges: () => boolean;
 }
 
 /**

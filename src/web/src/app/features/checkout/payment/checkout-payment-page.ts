@@ -1060,11 +1060,11 @@ const notFoundAsNull = <T>(read: Observable<T>): Observable<T | null> =>
     )
   );
 
-const nextStepAfterDecline = (payment: PaymentStatusDto, walletCovers: boolean): string => {
+const nextStepAfterDecline = (payment: PaymentStatusDto, doesWalletCover: boolean): string => {
   if (payment.method !== 'card') {
     return 'Try paying by card';
   }
-  return walletCovers && payment.retryMode === 'any_method'
+  return doesWalletCover && payment.retryMode === 'any_method'
     ? 'Try another card or pay from your wallet'
     : 'Try another card';
 };
@@ -1084,10 +1084,9 @@ const validCode = (control: AbstractControl<string>, length: number): Validation
 
 /**
  * What to tell the shopper after an attempt that did not go through (BR-PAY-07 wording from the API).
- * The wallet is suggested only when it can pay this order: it covers the total and any method may
- * be tried again.
+ * The wallet is suggested only when it can pay this order: it covers the total and any method may be tried again.
  */
-const outcomeOf = (payment: PaymentStatusDto, walletCovers: boolean): Outcome => {
+const outcomeOf = (payment: PaymentStatusDto, doesWalletCover: boolean): Outcome => {
   const attempts =
     payment.attemptsLeft === 1 ? '1 attempt left' : `${payment.attemptsLeft} attempts left`;
   switch (payment.status) {
@@ -1110,7 +1109,7 @@ const outcomeOf = (payment: PaymentStatusDto, walletCovers: boolean): Outcome =>
     default: {
       return {
         title: payment.declineMessage ?? 'Your card was declined',
-        detail: `Payment declined. You have not been charged. ${nextStepAfterDecline(payment, walletCovers)}. ${attempts}.`,
+        detail: `Payment declined. You have not been charged. ${nextStepAfterDecline(payment, doesWalletCover)}. ${attempts}.`,
       };
     }
   }

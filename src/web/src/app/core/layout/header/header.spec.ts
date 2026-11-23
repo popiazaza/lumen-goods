@@ -28,6 +28,10 @@ describe('Header account area', () => {
   const host = () => fixture.nativeElement as HTMLElement;
   const link = (name: string) =>
     [...host().querySelectorAll('a')].find((a) => a.textContent?.trim() === name);
+  const shopState = () => ({
+    active: link('Shop')?.classList.contains('active'),
+    current: link('Shop')?.getAttribute('aria-current') ?? null,
+  });
   const toggle = () =>
     host().querySelector<HTMLButtonElement>('button[aria-controls="account-panel"]');
   const panel = () => host().querySelector<HTMLElement>('#account-panel');
@@ -134,26 +138,21 @@ describe('Header account area', () => {
   it('marks Shop current on the catalogue and its product pages, not on the cart', async () => {
     await render(ANONYMOUS);
     const router = TestBed.inject(Router);
-    const shop = () => link('Shop');
-    const state = () => ({
-      active: shop()?.classList.contains('active'),
-      current: shop()?.getAttribute('aria-current') ?? null,
-    });
 
     await router.navigateByUrl('/?q=mug');
     await fixture.whenStable();
 
-    expect(state()).toStrictEqual({ active: true, current: 'page' });
+    expect(shopState()).toStrictEqual({ active: true, current: 'page' });
 
     await router.navigateByUrl('/products/lumen-mug');
     await fixture.whenStable();
 
-    expect(state()).toStrictEqual({ active: true, current: 'true' });
+    expect(shopState()).toStrictEqual({ active: true, current: 'true' });
 
     await router.navigateByUrl('/cart');
     await fixture.whenStable();
 
-    expect(state()).toStrictEqual({ active: false, current: null });
+    expect(shopState()).toStrictEqual({ active: false, current: null });
   });
 
   it('closes the menu with Escape and returns focus to its button', async () => {

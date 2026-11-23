@@ -269,7 +269,7 @@ export class CartPage {
     // quantity above it says so instead of changing silently.
     const max = Math.max(line.maxQuantity, 1);
     const next = quantity < line.quantity ? Math.max(quantity, 1) : Math.min(quantity, max);
-    const capped = quantity > max;
+    const isCapped = quantity > max;
     const showRealQuantity = () => {
       if (input) {
         input.value = String(line.quantity);
@@ -281,7 +281,7 @@ export class CartPage {
     }
     if (next === line.quantity) {
       showRealQuantity();
-      if (capped) {
+      if (isCapped) {
         this.setLineNote(line.id, `${max} is the most you can buy.`);
         this.say(`${line.product.name}: ${max} is the most you can buy.`);
       }
@@ -292,13 +292,14 @@ export class CartPage {
       this.cartState.setQuantity(line.id, next),
       (cart) => {
         const updated = cart.lines.find((candidate) => candidate.id === line.id);
-        const note = capped
-          ? `We changed the quantity from ${quantity} to ${next}, the most you can buy.`
-          : '';
-        if (note) {
+        const parts = [`${line.product.name}: quantity ${updated?.quantity ?? next}.`];
+        if (isCapped) {
+          const note = `We changed the quantity from ${quantity} to ${next}, the most you can buy.`;
           this.setLineNote(line.id, note);
+          parts.push(note);
         }
-        return `${line.product.name}: quantity ${updated?.quantity ?? next}. ${note ? `${note} ` : ''}Cart total ${formatUsd(cart.totals.total)}.`;
+        parts.push(`Cart total ${formatUsd(cart.totals.total)}.`);
+        return parts.join(' ');
       },
       undefined,
       // A refused change leaves the box showing what the cart really holds, not what was typed.

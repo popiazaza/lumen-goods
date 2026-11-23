@@ -457,7 +457,9 @@ describe('CartPage', () => {
 
   it('lowers a typed quantity above the line’s maximum to it and says so on the line', async () => {
     await open(aCart([LUMEN_MUG]));
-    const box = lineOf('Enamel Camp Mug').querySelector<HTMLInputElement>('input') as HTMLInputElement;
+    const box = lineOf('Enamel Camp Mug').querySelector<HTMLInputElement>(
+      'input'
+    ) as HTMLInputElement;
 
     box.value = '50';
     box.dispatchEvent(new Event('change'));
@@ -484,21 +486,27 @@ describe('CartPage', () => {
     await fixture.whenStable();
 
     http.expectNone('/api/v1/cart/lines/line-socks');
-    expect({ box: box.value, note: text(lineOf('Merino Trail Socks'), '.line-note') }).toStrictEqual(
-      { box: '2', note: '2 is the most you can buy.' }
-    );
+
+    expect({
+      box: box.value,
+      note: text(lineOf('Merino Trail Socks'), '.line-note'),
+    }).toStrictEqual({ box: '2', note: '2 is the most you can buy.' });
   });
 
   it('shows the real quantity again when a typed change is refused', async () => {
     await open(aCart([LUMEN_MUG]));
-    const box = lineOf('Enamel Camp Mug').querySelector<HTMLInputElement>('input') as HTMLInputElement;
+    const box = lineOf('Enamel Camp Mug').querySelector<HTMLInputElement>(
+      'input'
+    ) as HTMLInputElement;
 
     box.value = '5';
     box.dispatchEvent(new Event('change'));
-    http.expectOne('/api/v1/cart/lines/line-mug').flush(
-      { type: 'urn:lumen:problem:cart-quantity-limit', title: 'Only 4 available' },
-      { status: 422, statusText: 'Unprocessable Entity' }
-    );
+    http
+      .expectOne('/api/v1/cart/lines/line-mug')
+      .flush(
+        { type: 'urn:lumen:problem:cart-quantity-limit', title: 'Only 4 available' },
+        { status: 422, statusText: 'Unprocessable Entity' }
+      );
     http.expectOne('/api/v1/cart').flush(aCart([LUMEN_MUG]));
     await fixture.whenStable();
 

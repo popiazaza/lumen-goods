@@ -107,6 +107,16 @@ describe('CheckoutPaymentPage', () => {
     type('card-cvc', '123');
   };
 
+  /**
+  Types a code, presses Verify and gives the code's error, if any.
+  */
+  const verify = async (code: string): Promise<string | undefined> => {
+    type('one-time-code', code);
+    host().querySelector<HTMLButtonElement>(':scope .code-form button[type="submit"]')?.click();
+    await settle();
+    return text('.field-error');
+  };
+
   const pay = async (): Promise<void> => {
     host().querySelector<HTMLButtonElement>('#pay-button')?.click();
     await settle();
@@ -921,21 +931,17 @@ describe('CheckoutPaymentPage', () => {
 
     it('never sends a code of the wrong length, which would use up an attempt', async () => {
       await open(needsCode());
-      const verify = () =>
-        host().querySelector<HTMLButtonElement>(':scope .code-form button[type="submit"]')?.click();
 
-      verify();
-      await settle();
+      expect({
+        empty: await verify(''),
+        short: await verify('12345'),
+        long: await verify('1234567'),
+      }).toStrictEqual({
+        empty: 'Enter the 6-digit code',
+        short: 'The code must be 6 digits',
+        long: 'The code must be 6 digits',
+      });
 
-      expect(text('.field-error')).toBe('Enter the 6-digit code');
-
-      for (const code of ['12345', '1234567']) {
-        type('one-time-code', code);
-        verify();
-        await settle();
-
-        expect(text('.field-error')).toBe('The code must be 6 digits');
-      }
       http.expectNone(`${CURRENT_URL}/one-time-code`);
     });
 

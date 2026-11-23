@@ -25,6 +25,19 @@ class StubListPage {}
 const text = (root: ParentNode | null | undefined, selector: string) =>
   root?.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
 
+/**
+A button of the open dialog; throws until it is there, for `vi.waitFor`.
+*/
+const dialogButton = (name: string): HTMLButtonElement => {
+  const found = [
+    ...document.querySelectorAll<HTMLButtonElement>('mat-dialog-container button'),
+  ].find((element) => element.textContent?.trim() === name);
+  if (!found) {
+    throw new Error(`No "${name}" button in a dialog`);
+  }
+  return found;
+};
+
 const MUG = anAdminProduct();
 const PRODUCT_URL = `/api/v1/admin/products/${MUG.id}`;
 const MEDIA: OwnMediaFile[] = [
@@ -472,30 +485,24 @@ describe('AdminProductEditPage', () => {
   it('asks before leaving unsaved edits, and stays unless the admin discards them', async () => {
     await openMug();
     await type('Name', 'Enamel Camp Mug, large');
-    const dialogButton = (name: string) =>
-      [...document.querySelectorAll<HTMLButtonElement>('mat-dialog-container button')].find(
-        (element) => element.textContent?.trim() === name
-      );
 
     const stay = router.navigateByUrl('/admin/products');
-    await vi.waitFor(() => expect(dialogButton('Keep editing')).toBeTruthy());
-    dialogButton('Keep editing')?.click();
+    await vi.waitFor(() => dialogButton('Keep editing').click());
 
-    expect(await stay).toBeFalsy();
+    await expect(stay).resolves.toBeFalsy();
     expect(router.url).toBe(`/admin/products/${MUG.id}`);
 
     const leave = router.navigateByUrl('/admin/products');
-    await vi.waitFor(() => expect(dialogButton('Discard changes')).toBeTruthy());
-    dialogButton('Discard changes')?.click();
+    await vi.waitFor(() => dialogButton('Discard changes').click());
 
-    expect(await leave).toBeTruthy();
+    await expect(leave).resolves.toBeTruthy();
     expect(router.url).toBe('/admin/products');
   });
 
   it('leaves without asking when nothing was changed', async () => {
     await openMug();
 
-    expect(await router.navigateByUrl('/admin/products')).toBeTruthy();
+    await expect(router.navigateByUrl('/admin/products')).resolves.toBeTruthy();
     expect(document.querySelector('mat-dialog-container')).toBeNull();
   });
 

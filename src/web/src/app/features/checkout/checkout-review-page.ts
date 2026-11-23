@@ -117,10 +117,7 @@ export class CheckoutReviewPage {
 
   protected readonly addressText = computed(() => {
     const address = this.address();
-    if (!address) {
-      return '';
-    }
-    return addressLines(address).join(', ');
+    return address ? addressLines(address).join(', ') : '';
   });
 
   protected readonly preview = rxResource({
