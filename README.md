@@ -90,11 +90,12 @@ wallet: a customer can hold at most 3 unpaid orders at a time (BR-CHK-03), and e
    If anything changed since the review, Place order stops and shows old → new.
 4. **Pay** by card (test cards above) or wallet.
 5. **Follow the order** on *Orders*: partner lines move from "Awaiting …" to "Confirmed by …". To see a partner
-   fail to supply a paid line, set a Kestrel item's stock to 0 after Place order, before paying:
+   fail to supply a paid line, set the stock of the Kestrel item in your order to 0 after Place order, before paying.
+   `list` prints each item's ref next to its name; use the ref of yours (K-7735 below stands for it):
 
    ```bash
    docker compose exec kestrel dotnet KestrelOutfitters.StandIn.dll list
-   docker compose exec kestrel dotnet KestrelOutfitters.StandIn.dll set-stock K-7735 0
+   docker compose exec kestrel dotnet KestrelOutfitters.StandIn.dll set-stock K-7735 0   # your item's ref
    ```
 
    That line becomes "Not supplied, refunded $X" (the line and its tax, plus the shipment fee if nothing else ships
