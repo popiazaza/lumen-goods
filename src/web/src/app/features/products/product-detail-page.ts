@@ -12,19 +12,13 @@ import {
 } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { MatButton, MatIconButton } from '@angular/material/button';
-import {
-  MatFormField,
-  MatHint,
-  MatLabel,
-  MatPrefix,
-  MatSuffix,
-} from '@angular/material/form-field';
-import { MatIcon } from '@angular/material/icon';
-import { MatInput } from '@angular/material/input';
 import { Title } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
 import { finalize } from 'rxjs';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmLabel } from '@spartan-ng/helm/label';
+import { HlmSkeleton } from '@spartan-ng/helm/skeleton';
 import { OWN_SOURCE } from '../../core/api/order.models';
 import { httpStatusOf, problemMessage } from '../../core/api/problem-details';
 import { ProductDto, ProductsApi } from '../../core/api/products.api';
@@ -52,15 +46,10 @@ Product detail (`/products/:id`): gallery, price, stock, description, attributes
     DatePipe,
     ReactiveFormsModule,
     RouterLink,
-    MatButton,
-    MatFormField,
-    MatHint,
-    MatIcon,
-    MatIconButton,
-    MatInput,
-    MatLabel,
-    MatPrefix,
-    MatSuffix,
+    NgIcon,
+    HlmButton,
+    HlmLabel,
+    HlmSkeleton,
     AvailabilityBadge,
     ProductImage,
     ProductPrice,
@@ -230,11 +219,9 @@ export class ProductDetailPage {
     });
   }
 
-  protected step(delta: number, event: Event): void {
-    // The form field focuses its input on any click inside it; keep focus on the button so a
-    // keyboard user can press + or - again.
-    event.stopPropagation();
-    // The buttons stay focusable when disabled (disabledInteractive), so clicks still arrive here.
+  protected step(delta: number): void {
+    // The buttons stay focusable at a limit (aria-disabled, not disabled), so a keyboard user
+    // keeps their place and clicks still arrive here.
     if (!this.canBuy()) {
       return;
     }
