@@ -49,7 +49,6 @@
             <!-- A disclosure, not role="menu": the panel mixes text (email, balance) with links. -->
             <button
               #accountToggle
-              matButton
               type="button"
               class="account-toggle"
               aria-controls="account-panel"
@@ -58,12 +57,7 @@
             >
               <mat-icon svgIcon="account" />
               <span>Account</span>
-              <mat-icon
-                svgIcon="expand_more"
-                class="chevron"
-                iconPositionEnd
-                [class.up]="accountOpen()"
-              />
+              <mat-icon svgIcon="expand_more" class="chevron" [class.up]="accountOpen()" />
             </button>
             <div id="account-panel" class="account-panel" [hidden]="!accountOpen()">
               <p class="who">
@@ -105,8 +99,7 @@
                     [attr.aria-disabled]="signingOut()"
                     (click)="signOut()"
                   >
-                    <mat-icon svgIcon="logout" aria-hidden="true" />
-                    <span>{{ signingOut() ? 'Signing out…' : 'Sign out' }}</span>
+                    {{ signingOut() ? 'Signing out…' : 'Sign out' }}
                   </button>
                 </li>
               </ul>

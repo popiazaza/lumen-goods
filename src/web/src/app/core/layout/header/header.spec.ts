@@ -110,6 +110,8 @@ describe('Header account area', () => {
     });
     expect(link('Your orders')?.getAttribute('href')).toBe('/orders');
     expect(link('Admin')).toBeUndefined();
+    // The panel's items are text only, so they start on one edge (no icon on Sign out alone).
+    expect(openPanel.querySelectorAll('.account-links mat-icon')).toHaveLength(0);
   });
 
   it('adds the Admin link for the admin role', async () => {
