@@ -6,7 +6,7 @@
     Order <strong>{{ orderNumber() }}</strong> · Total
     <strong class="price">{{ total() | currency: 'USD' : 'symbol' : '1.2-2' : 'en-US' }}</strong>
     @if (holdExpires(); as hold) {
-      <span class="muted">· Prices held until {{ hold | date: 'shortTime' }}</span>
+      <span class="muted"> · Prices held until {{ hold | date: 'shortTime' }}</span>
     }
   </p>
 }
@@ -21,7 +21,10 @@
 @let currentPhase = phase();
 @switch (currentPhase) {
   @case ('loading') {
-    <p class="muted" role="status">Loading your order…</p>
+    <div class="page-loading" role="status">
+      <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+      <p>Loading your order…</p>
+    </div>
   }
 
   @case ('load-error') {

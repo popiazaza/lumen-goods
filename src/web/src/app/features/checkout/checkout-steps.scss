@@ -60,3 +60,24 @@ a {
   background: var(--mat-sys-primary);
   color: var(--mat-sys-on-primary);
 }
+
+// A phone has room for four markers but not four labels: only the current step keeps its label on
+// screen. The others keep theirs for screen readers, so every link still says where it goes.
+@media (width < 600px) {
+  li:not(.current) .label {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    margin: -1px;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  a {
+    min-width: 44px;
+    justify-content: center;
+  }
+}
