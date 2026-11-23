@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -61,7 +62,8 @@ internal sealed partial class XmlDocTextTransformer : IOpenApiDocumentTransforme
             var trimmed = line.Trim();
             return ListItem().IsMatch(trimmed) ? $"{++item}.{trimmed[2..]}" : trimmed;
         });
-        return string.Join('\n', lines);
+        // The generator keeps XML escapes (`&amp;`), which Markdown would show as written.
+        return WebUtility.HtmlDecode(string.Join('\n', lines));
     }
 
     /// <summary>An example that is strict JSON inside the generator's fence, parsed; null when it is not.</summary>

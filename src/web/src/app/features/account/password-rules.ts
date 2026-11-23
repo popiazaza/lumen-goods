@@ -13,13 +13,13 @@ interface PasswordRule {
   readonly message: string;
 }
 
-// Same tests as ASP.NET Identity's PasswordValidator (ASCII letters and digits, as JS `\d` is; a symbol is anything
-// but a letter or a decimal digit) and the same wording as the API's PlainIdentityErrorDescriber, so both read alike.
+// Same tests as ASP.NET Identity's PasswordValidator, which knows only ASCII letters and digits: a symbol is anything
+// else, a space or an accented letter included. Same wording as the API's PlainIdentityErrorDescriber, so both read alike.
 const RULES: readonly PasswordRule[] = [
   { test: /[A-Z]/u, message: 'Add an upper-case letter (A-Z).' },
   { test: /[a-z]/u, message: 'Add a lower-case letter (a-z).' },
   { test: /\d/u, message: 'Add a number (0-9).' },
-  { test: /[^\p{L}\p{Nd}]/u, message: 'Add a symbol, such as ! or #.' },
+  { test: /[^A-Za-z0-9]/u, message: 'Add a symbol, such as ! or #.' },
 ];
 
 /**
