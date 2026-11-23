@@ -115,14 +115,14 @@ describe('Header account area', () => {
 
     toggle()?.click();
     fixture.detectChanges();
-    // Admins have no wallet (404); the menu still works.
-    http
-      .expectOne('/api/v1/wallet')
-      .flush({ title: 'Not Found' }, { status: 404, statusText: 'Not Found' });
     await fixture.whenStable();
 
     expect(link('Admin')?.getAttribute('href')).toBe('/admin');
-    expect(panel()?.querySelector('.balance')?.textContent).toContain('unavailable');
+
+    // Staff have no wallet: no balance line, and no request for one.
+    http.expectNone('/api/v1/wallet');
+
+    expect(panel()?.querySelector('.balance')).toBeNull();
   });
 
   it('closes the menu with Escape and returns focus to its button', async () => {

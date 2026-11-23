@@ -118,9 +118,11 @@
       background: var(--mat-sys-surface-container-high);
     }
 
+    // Phone menu and account panel (lists): the current page is a filled pill, as in an M3
+    // navigation drawer. The top bar's links override this below.
     &.active {
-      box-shadow: inset 3px 0 0 var(--mat-sys-primary);
-      color: var(--mat-sys-primary);
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
     }
   }
 }
@@ -220,11 +222,30 @@
     margin: 0;
     gap: var(--lg-space-1);
 
-    & a {
+    // Only the bar's own links (Shop, Orders), not the ones in the account panel.
+    & > li > a {
+      position: relative;
       min-height: 40px;
 
+      // The current page: primary text over a straight bar, inset from the rounded hover shape.
       &.active {
-        box-shadow: inset 0 -3px 0 var(--mat-sys-primary);
+        background: none;
+        color: var(--mat-sys-primary);
+
+        &::after {
+          position: absolute;
+          right: var(--lg-space-3);
+          bottom: 0;
+          left: var(--lg-space-3);
+          height: 3px;
+          border-radius: 3px 3px 0 0;
+          background: var(--mat-sys-primary);
+          content: '';
+        }
+
+        &:hover {
+          background: var(--mat-sys-surface-container-high);
+        }
       }
     }
   }

@@ -1,4 +1,5 @@
 @use 'order-page';
+@use '../../../styles/alert';
 
 :host {
   display: block;
@@ -40,11 +41,9 @@
 }
 
 .notice {
-  padding: var(--lg-space-3);
-  border-radius: 8px;
-  border-left: 4px solid var(--mat-sys-primary);
+  @include alert.alert(info);
+
   margin-bottom: var(--lg-space-4);
-  background: var(--mat-sys-surface-container);
 
   & p {
     margin: 0;

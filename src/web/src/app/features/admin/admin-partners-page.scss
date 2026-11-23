@@ -1,3 +1,5 @@
+@use '../../../styles/alert';
+
 :host {
   display: block;
 }
@@ -100,15 +102,12 @@
 }
 
 .last-error {
-  padding: var(--lg-space-3);
-  border-radius: 8px;
-  border-left: 4px solid var(--mat-sys-error);
-  background: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
+  @include alert.alert(error, $dense: true);
+
   overflow-wrap: anywhere;
 
-  & mat-icon {
-    flex: none;
+  & p {
+    margin: 0;
   }
 }
 

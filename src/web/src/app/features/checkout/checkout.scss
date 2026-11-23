@@ -1,4 +1,6 @@
 // Shared by the checkout steps.
+@use '../../../styles/alert';
+
 :host {
   display: block;
   max-width: 48rem;
@@ -106,21 +108,12 @@ h2 {
 }
 
 .banner {
-  display: flex;
-  padding: var(--lg-space-3) var(--lg-space-4);
-  border-radius: var(--lg-radius-card);
+  @include alert.alert(info);
+
   margin: 0 0 var(--lg-space-4);
-  background: var(--mat-sys-secondary-container);
-  color: var(--mat-sys-on-secondary-container);
-  gap: var(--lg-space-3);
 
   &.error {
-    background: var(--mat-sys-error-container);
-    color: var(--mat-sys-on-error-container);
-  }
-
-  & > mat-icon {
-    flex: none;
+    @include alert.tone(error);
   }
 
   & p {
