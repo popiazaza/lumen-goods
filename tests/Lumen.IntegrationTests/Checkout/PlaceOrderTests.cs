@@ -284,26 +284,35 @@ public sealed class PlaceOrderTests(CheckoutHost host) : IClassFixture<CheckoutH
         }
 
         var preview = await shopper.PreviewAsync();
-
-        await SetHarborLastSyncAsync(host.Clock.GetUtcNow() - TimeSpan.FromMinutes(5));
-        var stale = await shopper.PlaceAsync(preview);
-
-        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await stale.ReadAsync<PriceChangedProblem>()).Changes.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        var before = await host.WithDbAsync(db => db.PartnerSyncStates.AsNoTracking()
+            .Where(s => s.Partner == ProductSources.Harbor).Select(s => s.LastSuccessUtc).SingleOrDefaultAsync(Ct));
+        try
         {
-            ProductId = plenty.Id, Kind = CheckoutChangeKind.TemporarilyUnavailable,
-        });
-        host.Harbor.Calls.Should().NotContain(uri => uri.AbsolutePath.EndsWith(plenty.SourceProductId, StringComparison.Ordinal),
-            "a line beyond the live checks is never sent");
+            await SetHarborLastSyncAsync(host.Clock.GetUtcNow() - TimeSpan.FromMinutes(5));
+            var stale = await shopper.PlaceAsync(preview);
 
-        await SetHarborLastSyncAsync(host.Clock.GetUtcNow() - TimeSpan.FromSeconds(30));
-        var placed = await shopper.PlaceAsync(await shopper.PreviewAsync());
+            stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            (await stale.ReadAsync<PriceChangedProblem>()).Changes.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+            {
+                ProductId = plenty.Id, Kind = CheckoutChangeKind.TemporarilyUnavailable,
+            });
+            host.Harbor.Calls.Should().NotContain(uri => uri.AbsolutePath.EndsWith(plenty.SourceProductId, StringComparison.Ordinal),
+                "a line beyond the live checks is never sent");
 
-        placed.StatusCode.Should().Be(HttpStatusCode.Created, await placed.Content.ReadAsStringAsync(Ct));
-        (await placed.ReadAsync<OrderDetailDto>()).Shipments.SelectMany(s => s.Lines).Should().HaveCount(7);
+            await SetHarborLastSyncAsync(host.Clock.GetUtcNow() - TimeSpan.FromSeconds(30));
+            var placed = await shopper.PlaceAsync(await shopper.PreviewAsync());
+
+            placed.StatusCode.Should().Be(HttpStatusCode.Created, await placed.Content.ReadAsStringAsync(Ct));
+            (await placed.ReadAsync<OrderDetailDto>()).Shipments.SelectMany(s => s.Lines).Should().HaveCount(7);
+        }
+        finally
+        {
+            // The partner sync state is shared by every test in the assembly: leave it as it was.
+            await SetHarborLastSyncAsync(before);
+        }
     }
 
-    private Task SetHarborLastSyncAsync(DateTimeOffset at) => host.WithDbAsync(async db =>
+    private Task SetHarborLastSyncAsync(DateTimeOffset? at) => host.WithDbAsync(async db =>
     {
         var state = await db.PartnerSyncStates.SingleOrDefaultAsync(s => s.Partner == ProductSources.Harbor, Ct);
         if (state is null)

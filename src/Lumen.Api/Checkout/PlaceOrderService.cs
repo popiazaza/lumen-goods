@@ -1,6 +1,7 @@
 using Lumen.Api.Catalog;
 using Lumen.Api.Infrastructure.Data;
 using Lumen.Api.Orders;
+using Lumen.Api.Partners;
 using Lumen.Api.Partners.Mapping;
 using Lumen.Api.Partners.Ports;
 using Lumen.Api.Partners.Sync;
@@ -100,6 +101,9 @@ internal sealed class PlaceOrderService(
                 : new PlaceOrderOutcome.TooManyUnpaidOrders(_maxUnpaid);
         }
 
+        // Read before the cart's products: a sync saves its products before its state, so a state read first never
+        // vouches for product data older than it (BR-CHK-02, TrustFreshSyncAsync).
+        var syncStates = await db.PartnerSyncStates.AsNoTracking().ToListAsync(cancellationToken);
         var lines = await cart.LoadAsync(customerId, cancellationToken);
         if (lines.Count == 0)
         {
@@ -134,7 +138,7 @@ internal sealed class PlaceOrderService(
                 reviewed.TryGetValue(l.Product.Id, out var seen) ? seen.UnitPrice : l.Product.PriceUsd!.Value,
                 l.Product.Quantity)))],
             cancellationToken);
-        live = await TrustFreshSyncAsync(toCheck, live, cancellationToken);
+        live = TrustFreshSync(toCheck, live, syncStates);
         await SaveLiveResultsAsync(toCheck, live, cancellationToken);
         foreach (var line in toCheck)
         {
@@ -203,20 +207,17 @@ internal sealed class PlaceOrderService(
     }
 
     /// <summary>
-    /// Write-through (BR-CHK-01, BR-CHK-02): saves each partner's live answer to its product row (live price; quantity;
-    /// out of stock or no longer sold), so the 409's new total and every later read use what was just learnt. The content
-    /// hash is recomputed from the stored result, so the next partner sync compares the partner's data with these
-    /// values and corrects them if the partner disagrees. A row a sync changed meanwhile is left to the sync; the other
-    /// rows are still saved.
-    /// </summary>
-    /// <summary>
     /// BR-CHK-02: a line the partner was not asked about (NotChecked: its rate limit left no room in the time limit) is
     /// ordered on Lumen's synced data, which the cart rules above have already applied, only when that data is fresh:
-    /// the product's partner data was read within <see cref="CheckoutOptions.SyncedDataMaxAge"/>. Otherwise the line is
-    /// Unreachable, "Temporarily unavailable", as if the partner had not answered.
+    /// the product's partner data was read at most <see cref="CheckoutOptions.SyncedDataMaxAge"/> ago, and the partner
+    /// has no removals held back by the mass-deletion guard (those products stay listed though they may be gone).
+    /// Otherwise the line is Unreachable, "Temporarily unavailable", as if the partner had not answered. A removal
+    /// shows only after the partner's next full pass (Harbor: every 10 minutes); a line ordered before that is
+    /// refunded if the partner refuses it (BR-ORD-03).
     /// </summary>
-    private async Task<IReadOnlyDictionary<Guid, PartnerLineCheckResult>> TrustFreshSyncAsync(
-        IReadOnlyList<CheckoutCartLine> checkedLines, IReadOnlyDictionary<Guid, PartnerLineCheckResult> live, CancellationToken cancellationToken)
+    private IReadOnlyDictionary<Guid, PartnerLineCheckResult> TrustFreshSync(
+        IReadOnlyList<CheckoutCartLine> checkedLines, IReadOnlyDictionary<Guid, PartnerLineCheckResult> live,
+        IReadOnlyList<PartnerSyncState> syncStates)
     {
         var notChecked = checkedLines.Where(l => live[l.Line.Id].Outcome == PartnerLineCheckOutcome.NotChecked).ToList();
         if (notChecked.Count == 0)
@@ -224,27 +225,39 @@ internal sealed class PlaceOrderService(
             return live;
         }
 
-        var checks = await db.PartnerSyncStates.AsNoTracking()
-            .ToDictionaryAsync(s => s.Partner, s => new PartnerCheck(s.LastSuccessUtc, s.StockRefreshedUtc), StringComparer.Ordinal, cancellationToken);
+        var states = syncStates.ToDictionary(s => s.Partner, StringComparer.Ordinal);
         var freshSince = time.GetUtcNow() - _syncedDataMaxAge;
         var results = live.ToDictionary();
         foreach (var line in notChecked)
         {
-            var lastChecked = ProductMapping.LastChecked(line.Product, checks.GetValueOrDefault(line.Product.Source));
-            if (_syncedDataMaxAge > TimeSpan.Zero && lastChecked >= freshSince)
+            var state = states.GetValueOrDefault(line.Product.Source);
+            var check = state is null ? null : new PartnerCheck(state.LastSuccessUtc, state.StockRefreshedUtc);
+            var lastChecked = ProductMapping.LastChecked(line.Product, check);
+            var holdsRemovals = state?.HeldRemovals > 0;
+            if (_syncedDataMaxAge > TimeSpan.Zero && lastChecked >= freshSince && !holdsRemovals)
             {
                 logger.LogInformation("Place order: {Source} item {Item} was not checked live; ordered on its data from {LastChecked:O}",
                     line.Product.Source, line.Product.SourceProductId, lastChecked);
                 continue;
             }
 
+            var why = holdsRemovals
+                ? "the partner has removals held back"
+                : $"its synced data ({lastChecked?.ToString("O") ?? "never read"}) is older than {_syncedDataMaxAge}";
             results[line.Line.Id] = new PartnerLineCheckResult(line.Line.Id, PartnerLineCheckOutcome.Unreachable,
-                Detail: $"Not checked live, and its synced data ({lastChecked?.ToString("O") ?? "never read"}) is older than {_syncedDataMaxAge}.");
+                Detail: $"Not checked live, and {why}.");
         }
 
         return results;
     }
 
+    /// <summary>
+    /// Write-through (BR-CHK-01, BR-CHK-02): saves each partner's live answer to its product row (live price; quantity;
+    /// out of stock or no longer sold), so the 409's new total and every later read use what was just learnt. The content
+    /// hash is recomputed from the stored result, so the next partner sync compares the partner's data with these
+    /// values and corrects them if the partner disagrees. A row a sync changed meanwhile is left to the sync; the other
+    /// rows are still saved.
+    /// </summary>
     private async Task SaveLiveResultsAsync(
         IReadOnlyList<CheckoutCartLine> checkedLines, IReadOnlyDictionary<Guid, PartnerLineCheckResult> live, CancellationToken cancellationToken)
     {
@@ -329,6 +342,8 @@ internal sealed class PlaceOrderService(
         PartnerLineCheckOutcome.Unavailable => cart.Change(line, CheckoutChangeKind.Unavailable, available: result.AvailableQuantity,
             message: result.AvailableQuantity == 0 ? "Out of stock" : "No longer available"),
         PartnerLineCheckOutcome.Unreachable => cart.Change(line, CheckoutChangeKind.TemporarilyUnavailable),
+        // Only fresh ones reach here: TrustFreshSync turned the rest into Unreachable.
+        PartnerLineCheckOutcome.NotChecked => null,
         _ => null,
     };
 

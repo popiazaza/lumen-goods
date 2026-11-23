@@ -6,7 +6,8 @@ namespace Lumen.Api.Partners.Ports;
 /// Harbor reads each item (<c>GET /v2/catalog/items/{item_code}</c>: price, status, on hand); Kestrel reads quantities
 /// from <c>/stock</c> (it has no price lookup, so its price stays the latest feed's and is not reported as changed).
 /// The caller bounds the whole check with <c>Checkout:PartnerCheckTimeout</c>; an adapter never throws for a partner
-/// that is slow or down, it answers <see cref="PartnerLineCheckOutcome.Unreachable"/> for the lines it could not check.
+/// that is slow or down, it answers <see cref="PartnerLineCheckOutcome.Unreachable"/> for the lines it could not check,
+/// and <see cref="PartnerLineCheckOutcome.NotChecked"/> for lines its rate limit left no room to ask about.
 /// <para>
 /// Write-through: what a check learns is saved before Place order answers. Place order writes each live price
 /// (<see cref="PartnerLineCheckResult.CurrentUnitPriceUsd"/>) and availability (<see cref="PartnerLineCheckResult.AvailableQuantity"/>,
