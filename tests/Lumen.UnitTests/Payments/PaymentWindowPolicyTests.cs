@@ -132,9 +132,9 @@ public sealed class PaymentWindowPolicyTests
     [Fact]
     [Trait("BR", "BR-PAY-05")]
     [Trait("BR", "BR-STOCK-01")]
-    public void BR_STOCK_01_a_payment_that_errors_twice_fails_and_the_order_is_released_at_the_end_of_the_hold()
+    public void BR_PAY_05_a_payment_that_errors_twice_fails_and_holds_the_order_until_the_gateway_settles_it()
     {
-        // The automatic retry errored too: no second automatic retry, the payment is Failed and the order can be paid again.
+        // The automatic retry errored too: no second automatic retry, and the payment is Failed.
         var secondError = new PaymentSnapshot(PaymentStatus.Error, WithinHold, AutomaticRetryUsed: true);
 
         _policy.ShouldRetryAutomatically(secondError, WithinHold).Should().BeFalse();
@@ -142,9 +142,17 @@ public sealed class PaymentWindowPolicyTests
         _policy.ClosingOutcome(secondError, WithinHold).Should().Be(PaymentStatus.Failed);
         _policy.NextOrderStatusAfter(PaymentStatus.Failed, 0, PlacedAt, WithinHold).Should().Be(OrderStatus.AwaitingPayment);
 
+        // The charge may have gone through, so the order and its stock are held past the hold and the last attempt.
         var failed = secondError with { Status = PaymentStatus.Failed };
-        _policy.MustExpireOrder(1, PlacedAt, HoldOver.AddSeconds(-1), failed).Should().BeFalse();
-        _policy.MustExpireOrder(1, PlacedAt, HoldOver, failed).Should().BeTrue();
+        _policy.IsPaymentInProgress(failed, HoldOver).Should().BeFalse("no new charge starts without the customer");
+        _policy.MustExpireOrder(1, PlacedAt, HoldOver, failed).Should().BeFalse();
+        _policy.MustExpireOrder(5, PlacedAt, WithinHold, failed).Should().BeFalse();
+
+        // The gateway's status says it never charged: Declined, and the order expires like any other.
+        var neverCharged = failed with { Status = PaymentStatus.Declined };
+        _policy.MustExpireOrder(1, PlacedAt, HoldOver.AddSeconds(-1), neverCharged).Should().BeFalse();
+        _policy.MustExpireOrder(1, PlacedAt, HoldOver, neverCharged).Should().BeTrue();
+        _policy.MustExpireOrder(5, PlacedAt, WithinHold, neverCharged).Should().BeTrue();
     }
 
     [Fact]
@@ -163,15 +171,17 @@ public sealed class PaymentWindowPolicyTests
 
     [Theory]
     [Trait("BR", "BR-PAY-03")]
+    [Trait("BR", "BR-PAY-05")]
     [InlineData(PaymentStatus.Succeeded, 0, 5, OrderStatus.Paid)]
     [InlineData(PaymentStatus.Succeeded, 4, 20, OrderStatus.Paid)]          // paid even after the hold
     [InlineData(PaymentStatus.Declined, 0, 5, OrderStatus.AwaitingPayment)]
     [InlineData(PaymentStatus.Failed, 3, 5, OrderStatus.AwaitingPayment)]
     [InlineData(PaymentStatus.Expired, 0, 5, OrderStatus.AwaitingPayment)]
-    [InlineData(PaymentStatus.Declined, 4, 5, OrderStatus.Expired)]         // fifth failure
-    [InlineData(PaymentStatus.Failed, 4, 5, OrderStatus.Expired)]
+    [InlineData(PaymentStatus.Declined, 4, 5, OrderStatus.Expired)]         // fifth attempt
+    [InlineData(PaymentStatus.Failed, 4, 5, OrderStatus.AwaitingPayment)]   // fifth attempt, but it may have charged
     [InlineData(PaymentStatus.Expired, 4, 5, OrderStatus.Expired)]
     [InlineData(PaymentStatus.Declined, 0, 15, OrderStatus.Expired)]        // hold over
+    [InlineData(PaymentStatus.Failed, 0, 15, OrderStatus.AwaitingPayment)]  // hold over, but it may have charged
     public void BR_PAY_03_each_payment_outcome_decides_the_next_order_status(
         PaymentStatus outcome, int failedAttemptsBefore, int minutesAfterPlacing, OrderStatus expected)
     {

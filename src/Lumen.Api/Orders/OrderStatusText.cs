@@ -18,9 +18,14 @@ public static class OrderStatusText
     /// The current payment waits for the customer's one-time code (RequiresAction, code not expired): nothing is being
     /// confirmed until they enter it, so the order says what it waits for.
     /// </param>
-    public static string ForOrder(OrderStatus status, bool refundPending = false, bool awaitingOneTimeCode = false) => status switch
+    /// <param name="paymentUnsettled">
+    /// The latest payment is Failed and the gateway has yet to say whether it charged (BR-PAY-05): the order is not simply
+    /// awaiting payment, it is being confirmed, as the confirmation page says.
+    /// </param>
+    public static string ForOrder(
+        OrderStatus status, bool refundPending = false, bool awaitingOneTimeCode = false, bool paymentUnsettled = false) => status switch
     {
-        OrderStatus.AwaitingPayment => "Awaiting payment",
+        OrderStatus.AwaitingPayment => paymentUnsettled ? "Confirming your payment" : "Awaiting payment",
         OrderStatus.PaymentProcessing => awaitingOneTimeCode ? "Waiting for your one-time code" : "Confirming your payment",
         OrderStatus.Paid => "Processing",
         OrderStatus.Completed => "Completed",

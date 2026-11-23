@@ -15,7 +15,6 @@ import { MatButton } from '@angular/material/button';
 import { MatCard } from '@angular/material/card';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
-import { RouterLink } from '@angular/router';
 import { concatMap, first, interval, map, switchMap, take, tap, timer } from 'rxjs';
 import {
   AdminPartnersApi,
@@ -24,6 +23,7 @@ import {
   hasRefreshRun,
 } from '../../core/api/admin-partners.api';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
+import { AdminAccessDenied } from './admin-access-denied';
 import { relativeTime } from './relative-time';
 
 /**
@@ -72,7 +72,7 @@ Admin: catalogue sync health per partner, with "Refresh now" (`/admin/partners`)
 */
 @Component({
   selector: 'app-admin-partners-page',
-  imports: [DatePipe, DecimalPipe, RouterLink, MatButton, MatCard, MatIcon, MatProgressBar],
+  imports: [AdminAccessDenied, DatePipe, DecimalPipe, MatButton, MatCard, MatIcon, MatProgressBar],
   templateUrl: './admin-partners-page.html',
   styleUrl: './admin-partners-page.scss',
 })

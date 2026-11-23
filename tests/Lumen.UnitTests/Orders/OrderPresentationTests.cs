@@ -58,6 +58,14 @@ public sealed class OrderPresentationTests
         OrderStatusText.ForOrder(status, awaitingOneTimeCode: true).Should().Be(expected);
 
     [Theory]
+    [InlineData(OrderStatus.AwaitingPayment, "Confirming your payment")]
+    [InlineData(OrderStatus.Expired, "Expired")]
+    [Trait("BR", "BR-ORD-02")]
+    [Trait("BR", "BR-PAY-05")]
+    public void BR_PAY_05_an_order_whose_failed_payment_the_gateway_has_yet_to_settle_is_being_confirmed(OrderStatus status, string expected) =>
+        OrderStatusText.ForOrder(status, paymentUnsettled: true).Should().Be(expected);
+
+    [Theory]
     [InlineData(OrderStatus.PartiallyRefunded, "Partial refund pending")]
     [InlineData(OrderStatus.Refunded, "Refund pending")]
     [InlineData(OrderStatus.Paid, "Processing")]

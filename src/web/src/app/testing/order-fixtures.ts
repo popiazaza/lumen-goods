@@ -35,6 +35,8 @@ export const anOrderSummary = (overrides: Partial<OrderSummaryDto> = {}): OrderS
   refundedTotal: 0,
   itemCount: 3,
   sellerNames: [LUMEN_NAME, KESTREL_NAME],
+  canPay: false,
+  awaitingOneTimeCode: false,
   ...overrides,
 });
 
@@ -117,6 +119,7 @@ export const anOrderDetail = (overrides: Partial<OrderDetailDto> = {}): OrderDet
   refunds: [],
   canPay: false,
   isUpdating: true,
+  awaitingOneTimeCode: false,
   ...overrides,
 });
 

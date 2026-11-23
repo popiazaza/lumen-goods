@@ -17,6 +17,14 @@ public sealed class PaymentJobsOptions
     [Range(typeof(TimeSpan), "00:00:05", "01:00:00")]
     public TimeSpan StaleChargeGrace { get; init; } = TimeSpan.FromMinutes(1);
 
+    /// <summary>
+    /// A Failed payment holds its order and reserved stock until the gateway's status settles it (BR-PAY-05), with no
+    /// time limit of its own. Once one has stayed unsettled this long (the status lookup is down, or keeps answering
+    /// "still running"), the payment window job logs a warning, repeated at most this often while any remain.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:01:00", "1.00:00:00")]
+    public TimeSpan UnsettledFailedWarnAfter { get; init; } = TimeSpan.FromMinutes(10);
+
     /// <summary>Most payments, orders or refunds one job run handles; the rest wait for the next run.</summary>
     [Range(1, 1000)]
     public int BatchSize { get; init; } = 50;

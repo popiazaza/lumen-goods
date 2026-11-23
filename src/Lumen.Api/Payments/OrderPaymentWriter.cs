@@ -90,9 +90,10 @@ internal sealed class OrderPaymentWriter(LumenDbContext db, PaymentWindowPolicy 
     }
 
     /// <summary>
-    /// The attempt ended without a charge (Declined, Failed or Expired). BR-PAY-03: it counts as one of the order's
-    /// attempts; the order goes back to awaiting payment while the hold and the attempts allow another try, otherwise
-    /// it expires and its reserved stock is released (BR-STOCK-01).
+    /// The attempt ended without a confirmed charge (Declined, Expired, or Failed: outcome unknown). BR-PAY-03: it counts
+    /// as one of the order's attempts. <see cref="PaymentWindowPolicy.NextOrderStatusAfter"/> decides the order's status:
+    /// back to awaiting payment, or expired with its reserved stock released (BR-STOCK-01). A Failed attempt never
+    /// expires the order (BR-PAY-05): it may have charged, and the payment window job asks the gateway.
     /// </summary>
     public async Task RecordFailedAttemptAsync(
         Order order, Payment payment, PaymentStatus outcome, DeclineReason? reason, string? detail, DateTimeOffset now, CancellationToken cancellationToken)
@@ -110,13 +111,6 @@ internal sealed class OrderPaymentWriter(LumenDbContext db, PaymentWindowPolicy 
         await AddEventAsync(payment, type, now, null, text, cancellationToken);
 
         var next = window.NextOrderStatusAfter(outcome, order.FailedPaymentAttempts, order.CreatedUtc, now);
-        if (outcome == PaymentStatus.Failed && next == OrderStatus.Expired)
-        {
-            // BR-PAY-05: a Failed charge may still have gone through, so the order is not expired (nor its stock
-            // released) until the gateway's status settles the payment; the payment window job asks it.
-            next = OrderStatus.AwaitingPayment;
-        }
-
         order.FailedPaymentAttempts++;
         order.Status = OrderTransitions.Order.Move(order.Status, next);
         if (order.Status == OrderStatus.Expired)

@@ -1,4 +1,4 @@
-<h1>Your cart</h1>
+<h1 #heading tabindex="-1">Your cart</h1>
 
 @if (mergeNotice(); as notice) {
   <div class="banner merge" role="status">
@@ -38,6 +38,24 @@
               <li>{{ line.product.name }}</li>
             }
           </ul>
+          @if (acknowledgeAllError(); as error) {
+            <p class="banner-error" role="alert">
+              <mat-icon svgIcon="error" aria-hidden="true" />
+              {{ error }}
+            </p>
+          }
+          @if (canAcknowledgeAll()) {
+            <button
+              matButton="outlined"
+              type="button"
+              class="acknowledge-all"
+              disabledInteractive
+              [disabled]="acknowledgingAll()"
+              (click)="acknowledgeAll()"
+            >
+              Acknowledge all<span class="cdk-visually-hidden"> changes</span>
+            </button>
+          }
         </div>
       </div>
     }

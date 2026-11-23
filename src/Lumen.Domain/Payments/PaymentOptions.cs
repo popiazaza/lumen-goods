@@ -26,7 +26,10 @@ public sealed class PaymentOptions
     [Range(typeof(TimeSpan), "00:00:01", "00:05:00")]
     public TimeSpan AutomaticRetryWindow { get; init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Payment attempts allowed per order; the last failure expires the order (BR-PAY-03, BR-STOCK-01).</summary>
+    /// <summary>
+    /// Payment attempts allowed per order; once they are used up the order expires, as soon as no payment holds it
+    /// (BR-PAY-03, BR-STOCK-01; a Failed one holds it until the gateway settles it, BR-PAY-05).
+    /// </summary>
     [Range(1, 20)]
     public int MaxAttemptsPerOrder { get; init; } = 5;
 

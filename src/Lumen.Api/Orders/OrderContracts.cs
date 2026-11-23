@@ -14,11 +14,13 @@ namespace Lumen.Api.Orders;
 /// <param name="StatusText">What the customer sees: "Awaiting payment", "Processing", "Partial refund pending", "Partially refunded", ...</param>
 /// <param name="ItemCount">Sum of the line quantities.</param>
 /// <param name="SellerNames">The shops the items came from, e.g. ["Lumen Goods", "Kestrel Outfitters"].</param>
+/// <param name="CanPay">As <see cref="OrderDetailDto.CanPay"/>: the order awaits payment, its hold lasts and attempts are left, so the list offers "Pay now".</param>
+/// <param name="AwaitingOneTimeCode">The current payment waits for the customer's one-time code (not expired yet), so the list offers "Enter the code".</param>
 /// <example>
 /// <code>
 /// { "number": "LG-7K3M9QX2", "status": "partially_refunded", "statusText": "Partially refunded",
 ///   "createdUtc": "2026-11-20T08:00:00Z", "total": 75.46, "refundedTotal": 22.51, "itemCount": 3,
-///   "sellerNames": ["Lumen Goods", "Kestrel Outfitters"] }
+///   "sellerNames": ["Lumen Goods", "Kestrel Outfitters"], "canPay": false, "awaitingOneTimeCode": false }
 /// </code>
 /// </example>
 public sealed record OrderSummaryDto(
@@ -29,7 +31,9 @@ public sealed record OrderSummaryDto(
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal Total,
     [property: JsonConverter(typeof(TwoDecimalJsonConverter))] decimal RefundedTotal,
     int ItemCount,
-    IReadOnlyList<string> SellerNames);
+    IReadOnlyList<string> SellerNames,
+    bool CanPay,
+    bool AwaitingOneTimeCode);
 
 /// <summary>
 /// <c>GET /api/v1/orders/{number}</c> (the customer's own order; another's is 404) and the answer to Place order. Lines
@@ -39,7 +43,11 @@ public sealed record OrderSummaryDto(
 /// <param name="StatusText">Customer wording for <see cref="Status"/> (paid is shown as "Processing").</param>
 /// <param name="HoldExpiresUtc">Until when the order can be paid (15-minute price and stock hold).</param>
 /// <param name="CanPay">The order awaits payment, its hold lasts and attempts are left: show the payment step.</param>
-/// <param name="IsUpdating">Something can still change on its own: a payment being confirmed, or a line awaiting its partner.</param>
+/// <param name="IsUpdating">
+/// Something can still change on its own: a payment being confirmed, a Failed payment the gateway has yet to settle
+/// (BR-PAY-05), a line awaiting its partner, or a refund on its way.
+/// </param>
+/// <param name="AwaitingOneTimeCode">The current payment waits for the customer's one-time code, which has not expired: offer "Enter the code".</param>
 /// <param name="Payment">The latest payment, or null before the first one.</param>
 /// <example>
 /// <code>
@@ -62,7 +70,7 @@ public sealed record OrderSummaryDto(
 ///   "payment": { "paymentId": "0193a2c4-...", "method": "card", "status": "succeeded", "amount": 75.46,
 ///                "cardBrand": "visa", "cardLast4": "1111", "completedUtc": "2026-11-20T08:01:10Z" },
 ///   "refunds": [],
-///   "canPay": false, "isUpdating": true
+///   "canPay": false, "isUpdating": true, "awaitingOneTimeCode": false
 /// }
 /// </code>
 /// </example>
@@ -80,7 +88,8 @@ public sealed record OrderDetailDto(
     PaymentSummaryDto? Payment,
     IReadOnlyList<RefundDto> Refunds,
     bool CanPay,
-    bool IsUpdating);
+    bool IsUpdating,
+    bool AwaitingOneTimeCode);
 
 /// <summary>One seller's part of the order: its shipment (method, fee, whether the fee was refunded) and its lines.</summary>
 public sealed record OrderShipmentDto(

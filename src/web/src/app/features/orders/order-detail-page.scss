@@ -51,6 +51,16 @@
   }
 }
 
+// The payment step: the button sits beside the text, or below it on a phone.
+.pay {
+  flex-wrap: wrap;
+  align-items: center;
+
+  & p {
+    flex: 1 1 14rem;
+  }
+}
+
 .layout {
   display: grid;
   margin-bottom: var(--lg-space-6);

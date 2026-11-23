@@ -37,6 +37,26 @@
   & > div {
     flex: 1 1 16rem;
   }
+
+  // In the banner's colours (an error colour on the tertiary container would be hard to read);
+  // the icon and the words say it is an error.
+  & .banner-error {
+    display: flex;
+    align-items: flex-start;
+    margin-top: var(--lg-space-2);
+    font-weight: 500;
+    gap: var(--lg-space-1);
+
+    & mat-icon {
+      width: 20px;
+      height: 20px;
+      flex: none;
+    }
+  }
+
+  & .acknowledge-all {
+    margin-top: var(--lg-space-3);
+  }
 }
 
 .empty {

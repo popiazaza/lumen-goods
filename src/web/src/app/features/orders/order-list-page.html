@@ -73,6 +73,27 @@
                     <dd>{{ order.sellerNames.join(', ') }}</dd>
                   </div>
                 </dl>
+                @if (order.awaitingOneTimeCode) {
+                  <a
+                    matButton="filled"
+                    class="pay"
+                    routerLink="/checkout/payment"
+                    [queryParams]="{ order: order.number }"
+                    >Enter the code<span class="cdk-visually-hidden">
+                      for order {{ order.number }}</span
+                    ></a
+                  >
+                } @else if (order.canPay) {
+                  <a
+                    matButton="filled"
+                    class="pay"
+                    routerLink="/checkout/payment"
+                    [queryParams]="{ order: order.number }"
+                    >Pay now<span class="cdk-visually-hidden">
+                      for order {{ order.number }}</span
+                    ></a
+                  >
+                }
               </mat-card>
             </li>
           }

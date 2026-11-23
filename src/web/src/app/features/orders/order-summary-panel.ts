@@ -2,9 +2,18 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 import { MatCard } from '@angular/material/card';
 import { MatIcon } from '@angular/material/icon';
-import { OrderDetailDto, OrderLineDto, RefundDto } from '../../core/api/order.models';
+import { OrderDetailDto, OrderLineDto, OrderStatus, RefundDto } from '../../core/api/order.models';
 import { paymentMethodLabel, paymentStatusView, refundStatusView } from './order-labels';
 import { StatusBadge } from './status-badge';
+
+/**
+Statuses in which nothing has been charged (yet), as on the confirmation page.
+*/
+const NOT_CHARGED: ReadonlySet<OrderStatus> = /* @__PURE__ */ new Set([
+  'awaiting_payment',
+  'payment_processing',
+  'expired',
+]);
 
 /**
  * Totals (with refunds and net paid), payment, refunds and the shipping address of an order, as
@@ -32,6 +41,11 @@ export class OrderSummaryPanel {
   The admin order page: refunds show their real status (a failed one says so).
   */
   readonly admin = input(false);
+
+  /**
+  The total says "charged" only once the order is paid.
+  */
+  protected readonly isPaid = computed(() => !NOT_CHARGED.has(this.order().status));
 
   protected readonly methodLabel = computed(() => {
     const { payment } = this.order();

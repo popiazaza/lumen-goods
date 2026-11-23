@@ -142,6 +142,15 @@
       <p>We couldn’t find this order in your account.</p>
       <a matButton="filled" routerLink="/orders">Your orders</a>
     }
+    @case ('signed-out') {
+      <p>Sign in to see this order.</p>
+      <a
+        matButton="filled"
+        routerLink="/sign-in"
+        [queryParams]="{ returnUrl: `/orders/${id()}/confirmation` }"
+        >Sign in</a
+      >
+    }
     @case ('error') {
       <div class="error" role="alert">
         <p>We couldn’t load your order. It is saved; check your connection and try again.</p>

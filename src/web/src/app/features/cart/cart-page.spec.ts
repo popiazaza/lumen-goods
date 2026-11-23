@@ -207,6 +207,88 @@ describe('CartPage', () => {
     );
   });
 
+  it('acknowledges every change at once from the banner', async () => {
+    await open(aCart([KESTREL_SOCKS, LUMEN_MUG]));
+
+    button(host(), 'Acknowledge all changes').click();
+    const request = http.expectOne('/api/v1/cart/acknowledge');
+
+    expect(request.request.method).toBe('POST');
+
+    request.flush(
+      aCart([
+        {
+          ...KESTREL_SOCKS,
+          unitPriceSeen: 17.31,
+          notices: { ...GONE_TOTE.notices, unavailable: null },
+        },
+        LUMEN_MUG,
+      ])
+    );
+    await fixture.whenStable();
+
+    expect(host().querySelector('.banner.notices')).toBeNull();
+    expect(announcer.announce).toHaveBeenCalledWith('Noted the changes to your cart.', 'polite');
+    // The button went away with the banner: focus starts again at the heading.
+    expect(document.activeElement).toBe(host().querySelector('h1'));
+  });
+
+  it('offers Acknowledge all only while a change can be accepted', async () => {
+    // Only an unavailable line changed: it stays until it is removed.
+    await open(aCart([LUMEN_MUG, GONE_TOTE], { canCheckout: false }));
+
+    expect(text(host(), '.banner.notices p')).toBe(
+      '1 item in your cart changed since you added it. Check the notes below.'
+    );
+    expect(host().querySelector('.acknowledge-all')).toBeNull();
+  });
+
+  it('says so when Acknowledge all fails, and shows the cart as it is now', async () => {
+    await open(aCart([KESTREL_SOCKS]));
+
+    button(host(), 'Acknowledge all changes').click();
+    http
+      .expectOne('/api/v1/cart/acknowledge')
+      .flush('down', { status: 503, statusText: 'Service Unavailable' });
+    http.expectOne('/api/v1/cart').flush(aCart([KESTREL_SOCKS]));
+    await fixture.whenStable();
+
+    expect(text(host(), '.banner-error')).toBe('We couldn’t note the changes. Try again.');
+    expect(button(host(), 'Acknowledge all changes').getAttribute('aria-disabled')).not.toBe(
+      'true'
+    );
+  });
+
+  it('drops the Acknowledge all error once the banner lists other changes', async () => {
+    await open(aCart([KESTREL_SOCKS, GONE_TOTE], { canCheckout: false }));
+
+    button(host(), 'Acknowledge all changes').click();
+    http
+      .expectOne('/api/v1/cart/acknowledge')
+      .flush('down', { status: 503, statusText: 'Service Unavailable' });
+    http.expectOne('/api/v1/cart').flush(aCart([KESTREL_SOCKS, GONE_TOTE], { canCheckout: false }));
+    await fixture.whenStable();
+
+    expect(text(host(), '.banner-error')).toBe('We couldn’t note the changes. Try again.');
+
+    // The socks' changes are accepted on their line; only the tote is left in the banner.
+    button(lineOf('Merino Trail Socks'), 'Acknowledge changes to Merino Trail Socks').click();
+    http
+      .expectOne('/api/v1/cart/lines/line-socks/acknowledge')
+      .flush(
+        aCart(
+          [{ ...KESTREL_SOCKS, notices: { ...GONE_TOTE.notices, unavailable: null } }, GONE_TOTE],
+          { canCheckout: false }
+        )
+      );
+    await fixture.whenStable();
+
+    expect(text(host(), '.banner.notices p')).toBe(
+      '1 item in your cart changed since you added it. Check the notes below.'
+    );
+    expect(host().querySelector('.banner-error')).toBeNull();
+  });
+
   it('blocks checkout with the reason while a line cannot be bought', async () => {
     await open(aCart([LUMEN_MUG, GONE_TOTE], { canCheckout: false }));
     const checkout = host().querySelector<HTMLButtonElement>(

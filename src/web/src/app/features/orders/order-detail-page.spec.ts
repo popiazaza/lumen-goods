@@ -10,6 +10,7 @@ import {
   SOCKS_LINE,
   aCardPayment,
   aSettledOrderDetail,
+  anOrder,
   anOrderDetail,
   anOrderLine,
 } from '../../testing/order-fixtures';
@@ -252,6 +253,127 @@ describe('OrderDetailPage', () => {
     );
 
     expect(text(summary(), '.method')).toBe('Lumen wallet');
+  });
+
+  it('says Total, not Total charged, while nothing has been charged', async () => {
+    await show(anOrder());
+
+    expect(row(summary(), '.total')).toBe('Total $67.46');
+  });
+
+  /**
+  The payment step offered at the top of the page, if any.
+  */
+  const payAction = () => ({
+    message: text(host(), '.pay p'),
+    action: text(host(), '.pay a') ?? null,
+    href: host().querySelector(':scope .pay a')?.getAttribute('href') ?? null,
+  });
+
+  it.each([
+    { payment: 'no payment yet', order: anOrder() },
+    {
+      payment: 'a declined payment',
+      order: anOrder({ payment: aCardPayment({ status: 'declined' }) }),
+    },
+  ])('offers Pay now for an order that can still be paid ($payment)', async ({ order }) => {
+    await show(order);
+
+    expect(payAction()).toStrictEqual({
+      message: 'This order is placed but not paid yet.',
+      action: 'Pay now',
+      href: `/checkout/payment?order=${NUMBER}`,
+    });
+  });
+
+  it('never calls an order unpaid after a Failed payment, which may have charged', async () => {
+    await show(anOrder({ payment: aCardPayment({ status: 'failed', completedUtc: null }) }));
+
+    expect(payAction()).toStrictEqual({
+      message:
+        'We couldn’t confirm your last payment. You can try the same card again: you won’t be charged twice.',
+      action: 'Pay now',
+      href: `/checkout/payment?order=${NUMBER}`,
+    });
+  });
+
+  it('offers Enter the code while the card issuer waits for the one-time code', async () => {
+    open();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
+    http.expectOne(URL).flush(
+      anOrder({
+        status: 'payment_processing',
+        statusText: 'Waiting for your one-time code',
+        canPay: false,
+        isUpdating: true,
+        awaitingOneTimeCode: true,
+        payment: aCardPayment({ status: 'requires_action', cardLast4: '0034', completedUtc: null }),
+      })
+    );
+    await settle();
+
+    expect(payAction()).toStrictEqual({
+      message: 'Your card issuer asked for a one-time code to approve this payment.',
+      action: 'Enter the code',
+      href: `/checkout/payment?order=${NUMBER}`,
+    });
+    expect(text(host(), '.updating')).toBe(
+      'Waiting for your one-time code. This page updates by itself.'
+    );
+  });
+
+  it('says the card provider is being asked when a Failed payment has no attempt left, and keeps reading', async () => {
+    open();
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
+    const unsettled = anOrder({
+      statusText: 'Confirming your payment',
+      canPay: false,
+      isUpdating: true,
+      payment: aCardPayment({ status: 'failed', completedUtc: null }),
+    });
+    http.expectOne(URL).flush(unsettled);
+    await settle();
+
+    expect(payAction()).toStrictEqual({
+      message:
+        'We’re checking with your card provider whether your card was charged. If it was, your order will be paid; if not, it will be cancelled and you won’t be charged.',
+      action: null,
+      href: null,
+    });
+    expect(text(host(), '.updating')).toBe(
+      'Waiting for the card provider to confirm your payment. This page updates by itself.'
+    );
+
+    // The card provider answered: charged, so the order is paid.
+    await vi.advanceTimersByTimeAsync(ORDER_POLL_INTERVAL_MS);
+    http.expectOne(URL).flush(aSettledOrderDetail());
+    fixture.detectChanges();
+
+    expect(host().querySelector('.pay')).toBeNull();
+  });
+
+  it.each([
+    { state: 'paid', order: aSettledOrderDetail() },
+    {
+      state: 'expired',
+      order: anOrder({ status: 'expired', statusText: 'Expired', canPay: false }),
+    },
+    {
+      // The API waits for a code only until it expires; the payment page settles an expired one.
+      state: 'its one-time code expired',
+      order: anOrder({
+        status: 'payment_processing',
+        canPay: false,
+        isUpdating: false,
+        awaitingOneTimeCode: false,
+        payment: aCardPayment({ status: 'requires_action', completedUtc: null }),
+      }),
+    },
+  ])('offers no payment step for an order that cannot be paid ($state)', async ({ order }) => {
+    await show(order);
+
+    expect(host().querySelector('.pay')).toBeNull();
+    expect(host().querySelector('a[href^="/checkout/payment"]')).toBeNull();
   });
 
   it('refreshes every few seconds while a line is waiting, then stops (BR-ORD-02)', async () => {

@@ -16,15 +16,16 @@ they drift apart, so they can be copied into DESIGN.md as they are.
 ## Order
 
 A payment can start only by claiming the order (AwaitingPayment → PaymentProcessing, one conditional update), so only
-one payment runs per order and a paid order can never be paid again (BR-PAY-01). The order expires only when no
-payment is in progress: the hold ran out, or the last allowed attempt failed (BR-STOCK-01, `PaymentWindowPolicy`).
+one payment runs per order and a paid order can never be paid again (BR-PAY-01). The order expires when the hold ran
+out or the last allowed attempt is used, and only while no payment holds it: none in progress, and none Failed, since a
+Failed charge may have gone through until the gateway settles it (BR-STOCK-01, BR-PAY-05, `PaymentWindowPolicy`).
 After payment the status follows the lines (`OrderStatusDerivation.Derive`, BR-ORD-02).
 
 ```mermaid
 stateDiagram-v2
     [*] --> AwaitingPayment
     AwaitingPayment --> PaymentProcessing: payment started (atomic claim)
-    AwaitingPayment --> Expired: hold over, no payment in progress
+    AwaitingPayment --> Expired: hold over or attempts used up, no payment in progress, none Failed
     PaymentProcessing --> Paid: payment succeeded
     PaymentProcessing --> AwaitingPayment: payment failed, can retry
     PaymentProcessing --> Expired: payment failed, no attempts or hold left
@@ -41,7 +42,7 @@ What the customer sees:
 
 | Stored status | Customer sees |
 |---|---|
-| AwaitingPayment, PaymentProcessing | Awaiting payment / Confirming your payment (Waiting for your one-time code while the card issuer waits for it) |
+| AwaitingPayment, PaymentProcessing | Awaiting payment / Confirming your payment (Waiting for your one-time code while the card issuer waits for it; Confirming your payment also while a Failed payment waits for the gateway) |
 | Paid | Processing (some lines still wait for a partner) |
 | Completed | Completed |
 | PartiallyRefunded | Partially refunded (refunds listed per line) |
@@ -159,7 +160,7 @@ stateDiagram-v2
 
 The order cannot expire while its payment is in progress (BR-STOCK-01). "In progress" is decided by
 `IsPaymentInProgress(payment, now)`, never by the caller, and every in-progress state ends on its own, so an abandoned
-payment cannot hold the order and its reserved stock forever:
+payment does not hold the order and its reserved stock for long:
 
 | Payment status | In progress |
 |---|---|
@@ -168,18 +169,26 @@ payment cannot hold the order and its reserved stock forever:
 | Error | While its one automatic retry is still to come: not used yet, and within `AutomaticRetryWindow` (30 s) |
 | Succeeded, Declined, Failed, Expired | Never: these are outcomes |
 
+A Failed payment is not in progress, but it still holds the order (`MustExpireOrder`, BR-PAY-05): the gateway errored
+twice, so the charge may have gone through, and only the gateway's status can settle it (Succeeded or Declined). That
+hold has no time limit of its own: while the gateway's status lookup is down, the order and its stock stay reserved, and
+the payment window job logs a warning for each Failed payment unsettled for longer than `PaymentJobs:UnsettledFailedWarnAfter`.
+
 What follows each outcome (`NextOrderStatusAfter(outcome, failedAttemptsBefore, placedAt, now)`):
 
 | Payment outcome | Order becomes |
 |---|---|
 | Succeeded | Paid, even after the hold ended (the order was waiting for this payment) |
-| Declined, Failed, Expired | AwaitingPayment while the hold lasts and attempts are left; otherwise Expired (stock released) |
+| Declined, Expired | AwaitingPayment while the hold lasts and attempts are left; otherwise Expired (stock released) |
+| Failed | AwaitingPayment always; held until the gateway settles the payment, even after the hold or the last attempt |
 
 The expiry job, for each order awaiting payment or with a payment processing:
 
 1. If `ClosingOutcome(payment, now)` returns an outcome (an abandoned code → Expired, an error whose retry errored or
    never ran → Failed), move the payment to it and the order to `NextOrderStatusAfter(...)`.
-2. Otherwise, if `MustExpireOrder(failedAttempts, placedAt, now, payment)`, move the order to Expired and release its stock.
+2. If the payment is Failed, ask the gateway for its status: charged → Succeeded and the order Paid; never charged →
+   Declined (final); no answer → it stays Failed and is asked again on the next run.
+3. Otherwise, if `MustExpireOrder(failedAttempts, placedAt, now, payment)`, move the order to Expired and release its stock.
 
 ## Refunds (BR-ORD-03)
 
