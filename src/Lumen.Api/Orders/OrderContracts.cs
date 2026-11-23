@@ -40,7 +40,7 @@ public sealed record OrderSummaryDto(
 /// are grouped by seller under their shipment, each with its own status (BR-ORD-02) and any refund (BR-ORD-03).
 /// The confirmation and detail pages poll while <see cref="IsUpdating"/>.
 /// </summary>
-/// <param name="StatusText">Customer wording for <see cref="Status"/> (paid is shown as "Processing").</param>
+/// <param name="StatusText">Customer wording for <see cref="Status"/> (paid is shown as "Processing", completed as "Confirmed": every seller confirmed, nothing shipped yet).</param>
 /// <param name="HoldExpiresUtc">Until when the order can be paid (15-minute price and stock hold).</param>
 /// <param name="CanPay">The order awaits payment, its hold lasts and attempts are left: show the payment step.</param>
 /// <param name="IsUpdating">

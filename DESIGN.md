@@ -195,7 +195,7 @@ stateDiagram-v2
     Expired --> [*]
 ```
 
-Once paid, the order's status is derived from its lines: all confirmed is Completed, all final with some refunded is PartiallyRefunded, all refunded is Refunded.
+Once paid, the order's status is derived from its lines: all confirmed is Completed (shown as "Confirmed": nothing has shipped, as shipping is out of scope), all final with some refunded is PartiallyRefunded, all refunded is Refunded.
 
 ## 5. Data model
 

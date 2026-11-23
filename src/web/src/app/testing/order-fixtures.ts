@@ -171,7 +171,7 @@ export const aSettledOrderDetail = (overrides: Partial<OrderDetailDto> = {}): Or
   return {
     ...order,
     status: 'completed',
-    statusText: 'Completed',
+    statusText: 'Confirmed',
     shipments: order.shipments.map((shipment) => ({
       ...shipment,
       lines: shipment.lines.map((line) => ({

@@ -44,7 +44,7 @@ What the customer sees:
 |---|---|
 | AwaitingPayment, PaymentProcessing | Awaiting payment / Confirming your payment (Waiting for your one-time code while the card issuer waits for it; Confirming your payment also while a Failed payment waits for the gateway) |
 | Paid | Processing (some lines still wait for a partner) |
-| Completed | Completed |
+| Completed | Confirmed (every seller confirmed its items; nothing has shipped, A-45) |
 | PartiallyRefunded | Partially refunded (refunds listed per line) |
 | Refunded | Refunded |
 | Expired | Expired |
