@@ -82,6 +82,34 @@ public sealed class HarborOrderGatewayTests
         result.AlreadyExisted.Should().BeTrue();
     }
 
+    [Theory]
+    [Trait("BR", "BR-ORD-01")]
+    [InlineData(HttpStatusCode.Created, "{}", "application/json")]
+    [InlineData(HttpStatusCode.Created, "{\"order_id\":null,\"status\":\"ACCEPTED\"}", "application/json")]
+    [InlineData(HttpStatusCode.Created, "ok", "text/plain")]
+    [InlineData(HttpStatusCode.Created, "", "application/json")]
+    [InlineData(HttpStatusCode.OK, "<html>Order received</html>", "text/html")]
+    public async Task BR_ORD_01_a_201_or_200_without_a_readable_order_id_still_confirms_the_line(HttpStatusCode status, string body, string contentType)
+    {
+        // The status is Harbor's decision: it has the order and reduced its stock. Reading it as a rejection would
+        // refund goods Harbor is shipping; the order id is only kept for reference.
+        var (result, _) = await SubmitAsync(_ => new HttpResponseMessage(status) { Content = new StringContent(body, System.Text.Encoding.UTF8, contentType) });
+
+        (result.Outcome, result.PartnerOrderId, result.AlreadyExisted).Should().Be((PartnerOrderOutcome.Confirmed, (string?)null, status == HttpStatusCode.OK));
+    }
+
+    [Fact]
+    [Trait("BR", "BR-ORD-03")]
+    public async Task BR_ORD_03_400_invalid_request_rejects_the_line_with_harbors_message()
+    {
+        var (result, harbor) = await SubmitAsync(_ => OrderStub.Json(HttpStatusCode.BadRequest,
+            """{"error":{"code":"INVALID_REQUEST","message":"ship_to.postal_code is required"}}"""));
+
+        (result.Outcome, result.Reason, result.HttpStatus)
+            .Should().Be((PartnerOrderOutcome.Rejected, "INVALID_REQUEST: ship_to.postal_code is required", 400));
+        harbor.Requests.Should().ContainSingle("a POST is never repeated by the pipeline");
+    }
+
     [Fact]
     public async Task Order_ids_are_opaque_a_number_or_an_unexpected_status_is_kept_as_harbor_sent_it()
     {
