@@ -11,7 +11,7 @@ import { SessionApi } from '../../core/api/session.api';
 import { CartStateService } from '../../core/cart/cart-state.service';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
 import { provideAppIcons } from '../../core/icons/app-icons';
-import { CUSTOMER_SESSION, aCart, aCartLine } from '../../testing/fixtures';
+import { ADMIN_SESSION, CUSTOMER_SESSION, aCart, aCartLine } from '../../testing/fixtures';
 import { anOrderDetail } from '../../testing/order-fixtures';
 import { CartPage } from './cart-page';
 
@@ -124,6 +124,24 @@ describe('CartPage', () => {
     http.verify();
     vi.restoreAllMocks();
     sessionStorage.clear();
+  });
+
+  it('tells a staff account it cannot shop, instead of a load error', async () => {
+    const ready = TestBed.inject(SessionApi).ready();
+    http.expectOne('/api/v1/auth/session').flush(ADMIN_SESSION);
+    await ready;
+    fixture = TestBed.createComponent(CartPage);
+    fixture.detectChanges();
+    for (const request of http.match('/api/v1/cart')) {
+      request.flush(
+        { type: 'urn:lumen:problem:cart-customers-only', title: 'Only customers have a cart' },
+        { status: 403, statusText: 'Forbidden' }
+      );
+    }
+    await fixture.whenStable();
+
+    expect(text(host(), '.state h2')).toBe('This account can’t shop');
+    expect(host().querySelector('[role="alert"]')).toBeNull();
   });
 
   it('says first when an order from this checkout is waiting for payment, and links to it', async () => {
