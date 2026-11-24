@@ -15,10 +15,10 @@
 @if (cannotShop()) {
   <!-- Staff accounts such as the admin never have a cart (the API answers 403 cart-customers-only). -->
   <div class="state">
-    <mat-icon svgIcon="cart" aria-hidden="true" />
+    <ng-icon name="lucideShoppingCart" />
     <h2>This account can’t shop</h2>
     <p>Sign in with a customer account, or sign out to shop as a guest.</p>
-    <a matButton="filled" routerLink="/">Back to the shop</a>
+    <a hlmBtn routerLink="/">Back to the shop</a>
   </div>
 } @else if (cart(); as cart) {
   @if (cart.lines.length === 0) {
