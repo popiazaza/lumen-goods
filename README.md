@@ -251,7 +251,7 @@ are MIT, class-variance-authority is Apache 2.0; the Lucide icons are ISC (with 
 | Angular, Angular CDK | 22.3.0 |
 | spartan/ui brain / Tailwind CSS | 1.10.0 / 4.3.5 |
 | TypeScript / Node.js | 6.0.3 / 26.13.1 (LTS) |
-| nginx | 1.30.7 (unprivileged image) |
+| nginx | 1.30.8 (unprivileged image) |
 | xUnit v3 / Testcontainers | 4.0.3 / 4.17.0 |
 
 Every NuGet version is pinned in `Directory.Packages.props`, npm versions in `src/web/package-lock.json`.
