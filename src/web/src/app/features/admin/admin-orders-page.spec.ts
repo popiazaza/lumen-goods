@@ -57,6 +57,7 @@ describe('AdminOrdersPage', () => {
   let harness: RouterTestingHarness;
   let http: HttpTestingController;
   let router: Router;
+  let restoreOverlayMeasuring: () => void;
 
   const host = () => harness.routeNativeElement as HTMLElement;
   /**
@@ -89,7 +90,7 @@ describe('AdminOrdersPage', () => {
   };
 
   beforeEach(async () => {
-    stubOverlayMeasuring();
+    restoreOverlayMeasuring = stubOverlayMeasuring();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
@@ -108,7 +109,7 @@ describe('AdminOrdersPage', () => {
 
   afterEach(() => {
     http.verify();
-    vi.unstubAllGlobals();
+    restoreOverlayMeasuring();
   });
 
   it('asks the API for exactly what the URL says and shows it in the filters', async () => {

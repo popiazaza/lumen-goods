@@ -31,9 +31,7 @@ $tones: (
     gap: var(--lg-space-2);
   }
 
-  // ng-icon on the pages moved to spartan/ui, mat-icon on the ones still on Material.
-  > ng-icon,
-  > mat-icon {
+  > ng-icon {
     width: 18px;
     height: 18px;
     flex: none;

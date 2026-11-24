@@ -17,7 +17,6 @@ import {
   withComponentInputBinding,
   withInMemoryScrolling,
 } from '@angular/router';
-import { provideSpartanHlm } from '@spartan-ng/helm/utils';
 import { routes } from './app.routes';
 import { loadSessionOnStartup } from './core/api/session.api';
 import { signedOutInterceptor } from './core/api/signed-out.interceptor';
@@ -48,6 +47,10 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(loadSessionOnStartup),
     { provide: DEFAULT_CURRENCY_CODE, useValue: 'USD' },
     provideAppIcons(),
-    provideSpartanHlm(),
+    // Not spartan's provideSpartanHlm(): it only sets the CDK overlay's `usePopover: false` (so a
+    // dialog stays under the toaster), and importing that token pulls the whole CDK overlay
+    // (about 50 kB) into the start-up bundle. Our overlays (the filters sheet, the admin dialog and
+    // status list) load with their lazy pages and work in the browser's top layer; no toast shows
+    // while one is open.
   ],
 };

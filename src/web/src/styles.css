@@ -78,10 +78,6 @@
   --lg-shadow-raised: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
   --lg-shadow-popover: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%);
 
-  /* Older names, read by the pages still on Material until they move over. */
-  --lg-status-success: var(--success);
-  --lg-status-warning: var(--warning);
-
   @media (width >= 960px) {
     --lg-gutter: 24px;
   }

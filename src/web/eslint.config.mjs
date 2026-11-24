@@ -95,8 +95,6 @@ export default [
               'withComponentInputBinding',
               'withInMemoryScrolling',
             ],
-            // spartan/ui's providers (the CDK overlay defaults its helm components expect).
-            '@spartan-ng/helm/utils': ['provideSpartanHlm'],
             // A Playwright fixture declaration (e2e/support).
             '@playwright/test': ['test.extend'],
             './checkout-step.guard': ['checkoutStepGuard'],
