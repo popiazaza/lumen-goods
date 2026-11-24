@@ -71,6 +71,13 @@ export class CartPage {
 
   protected readonly session = this.sessionApi.session;
 
+  /**
+  A signed-in staff account (the admin): the API keeps carts for customers only, so say so instead of a load error.
+  */
+  protected readonly cannotShop = computed(
+    () => this.session().isAuthenticated && !this.sessionApi.isCustomer()
+  );
+
   protected readonly cart = this.cartState.cart;
 
   protected readonly loadFailed = computed(
