@@ -225,7 +225,9 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 | Microsoft.Extensions.Http.Resilience | Polly v8 pipelines per partner client (timeouts, retries that honour `Retry-After`, circuit breaker), all from configuration |
 | Scalar | The API reference at `/api/docs`, over the OpenAPI 3.2 document ASP.NET Core 11 generates itself from the handlers and our `///` comments (`Infrastructure/OpenApi/XmlDocTextTransformer.cs` tidies the C# the comment generator leaves in). Its CDN fonts are off, so the `font-src 'self'` CSP holds here too |
 | OpenTelemetry | Vendor-neutral traces, metrics and logs over OTLP: the Aspire dashboard locally, any backend in production |
-| Angular with Angular Material | Router, typed forms and an HTTP client with XSRF support in one framework; Material gives accessible components and an M3 theme |
+| Angular | Router, typed forms and an HTTP client with XSRF support in one framework |
+| spartan/ui with Tailwind CSS | shadcn/ui for Angular: accessible headless primitives (brain, on the Angular CDK) under styled components copied into `src/web/libs/ui` (helm), so the look is ours to change; Tailwind builds the CSS at compile time, so the strict CSP holds |
+| ng-icons with Lucide | The icons as inline SVG strings bundled per icon: no icon font and no third-party request |
 | Fontsource (Inter, Fraunces) | The two typefaces as npm packages, bundled into the build and served from our own origin: no font CDN request, and the `font-src 'self'` CSP holds |
 | Ultracite (ESLint, Prettier, Stylelint) | One maintained preset for linting and formatting, template accessibility rules included, instead of hand-tuned configs |
 | xUnit v3 with Microsoft.Testing.Platform | Current xUnit; dynamic skip lets the end-to-end tests skip without a stack; `dotnet test` on the new test platform (`global.json`) |
@@ -235,7 +237,8 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 
 Licences mattered: every library above, and every package the API and web app ship, is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
 PostgreSQL licence; the fonts under the SIL Open Font License). MediatR, AutoMapper, MassTransit and FluentAssertions are left out because they moved to
-commercial licences; handlers and mapping are written by hand.
+commercial licences; handlers and mapping are written by hand. On the web side: spartan/ui, Tailwind CSS, ng-icons, class-variance-authority and cn
+are MIT; the Lucide icons are ISC (with the Feather icons they started from under MIT).
 
 ## Exact versions
 
@@ -245,7 +248,8 @@ commercial licences; handlers and mapping are written by hand.
 | ASP.NET Core, EF Core, Identity | 11.0.0 |
 | Npgsql EF Core provider | 11.0.0 |
 | PostgreSQL | 18.7 |
-| Angular, Angular Material | 22.3.0 |
+| Angular, Angular CDK | 22.3.0 |
+| spartan/ui brain / Tailwind CSS | 1.10.0 / 4.3.5 |
 | TypeScript / Node.js | 6.0.3 / 26.13.1 (LTS) |
 | nginx | 1.30.7 (unprivileged image) |
 | xUnit v3 / Testcontainers | 4.0.3 / 4.17.0 |

@@ -22,8 +22,9 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 - `src/app/features/<area>/`: catalogue, products, cart, account, checkout, orders, admin. Pages are `<name>-page.ts`, lazy via `loadComponent`; child routes in `<area>.routes.ts`.
 - `src/app/shared/`: presentational pieces used by more than one feature (price, stock badge, product image, `forms/`).
 - `src/app/features/not-found/`: the 404 page.
-- `src/app/testing/`: test data builders for specs; never imported by app code.
-- Theme: `src/styles.scss` (M3 `mat.theme`, `--lg-*` tokens); palette in `src/styles/_theme-colors.scss` (generated).
+- `src/app/testing/`: test data builders and jsdom stubs for specs; never imported by app code.
+- `libs/ui/<name>/src/`: spartan/ui helm components (`@spartan-ng/helm/<name>`), copied in by spartan's generator. Keep our marked edits (`Lumen:` comments, full-strength focus rings, 44 px phone sizes, `type="button"`) when regenerating; ESLint skips the folder, Prettier and the strict compiler do not.
+- Theme: `src/styles.css`: Tailwind CSS v4, the spartan preset, the shadcn/ui colour tokens (`--background`, `--primary`, `--muted-foreground`, `--border`, `--input`, `--ring`, ...) plus `--success`/`--warning`, the `--lg-*` layout tokens, fonts and a few base element styles. Shared SCSS mixins in `src/styles/` (`_field`, `_alert`, `_state`, `_totals`, `_scroll-region`).
 
 ## Angular conventions
 
@@ -35,7 +36,11 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 - Templates: `@if`, `@for` (always `track`), `@switch`; `class`/`style` bindings, no `ngClass`/`ngStyle`/`CommonModule`.
 - Forms: typed Reactive Forms (`FormGroup`, `FormControl` with `nonNullable`). Not template-driven forms.
 - Host listeners and bindings go in the `host` object, not `@HostListener`/`@HostBinding`.
-- UI: Angular Material and CDK components first. Style with `--mat-sys-*`/`--lg-*` tokens and `mat.*-overrides()`, never Material's internal classes. Icons are inline SVGs in `core/icons/app-icons.ts` (no icon font, no third-party requests).
+- UI: [spartan/ui](https://www.spartan.ng/) first: brain (`@spartan-ng/brain`, headless accessible primitives) under helm (`libs/ui`, shadcn/ui-styled components). `hlmBtn` (`variant="outline"`, `"ghost"`, `size="icon"` with an `aria-label`), `hlmInput`, `hlmTextarea`, `hlm-native-select` for a single choice, `hlm-select-multiple` for several, `hlm-checkbox`/`hlm-radio-group`/`hlm-switch` inside a `<label hlmLabel>`, `hlm-sheet`, `HlmDialogService`, `toast()` from `@spartan-ng/brain/sonner`, `hlm-progress`, `hlm-skeleton`, `hlmTable`. Add a missing one with spartan's generator into `libs/ui`, not by hand.
+- Styling: Tailwind utility classes live only in `libs/ui`; app components style themselves in their own SCSS with the CSS variables above (component styles are unlayered, so they override a helm utility when needed). The one exception is a helm `class` input with no other hook (`<hlm-select-trigger class="w-full">`).
+- Form fields: `<div class="field"><label hlmLabel for>` + the control + one line under it, the error once the control is invalid and touched (`markAllAsTouched()` on submit), else a hint, linked with `aria-describedby` (bind the helm `[aria-describedby]` input, not `attr.`). See `checkout/checkout-address-page`, `admin/admin-product-edit-page`.
+- A disabled-looking button that must stay focusable binds `[attr.aria-disabled]` and its handler refuses; plain `disabled` only where nothing needs to explain itself (a pager's Previous on page 1).
+- Icons: Lucide through ng-icons, `<ng-icon name="lucideX" />`, registered app-wide in `core/icons/app-icons.ts`; icons only the order and admin pages use come from `provideOrderIcons()` on those lazy components. No icon font, no third-party requests.
 
 ## API access
 
@@ -57,7 +62,7 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 ## Accessibility (WCAG 2.2 AA)
 
 - One `<h1>` per page. The router sets the title from the route `title` ("Your cart — Lumen Goods") and focuses the `<h1>` after navigation.
-- Every control has a visible label (`<label for>` or `mat-label`); icon-only buttons get an `aria-label`.
+- Every control has a visible label (`<label hlmLabel for>`, or a label around a checkbox, radio or switch); icon-only buttons get an `aria-label`.
 - Announce status changes (cart count, result count, payment progress) with `LiveAnnouncer` or `role="status"`.
 - Targets at least 24 px (44 px on phones), no horizontal scroll at 320 px, visible focus, never colour alone (icon and text).
 - Never block paste or autofill; use `autocomplete` tokens on sign-in, address and card fields.
@@ -71,8 +76,9 @@ docker build -t lumen-web:dev .   # nginx on :8080; proxies /api and /media to h
 
 ## Tests
 
-- Vitest via `ng test`, `*.spec.ts` next to the code. Prefer Material harnesses and `RouterTestingHarness` to DOM internals.
-- Mock the API with `provideHttpClientTesting()` and `HttpTestingController`. A pending request keeps the app unstable, so `fixture.whenStable()` (and harness actions, which call it) wait for it: flush first, or wait for the URL/request with `vi.waitFor`.
+- Vitest via `ng test`, `*.spec.ts` next to the code, with `RouterTestingHarness` for routed pages. Query the DOM as a user finds things: by role, label, text and `aria-*` state (`[role="checkbox"][aria-checked]`, a `label`'s `for`, `aria-disabled`), not by helm or brain internals.
+- spartan's controls in jsdom: a native select changes by setting `select.value` and dispatching `change`; an overlay (sheet, dialog, select list) renders outside the fixture, so look it up on `document`, and wait for a dialog to close with `vi.waitFor`; a brain select needs `stubOverlayMeasuring()` from `testing/overlay-stubs.ts` (jsdom has no ResizeObserver or `scrollIntoView`).
+- Mock the API with `provideHttpClientTesting()` and `HttpTestingController`. A pending request keeps the app unstable, so `fixture.whenStable()` waits for it: flush first, or wait for the URL/request with `vi.waitFor`.
 - Browser tests: Playwright in `e2e/` (`playwright.config.ts` here), against the real stack, few and flow-shaped. Import `test` and `expect` from `e2e/support/test.ts`; tag each test with its rule IDs (`{ tag: ['@BR-PAY-03'] }`) and `@phone` if it also runs on the Pixel 7 project. Locate by role and label (`getByRole`, `getByLabel`), never CSS; wait with web-first assertions, never fixed sleeps. Specs share one customer per run (`e2e/.auth/`), so they run one at a time and pay every order they place (BR-CHK-03 allows 3 unpaid).
 
 The generic guidance below comes from `ultracite init`; where it differs, the rules above win.
