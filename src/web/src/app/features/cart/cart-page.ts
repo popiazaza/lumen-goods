@@ -11,12 +11,12 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { MatButton, MatIconButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { toast } from '@spartan-ng/brain/sonner';
 import { Observable, finalize, noop } from 'rxjs';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { CartDto, CartLineDto } from '../../core/api/cart.api';
 import { problemMessage } from '../../core/api/problem-details';
 import { SessionApi } from '../../core/api/session.api';
@@ -36,10 +36,9 @@ import { canAcknowledge, groupBySeller, noticesOf } from './cart-notices';
   imports: [
     CurrencyPipe,
     RouterLink,
-    MatButton,
-    MatIcon,
-    MatIconButton,
-    MatProgressBar,
+    NgIcon,
+    HlmButtonImports,
+    HlmProgressImports,
     AwaitingPaymentNotice,
     ProductImage,
   ],
@@ -52,8 +51,6 @@ export class CartPage {
   private readonly router = inject(Router);
 
   private readonly announcer = inject(LiveAnnouncer);
-
-  private readonly snackBar = inject(MatSnackBar);
 
   private readonly sessionApi = inject(SessionApi);
 
@@ -253,7 +250,21 @@ export class CartPage {
     this.cartState.setMergeNotice(null);
   }
 
+  protected canDecrease(line: CartLineDto): boolean {
+    return line.quantity > 1 && line.maxQuantity > 0 && !this.isBusy(line.id);
+  }
+
+  protected canIncrease(line: CartLineDto): boolean {
+    return line.quantity < line.maxQuantity && !this.isBusy(line.id);
+  }
+
+  /**
+  The − and + buttons stay focusable while they cannot act (`aria-disabled`), so a click then does nothing.
+  */
   protected step(line: CartLineDto, delta: number): void {
+    if ((delta < 0 && !this.canDecrease(line)) || (delta > 0 && !this.canIncrease(line))) {
+      return;
+    }
     this.setQuantity(line, line.quantity + delta);
   }
 
@@ -316,6 +327,9 @@ export class CartPage {
   }
 
   protected acknowledge(line: CartLineDto): void {
+    if (this.isBusy(line.id)) {
+      return;
+    }
     this.run(
       line,
       this.cartState.acknowledge(line.id),
@@ -357,15 +371,19 @@ export class CartPage {
   }
 
   protected remove(line: CartLineDto): void {
+    if (this.isBusy(line.id)) {
+      return;
+    }
     this.run(
       line,
       this.cartState.remove(line.id),
       () => '',
       () => {
-        const ref = this.snackBar.open(`Removed ${line.product.name}.`, 'Undo', {
+        // The app shell's toaster is a polite live region, so the message is announced.
+        toast(`Removed ${line.product.name}.`, {
           duration: 10_000,
+          action: { label: 'Undo', onClick: () => this.undoRemove(line) },
         });
-        ref.onAction().subscribe(() => this.undoRemove(line));
       }
     );
   }

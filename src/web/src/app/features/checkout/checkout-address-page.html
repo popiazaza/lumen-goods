@@ -13,103 +13,110 @@
     <p class="muted prefill-note">{{ prefilledText }}</p>
   }
 
-  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-    <mat-label>Full name</mat-label>
+  <div class="field">
+    <label hlmLabel for="address-name">Full name</label>
     <input
       id="address-name"
-      matInput
+      hlmInput
       formControlName="name"
       autocomplete="shipping name"
       required
+      [aria-describedby]="describedBy('name')"
     />
-    @if (form.controls.name.invalid) {
-      <mat-error>{{ errorFor('name') }}</mat-error>
+    @if (shows('name')) {
+      <p id="address-name-error" class="field-error">{{ errorFor('name') }}</p>
     }
-  </mat-form-field>
+  </div>
 
-  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-    <mat-label>Address line 1</mat-label>
+  <div class="field">
+    <label hlmLabel for="address-line1">Address line 1</label>
     <input
       id="address-line1"
-      matInput
+      hlmInput
       formControlName="line1"
       autocomplete="shipping address-line1"
       required
+      [aria-describedby]="describedBy('line1')"
     />
-    <mat-hint>Street address or P.O. box</mat-hint>
-    @if (form.controls.line1.invalid) {
-      <mat-error>{{ errorFor('line1') }}</mat-error>
+    @if (shows('line1')) {
+      <p id="address-line1-error" class="field-error">{{ errorFor('line1') }}</p>
+    } @else {
+      <p id="address-line1-hint" class="hint">Street address or P.O. box</p>
     }
-  </mat-form-field>
+  </div>
 
-  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-    <mat-label>Address line 2 (optional)</mat-label>
+  <div class="field">
+    <label hlmLabel for="address-line2">Address line 2 (optional)</label>
     <input
       id="address-line2"
-      matInput
+      hlmInput
       formControlName="line2"
       autocomplete="shipping address-line2"
+      [aria-describedby]="describedBy('line2')"
     />
-    <mat-hint>Apartment, suite, unit</mat-hint>
-    @if (form.controls.line2.invalid) {
-      <mat-error>{{ errorFor('line2') }}</mat-error>
+    @if (shows('line2')) {
+      <p id="address-line2-error" class="field-error">{{ errorFor('line2') }}</p>
+    } @else {
+      <p id="address-line2-hint" class="hint">Apartment, suite, unit</p>
     }
-  </mat-form-field>
+  </div>
 
-  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-    <mat-label>City</mat-label>
+  <div class="field">
+    <label hlmLabel for="address-city">City</label>
     <input
       id="address-city"
-      matInput
+      hlmInput
       formControlName="city"
       autocomplete="shipping address-level2"
       required
+      [aria-describedby]="describedBy('city')"
     />
-    @if (form.controls.city.invalid) {
-      <mat-error>{{ errorFor('city') }}</mat-error>
+    @if (shows('city')) {
+      <p id="address-city-error" class="field-error">{{ errorFor('city') }}</p>
     }
-  </mat-form-field>
+  </div>
 
   <div class="row">
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>State</mat-label>
-      <select
-        id="address-region"
-        matNativeControl
+    <div class="field">
+      <label hlmLabel for="address-region">State</label>
+      <hlm-native-select
+        selectId="address-region"
         formControlName="region"
         autocomplete="shipping address-level1"
         required
+        [aria-describedby]="describedBy('region')"
       >
-        <option value="">Select a state</option>
+        <option hlmNativeSelectOption value="">Select a state</option>
         @for (state of states; track state[0]) {
-          <option [value]="state[0]">{{ state[1] }}</option>
+          <option hlmNativeSelectOption [value]="state[0]">{{ state[1] }}</option>
         }
-      </select>
-      @if (form.controls.region.invalid) {
-        <mat-error>{{ errorFor('region') }}</mat-error>
+      </hlm-native-select>
+      @if (shows('region')) {
+        <p id="address-region-error" class="field-error">{{ errorFor('region') }}</p>
       }
-    </mat-form-field>
+    </div>
 
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>ZIP code</mat-label>
+    <div class="field">
+      <label hlmLabel for="address-postalCode">ZIP code</label>
       <input
         id="address-postalCode"
-        matInput
+        hlmInput
         formControlName="postalCode"
         autocomplete="shipping postal-code"
         inputmode="numeric"
         required
+        [aria-describedby]="describedBy('postalCode')"
       />
-      @if (form.controls.postalCode.invalid) {
-        <mat-error>{{ errorFor('postalCode') }}</mat-error>
+      @if (shows('postalCode')) {
+        <p id="address-postalCode-error" class="field-error">{{ errorFor('postalCode') }}</p>
       }
-    </mat-form-field>
+    </div>
   </div>
 
   <p class="country">Country: <strong>United States</strong></p>
 
   <div class="actions">
-    <button matButton="filled" type="submit">Continue to shipping</button>
-    <a matButton routerLink="/cart">Back to cart</a>
+    <button hlmBtn size="lg" type="submit">Continue to shipping</button>
+    <a hlmBtn variant="ghost" size="lg" routerLink="/cart">Back to cart</a>
   </div>
 </form>

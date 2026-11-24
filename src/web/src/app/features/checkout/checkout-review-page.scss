@@ -1,13 +1,20 @@
 // Label, value and Change link on one grid per row, so both rows line up; on a phone the label and
-// its link share the first line and the value runs full width below.
+// its link share the first line and the value runs full width below. A card, like the item groups.
 .summary-list {
   display: grid;
+  padding: var(--lg-space-1) var(--lg-space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--lg-radius-card);
   margin: 0 0 var(--lg-space-4);
-  gap: var(--lg-space-3);
+  background: var(--card);
+  box-shadow: var(--lg-shadow-card);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 
   & > div {
     display: grid;
     align-items: baseline;
+    padding: var(--lg-space-3) 0;
     gap: var(--lg-space-1) var(--lg-space-3);
     grid-template-areas:
       'label change'
@@ -20,17 +27,24 @@
     }
   }
 
+  & > div + div {
+    border-top: 1px solid var(--border);
+  }
+
   & dt {
-    font-weight: 600;
+    color: var(--muted-foreground);
+    font-weight: 500;
     grid-area: label;
   }
 
   & dd {
     margin: 0;
+    color: var(--foreground);
     grid-area: value;
   }
 
   & a {
+    font-weight: 500;
     grid-area: change;
   }
 }
@@ -38,23 +52,49 @@
 .lines {
   padding: 0;
   margin: 0;
+  font-size: 0.875rem;
   list-style: none;
 
   & li {
     display: flex;
     justify-content: space-between;
     padding: var(--lg-space-2) 0;
-    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    border-bottom: 1px solid var(--border);
     gap: var(--lg-space-3);
   }
 }
 
 .fee {
   margin: var(--lg-space-2) 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
   text-align: right;
+
+  & .price {
+    color: var(--foreground);
+  }
 }
 
 .changes {
   padding-left: var(--lg-space-6);
   margin: 0 0 var(--lg-space-3);
+  list-style: disc;
+
+  & li + li {
+    margin-top: var(--lg-space-1);
+  }
+}
+
+// The banner's own buttons sit closer than the page's.
+.banner .actions {
+  margin-top: var(--lg-space-2);
+}
+
+.actions .place {
+  min-width: 12rem;
+}
+
+// What happens on Place order, just under it.
+.actions + .muted {
+  margin-top: var(--lg-space-2);
 }

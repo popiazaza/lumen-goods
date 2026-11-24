@@ -8,10 +8,12 @@
       }
       <span class="file">{{ file }}</span>
       @if ($first) {
-        <span class="main"><mat-icon svgIcon="star" />Main image</span>
+        <span class="main"><ng-icon name="lucideStar" />Main image</span>
       } @else {
         <button
-          matButton
+          hlmBtn
+          variant="outline"
+          size="sm"
           type="button"
           [attr.aria-label]="`Make ${file} the main image`"
           (click)="mainChosen.emit(file)"
@@ -20,7 +22,9 @@
         </button>
       }
       <button
-        matButton
+        hlmBtn
+        variant="ghost"
+        size="sm"
         type="button"
         [attr.aria-label]="`Remove ${file}`"
         (click)="removed.emit(file)"

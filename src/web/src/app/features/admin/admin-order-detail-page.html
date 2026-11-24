@@ -4,16 +4,16 @@
   <app-admin-access-denied [status]="status" [returnUrl]="`/admin/orders/${id()}`" />
 } @else if (errorStatus(); as status) {
   <div class="state" [attr.role]="status === 404 ? null : 'alert'">
-    <mat-icon [svgIcon]="status === 404 ? 'info' : 'error'" />
+    <ng-icon [name]="status === 404 ? 'lucideInfo' : 'lucideCircleAlert'" />
     @if (status === 404) {
       <p>
         <strong>There is no order {{ id() }}.</strong>
       </p>
-      <a matButton="filled" routerLink="/admin/orders">All orders</a>
+      <a hlmBtn routerLink="/admin/orders">All orders</a>
     } @else {
       <p>We couldn’t load this order. Check your connection and try again.</p>
-      <button matButton="filled" type="button" (click)="order.reload()">
-        <mat-icon svgIcon="refresh" />
+      <button hlmBtn type="button" (click)="order.reload()">
+        <ng-icon name="lucideRefreshCw" />
         Retry
       </button>
     }
@@ -25,25 +25,32 @@
     <p>
       Placed <time [attr.datetime]="o.createdUtc">{{ o.createdUtc | date: 'medium' }}</time>
     </p>
-    <button matButton type="button" [disabled]="order.isLoading()" (click)="order.reload()">
-      <mat-icon svgIcon="refresh" />
+    <button
+      hlmBtn
+      variant="outline"
+      size="sm"
+      type="button"
+      [disabled]="order.isLoading()"
+      (click)="order.reload()"
+    >
+      <ng-icon name="lucideRefreshCw" />
       Reload
     </button>
   </div>
   @if (order.isLoading()) {
-    <mat-progress-bar mode="indeterminate" aria-label="Reloading the order" />
+    <hlm-progress aria-label="Reloading the order"><hlm-progress-indicator /></hlm-progress>
   }
 
   <p class="action-error" role="alert">
     @if (actionError()) {
-      <mat-icon svgIcon="error" />
+      <ng-icon name="lucideCircleAlert" />
       <span>{{ actionError() }}</span>
     }
   </p>
 
   @if (attentionCount() > 0) {
     <div class="attention">
-      <mat-icon svgIcon="warning" />
+      <ng-icon name="lucideTriangleAlert" />
       <p>
         <strong
           >{{ attentionCount() === 1 ? '1 line needs' : `${attentionCount()} lines need` }} your
@@ -58,7 +65,7 @@
 
   <div class="layout">
     <div class="main">
-      <mat-card appearance="outlined" class="section">
+      <div class="section">
         <h2>Customer</h2>
         <dl class="pairs">
           <div>
@@ -70,9 +77,9 @@
             <dd>{{ admin.failedPaymentAttempts }}</dd>
           </div>
         </dl>
-      </mat-card>
+      </div>
 
-      <mat-card appearance="outlined" class="section">
+      <div class="section">
         <h2>Lines</h2>
         @for (shipment of o.shipments; track shipment.source) {
           <div class="shipment">
@@ -119,20 +126,21 @@
                         @if (line.status === 'needs_attention') {
                           <div class="resolve">
                             <button
-                              matButton="filled"
+                              hlmBtn
                               type="button"
-                              disabledInteractive
-                              [disabled]="savingLine() !== null"
+                              size="sm"
+                              [attr.aria-disabled]="savingLine() !== null || null"
                               [attr.aria-label]="`Confirm line ${line.lineNumber}, ${line.name}`"
                               (click)="resolve(line, shipment.sellerName, 'confirm')"
                             >
                               Confirm
                             </button>
                             <button
-                              matButton="outlined"
+                              hlmBtn
+                              variant="outline"
                               type="button"
-                              disabledInteractive
-                              [disabled]="savingLine() !== null"
+                              size="sm"
+                              [attr.aria-disabled]="savingLine() !== null || null"
                               [attr.aria-label]="`Reject line ${line.lineNumber}, ${line.name}`"
                               (click)="resolve(line, shipment.sellerName, 'reject')"
                             >
@@ -159,9 +167,9 @@
             </div>
           </div>
         }
-      </mat-card>
+      </div>
 
-      <mat-card appearance="outlined" class="section">
+      <div class="section">
         <h2>Partner orders</h2>
         @if (admin.partnerOrders.length === 0) {
           <p class="muted">Every item in this order is from Lumen Goods.</p>
@@ -174,9 +182,9 @@
             }
           </ul>
         }
-      </mat-card>
+      </div>
 
-      <mat-card appearance="outlined" class="section">
+      <div class="section">
         <h2>Payment events</h2>
         @if (admin.paymentEvents.length === 0) {
           <p class="muted">No payment has been started for this order.</p>
@@ -203,7 +211,7 @@
             }
           </ol>
         }
-      </mat-card>
+      </div>
     </div>
 
     <app-order-summary-panel [order]="o" [admin]="true" />
@@ -211,5 +219,5 @@
 
   <p><a routerLink="/admin/orders">Back to all orders</a></p>
 } @else {
-  <mat-progress-bar mode="indeterminate" aria-label="Loading the order" />
+  <hlm-progress aria-label="Loading the order"><hlm-progress-indicator /></hlm-progress>
 }

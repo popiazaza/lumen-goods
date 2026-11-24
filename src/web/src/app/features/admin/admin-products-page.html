@@ -1,8 +1,8 @@
 <div class="toolbar">
   <h1>Products</h1>
   @if (!accessStatus()) {
-    <a matButton="filled" routerLink="/admin/products/new">
-      <mat-icon svgIcon="add" />
+    <a hlmBtn routerLink="/admin/products/new">
+      <ng-icon name="lucidePlus" />
       Add product
     </a>
   }
@@ -14,35 +14,43 @@
   @let q = query();
   <div class="filters">
     <form class="search" role="search" (submit)="submitSearch($event)">
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Search name or SKU</mat-label>
-        <input matInput type="search" name="q" [formControl]="search" />
-      </mat-form-field>
-      <button matButton="tonal" type="submit">
-        <mat-icon svgIcon="search" />
+      <div class="field">
+        <label hlmLabel for="product-search">Search name or SKU</label>
+        <input id="product-search" hlmInput type="search" name="q" [formControl]="search" />
+      </div>
+      <button hlmBtn variant="secondary" type="submit">
+        <ng-icon name="lucideSearch" />
         Search
       </button>
     </form>
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>Status</mat-label>
-      <mat-select [value]="q.status" (selectionChange)="setStatus($event.value)">
+    <div class="field">
+      <label hlmLabel for="product-status">Status</label>
+      <hlm-native-select
+        selectId="product-status"
+        [value]="q.status"
+        (valueChange)="setStatus($event)"
+      >
         @for (option of statusOptions; track option.value) {
-          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+          <option hlmNativeSelectOption [value]="option.value">{{ option.label }}</option>
         }
-      </mat-select>
-    </mat-form-field>
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>Category</mat-label>
-      <mat-select [value]="q.category ?? ''" (selectionChange)="setCategory($event.value)">
-        <mat-option value="">All categories</mat-option>
+      </hlm-native-select>
+    </div>
+    <div class="field">
+      <label hlmLabel for="product-category">Category</label>
+      <hlm-native-select
+        selectId="product-category"
+        [value]="q.category ?? ''"
+        (valueChange)="setCategory($event ?? '')"
+      >
+        <option hlmNativeSelectOption value="">All categories</option>
         @for (option of categories; track option.value) {
-          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+          <option hlmNativeSelectOption [value]="option.value">{{ option.label }}</option>
         }
-      </mat-select>
-    </mat-form-field>
+      </hlm-native-select>
+    </div>
     @if (hasFilters()) {
-      <button matButton type="button" (click)="clearFilters()">
-        <mat-icon svgIcon="close" />
+      <button hlmBtn variant="ghost" type="button" (click)="clearFilters()">
+        <ng-icon name="lucideX" />
         Clear filters
       </button>
     }
@@ -54,15 +62,17 @@
 
   @if (isError()) {
     <div class="state" role="alert">
-      <mat-icon svgIcon="error" />
+      <ng-icon name="lucideCircleAlert" />
       <p>{{ errorMessage() }}</p>
       <div class="state-actions">
-        <button matButton="filled" type="button" (click)="products.reload()">
-          <mat-icon svgIcon="refresh" />
+        <button hlmBtn type="button" (click)="products.reload()">
+          <ng-icon name="lucideRefreshCw" />
           Retry
         </button>
         @if (hasFilters()) {
-          <button matButton type="button" (click)="clearFilters()">Clear filters</button>
+          <button hlmBtn variant="outline" type="button" (click)="clearFilters()">
+            Clear filters
+          </button>
         }
       </div>
     </div>
@@ -76,101 +86,98 @@
         {{ page.totalCount === 1 ? '1 product' : `${page.totalCount} products` }}
       </p>
       @if (products.isLoading()) {
-        <mat-progress-bar mode="indeterminate" aria-label="Loading products" />
+        <hlm-progress aria-label="Loading products"><hlm-progress-indicator /></hlm-progress>
       }
       @if (page.totalCount === 0) {
         <div class="state">
           @if (hasFilters()) {
             <p><strong>No products match these filters.</strong></p>
-            <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+            <button hlmBtn type="button" (click)="clearFilters()">Clear filters</button>
           } @else {
             <p><strong>No products yet.</strong></p>
-            <a matButton="filled" routerLink="/admin/products/new">Add product</a>
+            <a hlmBtn routerLink="/admin/products/new">Add product</a>
           }
         </div>
       } @else {
         <div class="table-scroll" role="region" aria-label="Products" tabindex="0">
-          <table mat-table [dataSource]="page.items">
-            <ng-container matColumnDef="name">
-              <th *matHeaderCellDef mat-header-cell scope="col">Product</th>
-              <td *matCellDef="let product" mat-cell class="wrap">
-                <a [routerLink]="['/admin/products', product.id]">{{ product.name }}</a>
-                <span class="sub">SKU {{ product.sku }}</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="category">
-              <th *matHeaderCellDef mat-header-cell scope="col">Category</th>
-              <td *matCellDef="let product" mat-cell>{{ categoryLabel(product.category) }}</td>
-            </ng-container>
-            <ng-container matColumnDef="price">
-              <th *matHeaderCellDef mat-header-cell scope="col" class="number">Price</th>
-              <td *matCellDef="let product" mat-cell class="number">
-                @if (product.price !== null) {
-                  {{ product.price | currency }}
-                } @else {
-                  Not set
-                }
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="stock">
-              <th *matHeaderCellDef mat-header-cell scope="col" class="number">On hand</th>
-              <td *matCellDef="let product" mat-cell class="number">
-                {{ product.onHand }}
-                <span class="sub">{{ product.reserved }} reserved</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="status">
-              <th *matHeaderCellDef mat-header-cell scope="col">Status</th>
-              <td *matCellDef="let product" mat-cell>
-                <app-status-badge [status]="statusOf(product)" />
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="actions">
-              <th *matHeaderCellDef mat-header-cell scope="col">
-                <span class="cdk-visually-hidden">Actions</span>
-              </th>
-              <td *matCellDef="let product" mat-cell>
-                <div class="row-actions">
-                  <a
-                    matButton
-                    [routerLink]="['/admin/products', product.id]"
-                    [attr.aria-label]="`Edit ${product.name}`"
-                  >
-                    <mat-icon svgIcon="edit" />
-                    Edit
-                  </a>
-                  <button
-                    matButton
-                    type="button"
-                    class="toggle-active"
-                    disabledInteractive
-                    [disabled]="busyId() !== null"
-                    [attr.aria-label]="
-                      (product.isActive ? 'Deactivate ' : 'Reactivate ') + product.name
-                    "
-                    (click)="toggleActive(product)"
-                  >
-                    <mat-icon [svgIcon]="product.isActive ? 'visibility_off' : 'visibility'" />
-                    {{ product.isActive ? 'Deactivate' : 'Reactivate' }}
-                  </button>
-                </div>
-              </td>
-            </ng-container>
-            <tr *matHeaderRowDef="columns" mat-header-row></tr>
-            <tr *matRowDef="let row; columns: columns" mat-row></tr>
+          <table hlmTable>
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh scope="col">Product</th>
+                <th hlmTh scope="col">Category</th>
+                <th hlmTh scope="col" class="number">Price</th>
+                <th hlmTh scope="col" class="number">On hand</th>
+                <th hlmTh scope="col">Status</th>
+                <th hlmTh scope="col"><span class="cdk-visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (product of page.items; track product.id) {
+                <tr hlmTr>
+                  <td hlmTd class="col-name wrap">
+                    <a [routerLink]="['/admin/products', product.id]">{{ product.name }}</a>
+                    <span class="sub">SKU {{ product.sku }}</span>
+                  </td>
+                  <td hlmTd class="col-category">{{ categoryLabel(product.category) }}</td>
+                  <td hlmTd class="col-price number">
+                    @if (product.price !== null) {
+                      {{ product.price | currency }}
+                    } @else {
+                      Not set
+                    }
+                  </td>
+                  <td hlmTd class="col-stock number">
+                    {{ product.onHand }}
+                    <span class="sub">{{ product.reserved }} reserved</span>
+                  </td>
+                  <td hlmTd class="col-status">
+                    <app-status-badge [status]="statusOf(product)" />
+                  </td>
+                  <td hlmTd class="col-actions">
+                    <div class="row-actions">
+                      <a
+                        hlmBtn
+                        variant="ghost"
+                        size="sm"
+                        [routerLink]="['/admin/products', product.id]"
+                        [attr.aria-label]="`Edit ${product.name}`"
+                      >
+                        <ng-icon name="lucidePencil" />
+                        Edit
+                      </a>
+                      <button
+                        hlmBtn
+                        variant="ghost"
+                        size="sm"
+                        type="button"
+                        class="toggle-active"
+                        [attr.aria-disabled]="busyId() !== null || null"
+                        [attr.aria-label]="
+                          (product.isActive ? 'Deactivate ' : 'Reactivate ') + product.name
+                        "
+                        (click)="toggleActive(product)"
+                      >
+                        <ng-icon [name]="product.isActive ? 'lucideEyeOff' : 'lucideEye'" />
+                        {{ product.isActive ? 'Deactivate' : 'Reactivate' }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
           </table>
         </div>
-        <mat-paginator
+        <app-admin-paginator
           aria-label="Product pages"
           [length]="page.totalCount"
           [pageIndex]="q.page - 1"
           [pageSize]="q.pageSize"
           [pageSizeOptions]="pageSizes"
-          (page)="changePage($event)"
+          (pageChange)="changePage($event)"
         />
       }
     </div>
   } @else {
-    <mat-progress-bar mode="indeterminate" aria-label="Loading products" />
+    <hlm-progress aria-label="Loading products"><hlm-progress-indicator /></hlm-progress>
   }
 }

@@ -1,9 +1,9 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { OrdersApi } from '../../core/api/orders.api';
 import { SessionApi } from '../../core/api/session.api';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
@@ -14,7 +14,7 @@ import { CheckoutStore } from '../../core/checkout/checkout-store';
  */
 @Component({
   selector: 'app-awaiting-payment-notice',
-  imports: [DatePipe, RouterLink, MatButton, MatIcon],
+  imports: [DatePipe, RouterLink, NgIcon, HlmButtonImports],
   templateUrl: './awaiting-payment-notice.html',
   styleUrl: './awaiting-payment-notice.scss',
 })

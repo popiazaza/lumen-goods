@@ -1,5 +1,5 @@
 import { Component, ElementRef, inject, input } from '@angular/core';
-import { MatIcon } from '@angular/material/icon';
+import { NgIcon } from '@ng-icons/core';
 
 /**
 One problem in a form, pointing at the field that has it.
@@ -19,7 +19,7 @@ export interface FormProblem {
  */
 @Component({
   selector: 'app-error-summary',
-  imports: [MatIcon],
+  imports: [NgIcon],
   templateUrl: './error-summary.html',
   styleUrl: './error-summary.scss',
 })

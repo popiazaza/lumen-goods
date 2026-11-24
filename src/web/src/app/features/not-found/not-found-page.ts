@@ -1,11 +1,11 @@
 import { Component } from '@angular/core';
-import { MatButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
 
 @Component({
   selector: 'app-not-found-page',
-  imports: [RouterLink, MatButton, MatIcon],
+  imports: [RouterLink, NgIcon, HlmButtonImports],
   templateUrl: './not-found-page.html',
   styleUrl: './not-found-page.scss',
 })

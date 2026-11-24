@@ -23,7 +23,8 @@
 
   & p {
     margin: 0;
-    color: var(--mat-sys-on-surface-variant);
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
   }
 }
 
@@ -33,14 +34,19 @@
   align-items: flex-start;
   gap: var(--lg-space-2);
 
-  & mat-icon {
+  & ng-icon {
+    width: 18px;
+    height: 18px;
     flex: none;
+    margin-top: 1px;
   }
 }
 
 .action-error {
   margin: 0;
-  color: var(--mat-sys-error);
+  color: var(--destructive);
+  font-size: 0.875rem;
+  font-weight: 500;
 
   &:not(:empty) {
     margin: var(--lg-space-3) 0;
@@ -80,7 +86,7 @@
 }
 
 .table-scroll {
-  @include scroll-region.scroll-shadows;
+  @include scroll-region.scroll-shadows(var(--card));
 }
 
 // Fixed column widths, so the tables of every seller line up under one another. The minimum fits
@@ -89,6 +95,7 @@ table {
   width: 100%;
   min-width: 42rem;
   border-collapse: collapse;
+  font-size: 0.875rem;
   table-layout: fixed;
 
   // Widths include the cell padding.
@@ -119,14 +126,14 @@ table {
 th,
 td {
   padding: var(--lg-space-2);
-  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
 }
 
 th {
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-label-large);
+  color: var(--muted-foreground);
+  font-weight: 500;
 }
 
 .number {
@@ -143,8 +150,9 @@ code {
 .sub {
   display: block;
   margin: 0;
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-small);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
 .resolve {
@@ -165,7 +173,8 @@ code {
   & > li {
     display: grid;
     padding-bottom: var(--lg-space-3);
-    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
     gap: var(--lg-space-2);
   }
 }
@@ -173,7 +182,7 @@ code {
 .timeline > li {
   padding-left: var(--lg-space-3);
   border-bottom: none;
-  border-left: 2px solid var(--mat-sys-outline-variant);
+  border-left: 2px solid var(--border);
 }
 
 .amount {

@@ -1,24 +1,32 @@
-<h2 mat-dialog-title>{{ data.title }}</h2>
-<mat-dialog-content>
-  <p class="message">{{ data.message }}</p>
-  @if (data.noteLabel) {
-    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="note">
-      <mat-label>{{ data.noteLabel }}</mat-label>
-      <textarea matInput rows="3" [formControl]="note" [maxlength]="noteMaxLength"></textarea>
-      @if (data.noteHint) {
-        <mat-hint>{{ data.noteHint }}</mat-hint>
-      }
-      @if (note.hasError('maxlength')) {
-        <mat-error>At most {{ noteMaxLength }} characters.</mat-error>
-      }
-    </mat-form-field>
-  }
-</mat-dialog-content>
-<mat-dialog-actions align="end">
-  <button matButton type="button" class="cancel" (click)="cancel()">
+<div hlmDialogHeader>
+  <h2 hlmDialogTitle>{{ data.title }}</h2>
+  <p hlmDialogDescription class="message">{{ data.message }}</p>
+</div>
+@if (data.noteLabel) {
+  <div class="field">
+    <label hlmLabel for="confirm-note">{{ data.noteLabel }}</label>
+    <textarea
+      id="confirm-note"
+      hlmTextarea
+      rows="3"
+      [formControl]="note"
+      [maxlength]="noteMaxLength"
+      [aria-describedby]="
+        noteError() ? 'confirm-note-error' : data.noteHint ? 'confirm-note-hint' : null
+      "
+    ></textarea>
+    @if (noteError()) {
+      <p id="confirm-note-error" class="field-error">At most {{ noteMaxLength }} characters.</p>
+    } @else if (data.noteHint) {
+      <p id="confirm-note-hint" class="hint">{{ data.noteHint }}</p>
+    }
+  </div>
+}
+<div hlmDialogFooter>
+  <button hlmBtn variant="outline" type="button" class="cancel" (click)="cancel()">
     {{ data.cancelText }}
   </button>
-  <button matButton="filled" type="button" class="confirm" (click)="confirm()">
+  <button hlmBtn type="button" class="confirm" (click)="confirm()">
     {{ data.confirmText }}
   </button>
-</mat-dialog-actions>
+</div>

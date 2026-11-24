@@ -7,7 +7,6 @@
 .page {
   width: 100%;
   max-width: var(--lg-content-max);
-  box-sizing: border-box;
   flex: 1;
   padding: var(--lg-space-6) var(--lg-gutter);
   margin: 0 auto;
@@ -22,11 +21,14 @@
   z-index: 100;
   top: var(--lg-space-2);
   left: var(--lg-space-2);
-  padding: var(--lg-space-3) var(--lg-space-4);
-  border-radius: var(--mat-sys-corner-small);
-  background: var(--mat-sys-primary);
-  color: var(--mat-sys-on-primary);
-  font: var(--mat-sys-label-large);
+  padding: var(--lg-space-2) var(--lg-space-4);
+  border-radius: calc(var(--radius) * 0.8);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  text-decoration: none;
   transform: translateY(-200%);
 
   &:focus {

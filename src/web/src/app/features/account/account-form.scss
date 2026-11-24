@@ -1,29 +1,77 @@
-// Shared by the sign-in and register pages.
+// Shared by the sign-in and register pages: one narrow card in the middle of the page.
 @use '../../../styles/alert';
+@use '../../../styles/field';
 
 :host {
   display: block;
 }
 
 .account-page {
-  max-width: 28rem;
-  margin: 0 auto;
+  max-width: 26rem;
+  padding: var(--lg-space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--lg-radius-card);
+  margin: var(--lg-space-6) auto;
+  background: var(--card);
+  box-shadow: var(--lg-shadow-card);
+
+  // A phone gives the form the whole width; a card's frame would only take room.
+  @media (width < 480px) {
+    padding: 0;
+    border: 0;
+    margin-top: 0;
+    box-shadow: none;
+  }
 }
 
 .intro {
   margin: 0 0 var(--lg-space-4);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+
+  & strong {
+    color: var(--foreground);
+  }
 }
 
 .account-form {
   display: flex;
   flex-direction: column;
-  // Fields size their hint and error to fit (subscriptSizing="dynamic"), so a wrapped error never
-  // covers the next label; the gap keeps room for that label.
-  gap: var(--lg-space-3);
+  gap: var(--lg-space-4);
+}
+
+.field {
+  @include field.field;
+}
+
+.hint {
+  @include field.hint;
+}
+
+.field-error {
+  @include field.error;
+}
+
+// The show-password button sits inside the field, at its end.
+.password {
+  position: relative;
+
+  & input {
+    padding-right: 2.75rem;
+  }
+}
+
+.reveal {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  color: var(--muted-foreground);
+  transform: translateY(-50%);
 }
 
 .submit {
-  min-height: 48px;
+  width: 100%;
   margin-top: var(--lg-space-2);
 }
 
@@ -43,4 +91,7 @@
 
 .switch {
   margin: var(--lg-space-6) 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  text-align: center;
 }

@@ -7,7 +7,6 @@ import {
 } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { ProductPage } from '../../core/api/products.api';
@@ -38,6 +37,13 @@ const PARKA = aProduct({
 });
 
 const isProductsRequest = (url: string) => url === '/api/v1/products';
+
+const isChecked = (box: HTMLElement) => box.getAttribute('aria-checked') === 'true';
+
+/**
+The phone filter sheet; the CDK overlay renders it outside the page.
+*/
+const sheet = () => document.querySelector<HTMLElement>('[data-slot="sheet-content"]');
 
 describe('CataloguePage', () => {
   let harness: RouterTestingHarness;
@@ -77,15 +83,30 @@ describe('CataloguePage', () => {
     return respond(page);
   };
 
-  const checkbox = (label: string): HTMLInputElement => {
-    const box = [...host().querySelectorAll(':scope aside mat-checkbox')].find(
-      (element) => element.textContent?.trim() === label
-    );
-    const input = box?.querySelector('input');
-    if (!input) {
+  /**
+  A filter checkbox (spartan's `role="checkbox"` button) by the text of the label around it.
+  */
+  const checkbox = (label: string, root: ParentNode = host().querySelector('aside') ?? host()) => {
+    const box = [...root.querySelectorAll('label')]
+      .find((element) => element.textContent?.trim() === label)
+      ?.querySelector<HTMLButtonElement>('[role="checkbox"]');
+    if (!box) {
       throw new Error(`No checkbox "${label}"`);
     }
-    return input;
+    return box;
+  };
+
+  /**
+  Picks a sort option in the native select, as the browser does.
+  */
+  const chooseSort = (label: string): void => {
+    const select = host().querySelector<HTMLSelectElement>('select#sort-by');
+    const option = [...(select?.options ?? [])].find((o) => o.textContent?.trim() === label);
+    if (!select || !option) {
+      throw new Error(`No sort option "${label}"`);
+    }
+    select.value = option.value;
+    select.dispatchEvent(new Event('change'));
   };
 
   const button = (label: string, root: ParentNode = host()): HTMLButtonElement => {
@@ -117,8 +138,6 @@ describe('CataloguePage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideAppIcons(),
-        // jsdom fires no animationend, so the bottom sheet would never finish closing.
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -162,7 +181,7 @@ describe('CataloguePage', () => {
   it('reflects the URL in the controls, including after Back/Forward style navigation', async () => {
     await open('/?category=bags&inStock=true');
 
-    expect({ bags: checkbox('Bags').checked, home: checkbox('Home').checked }).toStrictEqual({
+    expect({ bags: isChecked(checkbox('Bags')), home: isChecked(checkbox('Home')) }).toStrictEqual({
       bags: true,
       home: false,
     });
@@ -170,7 +189,7 @@ describe('CataloguePage', () => {
     await harness.navigateByUrl('/?category=home', CataloguePage);
     await respond(aPage([LAMP]));
 
-    expect({ bags: checkbox('Bags').checked, home: checkbox('Home').checked }).toStrictEqual({
+    expect({ bags: isChecked(checkbox('Bags')), home: isChecked(checkbox('Home')) }).toStrictEqual({
       bags: false,
       home: true,
     });
@@ -205,7 +224,7 @@ describe('CataloguePage', () => {
   it('removes one filter with its chip and all of them with "Clear all", keeping the search', async () => {
     await open('/?q=lamp&category=home&seller=lumen&inStock=true');
 
-    expect(text('.applied mat-chip-set')).toContain('Home');
+    expect(text('.applied .chips')).toContain('Home');
 
     const removeHome = host().querySelector<HTMLButtonElement>(
       'button[aria-label="Remove filter: Home"]'
@@ -213,6 +232,11 @@ describe('CataloguePage', () => {
     removeHome?.click();
     await expectUrl('/?q=lamp&seller=lumen&inStock=true');
     await respond(aPage([LAMP]));
+
+    // Focus moves to the chip that took the removed one's place, not back to the page.
+    await vi.waitFor(() =>
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Remove filter: Lumen Goods')
+    );
 
     button('Clear all').click();
     await expectUrl('/?q=lamp');
@@ -224,16 +248,14 @@ describe('CataloguePage', () => {
   it('opens on Featured (the shops in turn) and keeps Newest one choice away', async () => {
     const first = await open('/');
 
+    const select = host().querySelector<HTMLSelectElement>('select#sort-by');
+
     expect({
       sort: first.request.params.get('sort'),
-      shown: text('mat-select'),
+      shown: select?.selectedOptions[0]?.textContent?.trim(),
     }).toStrictEqual({ sort: 'featured', shown: 'Featured' });
 
-    host().querySelector<HTMLElement>('mat-select')?.click();
-    await harness.fixture.whenStable();
-    const options = [...document.querySelectorAll<HTMLElement>('mat-option')];
-
-    expect(options.map((element) => element.textContent?.trim())).toStrictEqual([
+    expect([...(select?.options ?? [])].map((o) => o.textContent?.trim())).toStrictEqual([
       'Featured',
       'Newest',
       'Price: low to high',
@@ -241,7 +263,7 @@ describe('CataloguePage', () => {
       'Name: A to Z',
     ]);
 
-    options.find((element) => element.textContent?.trim() === 'Newest')?.click();
+    chooseSort('Newest');
     await expectUrl('/?sort=newest');
     const newest = await respond(aPage([LAMP, TOTE]));
 
@@ -251,12 +273,7 @@ describe('CataloguePage', () => {
   it('changes the sort from the select and resets the page', async () => {
     await open('/?page=2', aPage([TOTE], { page: 2, totalPages: 2, totalCount: 25 }));
 
-    host().querySelector<HTMLElement>('mat-select')?.click();
-    await harness.fixture.whenStable();
-    const option = [...document.querySelectorAll<HTMLElement>('mat-option')].find(
-      (element) => element.textContent?.trim() === 'Price: high to low'
-    );
-    option?.click();
+    chooseSort('Price: high to low');
 
     await expectUrl('/?sort=price_desc');
     await respond(aPage([LAMP, TOTE]));
@@ -264,7 +281,7 @@ describe('CataloguePage', () => {
 
   it('applies a validated price range', async () => {
     await open('/');
-    const prices = host().querySelectorAll<HTMLInputElement>(':scope aside .price input');
+    const prices = host().querySelectorAll<HTMLInputElement>(':scope aside .price-range input');
     const min = itemAt(prices, 0);
     const max = itemAt(prices, 1);
 
@@ -275,7 +292,7 @@ describe('CataloguePage', () => {
     button('Apply price', host().querySelector('aside') as HTMLElement).click();
     await harness.fixture.whenStable();
 
-    expect(text('aside mat-error')).toBe('Max must be at least the min');
+    expect(text('aside .field-error')).toBe('Max must be at least the min');
     expect(router.url).toBe('/');
 
     max.value = '80.50';
@@ -399,7 +416,7 @@ describe('CataloguePage', () => {
     expect({
       heading: text('[role="alert"] h3'),
       message: text('[role="alert"] p'),
-      chip: text('.applied mat-chip-set'),
+      chip: text('.applied .chips'),
     }).toStrictEqual({
       heading: 'Some filters in this link are not valid',
       message: 'minPrice cannot be greater than maxPrice.',
@@ -424,32 +441,34 @@ describe('CataloguePage', () => {
     button('Filters (1)').click();
     await harness.fixture.whenStable();
 
-    const sheet = document.querySelector('mat-bottom-sheet-container') as HTMLElement;
+    const content = sheet() as HTMLElement;
 
-    expect(sheet).not.toBeNull();
-    expect(sheet.querySelector('h2')?.textContent).toBe('Filters');
+    expect(content).not.toBeNull();
+    expect(content.querySelector('h2')?.textContent?.trim()).toBe('Filters');
+    // The dialog is named by its heading, which takes focus when it opens.
+    expect(content.closest('[role="dialog"]')?.getAttribute('aria-labelledby')).toBe(
+      content.querySelector('h2')?.id
+    );
 
-    button('Show 3 products', sheet).click();
-    await vi.waitFor(() => expect(document.querySelector('mat-bottom-sheet-container')).toBeNull());
+    button('Show 3 products', content).click();
+    await vi.waitFor(() => expect(sheet()).toBeNull());
   });
 
   it('applies filters live inside the sheet, keeps it open and updates its count', async () => {
     await open('/?category=bags');
     button('Filters (1)').click();
     await harness.fixture.whenStable();
-    const sheet = document.querySelector('mat-bottom-sheet-container') as HTMLElement;
+    const content = sheet() as HTMLElement;
 
-    const home = [...sheet.querySelectorAll('mat-checkbox')]
-      .find((box) => box.textContent?.trim() === 'Home')
-      ?.querySelector('input') as HTMLInputElement;
+    const home = checkbox('Home', content);
     home.click();
 
     await expectUrl('/?category=bags&category=home');
     await respond(aPage([TOTE, LAMP]));
 
-    expect(document.querySelector('mat-bottom-sheet-container')).toBe(sheet);
-    expect(home.checked).toBeTruthy();
-    expect(button('Show 2 products', sheet)).toBeTruthy();
+    expect(sheet()).toBe(content);
+    expect(isChecked(home)).toBeTruthy();
+    expect(button('Show 2 products', content)).toBeTruthy();
     expect(button('Filters (2)')).toBeTruthy();
   });
 
@@ -457,16 +476,16 @@ describe('CataloguePage', () => {
     await open('/?category=bags&inStock=true');
     button('Filters (2)').click();
     await harness.fixture.whenStable();
-    const sheet = document.querySelector('mat-bottom-sheet-container') as HTMLElement;
-    const clearAll = button('Clear all', sheet);
+    const content = sheet() as HTMLElement;
+    const clearAll = button('Clear all', content);
     clearAll.focus();
 
     clearAll.click();
     await expectUrl('/');
     await respond(aPage([TOTE, LAMP, PARKA]));
 
-    expect(document.activeElement).toBe(sheet.querySelector('h2'));
-    // Still there, focusable and announced as disabled (disabledInteractive).
+    expect(document.activeElement).toBe(content.querySelector('h2'));
+    // Still there, focusable and announced as disabled.
     expect(clearAll.isConnected).toBeTruthy();
     expect(clearAll.disabled).toBeFalsy();
     expect(clearAll.getAttribute('aria-disabled')).toBe('true');
@@ -504,8 +523,8 @@ describe('CataloguePage', () => {
     // Before the list loads, the chosen sellers are the only checkboxes, so they can be unticked.
     await vi.waitFor(() =>
       expect({
-        acme: checkbox('acme').checked,
-        harbor: checkbox('Harbor Supply Co.').checked,
+        acme: isChecked(checkbox('acme')),
+        harbor: isChecked(checkbox('Harbor Supply Co.')),
       }).toStrictEqual({ acme: true, harbor: true })
     );
 
@@ -533,11 +552,7 @@ describe('CataloguePage', () => {
 
       expect(lastScroll()).toBe('manual');
 
-      host().querySelector<HTMLElement>('mat-select')?.click();
-      await harness.fixture.whenStable();
-      [...document.querySelectorAll<HTMLElement>('mat-option')]
-        .find((option) => option.textContent?.trim() === 'Name: A to Z')
-        ?.click();
+      chooseSort('Name: A to Z');
       await expectUrl('/?category=bags&sort=name_asc');
       await respond(aPage([TOTE], { totalPages: 3, totalCount: 60 }));
 

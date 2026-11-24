@@ -1,9 +1,7 @@
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MatRadioButtonHarness } from '@angular/material/radio/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { SHIPPING_METHOD_NOT_AVAILABLE_PROBLEM } from '../../core/api/checkout.api';
@@ -35,6 +33,14 @@ describe('Checkout address and shipping steps', () => {
     host().querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
   const field = (id: string) =>
     host().querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`) as HTMLInputElement;
+
+  /**
+  The radio button whose label matches, found as people find it: by its label.
+  */
+  const radio = (label: RegExp): HTMLInputElement =>
+    [...host().querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((input) =>
+      label.test(input.closest('label')?.textContent ?? '')
+    ) as HTMLInputElement;
 
   const type = (id: string, value: string): void => {
     const element = field(id);
@@ -106,6 +112,7 @@ describe('Checkout address and shipping steps', () => {
         'Select a state',
         'Enter a 5-digit ZIP code, like 97209 or 97209-1234',
       ]);
+
       expect(url()).toBe('/checkout/address');
       expect(store.address()).toBeNull();
     });
@@ -122,6 +129,27 @@ describe('Checkout address and shipping steps', () => {
           li.textContent?.trim()
         )
       ).toContain('Enter ZIP code');
+    });
+
+    it('marks each invalid field and points it at its message, which replaces its hint', async () => {
+      await harness.navigateByUrl('/checkout/address');
+      noPastOrders();
+      type('address-name', 'Ada Lovelace');
+      const line1 = field('address-line1');
+
+      expect(line1.getAttribute('aria-describedby')).toBe('address-line1-hint');
+
+      host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
+      await harness.fixture.whenStable();
+
+      expect(line1.getAttribute('aria-invalid')).toBe('true');
+      expect(
+        host()
+          .querySelector(`#${line1.getAttribute('aria-describedby')}`)
+          ?.textContent?.trim()
+      ).toBe('Enter address line 1');
+      expect(field('address-region').getAttribute('aria-describedby')).toBe('address-region-error');
+      expect(field('address-name').getAttribute('aria-invalid')).toBeNull();
     });
 
     it('saves the address and moves on; coming back shows it again', async () => {
@@ -232,13 +260,17 @@ describe('Checkout address and shipping steps', () => {
       http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview());
       await harness.fixture.whenStable();
 
-      const groups = host().querySelectorAll<HTMLElement>('section.group');
+      const groups = host().querySelectorAll<HTMLElement>('section.shipment');
       const own = itemAt(groups, 0);
       const partner = itemAt(groups, 1);
 
-      expect(own.querySelectorAll('mat-radio-button')).toHaveLength(2);
-      expect(text('section.group:first-of-type .methods')).toContain('Express');
-      expect(partner.querySelector('mat-radio-button')).toBeNull();
+      expect(
+        [...own.querySelectorAll(':scope [role="radiogroup"] input[type="radio"]')].map((input) =>
+          input.closest('label')?.textContent?.replaceAll(/\s+/gu, ' ').trim()
+        )
+      ).toStrictEqual(['Standard, $4.99', 'Express, $12.99']);
+      expect(text('section.shipment:first-of-type .methods')).toContain('Express');
+      expect(partner.querySelector('input[type="radio"]')).toBeNull();
       expect(
         partner.querySelector('.fixed-method')?.textContent?.replaceAll(/\s+/gu, ' ').trim()
       ).toBe('Standard shipping: $4.99 · Partner shops ship Standard only.');
@@ -252,10 +284,7 @@ describe('Checkout address and shipping steps', () => {
       http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview());
       await harness.fixture.whenStable();
 
-      const express = await TestbedHarnessEnvironment.loader(harness.fixture).getHarness(
-        MatRadioButtonHarness.with({ label: /Express/u })
-      );
-      void express.check();
+      radio(/Express/u).click();
       await vi.waitFor(() =>
         http
           .expectOne('/api/v1/checkout/preview?shippingMethod=express')
@@ -276,17 +305,12 @@ describe('Checkout address and shipping steps', () => {
       await harness.navigateByUrl('/checkout/shipping');
       http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview());
       await harness.fixture.whenStable();
-      const expressOption = () =>
-        TestbedHarnessEnvironment.loader(harness.fixture).getHarness(
-          MatRadioButtonHarness.with({ label: /Express/u })
-        );
       const pricedForExpress = () =>
         http
           .expectOne('/api/v1/checkout/preview?shippingMethod=express')
           .flush(aPreview({ shippingMethod: 'express', shipping: 17.98, total: 75.46 }));
 
-      const express = await expressOption();
-      void express.check();
+      radio(/Express/u).click();
       await vi.waitFor(pricedForExpress);
       await harness.fixture.whenStable();
 
@@ -300,10 +324,9 @@ describe('Checkout address and shipping steps', () => {
       host().querySelector<HTMLButtonElement>('button[type="submit"]')?.click();
       await vi.waitFor(pricedForExpress);
       await harness.fixture.whenStable();
-      const again = await expressOption();
 
       expect(url()).toBe('/checkout/shipping');
-      await expect(again.isChecked()).resolves.toBeTruthy();
+      expect(radio(/Express/u).checked).toBeTruthy();
       expect(store.shippingMethod()).toBe('express');
     });
 
@@ -318,7 +341,7 @@ describe('Checkout address and shipping steps', () => {
       );
       await harness.fixture.whenStable();
 
-      expect(host().querySelector('mat-radio-button')).toBeNull();
+      expect(host().querySelector('input[type="radio"]')).toBeNull();
     });
 
     it('falls back to Standard when the API refuses Express for a cart without Lumen items (422)', async () => {

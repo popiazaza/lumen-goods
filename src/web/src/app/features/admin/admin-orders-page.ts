@@ -1,27 +1,14 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, inject, linkedSignal } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
-import { MatOption } from '@angular/material/core';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatIcon } from '@angular/material/icon';
-import { MatInput } from '@angular/material/input';
-import { MatPaginator, PageEvent } from '@angular/material/paginator';
-import { MatProgressBar } from '@angular/material/progress-bar';
-import { MatSelect } from '@angular/material/select';
-import {
-  MatCell,
-  MatCellDef,
-  MatColumnDef,
-  MatHeaderCell,
-  MatHeaderCellDef,
-  MatHeaderRow,
-  MatHeaderRowDef,
-  MatRow,
-  MatRowDef,
-  MatTable,
-} from '@angular/material/table';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmInput } from '@spartan-ng/helm/input';
+import { HlmLabel } from '@spartan-ng/helm/label';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
+import { HlmSelectImports } from '@spartan-ng/helm/select';
+import { HlmTableImports } from '@spartan-ng/helm/table';
 import {
   ADMIN_ORDER_STATUS_FILTERS,
   AdminOrderStatusFilter,
@@ -30,10 +17,11 @@ import {
 } from '../../core/api/admin-orders.api';
 import { PagedResult } from '../../core/api/paged-result';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
-import { registerOrderIcons } from '../orders/order-icons';
+import { provideOrderIcons } from '../orders/order-icons';
 import { ADMIN_ORDER_STATUS_LABELS, StatusView, orderStatusView } from '../orders/order-labels';
 import { StatusBadge } from '../orders/status-badge';
 import { AdminAccessDenied } from './admin-access-denied';
+import { AdminPageChange, AdminPaginator } from './admin-paginator';
 import {
   ADMIN_PAGE_SIZES,
   AdminOrdersQuery,
@@ -43,7 +31,11 @@ import {
   withFilters,
 } from './admin-list-query';
 
-const NEEDS_ATTENTION: StatusView = { tone: 'warning', icon: 'warning', text: 'Needs attention' };
+const NEEDS_ATTENTION: StatusView = {
+  tone: 'warning',
+  icon: 'lucideTriangleAlert',
+  text: 'Needs attention',
+};
 
 const STATUS_FILTER_LABELS: Readonly<Record<AdminOrderStatusFilter, string>> = {
   ...ADMIN_ORDER_STATUS_LABELS,
@@ -55,6 +47,14 @@ const toStatusOption = (value: AdminOrderStatusFilter) => ({
   value,
   label: STATUS_FILTER_LABELS[value],
 });
+
+/**
+The select's text for one status or the chosen ones ("Paid, in progress, Refunded").
+*/
+const statusFilterText = (value: unknown): string =>
+  (Array.isArray(value) ? value : [value])
+    .map((status) => STATUS_FILTER_LABELS[status as AdminOrderStatusFilter] ?? String(status))
+    .join(', ');
 
 const summaryStatusView = (order: AdminOrderSummary): StatusView =>
   orderStatusView(order.status, order.statusText);
@@ -68,30 +68,20 @@ Admin: every order, filtered by status and placed date, paged; the URL holds the
     CurrencyPipe,
     DatePipe,
     RouterLink,
-    MatButton,
-    MatCell,
-    MatCellDef,
-    MatColumnDef,
-    MatFormField,
-    MatHeaderCell,
-    MatHeaderCellDef,
-    MatHeaderRow,
-    MatHeaderRowDef,
-    MatIcon,
-    MatInput,
-    MatLabel,
-    MatOption,
-    MatPaginator,
-    MatProgressBar,
-    MatRow,
-    MatRowDef,
-    MatSelect,
-    MatTable,
+    NgIcon,
+    HlmButton,
+    HlmInput,
+    HlmLabel,
+    HlmProgressImports,
+    HlmSelectImports,
+    HlmTableImports,
+    AdminPaginator,
     AdminAccessDenied,
     StatusBadge,
   ],
   templateUrl: './admin-orders-page.html',
   styleUrl: './admin-list-page.scss',
+  providers: [provideOrderIcons()],
 })
 export class AdminOrdersPage {
   private readonly route = inject(ActivatedRoute);
@@ -141,15 +131,11 @@ export class AdminOrdersPage {
 
   protected readonly pageSizes = [...ADMIN_PAGE_SIZES];
 
-  protected readonly columns = ['number', 'placed', 'customer', 'sellers', 'total', 'status'];
-
   protected readonly needsAttention = NEEDS_ATTENTION;
 
-  protected readonly statusOf = summaryStatusView;
+  protected readonly statusText = statusFilterText;
 
-  constructor() {
-    registerOrderIcons();
-  }
+  protected readonly statusOf = summaryStatusView;
 
   /**
   Filters keep the scroll position (focus stays on the control); paging goes to the top.
@@ -176,7 +162,7 @@ export class AdminOrdersPage {
     this.navigate(withFilters(this.query(), { statuses: [], from: null, to: null }), 'manual');
   }
 
-  protected changePage(event: PageEvent): void {
+  protected changePage(event: AdminPageChange): void {
     const { pageSize } = event;
     const page = pageSize === this.query().pageSize ? event.pageIndex + 1 : 1;
     this.navigate({ ...this.query(), page, pageSize }, 'auto');

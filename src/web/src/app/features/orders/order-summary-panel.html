@@ -1,5 +1,5 @@
 @let o = order();
-<mat-card appearance="outlined" class="section">
+<div class="section">
   <h2>Summary</h2>
   <dl class="pairs totals">
     <div>
@@ -29,13 +29,13 @@
       </div>
     }
   </dl>
-</mat-card>
+</div>
 
-<mat-card appearance="outlined" class="section">
+<div class="section">
   <h2>Payment</h2>
   @if (o.payment; as payment) {
     <p class="method">
-      <mat-icon [svgIcon]="payment.method === 'wallet' ? 'wallet' : 'credit_card'" />
+      <ng-icon [name]="payment.method === 'wallet' ? 'lucideWallet' : 'lucideCreditCard'" />
       <span>{{ methodLabel() }}</span>
     </p>
     <app-status-badge [status]="paymentStatus(payment.status)" />
@@ -55,10 +55,10 @@
       </p>
     }
   }
-</mat-card>
+</div>
 
 @if (o.refunds.length > 0) {
-  <mat-card appearance="outlined" class="section">
+  <div class="section">
     <h2>Refunds</h2>
     <ul class="refunds">
       @for (refund of o.refunds; track refund.id) {
@@ -99,10 +99,10 @@
         </li>
       }
     </ul>
-  </mat-card>
+  </div>
 }
 
-<mat-card appearance="outlined" class="section">
+<div class="section">
   <h2>Shipping to</h2>
   <address>
     @for (line of addressLines(); track $index) {
@@ -112,4 +112,4 @@
       }
     }
   </address>
-</mat-card>
+</div>

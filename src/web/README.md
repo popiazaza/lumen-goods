@@ -1,6 +1,6 @@
 # Lumen Goods web
 
-The storefront and admin UI: Angular 22.3, Angular Material 22.3 (M3 theme), zoneless, Vitest.
+The storefront and admin UI: Angular 22.3, zoneless, [spartan/ui](https://www.spartan.ng/) (shadcn/ui for Angular) with Tailwind CSS 4 and Lucide icons, Vitest.
 
 ```bash
 npm ci

@@ -1,74 +1,96 @@
 <fieldset class="card-fields">
   <legend>Card details</legend>
-  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-    <mat-label>Card number</mat-label>
-    <input
-      id="card-number"
-      matInput
-      type="text"
-      inputmode="numeric"
-      autocomplete="cc-number"
-      formControlName="number"
-      spellcheck="false"
-      required
-      (input)="formatNumber($event)"
-    />
-    @if (view().brandName; as brand) {
-      <span matTextSuffix class="brand" aria-live="polite">{{ brand }}</span>
+  <div class="field">
+    <label hlmLabel for="card-number">Card number</label>
+    <div class="with-brand">
+      <input
+        id="card-number"
+        hlmInput
+        type="text"
+        inputmode="numeric"
+        autocomplete="cc-number"
+        formControlName="number"
+        spellcheck="false"
+        required
+        [aria-invalid]="!!view().shown.number"
+        [forceInvalid]="!!view().shown.number"
+        [aria-describedby]="view().shown.number ? 'card-number-error' : 'card-number-hint'"
+        (input)="formatNumber($event)"
+      />
+      @if (view().brandName; as brand) {
+        <span class="brand" aria-live="polite">{{ brand }}</span>
+      }
+    </div>
+    @if (view().shown.number; as message) {
+      <p id="card-number-error" class="field-error">{{ message }}</p>
+    } @else {
+      <!-- Every test card from the README, so a demo needs nothing else open. -->
+      <p id="card-number-hint" class="hint">
+        Demo shop, nothing is charged. 4111 1111 1111 1111 approves. 4242 0000 0000 then: 0018 no
+        funds, 0026 stolen, 0034 asks for a code, 0042 slow, 0059 errors once and the retry
+        approves.
+      </p>
     }
-    <!-- Every test card from the README, so a demo needs nothing else open. -->
-    <mat-hint
-      >Demo shop, nothing is charged. 4111 1111 1111 1111 approves. 4242 0000 0000 then: 0018 no
-      funds, 0026 stolen, 0034 asks for a code, 0042 slow, 0059 errors once and the retry
-      approves.</mat-hint
-    >
-    @if (view().errors.number; as message) {
-      <mat-error>{{ message }}</mat-error>
-    }
-  </mat-form-field>
+  </div>
 
-  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-    <mat-label>Name on card</mat-label>
-    <input id="card-name" matInput autocomplete="cc-name" formControlName="name" required />
-    @if (view().errors.name; as message) {
-      <mat-error>{{ message }}</mat-error>
+  <div class="field">
+    <label hlmLabel for="card-name">Name on card</label>
+    <input
+      id="card-name"
+      hlmInput
+      autocomplete="cc-name"
+      formControlName="name"
+      required
+      [aria-invalid]="!!view().shown.name"
+      [forceInvalid]="!!view().shown.name"
+      [aria-describedby]="view().shown.name ? 'card-name-error' : null"
+    />
+    @if (view().shown.name; as message) {
+      <p id="card-name-error" class="field-error">{{ message }}</p>
     }
-  </mat-form-field>
+  </div>
 
   <div class="row">
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>Expiry date (MM/YY)</mat-label>
+    <div class="field">
+      <label hlmLabel for="card-expiry">Expiry date (MM/YY)</label>
       <input
         id="card-expiry"
-        matInput
+        hlmInput
         type="text"
         inputmode="numeric"
         autocomplete="cc-exp"
         placeholder="MM/YY"
         formControlName="expiry"
         required
+        [aria-invalid]="!!view().shown.expiry"
+        [forceInvalid]="!!view().shown.expiry"
+        [aria-describedby]="view().shown.expiry ? 'card-expiry-error' : null"
         (input)="formatExpiryInput($event)"
       />
-      @if (view().errors.expiry; as message) {
-        <mat-error>{{ message }}</mat-error>
+      @if (view().shown.expiry; as message) {
+        <p id="card-expiry-error" class="field-error">{{ message }}</p>
       }
-    </mat-form-field>
+    </div>
 
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>Security code (CVC)</mat-label>
+    <div class="field">
+      <label hlmLabel for="card-cvc">Security code (CVC)</label>
       <input
         id="card-cvc"
-        matInput
+        hlmInput
         type="text"
         inputmode="numeric"
         autocomplete="cc-csc"
         formControlName="cvc"
         required
+        [aria-invalid]="!!view().shown.cvc"
+        [forceInvalid]="!!view().shown.cvc"
+        [aria-describedby]="view().shown.cvc ? 'card-cvc-error' : 'card-cvc-hint'"
       />
-      <mat-hint>{{ view().cvcHint }}</mat-hint>
-      @if (view().errors.cvc; as message) {
-        <mat-error>{{ message }}</mat-error>
+      @if (view().shown.cvc; as message) {
+        <p id="card-cvc-error" class="field-error">{{ message }}</p>
+      } @else {
+        <p id="card-cvc-hint" class="hint">{{ view().cvcHint }}</p>
       }
-    </mat-form-field>
+    </div>
   </div>
 </fieldset>

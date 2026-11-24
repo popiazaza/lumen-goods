@@ -65,7 +65,7 @@ describe('ProductCard', () => {
     const host = await render(aProduct({ availability }));
 
     expect(text(host, 'app-availability-badge')).toBe(label);
-    expect(host.querySelector(':scope app-availability-badge mat-icon')).not.toBeNull();
+    expect(host.querySelector(':scope app-availability-badge ng-icon')).not.toBeNull();
   });
 
   it('dims a product that cannot be bought and says "Not available"', async () => {

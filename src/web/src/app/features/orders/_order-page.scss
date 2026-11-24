@@ -1,4 +1,4 @@
-// Shared by the order and admin pages: page states and the "label: value" fact lists.
+// Shared by the order and admin pages: page states, cards and the "label: value" fact lists.
 @use '../../../styles/state' as page-state;
 
 /// Signed-out, empty, not-found and error states: the app's one state look (styles/_state.scss).
@@ -8,12 +8,23 @@
   }
 }
 
+/// The app's card (as in the cart and checkout): a bordered white surface with a soft shadow.
+@mixin card {
+  border: 1px solid var(--border);
+  border-radius: var(--lg-radius-card);
+  background: var(--card);
+  box-shadow: var(--lg-shadow-card);
+  color: var(--foreground);
+}
+
 /// `<dl class="pairs">` of `<div><dt/><dd/></div>` rows: label left, value right, stacked on phones.
 @mixin pairs {
   .pairs {
     display: grid;
     margin: 0;
+    font-size: 0.875rem;
     gap: var(--lg-space-2);
+    line-height: 1.25rem;
 
     & > div {
       display: flex;
@@ -23,7 +34,7 @@
     }
 
     & dt {
-      color: var(--mat-sys-on-surface-variant);
+      color: var(--muted-foreground);
     }
 
     & dd {
@@ -34,12 +45,14 @@
   }
 }
 
-/// A titled block of the detail pages.
+/// A titled block of the detail pages: a card with a heading.
 @mixin section {
   .section {
+    @include card;
+
     display: grid;
     min-width: 0;
-    padding: var(--lg-space-4);
+    padding: var(--lg-space-4) 20px;
     gap: var(--lg-space-3);
 
     & h2,
@@ -49,16 +62,21 @@
     }
 
     & h2 {
-      font: var(--mat-sys-title-large);
       font-family: var(--lg-font-heading);
+      font-size: 1.25rem;
+      font-weight: 600;
+      line-height: 1.75rem;
     }
 
     & h3 {
-      font: var(--mat-sys-title-medium);
+      font-size: 1rem;
+      font-weight: 600;
+      line-height: 1.5rem;
     }
   }
 
   .muted {
-    color: var(--mat-sys-on-surface-variant);
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
   }
 }

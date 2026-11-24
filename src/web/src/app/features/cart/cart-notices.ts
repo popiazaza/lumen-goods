@@ -1,5 +1,6 @@
 import { CartLineDto } from '../../core/api/cart.api';
 import { AvailabilityStatus } from '../../core/api/products.api';
+import { AppIconName } from '../../core/icons/app-icons';
 import { formatUsd } from '../../shared/format';
 
 export type NoticeTone = 'info' | 'warning' | 'blocking';
@@ -12,7 +13,7 @@ One line of a cart line's notice: always an icon and text, never colour alone.
 export interface CartLineNotice {
   kind: NoticeKind;
   tone: NoticeTone;
-  icon: string;
+  icon: AppIconName;
   text: string;
 }
 
@@ -34,7 +35,7 @@ export const noticesOf = (line: CartLineDto): CartLineNotice[] => {
     notices.push({
       kind: 'unavailable',
       tone: 'blocking',
-      icon: 'block',
+      icon: 'lucideBan',
       text:
         unavailable === 'out_of_stock'
           ? 'Out of stock. Remove it to check out.'
@@ -47,7 +48,7 @@ export const noticesOf = (line: CartLineDto): CartLineNotice[] => {
     notices.push({
       kind: 'price',
       tone: 'warning',
-      icon: 'info',
+      icon: 'lucideInfo',
       text: `Price ${direction} from ${formatUsd(priceChanged.from)} to ${formatUsd(priceChanged.to)} since you added it.`,
     });
   }
@@ -58,7 +59,7 @@ export const noticesOf = (line: CartLineDto): CartLineNotice[] => {
     notices.push({
       kind: 'availability',
       tone: 'warning',
-      icon: 'warning',
+      icon: 'lucideTriangleAlert',
       text:
         left !== null && left > 0 && availabilityChanged.to === 'low_stock'
           ? `Stock is running low: only ${left} left.`
@@ -73,7 +74,7 @@ export const noticesOf = (line: CartLineDto): CartLineNotice[] => {
         ? {
             kind: 'quantity',
             tone: 'blocking',
-            icon: 'warning',
+            icon: 'lucideTriangleAlert',
             text:
               allowed > 0
                 ? `Only ${allowed} available. Reduce the quantity to ${allowed} or fewer to check out.`
@@ -82,7 +83,7 @@ export const noticesOf = (line: CartLineDto): CartLineNotice[] => {
         : {
             kind: 'quantity',
             tone: 'info',
-            icon: 'info',
+            icon: 'lucideInfo',
             text: `We changed the quantity from ${requested} to ${allowed}, the most you can buy.`,
           }
     );

@@ -1,18 +1,17 @@
 import { Component, inject } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatButton } from '@angular/material/button';
-import {
-  MAT_DIALOG_DATA,
-  MatDialog,
-  MatDialogActions,
-  MatDialogConfig,
-  MatDialogContent,
-  MatDialogRef,
-  MatDialogTitle,
-} from '@angular/material/dialog';
-import { MatError, MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
-import { MatInput } from '@angular/material/input';
+import { BrnDialogRef, injectBrnDialogContext } from '@spartan-ng/brain/dialog';
 import { Observable, filter } from 'rxjs';
+import { HlmButton } from '@spartan-ng/helm/button';
+import {
+  HlmDialogDescription,
+  HlmDialogFooter,
+  HlmDialogHeader,
+  HlmDialogService,
+  HlmDialogTitle,
+} from '@spartan-ng/helm/dialog';
+import { HlmLabel } from '@spartan-ng/helm/label';
+import { HlmTextarea } from '@spartan-ng/helm/textarea';
 
 export interface ConfirmDialogData {
   title: string;
@@ -45,36 +44,40 @@ export interface ConfirmDialogResult {
 export const NOTE_MAX_LENGTH = 500;
 
 /**
- * Confirmation for a serious admin action. An `alertdialog` that focuses the safe choice first and
- * returns focus to the button that opened it.
+ * Confirmation for a serious admin action. An `alertdialog`, named by its title and described by
+ * its message, that focuses the safe choice first and returns focus to the button that opened it.
  */
 @Component({
   selector: 'app-confirm-dialog',
   imports: [
     ReactiveFormsModule,
-    MatButton,
-    MatDialogActions,
-    MatDialogContent,
-    MatDialogTitle,
-    MatError,
-    MatFormField,
-    MatHint,
-    MatInput,
-    MatLabel,
+    HlmButton,
+    HlmDialogDescription,
+    HlmDialogFooter,
+    HlmDialogHeader,
+    HlmDialogTitle,
+    HlmLabel,
+    HlmTextarea,
   ],
   templateUrl: './confirm-dialog.html',
   styleUrl: './confirm-dialog.scss',
 })
 export class ConfirmDialog {
-  private readonly dialogRef =
-    inject<MatDialogRef<ConfirmDialog, ConfirmDialogResult>>(MatDialogRef);
-  protected readonly data = inject<ConfirmDialogData>(MAT_DIALOG_DATA);
+  private readonly dialogRef = inject<BrnDialogRef<ConfirmDialogResult>>(BrnDialogRef);
+  protected readonly data = injectBrnDialogContext<ConfirmDialogData>();
 
   protected readonly noteMaxLength = NOTE_MAX_LENGTH;
   protected readonly note = new FormControl('', {
     nonNullable: true,
     validators: [Validators.maxLength(NOTE_MAX_LENGTH)],
   });
+
+  /**
+  The note's error shows once it was touched, as on the app's other forms.
+  */
+  protected noteError(): boolean {
+    return this.note.invalid && this.note.touched;
+  }
 
   protected confirm(): void {
     if (this.note.invalid) {
@@ -94,19 +97,18 @@ export class ConfirmDialog {
  * back out (the safe button, Escape or a click outside).
  */
 export const openConfirmDialog = (
-  dialog: MatDialog,
+  dialog: HlmDialogService,
   data: ConfirmDialogData
-): Observable<ConfirmDialogResult> => {
-  const config: MatDialogConfig<ConfirmDialogData> = {
-    data,
-    role: 'alertdialog',
-    autoFocus: '.cancel',
-    restoreFocus: true,
-    width: '32rem',
-    maxWidth: 'calc(100vw - 32px)',
-  };
-  return dialog
-    .open<ConfirmDialog, ConfirmDialogData, ConfirmDialogResult>(ConfirmDialog, config)
-    .afterClosed()
-    .pipe(filter((answer): answer is ConfirmDialogResult => typeof answer?.note === 'string'));
-};
+): Observable<ConfirmDialogResult> =>
+  dialog
+    .open<ConfirmDialogResult | undefined, ConfirmDialogData>(ConfirmDialog, {
+      context: data,
+      role: 'alertdialog',
+      autoFocus: '.cancel',
+      restoreFocus: true,
+      showCloseButton: false,
+      contentClass: 'sm:max-w-lg',
+    })
+    .closed$.pipe(
+      filter((answer): answer is ConfirmDialogResult => typeof answer?.note === 'string')
+    );

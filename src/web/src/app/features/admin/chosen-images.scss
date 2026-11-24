@@ -18,8 +18,9 @@
 
   & img,
   & .no-thumbnail {
-    border-radius: var(--mat-sys-corner-small);
-    background: var(--mat-sys-surface-container);
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--muted);
     object-fit: cover;
   }
 
@@ -31,12 +32,20 @@
 
 .file {
   flex: 1 1 8rem;
+  font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
 
 .main {
   display: inline-flex;
   align-items: center;
-  color: var(--mat-sys-primary);
+  color: var(--primary);
+  font-size: 0.875rem;
+  font-weight: 500;
   gap: var(--lg-space-1);
+
+  & ng-icon {
+    width: 16px;
+    height: 16px;
+  }
 }

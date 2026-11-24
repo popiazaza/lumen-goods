@@ -5,44 +5,50 @@
 } @else {
   @let q = query();
   <form class="filters" aria-label="Filter orders" (submit)="$event.preventDefault()">
-    <mat-form-field appearance="outline" subscriptSizing="dynamic" floatLabel="always">
-      <mat-label>Status</mat-label>
-      <mat-select
-        multiple
-        placeholder="All statuses"
+    <div class="field status">
+      <label hlmLabel for="order-status">Status</label>
+      <hlm-select-multiple
         [value]="q.statuses"
-        (selectionChange)="setStatuses($event.value)"
+        [itemToString]="statusText"
+        (valueChange)="setStatuses($event ?? [])"
       >
-        @for (option of statusOptions; track option.value) {
-          <mat-option [value]="option.value">{{ option.label }}</mat-option>
-        }
-      </mat-select>
-    </mat-form-field>
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>Placed from</mat-label>
+        <hlm-select-trigger buttonId="order-status" class="w-full">
+          <hlm-select-value placeholder="All statuses" />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal multiselectable>
+          @for (option of statusOptions; track option.value) {
+            <hlm-select-item [value]="option.value">{{ option.label }}</hlm-select-item>
+          }
+        </hlm-select-content>
+      </hlm-select-multiple>
+    </div>
+    <div class="field">
+      <label hlmLabel for="orders-from">Placed from</label>
       <input
-        matInput
+        id="orders-from"
+        hlmInput
         type="date"
         name="from"
         [value]="q.from ?? ''"
         [max]="q.to ?? ''"
         (change)="setDay('from', $event)"
       />
-    </mat-form-field>
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>Placed to</mat-label>
+    </div>
+    <div class="field">
+      <label hlmLabel for="orders-to">Placed to</label>
       <input
-        matInput
+        id="orders-to"
+        hlmInput
         type="date"
         name="to"
         [value]="q.to ?? ''"
         [min]="q.from ?? ''"
         (change)="setDay('to', $event)"
       />
-    </mat-form-field>
+    </div>
     @if (hasFilters()) {
-      <button matButton type="button" class="clear" (click)="clearFilters()">
-        <mat-icon svgIcon="close" />
+      <button hlmBtn variant="ghost" type="button" class="clear" (click)="clearFilters()">
+        <ng-icon name="lucideX" />
         Clear filters
       </button>
     }
@@ -50,15 +56,17 @@
 
   @if (isError()) {
     <div class="state" role="alert">
-      <mat-icon svgIcon="error" />
+      <ng-icon name="lucideCircleAlert" />
       <p>{{ errorMessage() }}</p>
       <div class="state-actions">
-        <button matButton="filled" type="button" (click)="orders.reload()">
-          <mat-icon svgIcon="refresh" />
+        <button hlmBtn type="button" (click)="orders.reload()">
+          <ng-icon name="lucideRefreshCw" />
           Retry
         </button>
         @if (hasFilters()) {
-          <button matButton type="button" (click)="clearFilters()">Clear filters</button>
+          <button hlmBtn variant="outline" type="button" (click)="clearFilters()">
+            Clear filters
+          </button>
         }
       </div>
     </div>
@@ -68,13 +76,13 @@
         {{ page.totalCount === 1 ? '1 order' : `${page.totalCount} orders` }}
       </p>
       @if (orders.isLoading()) {
-        <mat-progress-bar mode="indeterminate" aria-label="Loading orders" />
+        <hlm-progress aria-label="Loading orders"><hlm-progress-indicator /></hlm-progress>
       }
       @if (page.totalCount === 0) {
         <div class="state">
           @if (hasFilters()) {
             <p><strong>No orders match these filters.</strong></p>
-            <button matButton="filled" type="button" (click)="clearFilters()">Clear filters</button>
+            <button hlmBtn type="button" (click)="clearFilters()">Clear filters</button>
           } @else {
             <p><strong>No orders yet.</strong></p>
             <p>Orders appear here as soon as a customer places one.</p>
@@ -82,75 +90,71 @@
         </div>
       } @else {
         <div class="table-scroll" role="region" aria-label="Orders" tabindex="0">
-          <table mat-table [dataSource]="page.items">
-            <ng-container matColumnDef="number">
-              <th *matHeaderCellDef mat-header-cell scope="col">Order</th>
-              <td *matCellDef="let order" mat-cell class="nowrap">
-                <a [routerLink]="['/admin/orders', order.number]">{{ order.number }}</a>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="placed">
-              <th *matHeaderCellDef mat-header-cell scope="col">Placed</th>
-              <td *matCellDef="let order" mat-cell>
-                <time [attr.datetime]="order.createdUtc">{{
-                  order.createdUtc | date: 'medium'
-                }}</time>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="customer">
-              <th *matHeaderCellDef mat-header-cell scope="col">Customer</th>
-              <!-- A long address breaks before its @, not mid-word. -->
-              <td *matCellDef="let order" mat-cell class="email">
-                @let email = order.customerEmail;
-                @let at = email.lastIndexOf('@');
-                @if (at > 0) {
-                  {{ email.slice(0, at) }}<wbr />{{ email.slice(at) }}
-                } @else {
-                  {{ email }}
-                }
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="sellers">
-              <th *matHeaderCellDef mat-header-cell scope="col">Sold by</th>
-              <td *matCellDef="let order" mat-cell class="wrap">
-                {{ order.sellerNames.join(', ') }}
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="total">
-              <th *matHeaderCellDef mat-header-cell scope="col" class="number">Total</th>
-              <td *matCellDef="let order" mat-cell class="number">
-                {{ order.total | currency }}
-                @if (order.refundedTotal > 0) {
-                  <span class="sub">Refunded {{ order.refundedTotal | currency }}</span>
-                }
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="status">
-              <th *matHeaderCellDef mat-header-cell scope="col">Status</th>
-              <td *matCellDef="let order" mat-cell>
-                <div class="badges">
-                  <app-status-badge [status]="statusOf(order)" />
-                  @if (order.needsAttention) {
-                    <app-status-badge [status]="needsAttention" />
-                  }
-                </div>
-              </td>
-            </ng-container>
-            <tr *matHeaderRowDef="columns" mat-header-row></tr>
-            <tr *matRowDef="let row; columns: columns" mat-row></tr>
+          <table hlmTable>
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh scope="col">Order</th>
+                <th hlmTh scope="col">Placed</th>
+                <th hlmTh scope="col">Customer</th>
+                <th hlmTh scope="col">Sold by</th>
+                <th hlmTh scope="col" class="number">Total</th>
+                <th hlmTh scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (order of page.items; track order.number) {
+                <tr hlmTr>
+                  <td hlmTd class="col-number nowrap">
+                    <a [routerLink]="['/admin/orders', order.number]">{{ order.number }}</a>
+                  </td>
+                  <td hlmTd class="col-placed">
+                    <time [attr.datetime]="order.createdUtc">{{
+                      order.createdUtc | date: 'medium'
+                    }}</time>
+                  </td>
+                  <!-- A long address breaks before its @, not mid-word. -->
+                  <td hlmTd class="col-customer email">
+                    @let email = order.customerEmail;
+                    @let at = email.lastIndexOf('@');
+                    @if (at > 0) {
+                      {{ email.slice(0, at) }}<wbr />{{ email.slice(at) }}
+                    } @else {
+                      {{ email }}
+                    }
+                  </td>
+                  <td hlmTd class="col-sellers wrap">
+                    {{ order.sellerNames.join(', ') }}
+                  </td>
+                  <td hlmTd class="col-total number">
+                    {{ order.total | currency }}
+                    @if (order.refundedTotal > 0) {
+                      <span class="sub">Refunded {{ order.refundedTotal | currency }}</span>
+                    }
+                  </td>
+                  <td hlmTd class="col-status">
+                    <div class="badges">
+                      <app-status-badge [status]="statusOf(order)" />
+                      @if (order.needsAttention) {
+                        <app-status-badge [status]="needsAttention" />
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
           </table>
         </div>
-        <mat-paginator
+        <app-admin-paginator
           aria-label="Order pages"
           [length]="page.totalCount"
           [pageIndex]="q.page - 1"
           [pageSize]="q.pageSize"
           [pageSizeOptions]="pageSizes"
-          (page)="changePage($event)"
+          (pageChange)="changePage($event)"
         />
       }
     </div>
   } @else {
-    <mat-progress-bar mode="indeterminate" aria-label="Loading orders" />
+    <hlm-progress aria-label="Loading orders"><hlm-progress-indicator /></hlm-progress>
   }
 }

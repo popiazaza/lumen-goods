@@ -1,6 +1,4 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
-import { HarnessLoader } from '@angular/cdk/testing';
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
@@ -9,9 +7,6 @@ import {
 } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatFormFieldHarness } from '@angular/material/form-field/testing';
-import { MatSelectHarness } from '@angular/material/select/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { AdminProduct } from '../../core/api/admin-products.api';
@@ -44,12 +39,29 @@ const LAMP = anAdminProduct({
 describe('AdminProductsPage', () => {
   let harness: RouterTestingHarness;
   let http: HttpTestingController;
-  let loader: HarnessLoader;
   let router: Router;
   let announcer: LiveAnnouncer;
 
   const host = () => harness.routeNativeElement as HTMLElement;
-  const rows = () => [...host().querySelectorAll<HTMLElement>('tr.mat-mdc-row')];
+  const rows = () => [...host().querySelectorAll<HTMLElement>(':scope tbody tr')];
+  /**
+  The native select a label names.
+  */
+  const select = (label: string): HTMLSelectElement => {
+    const labelElement = [...host().querySelectorAll('label')].find(
+      (element) => element.textContent?.trim() === label
+    );
+    return host().querySelector(
+      `select#${CSS.escape(labelElement?.htmlFor ?? '')}`
+    ) as HTMLSelectElement;
+  };
+  const choose = (label: string, option: string): void => {
+    const element = select(label);
+    const match = [...element.options].find((o) => o.textContent?.trim() === option);
+    element.value = match?.value ?? '';
+    element.dispatchEvent(new Event('change'));
+  };
+  const shown = (label: string) => select(label).selectedOptions[0]?.textContent?.trim();
   const button = (label: string) =>
     host().querySelector<HTMLButtonElement>(
       `button[aria-label="${CSS.escape(label)}"]`
@@ -86,7 +98,6 @@ describe('AdminProductsPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideAppIcons(),
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -94,7 +105,6 @@ describe('AdminProductsPage', () => {
     announcer = TestBed.inject(LiveAnnouncer);
     vi.spyOn(announcer, 'announce').mockResolvedValue(undefined);
     harness = await RouterTestingHarness.create();
-    loader = TestbedHarnessEnvironment.documentRootLoader(harness.fixture);
   });
 
   afterEach(() => {
@@ -110,21 +120,28 @@ describe('AdminProductsPage', () => {
     );
     expect((host().querySelector('input[name="q"]') as HTMLInputElement).value).toBe('mug');
 
-    const selects = await loader.getAllHarnesses(MatSelectHarness);
-    const status = itemAt(selects, 0);
-    const category = itemAt(selects, 1);
-
-    await expect(status.getValueText()).resolves.toBe('Inactive');
-    await expect(category.getValueText()).resolves.toBe('Home');
+    expect({ status: shown('Status'), category: shown('Category') }).toStrictEqual({
+      status: 'Inactive',
+      category: 'Home',
+    });
   });
 
-  it('uses the shop’s outlined fields for its filters', async () => {
+  it('labels every filter control', async () => {
     await open('/admin/products');
 
-    const fields = await loader.getAllHarnesses(MatFormFieldHarness);
-    const appearances = await Promise.all(fields.map((field) => field.getAppearance()));
+    const controls = [
+      ...host().querySelectorAll<HTMLElement>(':scope .filters input, :scope .filters select'),
+    ];
+    const labels = controls.map(
+      (control) =>
+        host().querySelector(`:scope label[for="${CSS.escape(control.id)}"]`)?.textContent
+    );
 
-    expect(new Set(appearances)).toStrictEqual(new Set(['outline']));
+    expect(labels.map((label) => label?.trim())).toStrictEqual([
+      'Search name or SKU',
+      'Status',
+      'Category',
+    ]);
   });
 
   it('searches on submit and filters by status, each starting at page 1', async () => {
@@ -139,11 +156,8 @@ describe('AdminProductsPage', () => {
     expect(router.url).toBe('/admin/products?q=lamp');
     expect(searched.request.params.get('q')).toBe('lamp');
 
-    const status = itemAt(await loader.getAllHarnesses(MatSelectHarness), 0);
-    await status.open();
-    const choosing = status.clickOptions({ text: 'Active' });
+    choose('Status', 'Active');
     await respond(aPagedResult([]));
-    await choosing;
 
     expect(router.url).toBe('/admin/products?q=lamp&status=active');
     expect(text(host(), '.state strong')).toBe('No products match these filters.');
@@ -160,9 +174,9 @@ describe('AdminProductsPage', () => {
     expect({
       name: link.textContent?.trim(),
       href: link.getAttribute('href'),
-      sku: text(mug, '.mat-column-name .sub'),
-      price: text(mug, '.mat-column-price'),
-      reserved: text(mug, '.mat-column-stock .sub'),
+      sku: text(mug, '.col-name .sub'),
+      price: text(mug, '.col-price'),
+      reserved: text(mug, '.col-stock .sub'),
       status: text(mug, 'app-status-badge'),
     }).toStrictEqual({
       name: 'Enamel Camp Mug',
@@ -210,9 +224,7 @@ describe('AdminProductsPage', () => {
     button('Deactivate Enamel Camp Mug').click();
     await harness.fixture.whenStable();
     (dialog()?.querySelector('button.cancel') as HTMLButtonElement).click();
-    await harness.fixture.whenStable();
-
-    expect(dialog()).toBeNull();
+    await vi.waitFor(() => expect(dialog()).toBeNull());
 
     http.expectNone(`/api/v1/admin/products/${MUG.id}/deactivate`);
   });

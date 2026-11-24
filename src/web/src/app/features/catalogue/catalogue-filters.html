@@ -1,22 +1,26 @@
 <fieldset>
   <legend>Category</legend>
   @for (category of categories; track category) {
-    <mat-checkbox
-      [checked]="query().categories.includes(category)"
-      (change)="toggleCategory(category, $event.checked)"
-      >{{ categoryLabel(category) }}</mat-checkbox
-    >
+    <label hlmLabel class="option">
+      <hlm-checkbox
+        [checked]="query().categories.includes(category)"
+        (checkedChange)="toggleCategory(category, $event)"
+      />
+      {{ categoryLabel(category) }}
+    </label>
   }
 </fieldset>
 
 <fieldset>
   <legend>Seller</legend>
   @for (seller of sellers(); track seller.source) {
-    <mat-checkbox
-      [checked]="query().sellers.includes(seller.source)"
-      (change)="toggleSeller(seller.source, $event.checked)"
-      >{{ seller.name }}</mat-checkbox
-    >
+    <label hlmLabel class="option">
+      <hlm-checkbox
+        [checked]="query().sellers.includes(seller.source)"
+        (checkedChange)="toggleSeller(seller.source, $event)"
+      />
+      {{ seller.name }}
+    </label>
   }
   @if (sellersFailed()) {
     <p class="note">The seller list couldn’t be loaded.</p>
@@ -25,35 +29,48 @@
 
 <fieldset>
   <legend>Price (USD)</legend>
-  <form class="price" novalidate [formGroup]="priceForm" (ngSubmit)="applyPrice()">
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>Min</mat-label>
-      <span matTextPrefix>$&nbsp;</span>
-      <input matInput formControlName="min" inputmode="decimal" autocomplete="off" />
-      @if (priceForm.controls.min.hasError('price')) {
-        <mat-error>Enter an amount like 25 or 25.50</mat-error>
+  <form class="price-range" novalidate [formGroup]="priceForm" (ngSubmit)="applyPrice()">
+    <div class="field">
+      <label hlmLabel [for]="ids().min">Min</label>
+      <div class="money">
+        <span class="currency" aria-hidden="true">$</span>
+        <input
+          hlmInput
+          formControlName="min"
+          inputmode="decimal"
+          autocomplete="off"
+          [id]="ids().min"
+          [attr.aria-invalid]="minError() ? 'true' : null"
+          [attr.aria-describedby]="minError() ? ids().minError : null"
+        />
+      </div>
+      @if (minError(); as message) {
+        <p class="field-error" [id]="ids().minError">{{ message }}</p>
       }
-    </mat-form-field>
-    <mat-form-field appearance="outline" subscriptSizing="dynamic">
-      <mat-label>Max</mat-label>
-      <span matTextPrefix>$&nbsp;</span>
-      <input
-        matInput
-        formControlName="max"
-        inputmode="decimal"
-        autocomplete="off"
-        [errorStateMatcher]="rangeMatcher"
-      />
-      @if (priceForm.controls.max.hasError('price')) {
-        <mat-error>Enter an amount like 25 or 25.50</mat-error>
-      } @else if (priceForm.hasError('range')) {
-        <mat-error>Max must be at least the min</mat-error>
+    </div>
+    <div class="field">
+      <label hlmLabel [for]="ids().max">Max</label>
+      <div class="money">
+        <span class="currency" aria-hidden="true">$</span>
+        <input
+          hlmInput
+          formControlName="max"
+          inputmode="decimal"
+          autocomplete="off"
+          [id]="ids().max"
+          [attr.aria-invalid]="maxError() ? 'true' : null"
+          [attr.aria-describedby]="maxError() ? ids().maxError : null"
+        />
+      </div>
+      @if (maxError(); as message) {
+        <p class="field-error" [id]="ids().maxError">{{ message }}</p>
       }
-    </mat-form-field>
-    <button matButton="outlined" type="submit">Apply price</button>
+    </div>
+    <button hlmBtn variant="outline" type="submit">Apply price</button>
   </form>
 </fieldset>
 
-<mat-slide-toggle [checked]="query().inStock" (change)="setInStock($event.checked)"
-  >In stock only</mat-slide-toggle
->
+<label hlmLabel class="option switch">
+  <hlm-switch [checked]="query().inStock" (checkedChange)="setInStock($event)" />
+  In stock only
+</label>

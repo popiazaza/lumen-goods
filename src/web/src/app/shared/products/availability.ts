@@ -1,4 +1,5 @@
 import { AvailabilityStatus, ProductDto } from '../../core/api/products.api';
+import { AppIconName } from '../../core/icons/app-icons';
 
 export type AvailabilityTone = 'available' | 'low' | 'out' | 'unavailable';
 
@@ -7,14 +8,14 @@ What a stock badge shows: always an icon and text, never colour alone (WCAG 1.4.
 */
 export interface AvailabilityLabel {
   tone: AvailabilityTone;
-  icon: string;
+  icon: AppIconName;
   text: string;
 }
 
 const STOCK_LABELS: Readonly<Record<AvailabilityStatus, AvailabilityLabel>> = {
-  in_stock: { tone: 'available', icon: 'check_circle', text: 'In stock' },
-  low_stock: { tone: 'low', icon: 'warning', text: 'Low stock' },
-  out_of_stock: { tone: 'out', icon: 'cancel', text: 'Out of stock' },
+  in_stock: { tone: 'available', icon: 'lucideCircleCheck', text: 'In stock' },
+  low_stock: { tone: 'low', icon: 'lucideTriangleAlert', text: 'Low stock' },
+  out_of_stock: { tone: 'out', icon: 'lucideCircleX', text: 'Out of stock' },
 };
 
 /**
@@ -25,7 +26,7 @@ export const availabilityOf = (
   product: Pick<ProductDto, 'availability' | 'sellable'>
 ): AvailabilityLabel => {
   if (!product.sellable) {
-    return { tone: 'unavailable', icon: 'block', text: 'Not available' };
+    return { tone: 'unavailable', icon: 'lucideBan', text: 'Not available' };
   }
   const { status, quantity } = product.availability;
   const label = STOCK_LABELS[status];

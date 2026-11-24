@@ -10,11 +10,11 @@ import {
   untracked,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
 import { Subscription, catchError, map, of, repeat, takeWhile } from 'rxjs';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { OrdersApi } from '../../core/api/orders.api';
 import {
   OWN_SOURCE,
@@ -23,6 +23,7 @@ import {
   cardBrandName,
 } from '../../core/api/order.models';
 import { httpStatusOf } from '../../core/api/problem-details';
+import { AppIconName } from '../../core/icons/app-icons';
 import { isOrderStillChanging } from './poll-while-updating';
 
 /**
@@ -61,12 +62,12 @@ const failedState = (error: unknown): ConfirmationState => {
   return status === 401 ? 'signed-out' : 'error';
 };
 
-const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
-  pending: 'schedule',
-  awaiting_partner: 'schedule',
-  needs_attention: 'warning',
-  confirmed: 'check_circle',
-  rejected: 'cancel',
+const LINE_ICONS: Readonly<Record<OrderLineStatus, AppIconName>> = {
+  pending: 'lucideClock',
+  awaiting_partner: 'lucideClock',
+  needs_attention: 'lucideTriangleAlert',
+  confirmed: 'lucideCircleCheck',
+  rejected: 'lucideCircleX',
 };
 
 /**
@@ -77,7 +78,7 @@ const LINE_ICONS: Readonly<Record<OrderLineStatus, string>> = {
  */
 @Component({
   selector: 'app-order-confirmation-page',
-  imports: [CurrencyPipe, RouterLink, MatButton, MatIcon, MatProgressBar],
+  imports: [CurrencyPipe, RouterLink, NgIcon, HlmButtonImports, HlmProgressImports],
   templateUrl: './order-confirmation-page.html',
   styleUrl: './order-confirmation-page.scss',
 })

@@ -1,0 +1,213 @@
+/* Global styles: Tailwind CSS v4 with the spartan/ui preset, the shop's theme tokens (shadcn/ui
+   variable names, so the helm components in libs/ui read them) and a few base element styles.
+   App components style themselves in their own SCSS with these variables; Tailwind utilities live
+   in the helm components (see src/web/AGENTS.md). */
+@import 'tailwindcss';
+@import '@spartan-ng/brain/hlm-tailwind-preset.css';
+
+/* `.cdk-visually-hidden`: text for screen readers only (CDK's LiveAnnouncer uses it too). */
+@import '@angular/cdk/a11y-prebuilt.css';
+
+/* Self-hosted variable fonts (OFL), bundled from npm and served from our own origin: no third-party
+   request, and the CSP's font-src 'self' holds. unicode-range means a browser fetches only the
+   subsets a page uses (Latin: about 50 KB for Inter, 40 KB for Fraunces). */
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource-variable/fraunces/wght.css';
+
+/* Utilities for the theme's extra roles: `bg-success`, `text-warning`, `font-heading`. */
+@theme inline {
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --font-heading: var(--font-heading);
+}
+
+/* Light only (no dark theme). Neutral surfaces and the shop's teal as primary. Contrast on white:
+   foreground 17:1, muted-foreground 5.9:1, primary 6.4:1, destructive 6:1, success 6.9:1 and
+   warning 6.2:1 (text, WCAG 1.4.3); input 3.3:1 (a field's outline, WCAG 1.4.11). `border` is
+   decorative only (cards, separators). */
+:root {
+  color-scheme: light;
+
+  /* Inter for everything people read and compare (tabular figures for prices); Fraunces, a warm
+     serif, for the wordmark and headings. The fallbacks cover the moment before the fonts load
+     (font-display: swap). */
+  --font-sans:
+    'Inter Variable', system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', arial, sans-serif;
+  --font-heading: 'Fraunces Variable', georgia, 'Times New Roman', serif;
+  --radius: 0.625rem;
+  --background: oklch(100% 0 0deg);
+  --foreground: oklch(14.5% 0 0deg);
+  --card: oklch(100% 0 0deg);
+  --card-foreground: oklch(14.5% 0 0deg);
+  --popover: oklch(100% 0 0deg);
+  --popover-foreground: oklch(14.5% 0 0deg);
+  --primary: #006a6a;
+  --primary-foreground: #fff;
+  --secondary: oklch(97% 0 0deg);
+  --secondary-foreground: oklch(20.5% 0 0deg);
+  --muted: oklch(97% 0 0deg);
+  --muted-foreground: oklch(50% 0 0deg);
+  --accent: oklch(96% 0.012 196deg);
+  --accent-foreground: oklch(20.5% 0 0deg);
+  --destructive: oklch(50.5% 0.213 27.518deg);
+  --destructive-foreground: #fff;
+  --success: #1b6b30;
+  --success-foreground: #fff;
+  --warning: #8a4b00;
+  --warning-foreground: #fff;
+  --border: oklch(92.2% 0 0deg);
+  --input: oklch(64% 0 0deg);
+  --ring: var(--primary);
+
+  /* Layout tokens shared by the app's component styles. */
+  --lg-font-heading: var(--font-heading);
+  --lg-space-1: 4px;
+  --lg-space-2: 8px;
+  --lg-space-3: 12px;
+  --lg-space-4: 16px;
+  --lg-space-6: 24px;
+  --lg-space-8: 32px;
+  --lg-radius-card: calc(var(--radius) * 1.4);
+  --lg-radius-alert: var(--radius);
+  --lg-content-max: 1280px;
+  --lg-gutter: 16px;
+  --lg-header-height: 64px;
+  --lg-shadow-card: 0 1px 2px 0 rgb(0 0 0 / 5%);
+  --lg-shadow-raised: 0 4px 6px -1px rgb(0 0 0 / 10%), 0 2px 4px -2px rgb(0 0 0 / 10%);
+  --lg-shadow-popover: 0 10px 15px -3px rgb(0 0 0 / 10%), 0 4px 6px -4px rgb(0 0 0 / 10%);
+
+  @media (width >= 960px) {
+    --lg-gutter: 24px;
+  }
+
+  /* The header is sticky only from this size (header.scss): keep focused elements clear of it
+     (WCAG 2.4.11). */
+  @media (width >= 960px) and (height >= 480px) {
+    scroll-padding-top: calc(var(--lg-header-height) + var(--lg-space-4));
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    height: 100%;
+  }
+
+  body {
+    min-height: 100%;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+
+  h1 {
+    margin: 0 0 var(--lg-space-6);
+    color: var(--foreground);
+    font-family: var(--font-heading);
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 2.25rem;
+
+    /* Headings receive programmatic focus after navigation; no ring for that. */
+    &:focus {
+      outline: none;
+    }
+  }
+
+  /* Tailwind's reset takes the underline off links; a link in running text needs it back, so it
+     does not rely on colour alone (WCAG 1.4.1). Links styled as buttons are buttons to the eye. */
+  a {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  a[data-slot='button'] {
+    color: var(--foreground);
+    text-decoration: none;
+  }
+
+  /* Visible keyboard focus on everything the app draws itself (WCAG 2.4.7). In the base layer, so
+     the helm components keep their own focus ring (also in --ring, at full strength). */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* A page's first load, on every page that has no skeleton: an indeterminate bar over a line that
+   says what is loading. The wrapper is the status region; the bar itself is decoration. */
+.page-loading {
+  display: grid;
+  max-width: 24rem;
+  margin: var(--lg-space-8) auto;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  gap: var(--lg-space-3);
+  text-align: center;
+
+  & p {
+    margin: 0;
+  }
+}
+
+.price {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* HTML the page did not write (a partner's sanitised product description): Tailwind's reset
+   takes the browser's paragraph spacing and list markers away, so give them back. */
+.rich-text {
+  & p,
+  & ul,
+  & ol {
+    margin: 0 0 0.75em;
+  }
+
+  & ul,
+  & ol {
+    padding-left: 1.5em;
+  }
+
+  & ul {
+    list-style: disc;
+  }
+
+  & ol {
+    list-style: decimal;
+  }
+
+  & > :last-child {
+    margin-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Windows High Contrast (forced colours) drops box-shadows, which draw the helm controls' focus ring:
+   give every focused element a real outline there instead (WCAG 2.4.7). Unlayered, so it wins over Tailwind's
+   outline-none in the helm components. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid CanvasText !important;
+    outline-offset: 2px;
+  }
+}

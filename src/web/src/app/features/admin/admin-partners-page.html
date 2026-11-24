@@ -12,11 +12,11 @@
     @for (partner of partners; track partner.partner) {
       @let partnerHealth = health(partner);
       @let run = refreshes()[partner.partner];
-      <mat-card appearance="outlined" class="card" [attr.data-partner]="partner.partner">
+      <div class="card" [attr.data-partner]="partner.partner">
         <div class="card-header">
           <h2>{{ partner.name }}</h2>
           <p class="health" [class]="partnerHealth.tone">
-            <mat-icon [svgIcon]="partnerHealth.icon" />
+            <ng-icon [name]="partnerHealth.icon" />
             <span>{{ partnerHealth.text }}</span>
           </p>
         </div>
@@ -72,7 +72,7 @@
 
         @if (partner.lastError) {
           <div class="last-error">
-            <mat-icon svgIcon="error" />
+            <ng-icon name="lucideCircleAlert" />
             <div>
               <strong>Last error</strong>
               <p>{{ partner.lastError }}</p>
@@ -102,8 +102,10 @@
           </ul>
           @if (partner.recentErrors.length > recentErrorsShown) {
             <button
-              matButton
+              hlmBtn
+              variant="ghost"
               type="button"
+              size="sm"
               [attr.aria-expanded]="isExpanded(partner)"
               (click)="toggleErrors(partner)"
             >
@@ -114,23 +116,22 @@
 
         <div class="actions">
           <button
-            matButton="filled"
+            hlmBtn
             type="button"
             class="refresh-now"
-            disabledInteractive
-            [disabled]="isRefreshing(partner)"
+            [attr.aria-disabled]="isRefreshing(partner) || null"
             (click)="refresh(partner)"
           >
-            <mat-icon svgIcon="refresh" />
+            <ng-icon name="lucideRefreshCw" />
             {{ isRefreshing(partner) ? 'Refreshing…' : 'Refresh now' }}
           </button>
           @if (partner.heldRemovals > 0 && confirmingRemovals() !== partner.partner) {
             <button
-              matButton="outlined"
+              hlmBtn
+              variant="outline"
               type="button"
               class="confirm-removals"
-              disabledInteractive
-              [disabled]="isRefreshing(partner)"
+              [attr.aria-disabled]="isRefreshing(partner) || null"
               (click)="askToConfirmRemovals(partner)"
             >
               Confirm removals…
@@ -149,23 +150,23 @@
                 {{ partner.name }} catalogue.
               </p>
               <button
-                matButton="filled"
+                hlmBtn
                 type="button"
                 class="remove-and-refresh"
-                disabledInteractive
-                [disabled]="isRefreshing(partner)"
+                [attr.aria-disabled]="isRefreshing(partner) || null"
                 (click)="confirmRemovals(partner)"
               >
                 Remove and refresh
               </button>
-              <button matButton type="button" (click)="cancelRemovals(partner)">Cancel</button>
+              <button hlmBtn variant="ghost" type="button" (click)="cancelRemovals(partner)">
+                Cancel
+              </button>
             </div>
           }
           @if (run?.kind === 'running') {
-            <mat-progress-bar
-              mode="indeterminate"
-              [attr.aria-label]="`Refreshing ${partner.name}`"
-            />
+            <hlm-progress [attr.aria-label]="`Refreshing ${partner.name}`">
+              <hlm-progress-indicator />
+            </hlm-progress>
             <p class="muted">
               Waiting for the refresh to run. Checking every {{ pollSeconds }} seconds for up to a
               minute.
@@ -174,20 +175,20 @@
             <p class="outcome" [class]="run.kind">{{ run.message }}</p>
           }
         </div>
-      </mat-card>
+      </div>
     } @empty {
       <p>No partner shops are configured.</p>
     }
   </div>
 } @else if (partners.status() === 'error') {
   <div class="state" role="alert">
-    <mat-icon svgIcon="error" />
+    <ng-icon name="lucideCircleAlert" />
     <p>We couldn’t load the partner status. Check your connection and try again.</p>
-    <button matButton="filled" type="button" (click)="partners.reload()">
-      <mat-icon svgIcon="refresh" />
+    <button hlmBtn type="button" (click)="partners.reload()">
+      <ng-icon name="lucideRefreshCw" />
       Retry
     </button>
   </div>
 } @else {
-  <mat-progress-bar mode="indeterminate" aria-label="Loading partner status" />
+  <hlm-progress aria-label="Loading partner status"><hlm-progress-indicator /></hlm-progress>
 }

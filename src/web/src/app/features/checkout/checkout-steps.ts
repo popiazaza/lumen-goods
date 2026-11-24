@@ -1,6 +1,6 @@
 import { Component, computed, inject, input } from '@angular/core';
-import { MatIcon } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
 import { CHECKOUT_STEPS, CheckoutStep, CheckoutStore } from '../../core/checkout/checkout-store';
 
 const LABELS: Readonly<Record<CheckoutStep, string>> = {
@@ -18,7 +18,7 @@ const LABELS: Readonly<Record<CheckoutStep, string>> = {
  */
 @Component({
   selector: 'app-checkout-steps',
-  imports: [RouterLink, MatIcon],
+  imports: [RouterLink, NgIcon],
   templateUrl: './checkout-steps.html',
   styleUrl: './checkout-steps.scss',
 })

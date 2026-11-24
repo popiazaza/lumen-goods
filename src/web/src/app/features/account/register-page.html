@@ -14,57 +14,66 @@
     }
     @if (failure(); as failure) {
       <div class="failure" role="alert">
-        <mat-icon svgIcon="error" aria-hidden="true" />
+        <ng-icon name="lucideCircleAlert" />
         <p>{{ failure }}</p>
       </div>
     }
 
     <form class="account-form" novalidate [formGroup]="form" (ngSubmit)="submit()">
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Email address</mat-label>
+      <div class="field">
+        <label hlmLabel for="register-email">Email address</label>
         <input
           id="register-email"
-          matInput
+          hlmInput
           type="email"
           formControlName="email"
           autocomplete="email"
           inputmode="email"
           spellcheck="false"
           required
+          [aria-describedby]="shows('email') ? 'register-email-error' : null"
         />
-        @if (form.controls.email.invalid) {
-          <mat-error>{{ emailError() }}</mat-error>
+        @if (shows('email')) {
+          <p id="register-email-error" class="field-error">{{ emailError() }}</p>
         }
-      </mat-form-field>
+      </div>
 
-      <!-- Dynamic, so the longer hint and a multi-rule error wrap instead of being clipped. -->
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Password</mat-label>
-        <input
-          id="register-password"
-          matInput
-          formControlName="password"
-          autocomplete="new-password"
-          required
-          [type]="showPassword() ? 'text' : 'password'"
-        />
-        <button
-          matIconButton
-          matSuffix
-          type="button"
-          aria-label="Show password"
-          [attr.aria-pressed]="showPassword()"
-          (click)="showPassword.set(!showPassword())"
-        >
-          <mat-icon [svgIcon]="showPassword() ? 'visibility_off' : 'visibility'" />
-        </button>
-        <mat-hint>{{ passwordHint }}</mat-hint>
-        @if (form.controls.password.invalid) {
-          <mat-error>{{ passwordError() }}</mat-error>
+      <div class="field">
+        <label hlmLabel for="register-password">Password</label>
+        <div class="password">
+          <input
+            id="register-password"
+            hlmInput
+            formControlName="password"
+            autocomplete="new-password"
+            required
+            [type]="showPassword() ? 'text' : 'password'"
+            [aria-describedby]="
+              shows('password') ? 'register-password-error' : 'register-password-hint'
+            "
+          />
+          <button
+            hlmBtn
+            variant="ghost"
+            size="icon-sm"
+            type="button"
+            class="reveal"
+            aria-label="Show password"
+            [attr.aria-pressed]="showPassword()"
+            (click)="showPassword.set(!showPassword())"
+          >
+            <ng-icon [name]="showPassword() ? 'lucideEyeOff' : 'lucideEye'" />
+          </button>
+        </div>
+        <!-- The error takes the hint's place, as it names the rules the password still misses. -->
+        @if (shows('password')) {
+          <p id="register-password-error" class="field-error">{{ passwordError() }}</p>
+        } @else {
+          <p id="register-password-hint" class="hint">{{ passwordHint }}</p>
         }
-      </mat-form-field>
+      </div>
 
-      <button matButton="filled" type="submit" class="submit" [attr.aria-disabled]="submitting()">
+      <button hlmBtn size="lg" type="submit" class="submit" [attr.aria-disabled]="submitting()">
         {{ submitting() ? 'Creating your account…' : 'Create account' }}
       </button>
     </form>

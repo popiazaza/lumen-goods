@@ -25,7 +25,11 @@ export default [
   },
   {
     // Angular's build cache holds generated JavaScript; Playwright writes its reports and traces.
-    ignores: ['.angular/**', 'playwright-report/**', 'test-results/**'],
+    // libs/ui holds spartan/ui's helm components as its CLI generates them (spartan's `hlm`
+    // selectors and `Hlm*` names, its own code style), kept that way so a regenerated component
+    // diffs cleanly against ours. Prettier still formats them and the strict compiler and
+    // template type-checker still check them.
+    ignores: ['.angular/**', 'playwright-report/**', 'test-results/**', 'libs/ui/**'],
   },
   {
     files: ['**/*.ts'],
@@ -96,6 +100,9 @@ export default [
             './checkout-step.guard': ['checkoutStepGuard'],
             './core/icons/app-icons': ['provideAppIcons'],
             './core/routing/route-heading-focus': ['provideRouteHeadingFocus'],
+            // The order and admin pages' own Lucide icons (orders/order-icons.ts).
+            './order-icons': ['provideOrderIcons'],
+            '../orders/order-icons': ['provideOrderIcons'],
           },
           checkUnknownCalls: true,
         },
@@ -108,6 +115,17 @@ export default [
       // tap, timer and subscribe, so every use was reported although none uses those overloads.
       // The type-aware @typescript-eslint/no-deprecated would check the overload actually called.
       'import-x/no-deprecated': 'off',
+    },
+  },
+  {
+    files: ['**/*.html'],
+    rules: {
+      // spartan/ui's checkbox and switch are components (a `role="checkbox"`/`"switch"` button
+      // inside), labelled by the <label> around them; the rule only knows native controls.
+      '@angular-eslint/template/label-has-associated-control': [
+        'error',
+        { controlComponents: ['hlm-checkbox', 'hlm-radio', 'hlm-switch'] },
+      ],
     },
   },
   {

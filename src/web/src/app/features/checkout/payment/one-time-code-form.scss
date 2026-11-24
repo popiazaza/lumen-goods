@@ -1,9 +1,28 @@
+@use '../../../../styles/field';
+
 :host {
   display: block;
 }
 
 .code-form {
+  display: flex;
   max-width: 22rem;
+  flex-direction: column;
+  gap: var(--lg-space-2);
+}
+
+.field {
+  @include field.field;
+
+  & input {
+    font-size: 1.125rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.2em;
+  }
+}
+
+.hint {
+  @include field.hint;
 }
 
 .timer,
@@ -11,16 +30,23 @@
   display: inline-flex;
   align-items: center;
   gap: var(--lg-space-2);
+
+  & ng-icon {
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
 }
 
 .timer {
-  margin: var(--lg-space-2) 0;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
   font-variant-numeric: tabular-nums;
 }
 
 .field-error {
-  margin: 0;
-  color: var(--mat-sys-error);
+  @include field.error;
 }
 
 // The checkout steps' `.actions` row (checkout.scss).
@@ -28,10 +54,17 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  margin-top: var(--lg-space-4);
+  margin-top: var(--lg-space-2);
   gap: var(--lg-space-3);
 
-  & button {
-    min-height: 48px;
+  & [data-slot='button'] {
+    min-width: 8rem;
+    padding-inline: var(--lg-space-4);
+  }
+
+  @media (width < 640px) {
+    & [data-slot='button'] {
+      flex: 1 1 100%;
+    }
   }
 }

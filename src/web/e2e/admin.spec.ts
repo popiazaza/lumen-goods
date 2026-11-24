@@ -17,7 +17,7 @@ test.describe('admin', () => {
   test.use({ storageState: ADMIN_STATE });
 
   test(
-    'the admin tabs lead to products, an order with its payment events, and partner status',
+    'the admin sections lead to products, an order with its payment events, and partner status',
     { tag: ['@BR-ADM-01'] },
     async ({ page, openAs }) => {
       // The run's customer pays one order first, so there is one to open on any stack, even a fresh one.
@@ -32,12 +32,12 @@ test.describe('admin', () => {
         return placed;
       });
 
-      const tabs = page.getByRole('tablist', { name: 'Admin sections' });
+      const sections = page.getByRole('navigation', { name: 'Admin sections' });
 
       await page.goto('/admin');
       await expect(page.getByRole('heading', { level: 1, name: 'Products' })).toBeVisible();
 
-      await tabs.getByRole('tab', { name: 'Orders' }).click();
+      await sections.getByRole('link', { name: 'Orders' }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Orders' })).toBeVisible();
       await page
         .getByRole('region', { name: 'Orders' })
@@ -49,7 +49,7 @@ test.describe('admin', () => {
       await expect(page.getByRole('heading', { level: 2, name: 'Payment events' })).toBeVisible();
       await expect(page.getByRole('listitem').filter({ hasText: 'Approved' })).toBeVisible();
 
-      await tabs.getByRole('tab', { name: 'Partners' }).click();
+      await sections.getByRole('link', { name: 'Partners' }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Partner status' })).toBeVisible();
       await expect(page.getByRole('heading', { level: 2, name: SHOPS.harbor })).toBeVisible();
       await expect(page.getByRole('heading', { level: 2, name: SHOPS.kestrel })).toBeVisible();

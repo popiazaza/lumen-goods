@@ -114,7 +114,7 @@ describe('CheckoutReviewPage', () => {
       'Ada Lovelace, 1200 NW Naito Pkwy, Portland, Oregon 97209, United States'
     );
     expect(
-      [...host().querySelectorAll(':scope section.group h3')].map((h) => h.textContent?.trim())
+      [...host().querySelectorAll(':scope section.shipment h3')].map((h) => h.textContent?.trim())
     ).toStrictEqual(['Sold by Lumen Goods', 'Sold by Kestrel Outfitters']);
     expect(text('.review-total')).toBe('$67.46');
   });
@@ -453,7 +453,7 @@ describe('CheckoutReviewPage', () => {
     await fixture.whenStable();
 
     expect(text('.place-error p')).toBe(detail);
-    expect(placeButton().disabled).toBeFalsy();
+    expect(placeButton().getAttribute('aria-disabled')).toBe('false');
   });
 
   it('says nothing was charged when Place order fails for another reason', async () => {

@@ -9,7 +9,7 @@
   } @else {
     @if (signedOut()) {
       <div class="signed-out" role="status">
-        <mat-icon svgIcon="info" aria-hidden="true" />
+        <ng-icon name="lucideInfo" />
         <p><strong>You were signed out.</strong> Sign in to continue; your cart is saved.</p>
       </div>
     } @else if (forCheckout()) {
@@ -21,7 +21,7 @@
     }
     @if (failure(); as failure) {
       <div class="failure" role="alert">
-        <mat-icon svgIcon="error" aria-hidden="true" />
+        <ng-icon name="lucideCircleAlert" />
         <div>
           <p class="failure-title">{{ failure.title }}</p>
           <p>{{ failure.detail }}</p>
@@ -30,49 +30,55 @@
     }
 
     <form class="account-form" novalidate [formGroup]="form" (ngSubmit)="submit()">
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Email address</mat-label>
+      <div class="field">
+        <label hlmLabel for="sign-in-email">Email address</label>
         <input
           id="sign-in-email"
-          matInput
+          hlmInput
           type="email"
           formControlName="email"
           autocomplete="username"
           inputmode="email"
           spellcheck="false"
           required
+          [aria-describedby]="shows('email') ? 'sign-in-email-error' : null"
         />
-        @if (form.controls.email.invalid) {
-          <mat-error>{{ emailError() }}</mat-error>
+        @if (shows('email')) {
+          <p id="sign-in-email-error" class="field-error">{{ emailError() }}</p>
         }
-      </mat-form-field>
+      </div>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Password</mat-label>
-        <input
-          id="sign-in-password"
-          matInput
-          formControlName="password"
-          autocomplete="current-password"
-          required
-          [type]="showPassword() ? 'text' : 'password'"
-        />
-        <button
-          matIconButton
-          matSuffix
-          type="button"
-          aria-label="Show password"
-          [attr.aria-pressed]="showPassword()"
-          (click)="showPassword.set(!showPassword())"
-        >
-          <mat-icon [svgIcon]="showPassword() ? 'visibility_off' : 'visibility'" />
-        </button>
-        @if (form.controls.password.invalid) {
-          <mat-error>Enter your password</mat-error>
+      <div class="field">
+        <label hlmLabel for="sign-in-password">Password</label>
+        <div class="password">
+          <input
+            id="sign-in-password"
+            hlmInput
+            formControlName="password"
+            autocomplete="current-password"
+            required
+            [type]="showPassword() ? 'text' : 'password'"
+            [aria-describedby]="shows('password') ? 'sign-in-password-error' : null"
+          />
+          <button
+            hlmBtn
+            variant="ghost"
+            size="icon-sm"
+            type="button"
+            class="reveal"
+            aria-label="Show password"
+            [attr.aria-pressed]="showPassword()"
+            (click)="showPassword.set(!showPassword())"
+          >
+            <ng-icon [name]="showPassword() ? 'lucideEyeOff' : 'lucideEye'" />
+          </button>
+        </div>
+        @if (shows('password')) {
+          <p id="sign-in-password-error" class="field-error">Enter your password</p>
         }
-      </mat-form-field>
+      </div>
 
-      <button matButton="filled" type="submit" class="submit" [attr.aria-disabled]="submitting()">
+      <button hlmBtn size="lg" type="submit" class="submit" [attr.aria-disabled]="submitting()">
         {{ submitting() ? 'Signing in…' : 'Sign in' }}
       </button>
     </form>

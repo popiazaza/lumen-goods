@@ -1,14 +1,14 @@
-// One look for every inline message: errors, warnings, notices and progress. A neutral surface with
-// a coloured edge and icon, so the text stays dark and the app's buttons and links sit on white
-// instead of clashing with a tinted box. The icon and the words carry the meaning; the colour only
-// adds to it (WCAG 1.4.1).
+// One look for every inline message: errors, warnings, notices and progress. A white box with a
+// border and a faint wash in the message's colour, and the icon in that colour, so the text stays
+// dark and the app's buttons and links sit on a near-white surface. The icon and the words carry
+// the meaning; the colour only adds to it (WCAG 1.4.1).
 @use 'sass:map';
 
 $tones: (
-  error: var(--mat-sys-error),
-  warning: var(--lg-status-warning),
-  success: var(--lg-status-success),
-  info: var(--mat-sys-primary),
+  error: var(--destructive),
+  warning: var(--warning),
+  success: var(--success),
+  info: var(--primary),
 );
 
 /// The box. `$dense` is for messages inside a table row or a card on the admin pages.
@@ -17,21 +17,25 @@ $tones: (
 
   display: flex;
   align-items: flex-start;
-  padding: var(--lg-space-4);
-  border: 1px solid var(--mat-sys-outline-variant);
+  padding: var(--lg-space-3) var(--lg-space-4);
+  border: 1px solid color-mix(in oklab, var(--lg-alert-accent) 30%, var(--border));
   border-radius: var(--lg-radius-alert);
-  border-left: 4px solid var(--lg-alert-accent);
-  background: var(--mat-sys-surface-container-lowest);
-  color: var(--mat-sys-on-surface);
+  background: color-mix(in oklab, var(--lg-alert-accent) 4%, var(--card));
+  color: var(--foreground);
+  font-size: 0.875rem;
   gap: var(--lg-space-3);
+  line-height: 1.25rem;
 
   @if $dense {
     padding: var(--lg-space-2) var(--lg-space-3);
     gap: var(--lg-space-2);
   }
 
-  > mat-icon {
+  > ng-icon {
+    width: 18px;
+    height: 18px;
     flex: none;
+    margin-top: 1px;
     color: var(--lg-alert-accent);
   }
 }

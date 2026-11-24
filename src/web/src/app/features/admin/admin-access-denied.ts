@@ -1,14 +1,14 @@
 import { Component, input } from '@angular/core';
-import { MatButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButton } from '@spartan-ng/helm/button';
 
 /**
 What an admin page shows for 401 (signed out) and 403 (signed in without the admin role).
 */
 @Component({
   selector: 'app-admin-access-denied',
-  imports: [MatButton, MatIcon, RouterLink],
+  imports: [HlmButton, NgIcon, RouterLink],
   templateUrl: './admin-access-denied.html',
   styleUrl: './admin-access-denied.scss',
 })

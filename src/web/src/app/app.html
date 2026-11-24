@@ -4,3 +4,9 @@
   <router-outlet />
 </main>
 <app-footer />
+<!-- Short messages with an action (the cart's "Removed … Undo"): a polite live region. Loaded once
+     the browser is idle, so sonner stays out of the start-up bundle; it is in the page long before
+     anyone can remove a cart line, so the region exists before its first message. -->
+@defer (on idle) {
+  <hlm-toaster [style]="toasterStyle" />
+}

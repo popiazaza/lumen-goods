@@ -1,9 +1,9 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ControlContainer, FormGroupDirective, ReactiveFormsModule } from '@angular/forms';
-import { MatError, MatFormField, MatHint, MatLabel, MatSuffix } from '@angular/material/form-field';
-import { MatInput } from '@angular/material/input';
 import { merge, switchMap } from 'rxjs';
+import { HlmInput } from '@spartan-ng/helm/input';
+import { HlmLabel } from '@spartan-ng/helm/label';
 import { cardBrandName } from '../../../core/api/order.models';
 import {
   caretAfterFormat,
@@ -23,14 +23,19 @@ import type { Signal } from '@angular/core';
  */
 @Component({
   selector: 'app-card-details',
-  imports: [ReactiveFormsModule, MatError, MatFormField, MatHint, MatInput, MatLabel, MatSuffix],
+  imports: [ReactiveFormsModule, HlmInput, HlmLabel],
   templateUrl: './card-details.html',
   styleUrl: './card-details.scss',
-  // The fields join the page's own <form [formGroup]>, so submitting it shows their errors (Material reads
-  // the nearest form directive's submitted state); a second [formGroup] here would never be submitted.
+  // The fields join the page's own <form [formGroup]>, so submitting it shows their errors (`view`
+  // reads that form's submitted state); a second [formGroup] here would never be submitted.
   viewProviders: [{ provide: ControlContainer, useExisting: FormGroupDirective }],
 })
 export class CardDetails {
+  /**
+  The page's form, whose submit shows every field's error.
+  */
+  private readonly formDirective = inject(FormGroupDirective, { optional: true });
+
   /**
    * The latest event of the form or of one of its fields. The page changes the form as well (Pay
    * marks every field touched, the API's errors are set on their fields), and the fields must show
@@ -47,7 +52,8 @@ export class CardDetails {
   readonly serverErrors = input<CardFieldMessages>({});
 
   /**
-  What the fields show: the brand, the CVC's length and each invalid field's message.
+  What the fields show: the brand, the CVC's length and each invalid field's message, shown once
+  the field is left or the form submitted (as Material's form fields did).
   */
   protected readonly view = computed(() => {
     // Read only so this is worked out again on every event of the form or of a field.
@@ -55,10 +61,16 @@ export class CardDetails {
     const form = this.form();
     const brand = detectBrand(digitsOf(form.controls.number.value));
     const cvcDigits = cvcLength(brand);
+    const errors = cardFieldErrors(form, this.serverErrors());
+    const isSubmitted = this.formDirective?.submitted ?? false;
     return {
       brandName: brand && brand !== 'other' ? cardBrandName(brand) : '',
       cvcHint: `${cvcDigits} digits on the ${cvcDigits === 4 ? 'front' : 'back'}`,
-      errors: cardFieldErrors(form, this.serverErrors()),
+      shown: Object.fromEntries(
+        CARD_FIELDS.filter(
+          (field) => errors[field] && (form.controls[field].touched || isSubmitted)
+        ).map((field) => [field, errors[field]])
+      ) as CardFieldMessages,
     };
   });
 

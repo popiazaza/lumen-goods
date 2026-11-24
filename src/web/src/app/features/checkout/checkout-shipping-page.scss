@@ -1,25 +1,24 @@
 .items {
   padding-left: var(--lg-space-6);
   margin: 0 0 var(--lg-space-3);
+  font-size: 0.875rem;
+  list-style: disc;
+
+  & li + li {
+    margin-top: var(--lg-space-1);
+  }
 }
 
-.methods {
-  display: flex;
-  flex-direction: column;
-}
-
+// The fee sits at the end of the option's row.
 .method-fee {
-  margin-left: var(--lg-space-2);
+  margin-left: auto;
 }
 
 .fixed-method {
   margin: 0;
+  font-size: 0.875rem;
 }
 
-// Material sets radio labels a size down; these match the fixed-method lines in the other cards.
-.method-name,
-.method-fee {
-  font-size: var(--mat-sys-body-large-size);
-  letter-spacing: var(--mat-sys-body-large-tracking);
-  line-height: var(--mat-sys-body-large-line-height);
+.intro {
+  margin-bottom: var(--lg-space-4);
 }

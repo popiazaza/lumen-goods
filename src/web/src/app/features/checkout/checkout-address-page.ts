@@ -8,11 +8,12 @@ import {
   ValidatorFn,
   Validators,
 } from '@angular/forms';
-import { MatButton } from '@angular/material/button';
-import { MatError, MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
-import { MatInput } from '@angular/material/input';
 import { Router, RouterLink } from '@angular/router';
 import { EMPTY, catchError, filter, map, switchMap } from 'rxjs';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { HlmInputImports } from '@spartan-ng/helm/input';
+import { HlmLabelImports } from '@spartan-ng/helm/label';
+import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
 import { ShippingAddress } from '../../core/api/order.models';
 import { OrdersApi } from '../../core/api/orders.api';
 import { CheckoutStore } from '../../core/checkout/checkout-store';
@@ -42,6 +43,11 @@ const LABELS: Readonly<Record<AddressField, string>> = {
   region: 'State',
   postalCode: 'ZIP code',
 };
+
+/**
+Whether the field has a hint under it.
+*/
+const hasHint = (field: AddressField): boolean => field === 'line1' || field === 'line2';
 
 const CAPITALISED_WORD = /^[A-Z][a-z]/u;
 
@@ -73,12 +79,10 @@ Checkout step 1 (`/checkout/address`): where to ship, US only.
   imports: [
     ReactiveFormsModule,
     RouterLink,
-    MatButton,
-    MatError,
-    MatFormField,
-    MatHint,
-    MatInput,
-    MatLabel,
+    HlmButtonImports,
+    HlmInputImports,
+    HlmLabelImports,
+    HlmNativeSelectImports,
     CheckoutSteps,
     ErrorSummary,
   ],
@@ -154,6 +158,24 @@ export class CheckoutAddressPage {
         this.prefilled.set(true);
         void this.announcer.announce(this.prefilledText, 'polite');
       });
+  }
+
+  /**
+  A field's error shows once it is left or the form is submitted (which touches every field).
+  */
+  protected shows(field: AddressField): boolean {
+    const control = this.form.controls[field];
+    return control.invalid && control.touched;
+  }
+
+  /**
+  The error when it shows, else the hint (as Material's form field did), for `aria-describedby`.
+  */
+  protected describedBy(field: AddressField): string | null {
+    if (this.shows(field)) {
+      return `address-${field}-error`;
+    }
+    return hasHint(field) ? `address-${field}-hint` : null;
   }
 
   protected errorFor(field: AddressField): string {

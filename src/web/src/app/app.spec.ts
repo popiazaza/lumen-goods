@@ -1,9 +1,7 @@
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MatBadgeHarness } from '@angular/material/badge/testing';
 import { Router, provideRouter } from '@angular/router';
 import { App } from './app';
 import { CartStateService } from './core/cart/cart-state.service';
@@ -55,18 +53,21 @@ describe('App shell', () => {
   });
 
   it('shows the cart signal on the mini-cart badge and in its accessible name', async () => {
-    const badge = await TestbedHarnessEnvironment.loader(fixture).getHarness(MatBadgeHarness);
     const cartLink = query<HTMLAnchorElement>(fixture, 'header a.cart');
+    // The count badge is decoration: the link's name says the same.
+    const badge = () => cartLink.querySelector('[data-slot="badge"]');
 
-    await expect(badge.isHidden()).resolves.toBeTruthy();
+    expect(badge()).toBeNull();
     expect(cartLink.getAttribute('aria-label')).toBe('Cart, empty');
 
     TestBed.inject(CartStateService).reload().subscribe();
     http.expectOne('/api/v1/cart').flush(aCart([aCartLine({ quantity: 3 })]));
     await fixture.whenStable();
 
-    await expect(badge.isHidden()).resolves.toBeFalsy();
-    await expect(badge.getText()).resolves.toBe('3');
+    expect({
+      text: badge()?.textContent?.trim(),
+      hidden: badge()?.getAttribute('aria-hidden'),
+    }).toStrictEqual({ text: '3', hidden: 'true' });
     expect(cartLink.getAttribute('aria-label')).toBe('Cart, 3 items');
   });
 

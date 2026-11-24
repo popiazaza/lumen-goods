@@ -29,18 +29,18 @@ describe('availabilityOf', () => {
   it('pairs every state with an icon and text', () => {
     expect(sellable('in_stock', 12)).toStrictEqual({
       tone: 'available',
-      icon: 'check_circle',
+      icon: 'lucideCircleCheck',
       text: 'In stock',
     });
     expect(sellable('low_stock', 3)).toStrictEqual({
       tone: 'low',
-      icon: 'warning',
+      icon: 'lucideTriangleAlert',
       text: 'Only 3 left',
     });
     expect(sellable('low_stock', null).text).toBe('Low stock');
     expect(sellable('out_of_stock', 0)).toStrictEqual({
       tone: 'out',
-      icon: 'cancel',
+      icon: 'lucideCircleX',
       text: 'Out of stock',
     });
   });
@@ -48,6 +48,6 @@ describe('availabilityOf', () => {
   it('says "Not available" for a product that cannot be bought, whatever its stock', () => {
     expect(
       availabilityOf({ sellable: false, availability: { status: 'in_stock', quantity: null } })
-    ).toStrictEqual({ tone: 'unavailable', icon: 'block', text: 'Not available' });
+    ).toStrictEqual({ tone: 'unavailable', icon: 'lucideBan', text: 'Not available' });
   });
 });

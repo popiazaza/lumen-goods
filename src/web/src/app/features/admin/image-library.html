@@ -12,7 +12,7 @@
         <img alt="" width="96" height="96" loading="lazy" [ngSrc]="image.url" />
         <span>{{ image.file }}</span>
         @if (isChosen) {
-          <span class="picked"><mat-icon svgIcon="check_circle" />Chosen</span>
+          <span class="picked"><ng-icon name="lucideCircleCheck" />Chosen</span>
         }
       </button>
     </li>

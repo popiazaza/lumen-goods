@@ -2,33 +2,33 @@
 
 @if (signedOut()) {
   <div class="state">
-    <mat-icon svgIcon="lock" aria-hidden="true" />
+    <ng-icon name="lucideLock" />
     <h2>Sign in to see your orders</h2>
-    <a matButton="filled" routerLink="/sign-in" [queryParams]="{ returnUrl: '/orders' }">Sign in</a>
+    <a hlmBtn routerLink="/sign-in" [queryParams]="{ returnUrl: '/orders' }">Sign in</a>
   </div>
 } @else if (isError()) {
   <div class="state" role="alert">
-    <mat-icon svgIcon="error" aria-hidden="true" />
+    <ng-icon name="lucideCircleAlert" />
     <h2>We couldn’t load your orders</h2>
     <p>Check your connection and try again.</p>
-    <button matButton="filled" type="button" (click)="orders.reload()">
-      <mat-icon svgIcon="refresh" />
+    <button hlmBtn type="button" (click)="orders.reload()">
+      <ng-icon name="lucideRefreshCw" />
       Retry
     </button>
   </div>
 } @else if (result(); as page) {
   @if (page.totalCount === 0) {
     <div class="state">
-      <mat-icon svgIcon="receipt" aria-hidden="true" />
+      <ng-icon name="lucideReceipt" />
       <h2>No orders yet</h2>
       <p>When you place an order, you can follow every item in it here.</p>
-      <a matButton="filled" routerLink="/">Start shopping</a>
+      <a hlmBtn routerLink="/">Start shopping</a>
     </div>
   } @else {
     <div class="results" [attr.aria-busy]="orders.isLoading()" [class.loading]="orders.isLoading()">
       <h2 #countHeading class="count" tabindex="-1">{{ countText() }}</h2>
       @if (orders.isLoading()) {
-        <mat-progress-bar mode="indeterminate" aria-label="Loading orders" />
+        <hlm-progress aria-label="Loading orders"><hlm-progress-indicator /></hlm-progress>
       }
 
       @if (page.items.length === 0) {
@@ -40,7 +40,7 @@
         <ol class="orders">
           @for (order of page.items; track order.number) {
             <li>
-              <mat-card appearance="outlined" class="order">
+              <article class="order">
                 <div class="order-head">
                   <h3>
                     <a [routerLink]="['/orders', order.number]">Order {{ order.number }}</a>
@@ -77,7 +77,7 @@
                 </dl>
                 @if (order.awaitingOneTimeCode) {
                   <a
-                    matButton="filled"
+                    hlmBtn
                     class="pay"
                     routerLink="/checkout/payment"
                     [queryParams]="{ order: order.number }"
@@ -87,7 +87,7 @@
                   >
                 } @else if (order.canPay) {
                   <a
-                    matButton="filled"
+                    hlmBtn
                     class="pay"
                     routerLink="/checkout/payment"
                     [queryParams]="{ order: order.number }"
@@ -96,7 +96,7 @@
                     ></a
                   >
                 }
-              </mat-card>
+              </article>
             </li>
           }
         </ol>
@@ -105,16 +105,16 @@
       @if (page.totalPages > 1) {
         <nav aria-label="Order pages" class="pager">
           @if (page.page > 1) {
-            <a matButton routerLink="." [queryParams]="pageParams(page.page - 1)">
-              <mat-icon svgIcon="chevron_left" />
+            <a hlmBtn variant="outline" routerLink="." [queryParams]="pageParams(page.page - 1)">
+              <ng-icon name="lucideChevronLeft" />
               Previous
             </a>
           }
           <span class="position">Page {{ page.page }} of {{ page.totalPages }}</span>
           @if (page.page < page.totalPages) {
-            <a matButton routerLink="." [queryParams]="pageParams(page.page + 1)">
+            <a hlmBtn variant="outline" routerLink="." [queryParams]="pageParams(page.page + 1)">
               Next
-              <mat-icon svgIcon="chevron_right" iconPositionEnd />
+              <ng-icon name="lucideChevronRight" />
             </a>
           }
         </nav>
@@ -123,7 +123,7 @@
   }
 } @else {
   <div class="page-loading" role="status">
-    <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+    <hlm-progress aria-hidden="true"><hlm-progress-indicator /></hlm-progress>
     <p>Loading your orders…</p>
   </div>
 }

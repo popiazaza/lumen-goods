@@ -2,13 +2,12 @@ import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
-import { MatCard } from '@angular/material/card';
-import { MatDialog } from '@angular/material/dialog';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
 import { switchMap, tap } from 'rxjs';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import {
   AdminOrder,
   AdminOrdersApi,
@@ -23,7 +22,7 @@ import {
   problemMessage,
   problemTypeOf,
 } from '../../core/api/problem-details';
-import { registerOrderIcons } from '../orders/order-icons';
+import { provideOrderIcons } from '../orders/order-icons';
 import { StatusView, lineStatusView, orderStatusView, shippingLabel } from '../orders/order-labels';
 import { OrderSummaryPanel } from '../orders/order-summary-panel';
 import { isOrderStillChanging, pollWhileUpdating } from '../orders/poll-while-updating';
@@ -56,10 +55,9 @@ const lineStatusOf = (line: OrderLineDto): StatusView =>
     CurrencyPipe,
     DatePipe,
     RouterLink,
-    MatButton,
-    MatCard,
-    MatIcon,
-    MatProgressBar,
+    NgIcon,
+    HlmButton,
+    HlmProgressImports,
     AdminAccessDenied,
     OrderSummaryPanel,
     PartnerOrderDetails,
@@ -67,11 +65,12 @@ const lineStatusOf = (line: OrderLineDto): StatusView =>
   ],
   templateUrl: './admin-order-detail-page.html',
   styleUrl: './admin-order-detail-page.scss',
+  providers: [provideOrderIcons()],
 })
 export class AdminOrderDetailPage {
   private readonly api = inject(AdminOrdersApi);
 
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HlmDialogService);
 
   private readonly announcer = inject(LiveAnnouncer);
 
@@ -131,10 +130,6 @@ export class AdminOrderDetailPage {
   protected readonly orderStatus = orderStatusOf;
 
   protected readonly lineStatus = lineStatusOf;
-
-  constructor() {
-    registerOrderIcons();
-  }
 
   /**
    * Shows the order the decision answered with. Setting it stops the resource's stream, so if a

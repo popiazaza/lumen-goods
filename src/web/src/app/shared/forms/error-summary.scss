@@ -16,12 +16,15 @@
   display: flex;
   align-items: center;
   margin: 0 0 var(--lg-space-2);
-  color: var(--mat-sys-on-surface);
-  font: var(--mat-sys-title-medium);
-  font-weight: 700;
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 600;
   gap: var(--lg-space-2);
+  line-height: 1.5rem;
 
-  & mat-icon {
+  & ng-icon {
+    width: 18px;
+    height: 18px;
     flex: none;
     color: var(--lg-alert-accent);
   }
@@ -30,9 +33,10 @@
 ul {
   padding-left: var(--lg-space-6);
   margin: 0;
+  list-style: disc;
 }
 
 a {
-  color: var(--mat-sys-error);
+  color: var(--destructive);
   font-weight: 500;
 }

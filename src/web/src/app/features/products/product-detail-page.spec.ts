@@ -18,7 +18,7 @@ import { ProductDetailPage } from './product-detail-page';
 class StubPage {}
 
 /**
-At a limit the quantity buttons stay focusable and say they are disabled (disabledInteractive).
+At a limit the quantity buttons stay focusable and say they are disabled (aria-disabled).
 */
 const isDisabled = (button: HTMLButtonElement) =>
   !button.disabled && button.getAttribute('aria-disabled') === 'true';
@@ -205,7 +205,7 @@ describe('ProductDetailPage', () => {
     expect({
       value: quantityInput().value,
       decreaseDisabled: isDisabled(byLabel('Decrease quantity')),
-      hint: text('mat-hint'),
+      hint: text('.hint'),
     }).toStrictEqual({ value: '1', decreaseDisabled: true, hint: '3 available' });
 
     byLabel('Decrease quantity').focus();
@@ -254,7 +254,7 @@ describe('ProductDetailPage', () => {
     await typeQuantity('99');
 
     expect(quantityInput().value).toBe('10');
-    expect(text('mat-hint')).toBe('Up to 10 at a time');
+    expect(text('.hint')).toBe('Up to 10 at a time');
   });
 
   it.each([

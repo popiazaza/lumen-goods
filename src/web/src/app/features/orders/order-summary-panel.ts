@@ -1,7 +1,6 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
-import { MatCard } from '@angular/material/card';
-import { MatIcon } from '@angular/material/icon';
+import { NgIcon } from '@ng-icons/core';
 import { OrderDetailDto, OrderStatus, RefundDto } from '../../core/api/order.models';
 import { addressLines } from '../checkout/us-address';
 import { paymentMethodLabel, paymentStatusView, refundStatusView } from './order-labels';
@@ -31,7 +30,7 @@ const NOT_CHARGED: ReadonlySet<OrderStatus> = /* @__PURE__ */ new Set([
  */
 @Component({
   selector: 'app-order-summary-panel',
-  imports: [CurrencyPipe, DatePipe, MatCard, MatIcon, StatusBadge],
+  imports: [CurrencyPipe, DatePipe, NgIcon, StatusBadge],
   templateUrl: './order-summary-panel.html',
   styleUrl: './order-summary-panel.scss',
 })

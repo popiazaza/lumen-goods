@@ -8,9 +8,12 @@
 }
 
 h2 {
-  margin: var(--lg-space-6) 0 var(--lg-space-3);
-  font: var(--mat-sys-title-large);
+  margin: var(--lg-space-8) 0 var(--lg-space-3);
+  color: var(--foreground);
   font-family: var(--lg-font-heading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
 }
 
 p {
@@ -18,8 +21,9 @@ p {
 }
 
 .muted {
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-medium);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 // The app's alert boxes (styles/_alert.scss): success once paid, info while it waits.
@@ -42,40 +46,50 @@ p {
 
 .number {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .next {
   padding-left: var(--lg-space-6);
   margin: 0 0 var(--lg-space-2);
+  list-style: disc;
 
   & li + li {
     margin-top: var(--lg-space-2);
   }
 }
 
-.group {
+// One seller's items: a card, like the checkout's.
+.shipment {
   padding: var(--lg-space-4);
-  border: 1px solid var(--mat-sys-outline-variant);
+  border: 1px solid var(--border);
   border-radius: var(--lg-radius-card);
   margin: 0 0 var(--lg-space-4);
+  background: var(--card);
+  box-shadow: var(--lg-shadow-card);
 }
 
 .group-head {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
   margin: 0 0 var(--lg-space-2);
   gap: var(--lg-space-1) var(--lg-space-3);
 
   & h3 {
     margin: 0;
-    font: var(--mat-sys-title-medium);
+    color: var(--foreground);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.5rem;
   }
 }
 
 .lines {
   padding: 0;
   margin: 0;
+  font-size: 0.875rem;
   list-style: none;
 
   & li {
@@ -86,7 +100,7 @@ p {
   }
 
   & li + li {
-    border-top: 1px solid var(--mat-sys-outline-variant);
+    border-top: 1px solid var(--border);
   }
 
   & .name {
@@ -97,26 +111,28 @@ p {
 .status {
   display: inline-flex;
   align-items: center;
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-label-large);
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
   gap: var(--lg-space-1);
 
-  & mat-icon {
-    width: 18px;
-    height: 18px;
+  & ng-icon {
+    width: 14px;
+    height: 14px;
   }
 
   // data-status holds the API's line status (snake_case), so it is an attribute, not a class.
   &[data-status='confirmed'] {
-    color: var(--lg-status-success);
+    color: var(--success);
   }
 
   &[data-status='needs_attention'] {
-    color: var(--lg-status-warning);
+    color: var(--warning);
   }
 
   &[data-status='rejected'] {
-    color: var(--mat-sys-error);
+    color: var(--destructive);
   }
 }
 
@@ -125,6 +141,11 @@ p {
 
   max-width: 24rem;
   margin: 0 0 var(--lg-space-3);
+  font-size: 0.875rem;
+
+  & dt:not(.grand) {
+    color: var(--muted-foreground);
+  }
 }
 
 .actions {
@@ -132,4 +153,22 @@ p {
   flex-wrap: wrap;
   margin-top: var(--lg-space-6);
   gap: var(--lg-space-3);
+
+  @media (width < 640px) {
+    & [data-slot='button'] {
+      flex: 1 1 100%;
+    }
+  }
+}
+
+.error {
+  @include alert.alert(error);
+
+  flex-wrap: wrap;
+  align-items: center;
+
+  & p {
+    flex: 1 1 16rem;
+    margin: 0;
+  }
 }

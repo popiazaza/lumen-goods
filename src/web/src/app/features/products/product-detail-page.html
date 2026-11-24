@@ -51,53 +51,56 @@
       <app-availability-badge [product]="product" />
 
       <form class="buy-form" [formGroup]="buyForm" (ngSubmit)="addToCart()">
-        <mat-form-field class="quantity" appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Quantity</mat-label>
-          <button
-            matIconButton
-            matIconPrefix
-            type="button"
-            aria-label="Decrease quantity"
-            disabledInteractive
-            [disabled]="!canBuy() || quantity() <= 1"
-            (click)="step(-1, $event)"
-          >
-            <mat-icon svgIcon="remove" />
-          </button>
-          <input
-            matInput
-            type="number"
-            inputmode="numeric"
-            min="1"
-            formControlName="quantity"
-            [max]="maxQuantity()"
-            (blur)="normaliseQuantity()"
-          />
-          <button
-            matIconButton
-            matIconSuffix
-            type="button"
-            aria-label="Increase quantity"
-            disabledInteractive
-            [disabled]="!canBuy() || quantity() >= maxQuantity()"
-            (click)="step(1, $event)"
-          >
-            <mat-icon svgIcon="add" />
-          </button>
+        <div class="quantity">
+          <label hlmLabel for="quantity">Quantity</label>
+          <div class="stepper" [class.disabled]="!canBuy()">
+            <button
+              hlmBtn
+              variant="ghost"
+              size="icon"
+              type="button"
+              aria-label="Decrease quantity"
+              [attr.aria-disabled]="!canBuy() || quantity() <= 1"
+              (click)="step(-1)"
+            >
+              <ng-icon name="lucideMinus" />
+            </button>
+            <input
+              id="quantity"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              formControlName="quantity"
+              [max]="maxQuantity()"
+              [attr.aria-describedby]="canBuy() ? 'quantity-hint' : null"
+              (blur)="normaliseQuantity()"
+            />
+            <button
+              hlmBtn
+              variant="ghost"
+              size="icon"
+              type="button"
+              aria-label="Increase quantity"
+              [attr.aria-disabled]="!canBuy() || quantity() >= maxQuantity()"
+              (click)="step(1)"
+            >
+              <ng-icon name="lucidePlus" />
+            </button>
+          </div>
           @if (canBuy()) {
-            <mat-hint>{{ quantityHint() }}</mat-hint>
+            <p id="quantity-hint" class="hint">{{ quantityHint() }}</p>
           }
-        </mat-form-field>
+        </div>
 
         <button
-          matButton="filled"
+          hlmBtn
+          size="lg"
           type="submit"
           class="add"
-          disabledInteractive
-          [disabled]="!canBuy() || adding()"
+          [attr.aria-disabled]="!canBuy() || adding()"
           [attr.aria-describedby]="canBuy() ? null : 'buy-note'"
         >
-          <mat-icon svgIcon="cart" />
+          <ng-icon name="lucideShoppingCart" />
           {{ adding() ? 'Adding…' : 'Add to cart' }}
         </button>
       </form>
@@ -107,13 +110,13 @@
       }
       @if (addError()) {
         <p class="add-error" role="alert">
-          <mat-icon svgIcon="error" aria-hidden="true" />
+          <ng-icon name="lucideCircleAlert" />
           <span>{{ addError() }}</span>
         </p>
       }
       @if (addedMessage()) {
         <p class="added">
-          <mat-icon svgIcon="check_circle" aria-hidden="true" />
+          <ng-icon name="lucideCircleCheck" />
           <span>{{ addedMessage() }}</span>
           <a routerLink="/cart">View cart</a>
         </p>
@@ -133,7 +136,7 @@
         @if (descriptionIsHtml()) {
           <!-- Sanitised on the server (A-21); Angular's sanitiser runs again here. -->
           <div
-            class="description"
+            class="description rich-text"
             [class.plain]="descriptionHasNoTags()"
             [innerHTML]="product.description"
           ></div>
@@ -158,26 +161,26 @@
     </div>
   } @else if (isNotFound()) {
     <div class="state">
-      <mat-icon svgIcon="search" aria-hidden="true" />
+      <ng-icon name="lucideSearch" />
       <p>This product isn’t in the shop, or the link is mistyped.</p>
-      <a matButton="filled" routerLink="/" [queryParams]="lastQuery.params()">Back to the shop</a>
+      <a hlmBtn routerLink="/" [queryParams]="lastQuery.params()">Back to the shop</a>
     </div>
   } @else if (isError()) {
     <div class="state" role="alert">
-      <mat-icon svgIcon="error" aria-hidden="true" />
+      <ng-icon name="lucideCircleAlert" />
       <p>We couldn’t load this product. Check your connection and try again.</p>
-      <button matButton="filled" type="button" (click)="product.reload()">
-        <mat-icon svgIcon="refresh" />
+      <button hlmBtn type="button" (click)="product.reload()">
+        <ng-icon name="lucideRefreshCw" />
         Retry
       </button>
     </div>
   } @else {
     <div class="skeleton" aria-hidden="true">
-      <div class="skeleton-image"></div>
+      <hlm-skeleton class="skeleton-image" />
       <div class="skeleton-text">
-        <div class="skeleton-line wide"></div>
-        <div class="skeleton-line"></div>
-        <div class="skeleton-line short"></div>
+        <hlm-skeleton class="skeleton-line wide" />
+        <hlm-skeleton class="skeleton-line" />
+        <hlm-skeleton class="skeleton-line short" />
       </div>
     </div>
   }

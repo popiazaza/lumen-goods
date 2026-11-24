@@ -47,7 +47,7 @@ describe('OrderListPage', () => {
   let http: HttpTestingController;
 
   const host = () => harness.routeNativeElement as HTMLElement;
-  const cards = () => [...host().querySelectorAll<HTMLElement>(':scope .orders mat-card')];
+  const cards = () => [...host().querySelectorAll<HTMLElement>(':scope .orders .order')];
   const pager = () => [
     ...[...host().querySelectorAll(':scope .pager a')].map((link) => link.textContent?.trim()),
     text(host(), '.pager .position'),
@@ -118,14 +118,12 @@ describe('OrderListPage', () => {
     });
     expect({
       status: text(second, 'app-status-badge'),
-      statusIcon: second
-        .querySelector(':scope app-status-badge mat-icon')
-        ?.getAttribute('data-mat-icon-name'),
+      statusIcon: second.querySelector<HTMLElement>(':scope app-status-badge')?.dataset['icon'],
       refund: text(second, '.refunded dd'),
       shops: text(second, '.sellers dd'),
     }).toStrictEqual({
       status: 'Partially refunded',
-      statusIcon: 'undo',
+      statusIcon: 'lucideUndo2',
       refund: '$40.03',
       shops: 'Harbor Supply Co., Kestrel Outfitters',
     });

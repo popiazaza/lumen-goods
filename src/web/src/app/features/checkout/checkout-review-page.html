@@ -5,7 +5,7 @@
 
 @if (changed(); as changed) {
   <div #changesBanner class="banner warning changed" role="alert" tabindex="-1">
-    <mat-icon svgIcon="warning" aria-hidden="true" />
+    <ng-icon name="lucideTriangleAlert" />
     <div>
       <p class="banner-title">
         <strong>{{ changed.title || 'Your order changed' }}</strong>
@@ -43,7 +43,7 @@
         </p>
         <div class="actions">
           <button
-            matButton="filled"
+            hlmBtn
             type="button"
             class="confirm"
             [attr.aria-disabled]="placing()"
@@ -51,15 +51,15 @@
           >
             {{ placing() ? 'Placing your order…' : 'Accept new total and place order' }}
           </button>
-          <a matButton="outlined" routerLink="/cart">Go back to cart</a>
+          <a hlmBtn variant="outline" routerLink="/cart">Go back to cart</a>
         </div>
       } @else if (needsReview()) {
         <p>Your cart changed since you reviewed it. Check the updated order before placing it.</p>
         <div class="actions">
-          <button matButton="filled" type="button" class="review-again" (click)="reviewAgain()">
+          <button hlmBtn type="button" class="review-again" (click)="reviewAgain()">
             Review the updated order
           </button>
-          <a matButton="outlined" routerLink="/cart">Go to cart</a>
+          <a hlmBtn variant="outline" routerLink="/cart">Go to cart</a>
         </div>
       } @else {
         <p>
@@ -67,8 +67,14 @@
           only slow to answer, you can review it again now.
         </p>
         <div class="actions">
-          <a matButton="filled" routerLink="/cart">Go to cart</a>
-          <button matButton="outlined" type="button" class="review-again" (click)="reviewAgain()">
+          <a hlmBtn routerLink="/cart">Go to cart</a>
+          <button
+            hlmBtn
+            variant="outline"
+            type="button"
+            class="review-again"
+            (click)="reviewAgain()"
+          >
             Review again
           </button>
         </div>
@@ -97,7 +103,7 @@
 @if (loaded(); as preview) {
   @if (preview.blockers.length > 0) {
     <div class="banner error" role="alert">
-      <mat-icon svgIcon="block" aria-hidden="true" />
+      <ng-icon name="lucideBan" />
       <div>
         <p><strong>Some items can’t be ordered right now</strong></p>
         <ul class="changes">
@@ -105,18 +111,18 @@
             <li>{{ blocker.name }} ({{ blocker.sellerName }}): {{ blocker.message }}</li>
           }
         </ul>
-        <a matButton="outlined" routerLink="/cart">Update your cart</a>
+        <a hlmBtn variant="outline" routerLink="/cart">Update your cart</a>
       </div>
     </div>
   }
 
   <h2>Items</h2>
   @for (shipment of preview.shipments; track shipment.source) {
-    <section class="group" [attr.aria-label]="`Sold by ${shipment.sellerName}`">
+    <section class="shipment" [attr.aria-label]="`Sold by ${shipment.sellerName}`">
       <div class="group-head">
         <h3>Sold by {{ shipment.sellerName }}</h3>
         <span class="ships">
-          <mat-icon svgIcon="local_shipping" aria-hidden="true" />
+          <ng-icon name="lucideTruck" />
           Ships separately
         </span>
       </div>
@@ -160,7 +166,7 @@
 
   @if (placeError()) {
     <div class="banner error place-error" role="alert">
-      <mat-icon svgIcon="error" aria-hidden="true" />
+      <ng-icon name="lucideCircleAlert" />
       <div>
         <p>{{ placeError() }}</p>
         @if (addressErrors().length > 0) {
@@ -169,7 +175,7 @@
               <li>{{ message }}</li>
             }
           </ul>
-          <a matButton="outlined" routerLink="/checkout/address">Change shipping address</a>
+          <a hlmBtn variant="outline" routerLink="/checkout/address">Change shipping address</a>
         }
       </div>
     </div>
@@ -178,18 +184,18 @@
   @if (!changed()) {
     <div class="actions">
       <button
-        matButton="filled"
+        hlmBtn
+        size="lg"
         type="button"
         class="place"
-        disabledInteractive
-        [disabled]="blocked() || placing() || preview.shipments.length === 0"
+        [attr.aria-disabled]="blocked() || placing() || preview.shipments.length === 0"
         [attr.aria-describedby]="blocked() ? 'place-blocked' : 'place-note'"
         (click)="placeOrder()"
       >
-        <mat-icon svgIcon="lock" />
+        <ng-icon name="lucideLock" />
         {{ placing() ? 'Placing your order…' : 'Place order' }}
       </button>
-      <a matButton routerLink="/checkout/shipping">Back</a>
+      <a hlmBtn variant="ghost" size="lg" routerLink="/checkout/shipping">Back</a>
     </div>
     @if (blocked()) {
       <p id="place-blocked" class="muted">Update your cart before placing the order.</p>
@@ -202,22 +208,22 @@
   }
 } @else if (preview.status() === 'error') {
   <div class="banner error" role="alert">
-    <mat-icon svgIcon="error" aria-hidden="true" />
+    <ng-icon name="lucideCircleAlert" />
     @if (methodRefused()) {
       <div>
         <p>{{ previewError() }}</p>
-        <a matButton="filled" routerLink="/checkout/shipping">Choose a shipping method</a>
+        <a hlmBtn routerLink="/checkout/shipping">Choose a shipping method</a>
       </div>
     } @else {
       <div>
         <p>{{ previewError() }}</p>
-        <button matButton="outlined" type="button" (click)="preview.reload()">Retry</button>
+        <button hlmBtn variant="outline" type="button" (click)="preview.reload()">Retry</button>
       </div>
     }
   </div>
 } @else {
   <div class="page-loading" role="status">
-    <mat-progress-bar mode="indeterminate" aria-hidden="true" />
+    <hlm-progress aria-hidden="true"><hlm-progress-indicator /></hlm-progress>
     <p>Loading your order summary…</p>
   </div>
 }

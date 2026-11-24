@@ -29,7 +29,8 @@ test.describe('catalogue', () => {
       const sellers = page.getByRole('main').getByText(/^Sold by /u);
 
       await page.goto('/');
-      await expect(page.getByRole('combobox', { name: 'Sort by' })).toHaveText(/Featured/u);
+      // A native select: its value is the chosen option (its text would list every option).
+      await expect(page.getByRole('combobox', { name: 'Sort by' })).toHaveValue('featured');
       // Not whichever partner synced last, as a "newest" first page would be.
       await expect
         .poll(async () => {
@@ -68,14 +69,15 @@ test.describe('catalogue', () => {
       await expect(page).toHaveURL('/?q=with');
 
       await inFilters(page, isMobile, async (panel) => {
-        await panel.getByRole('checkbox', { name: SHOPS.harbor }).check();
+        // spartan's checkbox is a role="checkbox" button whose aria-checked follows on the next
+        // render, after check() has already looked; so click it, and the URL shows it took.
+        await panel.getByRole('checkbox', { name: SHOPS.harbor }).click();
         await expect(page).toHaveURL('/?q=with&seller=harbor');
-        await panel.getByRole('checkbox', { name: SHOPS.kestrel }).check();
+        await panel.getByRole('checkbox', { name: SHOPS.kestrel }).click();
         await expect(page).toHaveURL('/?q=with&seller=harbor&seller=kestrel');
       });
 
-      await sort.click();
-      await page.getByRole('option', { name: 'Price: low to high' }).click();
+      await sort.selectOption({ label: 'Price: low to high' });
       await expect(page).toHaveURL('/?q=with&seller=harbor&seller=kestrel&sort=price_asc');
 
       await linkToPage2.click();
@@ -88,7 +90,7 @@ test.describe('catalogue', () => {
       await page.reload();
       await expect(productNames).toHaveText(names);
       await expect(partnerShopNames).toHaveCount(names.length);
-      await expect(sort).toHaveText(/Price: low to high/u);
+      await expect(sort).toHaveValue('price_asc');
       await expect(linkToPage2).toHaveAttribute('aria-current', 'page');
     }
   );

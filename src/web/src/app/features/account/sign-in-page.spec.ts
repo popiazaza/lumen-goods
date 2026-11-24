@@ -225,7 +225,7 @@ describe('Sign in and register', () => {
     );
     await harness.fixture.whenStable();
 
-    expect(text('mat-error')).toBe(
+    expect(text('.field-error')).toBe(
       'There is already an account with this email address. Sign in instead.'
     );
     expect(text('app-error-summary li')).toBe(
@@ -244,7 +244,7 @@ describe('Sign in and register', () => {
   it('states the password rules in the hint', async () => {
     await harness.navigateByUrl('/register');
 
-    expect(text('mat-hint')).toBe(
+    expect(text('.hint')).toBe(
       'At least 8 characters, with an upper-case letter, a lower-case letter, a number and a symbol'
     );
   });

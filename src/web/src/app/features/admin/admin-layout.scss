@@ -2,6 +2,49 @@
   display: block;
 }
 
+// The admin sections as a segmented control, like shadcn/ui's tabs list: a muted track with the
+// current section raised on a white chip. They are links (`aria-current="page"`), not ARIA tabs:
+// each one loads its own page.
 .sections {
   margin-bottom: var(--lg-space-6);
+
+  & ul {
+    display: inline-flex;
+    max-width: 100%;
+    padding: 3px;
+    border-radius: var(--radius);
+    margin: 0;
+    background: var(--muted);
+    gap: 2px;
+    list-style: none;
+  }
+
+  & a {
+    display: inline-flex;
+    min-height: 32px;
+    align-items: center;
+    padding: 0 var(--lg-space-3);
+    border-radius: calc(var(--radius) - 2px);
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+
+    @media (width < 640px) {
+      min-height: 40px;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+
+    &.active {
+      background: var(--background);
+      box-shadow: var(--lg-shadow-card);
+      color: var(--foreground);
+    }
+  }
 }
