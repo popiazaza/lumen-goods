@@ -35,6 +35,7 @@ import type { ClassValue } from 'cn';
       [id]="inputId()"
       [class]="_computedClass()"
       [value]="value()"
+      [inputStyles]="_inputStyles"
       [required]="required()"
       [disabled]="disabled()"
       [attr.aria-invalid]="_groupSpartanInvalid() ? 'true' : null"
@@ -80,6 +81,12 @@ export class HlmRadio<T = unknown> {
       this._errorStateClass()
     )
   );
+
+  // Lumen: the real radio input lies over the indicator, transparent, instead of brain's 1px
+  // clipped default, so a pointer (and Playwright's check()) hits the input itself, as with a
+  // native radio. Screen readers and keyboards see the same input either way.
+  protected readonly _inputStyles =
+    'position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit;';
 
   /** Used to set the id on the underlying brn element. */
   public readonly inputId = input<string | undefined>(undefined);
