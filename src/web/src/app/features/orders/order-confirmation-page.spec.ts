@@ -90,7 +90,7 @@ describe('OrderConfirmationPage', () => {
       number: 'LG-7K3M9QX2',
       payment: 'Paid by Visa ending 1111: $67.46',
     });
-    expect(all('section.group h3')).toStrictEqual([
+    expect(all('section.shipment h3')).toStrictEqual([
       'Sold by Lumen Goods',
       'Sold by Kestrel Outfitters',
     ]);

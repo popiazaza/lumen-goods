@@ -201,3 +201,13 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Windows High Contrast (forced colours) drops box-shadows, which draw the helm controls' focus ring:
+   give every focused element a real outline there instead (WCAG 2.4.7). Unlayered, so it wins over Tailwind's
+   outline-none in the helm components. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid CanvasText !important;
+    outline-offset: 2px;
+  }
+}

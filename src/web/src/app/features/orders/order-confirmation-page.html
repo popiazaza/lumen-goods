@@ -73,7 +73,7 @@
   <section aria-labelledby="items-heading">
     <h2 id="items-heading">Items</h2>
     @for (shipment of order.shipments; track shipment.source) {
-      <section class="group" [attr.aria-label]="`Sold by ${shipment.sellerName}`">
+      <section class="shipment" [attr.aria-label]="`Sold by ${shipment.sellerName}`">
         <div class="group-head">
           <h3>Sold by {{ shipment.sellerName }}</h3>
           <span class="muted">

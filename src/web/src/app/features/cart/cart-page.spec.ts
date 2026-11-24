@@ -154,7 +154,7 @@ describe('CartPage', () => {
   it('groups lines by seller, each shipping separately, with estimated totals', async () => {
     await open(aCart([KESTREL_SOCKS, LUMEN_MUG]));
 
-    const groups = [...host().querySelectorAll('section.group')];
+    const groups = [...host().querySelectorAll('section.shipment')];
 
     expect(groups.map((group) => text(group, 'h2'))).toStrictEqual([
       'Sold by Kestrel Outfitters',

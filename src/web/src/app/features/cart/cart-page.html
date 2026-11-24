@@ -63,7 +63,7 @@
     <div class="layout">
       <div class="lines">
         @for (group of groups(); track group.source) {
-          <section class="group" [attr.aria-labelledby]="`seller-${group.source}`">
+          <section class="shipment" [attr.aria-labelledby]="`seller-${group.source}`">
             <div class="group-head">
               <h2 [id]="`seller-${group.source}`">Sold by {{ group.sellerName }}</h2>
               <span class="ships">

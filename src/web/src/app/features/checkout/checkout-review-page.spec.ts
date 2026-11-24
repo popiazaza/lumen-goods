@@ -114,7 +114,7 @@ describe('CheckoutReviewPage', () => {
       'Ada Lovelace, 1200 NW Naito Pkwy, Portland, Oregon 97209, United States'
     );
     expect(
-      [...host().querySelectorAll(':scope section.group h3')].map((h) => h.textContent?.trim())
+      [...host().querySelectorAll(':scope section.shipment h3')].map((h) => h.textContent?.trim())
     ).toStrictEqual(['Sold by Lumen Goods', 'Sold by Kestrel Outfitters']);
     expect(text('.review-total')).toBe('$67.46');
   });

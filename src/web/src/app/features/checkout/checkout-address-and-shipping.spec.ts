@@ -260,7 +260,7 @@ describe('Checkout address and shipping steps', () => {
       http.expectOne('/api/v1/checkout/preview?shippingMethod=standard').flush(aPreview());
       await harness.fixture.whenStable();
 
-      const groups = host().querySelectorAll<HTMLElement>('section.group');
+      const groups = host().querySelectorAll<HTMLElement>('section.shipment');
       const own = itemAt(groups, 0);
       const partner = itemAt(groups, 1);
 
@@ -269,7 +269,7 @@ describe('Checkout address and shipping steps', () => {
           input.closest('label')?.textContent?.replaceAll(/\s+/gu, ' ').trim()
         )
       ).toStrictEqual(['Standard, $4.99', 'Express, $12.99']);
-      expect(text('section.group:first-of-type .methods')).toContain('Express');
+      expect(text('section.shipment:first-of-type .methods')).toContain('Express');
       expect(partner.querySelector('input[type="radio"]')).toBeNull();
       expect(
         partner.querySelector('.fixed-method')?.textContent?.replaceAll(/\s+/gu, ' ').trim()

@@ -237,8 +237,8 @@ Once per clone, `git config core.hooksPath .githooks` adds the Conventional Comm
 
 Licences mattered: every library above, and every package the API and web app ship, is open source under a permissive licence (MIT, Apache 2.0, BSD, MS-PL or the
 PostgreSQL licence; the fonts under the SIL Open Font License). MediatR, AutoMapper, MassTransit and FluentAssertions are left out because they moved to
-commercial licences; handlers and mapping are written by hand. On the web side: spartan/ui, Tailwind CSS, ng-icons, class-variance-authority and cn
-are MIT; the Lucide icons are ISC (with the Feather icons they started from under MIT).
+commercial licences; handlers and mapping are written by hand. On the web side: spartan/ui, Tailwind CSS, ng-icons and cn
+are MIT, class-variance-authority is Apache 2.0; the Lucide icons are ISC (with the Feather icons they started from under MIT).
 
 ## Exact versions
 

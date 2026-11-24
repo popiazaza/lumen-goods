@@ -11,7 +11,7 @@
     </p>
 
     @for (shipment of preview.shipments; track shipment.source) {
-      <section class="group" [attr.aria-labelledby]="`ship-${shipment.source}`">
+      <section class="shipment" [attr.aria-labelledby]="`ship-${shipment.source}`">
         <div class="group-head">
           <h2 class="cdk-visually-hidden" [id]="`ship-${shipment.source}`">
             Shipment from {{ shipment.sellerName }}

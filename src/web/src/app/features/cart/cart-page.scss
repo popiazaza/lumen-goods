@@ -88,7 +88,7 @@
 }
 
 // One seller's lines, and the summary: cards.
-.group,
+.shipment,
 .summary {
   border: 1px solid var(--border);
   border-radius: var(--lg-radius-card);
@@ -107,7 +107,7 @@
   line-height: 1.75rem;
 }
 
-.group {
+.shipment {
   padding: var(--lg-space-4);
   margin: 0 0 var(--lg-space-4);
 
