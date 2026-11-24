@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
-import { MatIcon } from '@angular/material/icon';
+import { NgIcon } from '@ng-icons/core';
 import { PartnerOrder } from '../../core/api/admin-orders.api';
 import { StatusBadge } from '../orders/status-badge';
 import { partnerOrderView } from './admin-order-labels';
@@ -11,7 +11,7 @@ import { partnerOrderView } from './admin-order-labels';
  */
 @Component({
   selector: 'app-partner-order-details',
-  imports: [DatePipe, MatIcon, StatusBadge],
+  imports: [DatePipe, NgIcon, StatusBadge],
   templateUrl: './partner-order-details.html',
   styleUrl: './partner-order-details.scss',
 })

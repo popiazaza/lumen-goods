@@ -3,29 +3,16 @@ import { CurrencyPipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, linkedSignal, signal } from '@angular/core';
 import { rxResource, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { MatButton } from '@angular/material/button';
-import { MatOption } from '@angular/material/core';
-import { MatDialog } from '@angular/material/dialog';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatIcon } from '@angular/material/icon';
-import { MatInput } from '@angular/material/input';
-import { MatPaginator, PageEvent } from '@angular/material/paginator';
-import { MatProgressBar } from '@angular/material/progress-bar';
-import { MatSelect } from '@angular/material/select';
-import {
-  MatCell,
-  MatCellDef,
-  MatColumnDef,
-  MatHeaderCell,
-  MatHeaderCellDef,
-  MatHeaderRow,
-  MatHeaderRowDef,
-  MatRow,
-  MatRowDef,
-  MatTable,
-} from '@angular/material/table';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
 import { switchMap, tap } from 'rxjs';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmDialogService } from '@spartan-ng/helm/dialog';
+import { HlmInput } from '@spartan-ng/helm/input';
+import { HlmLabel } from '@spartan-ng/helm/label';
+import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
+import { HlmTableImports } from '@spartan-ng/helm/table';
 import {
   AdminProduct,
   AdminProductsApi,
@@ -35,10 +22,11 @@ import { PagedResult } from '../../core/api/paged-result';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
 import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
 import { categoryLabel } from '../../shared/products/product-labels';
-import { registerOrderIcons } from '../orders/order-icons';
+import { provideOrderIcons } from '../orders/order-icons';
 import { StatusView } from '../orders/order-labels';
 import { StatusBadge } from '../orders/status-badge';
 import { AdminAccessDenied } from './admin-access-denied';
+import { AdminPageChange, AdminPaginator } from './admin-paginator';
 import {
   ADMIN_PAGE_SIZES,
   AdminProductsQuery,
@@ -49,8 +37,8 @@ import {
 } from './admin-list-query';
 import { openConfirmDialog } from './confirm-dialog';
 
-const ACTIVE: StatusView = { tone: 'success', icon: 'visibility', text: 'Active' };
-const INACTIVE: StatusView = { tone: 'neutral', icon: 'visibility_off', text: 'Inactive' };
+const ACTIVE: StatusView = { tone: 'success', icon: 'lucideEye', text: 'Active' };
+const INACTIVE: StatusView = { tone: 'neutral', icon: 'lucideEyeOff', text: 'Inactive' };
 
 const toCategoryOption = (value: ProductCategory) => ({ value, label: categoryLabel(value) });
 
@@ -66,30 +54,20 @@ Admin: Lumen Goods' own products (`/admin/products`), searchable and filterable 
     CurrencyPipe,
     ReactiveFormsModule,
     RouterLink,
-    MatButton,
-    MatCell,
-    MatCellDef,
-    MatColumnDef,
-    MatFormField,
-    MatHeaderCell,
-    MatHeaderCellDef,
-    MatHeaderRow,
-    MatHeaderRowDef,
-    MatIcon,
-    MatInput,
-    MatLabel,
-    MatOption,
-    MatPaginator,
-    MatProgressBar,
-    MatRow,
-    MatRowDef,
-    MatSelect,
-    MatTable,
+    NgIcon,
+    HlmButton,
+    HlmInput,
+    HlmLabel,
+    HlmNativeSelectImports,
+    HlmProgressImports,
+    HlmTableImports,
+    AdminPaginator,
     AdminAccessDenied,
     StatusBadge,
   ],
   templateUrl: './admin-products-page.html',
   styleUrl: './admin-list-page.scss',
+  providers: [provideOrderIcons()],
 })
 export class AdminProductsPage {
   private readonly route = inject(ActivatedRoute);
@@ -98,7 +76,7 @@ export class AdminProductsPage {
 
   private readonly api = inject(AdminProductsApi);
 
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HlmDialogService);
 
   private readonly announcer = inject(LiveAnnouncer);
 
@@ -168,14 +146,11 @@ export class AdminProductsPage {
 
   protected readonly pageSizes = [...ADMIN_PAGE_SIZES];
 
-  protected readonly columns = ['name', 'category', 'price', 'stock', 'status', 'actions'];
-
   protected readonly categoryLabel = categoryLabel;
 
   protected readonly statusOf = productStatusView;
 
   constructor() {
-    registerOrderIcons();
     this.route.queryParamMap
       .pipe(takeUntilDestroyed())
       .subscribe(() => this.search.setValue(this.query().q));
@@ -197,7 +172,8 @@ export class AdminProductsPage {
     this.navigate(withFilters(this.query(), { q: this.search.value.trim() }), 'manual');
   }
 
-  protected setStatus(status: ProductStatusFilter): void {
+  protected setStatus(value: string | null | undefined): void {
+    const status = this.statusOptions.find((option) => option.value === value)?.value ?? 'all';
     this.navigate(withFilters(this.query(), { status }), 'manual');
   }
 
@@ -210,7 +186,7 @@ export class AdminProductsPage {
     this.navigate(withFilters(this.query(), { q: '', status: 'all', category: null }), 'manual');
   }
 
-  protected changePage(event: PageEvent): void {
+  protected changePage(event: AdminPageChange): void {
     const { pageSize } = event;
     const page = pageSize === this.query().pageSize ? event.pageIndex + 1 : 1;
     this.navigate({ ...this.query(), page, pageSize }, 'auto');

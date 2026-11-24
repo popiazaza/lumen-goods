@@ -52,7 +52,7 @@ describe('OrderDetailPage', () => {
   const lineBadges = () =>
     [...host().querySelectorAll<HTMLElement>(':scope .line app-status-badge')].map((badge) => ({
       text: badge.textContent?.trim(),
-      icon: badge.querySelector('mat-icon')?.getAttribute('data-mat-icon-name'),
+      icon: badge.dataset['icon'],
       tone: [...badge.classList].find((name) => name.startsWith('tone-')),
     }));
   /**
@@ -115,27 +115,42 @@ describe('OrderDetailPage', () => {
 
   // BR-ORD-02: each line's own status, as icon and text (never colour alone).
   it.each([
-    { status: 'pending', statusText: 'Awaiting payment', icon: 'schedule', tone: 'tone-neutral' },
+    {
+      status: 'pending',
+      statusText: 'Awaiting payment',
+      icon: 'lucideClock',
+      tone: 'tone-neutral',
+    },
     {
       status: 'awaiting_partner',
       statusText: 'Awaiting Kestrel Outfitters',
-      icon: 'schedule',
+      icon: 'lucideClock',
       tone: 'tone-info',
     },
     {
       status: 'confirmed',
       statusText: 'Confirmed by Kestrel Outfitters',
-      icon: 'check_circle',
+      icon: 'lucideCircleCheck',
       tone: 'tone-success',
     },
     {
       status: 'rejected',
       statusText: 'Not supplied, refunded $40.03',
-      icon: 'cancel',
+      icon: 'lucideCircleX',
       tone: 'tone-neutral',
     },
-    { status: 'needs_attention', statusText: 'Delayed', icon: 'warning', tone: 'tone-warning' },
-    { status: 'needs_attention', statusText: '', icon: 'warning', tone: 'tone-warning' },
+    {
+      status: 'needs_attention',
+      statusText: 'Delayed',
+      icon: 'lucideTriangleAlert',
+      tone: 'tone-warning',
+    },
+    {
+      status: 'needs_attention',
+      statusText: '',
+      icon: 'lucideTriangleAlert',
+      tone: 'tone-warning',
+    },
   ] as const)('shows a $status line as "$statusText" with the $icon icon', async (line) => {
     await show(oneLineOrder({ status: line.status, statusText: line.statusText }));
 

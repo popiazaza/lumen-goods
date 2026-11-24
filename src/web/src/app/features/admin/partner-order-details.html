@@ -57,7 +57,7 @@
 </dl>
 @if (order.outcomeUnknown) {
   <p class="last-error unknown">
-    <mat-icon svgIcon="warning" />
+    <ng-icon name="lucideTriangleAlert" />
     <span
       ><strong>Outcome unknown:</strong> a send may have reached {{ order.sellerName }} without an
       answer, so it may hold this order. Check with {{ order.sellerName }} before rejecting the
@@ -67,7 +67,7 @@
 }
 @if (order.lastError) {
   <p class="last-error">
-    <mat-icon svgIcon="error" />
+    <ng-icon name="lucideCircleAlert" />
     <span><strong>Last error:</strong> {{ order.lastError }}</span>
   </p>
 }

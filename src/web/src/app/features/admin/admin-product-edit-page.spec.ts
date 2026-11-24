@@ -1,6 +1,4 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
-import { HarnessLoader } from '@angular/cdk/testing';
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
@@ -9,8 +7,6 @@ import {
 } from '@angular/common/http/testing';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatSelectHarness } from '@angular/material/select/testing';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { OwnMediaFile } from '../../core/api/admin-products.api';
@@ -35,9 +31,9 @@ const text = (root: ParentNode | null | undefined, selector: string) =>
 A button of the open dialog; throws until it is there, for `vi.waitFor`.
 */
 const dialogButton = (name: string): HTMLButtonElement => {
-  const found = [
-    ...document.querySelectorAll<HTMLButtonElement>('mat-dialog-container button'),
-  ].find((element) => element.textContent?.trim() === name);
+  const found = [...document.querySelectorAll<HTMLButtonElement>('app-confirm-dialog button')].find(
+    (element) => element.textContent?.trim() === name
+  );
   if (!found) {
     throw new Error(`No "${name}" button in a dialog`);
   }
@@ -55,18 +51,27 @@ const MEDIA: OwnMediaFile[] = [
 describe('AdminProductEditPage', () => {
   let harness: RouterTestingHarness;
   let http: HttpTestingController;
-  let loader: HarnessLoader;
   let router: Router;
 
   const host = () => harness.routeNativeElement as HTMLElement;
   const field = (label: string) =>
-    [...host().querySelectorAll<HTMLElement>('mat-form-field')].find(
-      (element) => element.querySelector('mat-label')?.textContent?.trim() === label
+    [...host().querySelectorAll<HTMLElement>('.field')].find(
+      (element) => element.querySelector('label')?.textContent?.trim() === label
     ) as HTMLElement;
   const input = (label: string) =>
     field(label).querySelector('input, textarea') as HTMLInputElement;
-  const errorOf = (label: string) => text(field(label), 'mat-error');
-  const hintOf = (label: string) => text(field(label), 'mat-hint');
+  const errorOf = (label: string) => text(field(label), '.field-error');
+  const hintOf = (label: string) => text(field(label), '.hint');
+  /**
+  Picks Home in the category's native select, as the browser does.
+  */
+  const chooseHome = async (): Promise<void> => {
+    const select = field('Category').querySelector('select') as HTMLSelectElement;
+    const option = [...select.options].find((element) => element.textContent?.trim() === 'Home');
+    select.value = option?.value ?? '';
+    select.dispatchEvent(new Event('change'));
+    await harness.fixture.whenStable();
+  };
   const button = (name: string) =>
     [...host().querySelectorAll<HTMLButtonElement>('button')].find(
       (element) => element.textContent?.replaceAll(/\s+/gu, ' ').trim() === name
@@ -133,7 +138,6 @@ describe('AdminProductEditPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideAppIcons(),
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
         { provide: SessionApi, useValue: { isAuthenticated: signedIn.asReadonly() } },
       ],
     });
@@ -142,7 +146,6 @@ describe('AdminProductEditPage', () => {
     router = TestBed.inject(Router);
     vi.spyOn(TestBed.inject(LiveAnnouncer), 'announce').mockResolvedValue(undefined);
     harness = await RouterTestingHarness.create();
-    loader = TestbedHarnessEnvironment.documentRootLoader(harness.fixture);
   });
 
   afterEach(() => {
@@ -204,8 +207,7 @@ describe('AdminProductEditPage', () => {
 
     await type('Name', '  Trail Mug ');
     await type('Description', 'Keeps coffee warm.');
-    const category = await loader.getHarness(MatSelectHarness);
-    await category.clickOptions({ text: 'Home' });
+    await chooseHome();
     await type('Price', '24.5');
     await type('On hand', '12');
     button('Add attribute').click();
@@ -468,8 +470,7 @@ describe('AdminProductEditPage', () => {
     await openNew();
     await type('SKU (optional)', 'lg-mug-01');
     await type('Name', 'Mug');
-    const category = await loader.getHarness(MatSelectHarness);
-    await category.clickOptions({ text: 'Home' });
+    await chooseHome();
     await type('Price', '10');
 
     await submit();
@@ -513,14 +514,14 @@ describe('AdminProductEditPage', () => {
     signedIn.set(false);
 
     await expect(router.navigateByUrl('/admin/products')).resolves.toBeTruthy();
-    expect(document.querySelector('mat-dialog-container')).toBeNull();
+    expect(document.querySelector('app-confirm-dialog')).toBeNull();
   });
 
   it('leaves without asking when nothing was changed', async () => {
     await openMug();
 
     await expect(router.navigateByUrl('/admin/products')).resolves.toBeTruthy();
-    expect(document.querySelector('mat-dialog-container')).toBeNull();
+    expect(document.querySelector('app-confirm-dialog')).toBeNull();
   });
 
   it('says when the product does not exist', async () => {

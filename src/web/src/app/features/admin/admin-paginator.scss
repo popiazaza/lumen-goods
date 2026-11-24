@@ -1,0 +1,26 @@
+:host {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  gap: var(--lg-space-2) var(--lg-space-6);
+}
+
+.size,
+.steps {
+  display: flex;
+  align-items: center;
+  gap: var(--lg-space-2);
+}
+
+.size label {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+
+.range {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

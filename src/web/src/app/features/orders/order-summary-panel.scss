@@ -11,18 +11,25 @@
 
 .totals .total {
   padding-top: var(--lg-space-2);
-  border-top: 1px solid var(--mat-sys-outline-variant);
+  border-top: 1px solid var(--border);
   font-weight: 600;
 
   & dt {
-    color: var(--mat-sys-on-surface);
+    color: var(--foreground);
   }
 }
 
 .method {
   display: flex;
   align-items: center;
+  font-size: 0.875rem;
   gap: var(--lg-space-2);
+
+  & ng-icon {
+    width: 16px;
+    height: 16px;
+    color: var(--muted-foreground);
+  }
 }
 
 .refunds {
@@ -47,7 +54,7 @@
 }
 
 .breakdown {
-  font: var(--mat-sys-body-medium);
+  font-size: 0.875rem;
 }
 
 .amount {
@@ -56,5 +63,11 @@
 }
 
 address {
+  font-size: 0.875rem;
   font-style: normal;
+  line-height: 1.25rem;
+}
+
+.refunds p {
+  font-size: 0.875rem;
 }

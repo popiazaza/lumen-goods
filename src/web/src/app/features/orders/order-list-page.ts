@@ -12,16 +12,15 @@ import {
   viewChild,
 } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
-import { MatCard } from '@angular/material/card';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
 import { ActivatedRoute, Params, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { OrderSummaryDto } from '../../core/api/order.models';
 import { OrdersApi } from '../../core/api/orders.api';
 import { PagedResult } from '../../core/api/paged-result';
 import { httpStatusOf } from '../../core/api/problem-details';
-import { registerOrderIcons } from './order-icons';
+import { provideOrderIcons } from './order-icons';
 import { StatusView, orderStatusView } from './order-labels';
 import { StatusBadge } from './status-badge';
 
@@ -46,18 +45,10 @@ The customer's order history (`/orders`), newest first, paged through `?page=`.
 */
 @Component({
   selector: 'app-order-list-page',
-  imports: [
-    CurrencyPipe,
-    DatePipe,
-    RouterLink,
-    MatButton,
-    MatCard,
-    MatIcon,
-    MatProgressBar,
-    StatusBadge,
-  ],
+  imports: [CurrencyPipe, DatePipe, RouterLink, NgIcon, HlmButton, HlmProgressImports, StatusBadge],
   templateUrl: './order-list-page.html',
   styleUrl: './order-list-page.scss',
+  providers: [provideOrderIcons()],
 })
 export class OrderListPage {
   private readonly api = inject(OrdersApi);
@@ -95,7 +86,6 @@ export class OrderListPage {
   protected readonly statusOf = summaryStatusView;
 
   constructor() {
-    registerOrderIcons();
     // Paging is a query-only navigation, so the router leaves focus on the page link; start the
     // new page at its count instead (WCAG 2.4.3).
     let previous: number | undefined;

@@ -7,6 +7,7 @@ import {
   ShippingMethod,
   cardBrandName,
 } from '../../core/api/order.models';
+import { OrderIconName } from './order-icons';
 
 // How statuses look. The words for order and line statuses come from the API (`statusText`); the
 // client only picks a tone and an icon, so a badge never relies on colour alone (WCAG 1.4.1).
@@ -18,29 +19,29 @@ What a status badge shows.
 */
 export interface StatusView {
   tone: StatusTone;
-  icon: string;
+  icon: OrderIconName;
   text: string;
 }
 
 const LINE_LOOKS: Readonly<Record<OrderLineStatus, Omit<StatusView, 'text'>>> = {
-  pending: { tone: 'neutral', icon: 'schedule' },
-  awaiting_partner: { tone: 'info', icon: 'schedule' },
-  needs_attention: { tone: 'warning', icon: 'warning' },
-  confirmed: { tone: 'success', icon: 'check_circle' },
-  rejected: { tone: 'neutral', icon: 'cancel' },
+  pending: { tone: 'neutral', icon: 'lucideClock' },
+  awaiting_partner: { tone: 'info', icon: 'lucideClock' },
+  needs_attention: { tone: 'warning', icon: 'lucideTriangleAlert' },
+  confirmed: { tone: 'success', icon: 'lucideCircleCheck' },
+  rejected: { tone: 'neutral', icon: 'lucideCircleX' },
 };
 
 const ORDER_LOOKS: Readonly<Record<OrderStatus, Omit<StatusView, 'text'>>> = {
-  awaiting_payment: { tone: 'warning', icon: 'schedule' },
-  payment_processing: { tone: 'info', icon: 'schedule' },
-  paid: { tone: 'info', icon: 'schedule' },
-  completed: { tone: 'success', icon: 'check_circle' },
-  partially_refunded: { tone: 'neutral', icon: 'undo' },
-  refunded: { tone: 'neutral', icon: 'undo' },
-  expired: { tone: 'neutral', icon: 'block' },
+  awaiting_payment: { tone: 'warning', icon: 'lucideClock' },
+  payment_processing: { tone: 'info', icon: 'lucideClock' },
+  paid: { tone: 'info', icon: 'lucideClock' },
+  completed: { tone: 'success', icon: 'lucideCircleCheck' },
+  partially_refunded: { tone: 'neutral', icon: 'lucideUndo2' },
+  refunded: { tone: 'neutral', icon: 'lucideUndo2' },
+  expired: { tone: 'neutral', icon: 'lucideBan' },
 };
 
-const FALLBACK_LOOK: Omit<StatusView, 'text'> = { tone: 'neutral', icon: 'info' };
+const FALLBACK_LOOK: Omit<StatusView, 'text'> = { tone: 'neutral', icon: 'lucideInfo' };
 
 /**
 BR-ORD-02 badge for one line: "Awaiting Kestrel Outfitters", "Not supplied, refunded $40.03".
@@ -87,26 +88,26 @@ export const paymentMethodLabel = (payment: PaymentSummaryDto): string => {
   return payment.cardLast4 ? `${brand} ending ${payment.cardLast4}` : brand;
 };
 
-const BEING_CONFIRMED: StatusView = { tone: 'info', icon: 'schedule', text: 'Being confirmed' };
+const BEING_CONFIRMED: StatusView = { tone: 'info', icon: 'lucideClock', text: 'Being confirmed' };
 
 const PAYMENT_STATUS_LOOKS: Readonly<Record<PaymentStatus, StatusView>> = {
   created: BEING_CONFIRMED,
   processing: BEING_CONFIRMED,
-  requires_action: { tone: 'warning', icon: 'lock', text: 'Waiting for a one-time code' },
-  succeeded: { tone: 'success', icon: 'check_circle', text: 'Paid' },
-  declined: { tone: 'error', icon: 'cancel', text: 'Declined' },
+  requires_action: { tone: 'warning', icon: 'lucideLock', text: 'Waiting for a one-time code' },
+  succeeded: { tone: 'success', icon: 'lucideCircleCheck', text: 'Paid' },
+  declined: { tone: 'error', icon: 'lucideCircleX', text: 'Declined' },
   error: BEING_CONFIRMED,
-  failed: { tone: 'error', icon: 'error', text: 'Failed' },
-  expired: { tone: 'neutral', icon: 'block', text: 'Expired' },
+  failed: { tone: 'error', icon: 'lucideCircleAlert', text: 'Failed' },
+  expired: { tone: 'neutral', icon: 'lucideBan', text: 'Expired' },
 };
 
 export const paymentStatusView = (status: PaymentStatus): StatusView =>
   PAYMENT_STATUS_LOOKS[status] ?? { ...FALLBACK_LOOK, text: humanise(status) };
 
 const REFUND_LOOKS: Readonly<Record<RefundStatus, StatusView>> = {
-  pending: { tone: 'info', icon: 'schedule', text: 'Pending' },
-  succeeded: { tone: 'success', icon: 'check_circle', text: 'Refunded' },
-  failed: { tone: 'error', icon: 'error', text: 'Failed, will retry' },
+  pending: { tone: 'info', icon: 'lucideClock', text: 'Pending' },
+  succeeded: { tone: 'success', icon: 'lucideCircleCheck', text: 'Refunded' },
+  failed: { tone: 'error', icon: 'lucideCircleAlert', text: 'Failed, will retry' },
 };
 
 /**

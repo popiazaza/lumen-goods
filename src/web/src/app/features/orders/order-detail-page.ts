@@ -2,17 +2,16 @@ import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, input } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
-import { MatCard } from '@angular/material/card';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import { OrderDetailDto, OrderLineDto } from '../../core/api/order.models';
 import { OrdersApi } from '../../core/api/orders.api';
 import { httpStatusOf } from '../../core/api/problem-details';
 import { joinNames } from '../../shared/format';
 import { ProductImage } from '../../shared/products/product-image';
-import { registerOrderIcons } from './order-icons';
+import { provideOrderIcons } from './order-icons';
 import {
   StatusView,
   lineStatusView,
@@ -62,16 +61,16 @@ type PayAction = 'enter-code' | 'pay' | 'pay-after-failure' | 'checking';
     CurrencyPipe,
     DatePipe,
     RouterLink,
-    MatButton,
-    MatCard,
-    MatIcon,
-    MatProgressBar,
+    NgIcon,
+    HlmButton,
+    HlmProgressImports,
     OrderSummaryPanel,
     ProductImage,
     StatusBadge,
   ],
   templateUrl: './order-detail-page.html',
   styleUrl: './order-detail-page.scss',
+  providers: [provideOrderIcons()],
 })
 export class OrderDetailPage {
   private readonly api = inject(OrdersApi);
@@ -165,7 +164,6 @@ export class OrderDetailPage {
   protected readonly lineStatus = lineStatusOf;
 
   constructor() {
-    registerOrderIcons();
     this.announceLineChanges();
   }
 

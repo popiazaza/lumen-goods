@@ -1,5 +1,4 @@
 import { Component } from '@angular/core';
-import { MatTabLink, MatTabNav, MatTabNavPanel } from '@angular/material/tabs';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 /**
@@ -20,12 +19,12 @@ export const ADMIN_SECTIONS: readonly AdminSection[] = [
 /**
  * Frame of every admin page: tabs to move between the admin sections, then the routed page. The
  * account menu links to `/admin` only, so without these Orders and Partner status were reachable
- * by typing their URL. Material's routed tab bar needs its panel, which makes the links ARIA tabs
- * (`aria-selected`) rather than plain links with `aria-current`.
+ * by typing their URL. The sections are links with `aria-current="page"` on the current one, not
+ * ARIA tabs: each loads its own page, so the browser's link behaviour (open in a new tab, Back) holds.
  */
 @Component({
   selector: 'app-admin-layout',
-  imports: [MatTabNav, MatTabLink, MatTabNavPanel, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet],
   templateUrl: './admin-layout.html',
   styleUrl: './admin-layout.scss',
 })

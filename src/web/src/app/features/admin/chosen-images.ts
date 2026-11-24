@@ -1,16 +1,18 @@
 import { NgOptimizedImage } from '@angular/common';
 import { Component, input, output } from '@angular/core';
-import { MatButton } from '@angular/material/button';
-import { MatIcon } from '@angular/material/icon';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { provideOrderIcons } from '../orders/order-icons';
 
 /**
 The images chosen for a product, in shop order: the first is the main one.
 */
 @Component({
   selector: 'app-chosen-images',
-  imports: [NgOptimizedImage, MatButton, MatIcon],
+  imports: [NgOptimizedImage, HlmButton, NgIcon],
   templateUrl: './chosen-images.html',
   styleUrl: './chosen-images.scss',
+  providers: [provideOrderIcons()],
 })
 export class ChosenImages {
   /**

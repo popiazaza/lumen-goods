@@ -15,24 +15,16 @@ import {
 } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ReactiveFormsModule } from '@angular/forms';
-import { MatButton, MatIconButton } from '@angular/material/button';
-import { MatCard } from '@angular/material/card';
-import { MatOption } from '@angular/material/core';
-import {
-  MatError,
-  MatFormField,
-  MatHint,
-  MatLabel,
-  MatPrefix,
-  MatSuffix,
-} from '@angular/material/form-field';
-import { MatIcon } from '@angular/material/icon';
-import { MatInput } from '@angular/material/input';
-import { MatProgressBar } from '@angular/material/progress-bar';
-import { MatSelect } from '@angular/material/select';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { toast } from '@spartan-ng/brain/sonner';
 import { Observable } from 'rxjs';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmInput } from '@spartan-ng/helm/input';
+import { HlmLabel } from '@spartan-ng/helm/label';
+import { HlmNativeSelectImports } from '@spartan-ng/helm/native-select';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
+import { HlmTextarea } from '@spartan-ng/helm/textarea';
 import { AdminProduct, AdminProductsApi } from '../../core/api/admin-products.api';
 import {
   httpStatusOf,
@@ -43,7 +35,6 @@ import {
 import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/api/products.api';
 import { SessionApi } from '../../core/api/session.api';
 import { categoryLabel } from '../../shared/products/product-labels';
-import { registerOrderIcons } from '../orders/order-icons';
 import { AdminAccessDenied } from './admin-access-denied';
 import { ChosenImages } from './chosen-images';
 import { HasUnsavedChanges } from './unsaved-changes.guard';
@@ -65,6 +56,18 @@ import {
 const categoryOption = (value: ProductCategory) => ({ value, label: categoryLabel(value) });
 
 /**
+The line under a form field: its error, or a hint (the saved value after a conflict is one).
+*/
+interface FieldNote {
+  /**
+  The id suffix: `product-name-error` or `product-name-hint`.
+  */
+  kind: 'error' | 'hint';
+  className: string;
+  text: string;
+}
+
+/**
  * Admin: create (`/admin/products/new`) or edit (`/admin/products/:id`) one of Lumen Goods' own
  * products. Edits send the version they started from; if someone else saved in between, the API
  * answers 409 and overwrites nothing (BR-ADM-01). The page then loads the saved version, keeps the
@@ -77,20 +80,13 @@ const categoryOption = (value: ProductCategory) => ({ value, label: categoryLabe
     DatePipe,
     ReactiveFormsModule,
     RouterLink,
-    MatButton,
-    MatCard,
-    MatError,
-    MatFormField,
-    MatHint,
-    MatIcon,
-    MatIconButton,
-    MatInput,
-    MatLabel,
-    MatOption,
-    MatPrefix,
-    MatProgressBar,
-    MatSelect,
-    MatSuffix,
+    NgIcon,
+    HlmButton,
+    HlmInput,
+    HlmLabel,
+    HlmNativeSelectImports,
+    HlmProgressImports,
+    HlmTextarea,
     AdminAccessDenied,
     ChosenImages,
     ImageLibrary,
@@ -102,8 +98,6 @@ export class AdminProductEditPage implements HasUnsavedChanges {
   private readonly api = inject(AdminProductsApi);
 
   private readonly router = inject(Router);
-
-  private readonly snackBar = inject(MatSnackBar);
 
   private readonly announcer = inject(LiveAnnouncer);
 
@@ -187,7 +181,6 @@ export class AdminProductEditPage implements HasUnsavedChanges {
   protected readonly maxImages = MAX_IMAGES;
 
   constructor() {
-    registerOrderIcons();
     // Fill the form once, from the first load. A later reload after a conflict must not wipe
     // the admin's edits, so it goes through `conflict` instead.
     effect(() => {
@@ -299,7 +292,7 @@ export class AdminProductEditPage implements HasUnsavedChanges {
 
   private focusFirstInvalid(): void {
     this.focusAfterRender(
-      'input.ng-invalid, textarea.ng-invalid, mat-select.ng-invalid, .group-error'
+      'input.ng-invalid, textarea.ng-invalid, hlm-native-select.ng-invalid select, .group-error'
     );
   }
 
@@ -314,6 +307,32 @@ export class AdminProductEditPage implements HasUnsavedChanges {
 
   protected error(field: ProductField): string {
     return fieldError(field, this.form.controls[field].errors);
+  }
+
+  /**
+  A field's error shows once it was touched (Save touches every field), as on the app's other forms.
+  */
+  protected shows(field: ProductField): boolean {
+    const control = this.form.controls[field];
+    return control.invalid && control.touched;
+  }
+
+  /**
+   * What is under a field, for its `aria-describedby` too: its error once touched (Save touches
+   * every field), else the value someone else saved after a conflict, else its hint, if any.
+   */
+  protected note(field: ProductField, hint: string): FieldNote;
+  protected note(field: ProductField): FieldNote | null;
+  protected note(field: ProductField, hint = ''): FieldNote | null {
+    if (this.shows(field)) {
+      return { kind: 'error', className: 'field-error', text: this.error(field) };
+    }
+    // The SKU cannot change after creation, so no one else can have saved a different one.
+    const saved = field === 'sku' ? '' : this.savedNow(field);
+    if (saved) {
+      return { kind: 'hint', className: 'hint saved-now', text: `Saved now: ${saved}` };
+    }
+    return hint ? { kind: 'hint', className: 'hint', text: hint } : null;
   }
 
   /**
@@ -410,7 +429,7 @@ export class AdminProductEditPage implements HasUnsavedChanges {
       next: (saved) => {
         this.saving.set(false);
         this.form.markAsPristine();
-        this.snackBar.open(`${saved.name} saved.`, undefined, { duration: 5000 });
+        toast(`${saved.name} saved.`, { duration: 5000 });
         void this.router.navigate(['/admin/products']);
       },
       error: (error: unknown) => this.saveFailed(error),

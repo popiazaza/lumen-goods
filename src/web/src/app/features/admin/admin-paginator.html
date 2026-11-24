@@ -1,0 +1,38 @@
+<div class="size">
+  <label hlmLabel [for]="sizeSelect.selectId()">Items per page</label>
+  <hlm-native-select
+    #sizeSelect
+    size="sm"
+    [value]="`${pageSize()}`"
+    (valueChange)="changeSize($event)"
+  >
+    @for (size of pageSizeOptions(); track size) {
+      <option hlmNativeSelectOption [value]="`${size}`">{{ size }}</option>
+    }
+  </hlm-native-select>
+</div>
+<p class="range">{{ rangeLabel() }}</p>
+<div class="steps">
+  <button
+    hlmBtn
+    variant="outline"
+    size="icon"
+    type="button"
+    aria-label="Previous page"
+    [disabled]="!hasPrevious()"
+    (click)="go(pageIndex() - 1)"
+  >
+    <ng-icon name="lucideChevronLeft" />
+  </button>
+  <button
+    hlmBtn
+    variant="outline"
+    size="icon"
+    type="button"
+    aria-label="Next page"
+    [disabled]="!hasNext()"
+    (click)="go(pageIndex() + 1)"
+  >
+    <ng-icon name="lucideChevronRight" />
+  </button>
+</div>

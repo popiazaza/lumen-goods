@@ -1,4 +1,5 @@
 @use '../../../styles/alert';
+@use '../../../styles/field';
 @use '../orders/order-page';
 
 :host {
@@ -11,7 +12,8 @@
 
 .subtitle {
   margin: calc(-1 * var(--lg-space-3)) 0 var(--lg-space-4);
-  color: var(--mat-sys-on-surface-variant);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
 }
 
 .conflict {
@@ -43,8 +45,44 @@ legend {
   margin-bottom: var(--lg-space-2);
 }
 
-mat-form-field {
-  width: 100%;
+.field {
+  @include field.field;
+}
+
+.hint {
+  @include field.hint;
+}
+
+.field-error {
+  @include field.error;
+}
+
+// "$ 18.50 USD": the units sit inside the field, like Material's prefix and suffix did.
+.money {
+  position: relative;
+
+  & input {
+    padding-right: 3rem;
+    padding-left: 1.5rem;
+  }
+
+  & .prefix,
+  & .suffix {
+    position: absolute;
+    top: 50%;
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+
+  & .prefix {
+    left: 10px;
+  }
+
+  & .suffix {
+    right: 10px;
+  }
 }
 
 .pair {
@@ -55,24 +93,38 @@ mat-form-field {
 
 .attribute {
   display: grid;
-  align-items: start;
+  align-items: end;
   gap: var(--lg-space-2);
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
 
-  & button {
-    margin-top: var(--lg-space-2);
+  // Level with the inputs, not with the errors under them.
+  & .field {
+    align-self: start;
+  }
+
+  & .remove {
+    align-self: start;
+    margin-top: 20px;
   }
 }
 
+.add {
+  justify-self: start;
+}
+
 .saved-now {
-  color: var(--lg-status-warning);
+  margin: 0;
+  color: var(--warning);
+  font-size: 0.8125rem;
   overflow-wrap: anywhere;
 }
 
 .group-error,
 .form-error {
   margin: 0;
-  color: var(--mat-sys-error);
+  color: var(--destructive);
+  font-size: 0.875rem;
+  font-weight: 500;
 
   &:focus {
     outline: none;
@@ -83,13 +135,19 @@ mat-form-field {
   display: flex;
   flex-wrap: wrap;
   gap: var(--lg-space-2);
+
+  @media (width < 640px) {
+    & [data-slot='button'] {
+      flex: 1 1 100%;
+    }
+  }
 }
 
 @media (width <= 480px) {
   .attribute {
     grid-template-columns: minmax(0, 1fr) auto;
 
-    & mat-form-field:nth-child(2) {
+    & .field:nth-child(2) {
       grid-row: 2;
     }
   }

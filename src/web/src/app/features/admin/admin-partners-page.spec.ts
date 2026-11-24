@@ -38,7 +38,7 @@ describe('AdminPartnersPage', () => {
 
   const host = () => fixture.nativeElement as HTMLElement;
   const card = (name: string) =>
-    [...host().querySelectorAll<HTMLElement>('mat-card')].find((element) =>
+    [...host().querySelectorAll<HTMLElement>('.card')].find((element) =>
       element.querySelector('h2')?.textContent?.includes(name)
     ) as HTMLElement;
   const refreshButton = (name: string) =>
@@ -247,7 +247,7 @@ describe('AdminPartnersPage', () => {
   it('refreshes: POST, then polls every 3 s until the requested refresh has run', async () => {
     await startRefresh('Harbor Supply Co.', 'harbor');
 
-    // Stays focusable while busy (disabledInteractive), and a second click does nothing.
+    // Stays focusable while busy (aria-disabled, not disabled), and a second click does nothing.
     refreshButton('Harbor Supply Co.').click();
     http.expectNone('/api/v1/admin/partners/harbor/refresh');
 
@@ -255,7 +255,7 @@ describe('AdminPartnersPage', () => {
       busy: isBusy('Harbor Supply Co.'),
       disabled: refreshButton('Harbor Supply Co.').disabled,
       label: refreshButton('Harbor Supply Co.').textContent,
-      progressBar: card('Harbor Supply Co.').querySelector('mat-progress-bar'),
+      progressBar: card('Harbor Supply Co.').querySelector('hlm-progress'),
     }).toStrictEqual({
       busy: true,
       disabled: false,
@@ -433,7 +433,7 @@ describe('AdminPartnersPage', () => {
     expect(host().querySelector(':scope app-admin-access-denied a')?.getAttribute('href')).toBe(
       '/sign-in?returnUrl=%2Fadmin%2Fpartners'
     );
-    expect(host().querySelector('mat-card')).toBeNull();
+    expect(host().querySelector('.card')).toBeNull();
     expect(host().textContent?.includes('does not have the admin role')).toBe(status === 403);
   });
 
@@ -461,6 +461,6 @@ describe('AdminPartnersPage', () => {
     await vi.waitFor(() => http.expectOne('/api/v1/admin/partners').flush([HARBOR]));
     await fixture.whenStable();
 
-    expect(host().querySelectorAll('mat-card')).toHaveLength(1);
+    expect(host().querySelectorAll('.card')).toHaveLength(1);
   });
 });

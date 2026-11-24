@@ -11,11 +11,10 @@ import {
   signal,
 } from '@angular/core';
 import { rxResource, takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
-import { MatCard } from '@angular/material/card';
-import { MatIcon } from '@angular/material/icon';
-import { MatProgressBar } from '@angular/material/progress-bar';
+import { NgIcon } from '@ng-icons/core';
 import { concatMap, first, interval, map, switchMap, take, tap, timer } from 'rxjs';
+import { HlmButton } from '@spartan-ng/helm/button';
+import { HlmProgressImports } from '@spartan-ng/helm/progress';
 import {
   AdminPartnersApi,
   PartnerStatus,
@@ -23,6 +22,7 @@ import {
   hasRefreshRun,
 } from '../../core/api/admin-partners.api';
 import { httpStatusOf, isAccessDenied, problemMessage } from '../../core/api/problem-details';
+import { AppIconName } from '../../core/icons/app-icons';
 import { AdminAccessDenied } from './admin-access-denied';
 import { relativeTime } from './relative-time';
 
@@ -42,18 +42,18 @@ type RefreshState =
 
 interface Health {
   tone: 'ok' | 'failed' | 'idle';
-  icon: string;
+  icon: AppIconName;
   text: string;
 }
 
 const healthOf = (partner: PartnerStatus): Health => {
   if (partner.lastError) {
-    return { tone: 'failed', icon: 'error', text: 'Last refresh failed' };
+    return { tone: 'failed', icon: 'lucideCircleAlert', text: 'Last refresh failed' };
   }
   if (!partner.lastSuccessUtc) {
-    return { tone: 'idle', icon: 'warning', text: 'Not refreshed yet' };
+    return { tone: 'idle', icon: 'lucideTriangleAlert', text: 'Not refreshed yet' };
   }
-  return { tone: 'ok', icon: 'check_circle', text: 'Last refresh succeeded' };
+  return { tone: 'ok', icon: 'lucideCircleCheck', text: 'Last refresh succeeded' };
 };
 
 /**
@@ -72,7 +72,7 @@ Admin: catalogue sync health per partner, with "Refresh now" (`/admin/partners`)
 */
 @Component({
   selector: 'app-admin-partners-page',
-  imports: [AdminAccessDenied, DatePipe, DecimalPipe, MatButton, MatCard, MatIcon, MatProgressBar],
+  imports: [AdminAccessDenied, DatePipe, DecimalPipe, HlmButton, HlmProgressImports, NgIcon],
   templateUrl: './admin-partners-page.html',
   styleUrl: './admin-partners-page.scss',
 })
@@ -190,7 +190,7 @@ export class AdminPartnersPage {
 
   /**
   Removing held products takes them out of the shop, so it needs a second, explicit click. Not while a
-  refresh runs: `disabledInteractive` keeps a disabled button clickable, so the handlers refuse too.
+  refresh runs: the button stays focusable with `aria-disabled` while it runs, so the handlers refuse too.
   */
   protected askToConfirmRemovals(partner: PartnerStatus): void {
     if (this.isRefreshing(partner)) {

@@ -9,11 +9,11 @@
   <div class="state" [attr.role]="status === 404 ? null : 'alert'">
     @if (status === 404) {
       <p><strong>There is no Lumen Goods product with this id.</strong></p>
-      <a matButton="filled" routerLink="/admin/products">All products</a>
+      <a hlmBtn routerLink="/admin/products">All products</a>
     } @else {
       <p>We couldn’t load the product. Check your connection and try again.</p>
-      <button matButton="filled" type="button" (click)="loaded.reload()">
-        <mat-icon svgIcon="refresh" />
+      <button hlmBtn type="button" (click)="loaded.reload()">
+        <ng-icon name="lucideRefreshCw" />
         Retry
       </button>
     }
@@ -31,7 +31,7 @@
 
   @if (conflict(); as latest) {
     <div id="conflict" class="conflict" role="alert" tabindex="-1">
-      <mat-icon svgIcon="warning" />
+      <ng-icon name="lucideTriangleAlert" />
       <div>
         <p><strong>Changed by someone else</strong></p>
         <p>
@@ -39,7 +39,7 @@
           reserving stock). Your edits are still in the form; where the saved version differs, it is
           shown under the field. Save again to apply your edits to the saved version.
         </p>
-        <button matButton type="button" (click)="useSavedVersion()">
+        <button hlmBtn variant="outline" size="sm" type="button" (click)="useSavedVersion()">
           Discard my edits and use the saved version
         </button>
       </div>
@@ -47,103 +47,171 @@
   }
 
   <form class="product-form" novalidate [formGroup]="form" (ngSubmit)="save()">
-    <mat-card appearance="outlined" class="section">
+    @let nameNote = note('name');
+    @let descriptionNote = note('description');
+    @let categoryNote = note('category');
+    @let priceNote = note('price', 'Dollars and cents, e.g. 18.50');
+    @let onHandNote =
+      note('onHand', `${base()?.reserved ?? 0} reserved by orders awaiting payment`);
+    <div class="section">
       <h2>Details</h2>
       @if (isNew()) {
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>SKU (optional)</mat-label>
-          <input matInput formControlName="sku" autocomplete="off" />
-          <mat-hint>Left empty, one is made up for you. It cannot be changed later.</mat-hint>
-          <mat-error>{{ error('sku') }}</mat-error>
-        </mat-form-field>
+        @let skuNote =
+          note('sku', 'Left empty, one is made up for you. It cannot be changed later.');
+        <div class="field">
+          <label hlmLabel for="product-sku">SKU (optional)</label>
+          <input
+            id="product-sku"
+            hlmInput
+            formControlName="sku"
+            autocomplete="off"
+            [aria-describedby]="`product-sku-${skuNote.kind}`"
+          />
+          <p [id]="`product-sku-${skuNote.kind}`" [class]="skuNote.className">
+            {{ skuNote.text }}
+          </p>
+        </div>
       }
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Name</mat-label>
-        <input matInput formControlName="name" autocomplete="off" />
-        @if (savedNow('name'); as saved) {
-          <mat-hint class="saved-now">Saved now: {{ saved }}</mat-hint>
+      <div class="field">
+        <label hlmLabel for="product-name">Name</label>
+        <input
+          id="product-name"
+          hlmInput
+          formControlName="name"
+          autocomplete="off"
+          [aria-describedby]="nameNote ? `product-name-${nameNote.kind}` : null"
+        />
+        @if (nameNote) {
+          <p [id]="`product-name-${nameNote.kind}`" [class]="nameNote.className">
+            {{ nameNote.text }}
+          </p>
         }
-        <mat-error>{{ error('name') }}</mat-error>
-      </mat-form-field>
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Description</mat-label>
-        <textarea matInput formControlName="description" rows="5"></textarea>
-        @if (savedNow('description'); as saved) {
-          <mat-hint class="saved-now">Saved now: {{ saved }}</mat-hint>
+      </div>
+      <div class="field">
+        <label hlmLabel for="product-description">Description</label>
+        <textarea
+          id="product-description"
+          hlmTextarea
+          formControlName="description"
+          rows="5"
+          [aria-describedby]="
+            descriptionNote ? `product-description-${descriptionNote.kind}` : null
+          "
+        ></textarea>
+        @if (descriptionNote) {
+          <p
+            [id]="`product-description-${descriptionNote.kind}`"
+            [class]="descriptionNote.className"
+          >
+            {{ descriptionNote.text }}
+          </p>
         }
-        <mat-error>{{ error('description') }}</mat-error>
-      </mat-form-field>
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Category</mat-label>
-        <mat-select formControlName="category">
+      </div>
+      <div class="field">
+        <label hlmLabel for="product-category">Category</label>
+        <hlm-native-select
+          selectId="product-category"
+          formControlName="category"
+          [aria-describedby]="categoryNote ? `product-category-${categoryNote.kind}` : null"
+        >
+          <option hlmNativeSelectOption value="" disabled>Choose a category</option>
           @for (option of categories; track option.value) {
-            <mat-option [value]="option.value">{{ option.label }}</mat-option>
+            <option hlmNativeSelectOption [value]="option.value">{{ option.label }}</option>
           }
-        </mat-select>
-        @if (savedNow('category'); as saved) {
-          <mat-hint class="saved-now">Saved now: {{ saved }}</mat-hint>
+        </hlm-native-select>
+        @if (categoryNote) {
+          <p [id]="`product-category-${categoryNote.kind}`" [class]="categoryNote.className">
+            {{ categoryNote.text }}
+          </p>
         }
-        <mat-error>{{ error('category') }}</mat-error>
-      </mat-form-field>
-    </mat-card>
+      </div>
+    </div>
 
-    <mat-card appearance="outlined" class="section">
+    <div class="section">
       <h2>Price and stock</h2>
       <div class="pair">
-        <!-- Floated, so the label starts at the field's edge instead of after the $ sign. -->
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" floatLabel="always">
-          <mat-label>Price</mat-label>
-          <span matTextPrefix>$&nbsp;</span>
-          <input matInput formControlName="price" inputmode="decimal" autocomplete="off" />
-          <span matTextSuffix>USD</span>
-          @if (savedNow('price'); as saved) {
-            <mat-hint class="saved-now">Saved now: {{ saved }}</mat-hint>
-          } @else {
-            <mat-hint>Dollars and cents, e.g. 18.50</mat-hint>
-          }
-          <mat-error>{{ error('price') }}</mat-error>
-        </mat-form-field>
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>On hand</mat-label>
-          <input matInput type="number" formControlName="onHand" min="0" step="1" />
-          @if (savedNow('onHand'); as saved) {
-            <mat-hint class="saved-now">Saved now: {{ saved }}</mat-hint>
-          } @else {
-            <mat-hint>{{ base()?.reserved ?? 0 }} reserved by orders awaiting payment</mat-hint>
-          }
-          <mat-error>{{ error('onHand') }}</mat-error>
-        </mat-form-field>
+        <div class="field">
+          <label hlmLabel for="product-price">Price</label>
+          <div class="money">
+            <span class="prefix">$</span>
+            <input
+              id="product-price"
+              hlmInput
+              formControlName="price"
+              inputmode="decimal"
+              autocomplete="off"
+              [aria-describedby]="`product-price-${priceNote.kind}`"
+            />
+            <span class="suffix">USD</span>
+          </div>
+          <p [id]="`product-price-${priceNote.kind}`" [class]="priceNote.className">
+            {{ priceNote.text }}
+          </p>
+        </div>
+        <div class="field">
+          <label hlmLabel for="product-on-hand">On hand</label>
+          <input
+            id="product-on-hand"
+            hlmInput
+            type="number"
+            formControlName="onHand"
+            min="0"
+            step="1"
+            [aria-describedby]="`product-on-hand-${onHandNote.kind}`"
+          />
+          <p [id]="`product-on-hand-${onHandNote.kind}`" [class]="onHandNote.className">
+            {{ onHandNote.text }}
+          </p>
+        </div>
       </div>
-    </mat-card>
+    </div>
 
-    <mat-card appearance="outlined" class="section">
+    <div class="section">
       <fieldset formArrayName="attributes">
         <legend><h2>Attributes</h2></legend>
         <p class="muted">For example color: Olive, or material: Enamel steel.</p>
         @for (row of attributes.controls; track row) {
+          @let keyShown = row.controls.key.invalid && row.controls.key.touched;
+          @let valueShown = row.controls.value.invalid && row.controls.value.touched;
           <div class="attribute" [formGroupName]="$index">
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>Name {{ $index + 1 }}</mat-label>
+            <div class="field">
+              <label hlmLabel [for]="`attribute-key-${$index}`">Name {{ $index + 1 }}</label>
               <input
-                matInput
+                hlmInput
                 formControlName="key"
                 autocomplete="off"
                 [id]="`attribute-key-${$index}`"
+                [aria-describedby]="keyShown ? `attribute-key-${$index}-error` : null"
               />
-              <mat-error>Enter a name.</mat-error>
-            </mat-form-field>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>Value {{ $index + 1 }}</mat-label>
-              <input matInput formControlName="value" autocomplete="off" />
-              <mat-error>Enter a value of up to 200 characters.</mat-error>
-            </mat-form-field>
+              @if (keyShown) {
+                <p class="field-error" [id]="`attribute-key-${$index}-error`">Enter a name.</p>
+              }
+            </div>
+            <div class="field">
+              <label hlmLabel [for]="`attribute-value-${$index}`">Value {{ $index + 1 }}</label>
+              <input
+                hlmInput
+                formControlName="value"
+                autocomplete="off"
+                [id]="`attribute-value-${$index}`"
+                [aria-describedby]="valueShown ? `attribute-value-${$index}-error` : null"
+              />
+              @if (valueShown) {
+                <p class="field-error" [id]="`attribute-value-${$index}-error`">
+                  Enter a value of up to 200 characters.
+                </p>
+              }
+            </div>
             <button
-              matIconButton
+              hlmBtn
+              variant="ghost"
+              size="icon"
               type="button"
+              class="remove"
               [attr.aria-label]="`Remove attribute ${row.controls.key.value || $index + 1}`"
               (click)="removeAttribute($index)"
             >
-              <mat-icon svgIcon="delete" />
+              <ng-icon name="lucideTrash2" />
             </button>
           </div>
         }
@@ -155,19 +223,20 @@
         }
         <button
           id="add-attribute"
-          matButton
+          hlmBtn
+          variant="outline"
           type="button"
-          disabledInteractive
-          [disabled]="attributes.length >= maxAttributes"
+          class="add"
+          [attr.aria-disabled]="attributes.length >= maxAttributes || null"
           (click)="addAttribute()"
         >
-          <mat-icon svgIcon="add" />
+          <ng-icon name="lucidePlus" />
           Add attribute
         </button>
       </fieldset>
-    </mat-card>
+    </div>
 
-    <mat-card appearance="outlined" class="section">
+    <div class="section">
       <fieldset>
         <legend><h2>Images</h2></legend>
         @let chosen = form.controls.images.value;
@@ -200,23 +269,27 @@
         } @else if (media.status() === 'error') {
           <p role="alert">
             We couldn’t load the image library.
-            <button matButton type="button" (click)="media.reload()">Retry</button>
+            <button hlmBtn variant="outline" size="sm" type="button" (click)="media.reload()">
+              Retry
+            </button>
           </p>
         } @else {
-          <mat-progress-bar mode="indeterminate" aria-label="Loading the image library" />
+          <hlm-progress aria-label="Loading the image library"
+            ><hlm-progress-indicator
+          /></hlm-progress>
         }
       </fieldset>
-    </mat-card>
+    </div>
 
     <p id="form-error" class="form-error" role="alert" tabindex="-1">{{ formError() }}</p>
 
     <div class="actions">
-      <button matButton="filled" type="submit" disabledInteractive [disabled]="saving()">
+      <button hlmBtn type="submit" [attr.aria-disabled]="saving() || null">
         {{ saving() ? 'Saving…' : isNew() ? 'Create product' : 'Save changes' }}
       </button>
-      <a matButton routerLink="/admin/products">Cancel</a>
+      <a hlmBtn variant="outline" routerLink="/admin/products">Cancel</a>
     </div>
   </form>
 } @else {
-  <mat-progress-bar mode="indeterminate" aria-label="Loading the product" />
+  <hlm-progress aria-label="Loading the product"><hlm-progress-indicator /></hlm-progress>
 }

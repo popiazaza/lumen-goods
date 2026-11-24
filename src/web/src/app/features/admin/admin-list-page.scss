@@ -1,7 +1,7 @@
 // The admin list pages (orders, products): a filter bar, a table that scrolls inside its own
 // labelled region on narrow screens (WCAG 1.4.10), and a paginator.
-@use '@angular/material' as mat;
 @use '../orders/order-page';
+@use '../../../styles/field';
 @use '../../../styles/scroll-region';
 
 :host {
@@ -32,11 +32,13 @@
 .filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   margin-bottom: var(--lg-space-4);
   gap: var(--lg-space-3);
 
-  & mat-form-field {
+  & .field {
+    @include field.field;
+
     max-width: 20rem;
     flex: 1 1 12rem;
 
@@ -53,32 +55,28 @@
     // On the narrowest phones the button goes under the field instead of pushing the page
     // sideways (no horizontal scroll at 320px, WCAG 1.4.10).
     flex-wrap: wrap;
-    align-items: center;
+    align-items: flex-end;
     gap: var(--lg-space-2);
 
-    & mat-form-field {
+    & .field {
       max-width: none;
       // Beside the button whenever both fit, also below 600px.
       flex: 1 1 12rem;
-    }
-
-    // As tall as the outlined field beside it.
-    & button {
-      height: 56px;
     }
   }
 }
 
 .action-message {
   margin: 0;
-  color: var(--lg-status-success);
+  color: var(--success);
+  font-size: 0.875rem;
 
   &:not(:empty) {
     margin-bottom: var(--lg-space-3);
   }
 
   &.failed {
-    color: var(--mat-sys-error);
+    color: var(--destructive);
   }
 }
 
@@ -93,20 +91,16 @@
 
 .count {
   margin: 0;
-  color: var(--mat-sys-on-surface-variant);
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
 }
 
 .table-scroll {
-  @include scroll-region.scroll-shadows;
-  // The edge shadows sit behind the table, so it must not paint its own background.
-  @include mat.table-overrides(
-    (
-      background-color: transparent,
-    )
-  );
+  @include scroll-region.scroll-shadows(var(--card));
 
-  border: 1px solid var(--mat-sys-outline-variant);
+  border: 1px solid var(--border);
   border-radius: var(--lg-radius-card);
+  box-shadow: var(--lg-shadow-card);
 
   & table {
     width: 100%;
@@ -116,12 +110,15 @@
 
 // Body cells align to the top (a name above its SKU); header labels sit in the middle of their row.
 th {
+  height: 44px;
+  padding: 0 var(--lg-space-3);
+  color: var(--muted-foreground);
+  font-weight: 500;
   vertical-align: middle;
 }
 
 td {
-  padding-top: var(--lg-space-3);
-  padding-bottom: var(--lg-space-3);
+  padding: var(--lg-space-3);
   vertical-align: top;
 }
 
@@ -135,12 +132,14 @@ td {
 .wrap {
   min-width: 10rem;
   overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .sub {
   display: block;
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-small);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
 .badges,
@@ -156,7 +155,7 @@ td {
   justify-content: flex-end;
 }
 
-td > a:not([matButton]) {
+td > a:not([data-slot='button']) {
   display: inline-block;
   min-height: 24px;
 }
@@ -169,4 +168,9 @@ td > a:not([matButton]) {
 // Breaks only where the markup allows (before the @), or mid-word if one part alone is too long.
 .email {
   overflow-wrap: break-word;
+  white-space: normal;
+}
+
+app-admin-paginator {
+  margin-top: var(--lg-space-1);
 }

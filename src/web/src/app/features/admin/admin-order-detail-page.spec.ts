@@ -6,7 +6,6 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
 import { provideRouter } from '@angular/router';
 import {
   AdminOrder,
@@ -164,8 +163,6 @@ describe('AdminOrderDetailPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideAppIcons(),
-        // jsdom fires no animationend, so the dialog would never finish closing.
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -376,10 +373,8 @@ describe('AdminOrderDetailPage', () => {
     });
 
     (dialog()?.querySelector('button.cancel') as HTMLButtonElement).click();
-    await fixture.whenStable();
+    await vi.waitFor(() => expect(dialog()).toBeNull());
     http.expectNone(RESOLVE_URL);
-
-    expect(dialog()).toBeNull();
 
     const post = await decide('Confirm', '');
 
@@ -460,7 +455,7 @@ describe('AdminOrderDetailPage', () => {
     http.expectNone(URL);
     const rejectButton = button('Reject line 2, Merino Trail Socks') as HTMLButtonElement;
 
-    expect(rejectButton.disabled).toBeFalsy();
+    expect(rejectButton.getAttribute('aria-disabled')).toBeNull();
   });
 
   it('warns when a partner may hold the order without Lumen knowing (outcome unknown)', async () => {
@@ -493,7 +488,7 @@ describe('AdminOrderDetailPage', () => {
     expect(text(dialog(), '.message')).toContain('Check with Kestrel Outfitters first.');
 
     (dialog()?.querySelector('button.cancel') as HTMLButtonElement).click();
-    await fixture.whenStable();
+    await vi.waitFor(() => expect(dialog()).toBeNull());
   });
 
   it('says plainly when there is no such order', async () => {

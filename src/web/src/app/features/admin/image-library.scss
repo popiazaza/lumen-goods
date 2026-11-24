@@ -15,20 +15,31 @@
   display: grid;
   width: 100%;
   padding: var(--lg-space-2);
-  border: 2px solid var(--mat-sys-outline-variant);
-  border-radius: var(--mat-sys-corner-small);
-  background: var(--mat-sys-surface);
-  color: var(--mat-sys-on-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--foreground);
   cursor: pointer;
-  font: var(--mat-sys-body-small);
+  font-size: 0.75rem;
   gap: var(--lg-space-1);
   justify-items: center;
+  line-height: 1rem;
   overflow-wrap: anywhere;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
 
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      border-color: var(--input);
+    }
+  }
+
+  // Chosen: a teal ring and tint, plus the "Chosen" label (not colour alone).
   &[aria-pressed='true'] {
-    border-color: var(--mat-sys-primary);
-    background: var(--mat-sys-primary-container);
-    color: var(--mat-sys-on-primary-container);
+    border-color: var(--primary);
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--primary);
   }
 
   &:disabled {
@@ -39,6 +50,7 @@
   & img {
     width: 96px;
     height: 96px;
+    border-radius: calc(var(--radius) - 4px);
     object-fit: cover;
   }
 }
@@ -46,9 +58,16 @@
 .picked {
   display: inline-flex;
   align-items: center;
+  color: var(--primary);
+  font-weight: 500;
   gap: var(--lg-space-1);
+
+  & ng-icon {
+    width: 14px;
+    height: 14px;
+  }
 }
 
 .muted {
-  color: var(--mat-sys-on-surface-variant);
+  color: var(--muted-foreground);
 }

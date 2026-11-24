@@ -1,6 +1,6 @@
 import { NgOptimizedImage } from '@angular/common';
 import { Component, computed, input, output } from '@angular/core';
-import { MatIcon } from '@angular/material/icon';
+import { NgIcon } from '@ng-icons/core';
 import { OwnMediaFile } from '../../core/api/admin-products.api';
 
 /**
@@ -9,7 +9,7 @@ import { OwnMediaFile } from '../../core/api/admin-products.api';
  */
 @Component({
   selector: 'app-image-library',
-  imports: [NgOptimizedImage, MatIcon],
+  imports: [NgOptimizedImage, NgIcon],
   templateUrl: './image-library.html',
   styleUrl: './image-library.scss',
 })

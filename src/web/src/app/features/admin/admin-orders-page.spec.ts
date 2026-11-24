@@ -1,5 +1,3 @@
-import { HarnessLoader } from '@angular/cdk/testing';
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
@@ -8,9 +6,6 @@ import {
 } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MATERIAL_ANIMATIONS } from '@angular/material/core';
-import { MatPaginatorHarness } from '@angular/material/paginator/testing';
-import { MatSelectHarness } from '@angular/material/select/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { AdminOrderSummary } from '../../core/api/admin-orders.api';
@@ -18,6 +13,7 @@ import { PagedResult } from '../../core/api/paged-result';
 import { provideAppIcons } from '../../core/icons/app-icons';
 import { itemAt } from '../../testing/items';
 import { aPagedResult, anAdminOrderSummary } from '../../testing/order-fixtures';
+import { stubOverlayMeasuring } from '../../testing/overlay-stubs';
 import { AdminOrdersPage } from './admin-orders-page';
 
 @Component({ selector: 'app-stub-order-page', template: '<h1>Order</h1>' })
@@ -35,6 +31,19 @@ const localMidnight = (day: string, addDays = 0): string => {
 const text = (root: ParentNode, selector: string) =>
   root.querySelector(selector)?.textContent?.replaceAll(/\s+/gu, ' ').trim();
 
+/**
+An option of the open status list, by its text; throws until the list is open, for `vi.waitFor`.
+*/
+const statusOption = (label: string): HTMLElement => {
+  const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+    (element) => element.textContent?.trim() === label
+  );
+  if (!option) {
+    throw new Error(`No status option "${label}" open`);
+  }
+  return option;
+};
+
 const PAID = anAdminOrderSummary();
 const ATTENTION = anAdminOrderSummary({
   number: 'LG-9QW3E7RT',
@@ -47,10 +56,14 @@ const ATTENTION = anAdminOrderSummary({
 describe('AdminOrdersPage', () => {
   let harness: RouterTestingHarness;
   let http: HttpTestingController;
-  let loader: HarnessLoader;
   let router: Router;
 
   const host = () => harness.routeNativeElement as HTMLElement;
+  /**
+  The status select's trigger (a combobox button named by its label).
+  */
+  const statusSelect = () => host().querySelector('button#order-status') as HTMLButtonElement;
+  const pager = () => host().querySelector('app-admin-paginator') as HTMLElement;
   const dateInput = (name: 'from' | 'to') =>
     host().querySelector(`input[name="${CSS.escape(name)}"]`) as HTMLInputElement;
 
@@ -76,6 +89,7 @@ describe('AdminOrdersPage', () => {
   };
 
   beforeEach(async () => {
+    stubOverlayMeasuring();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([
@@ -85,16 +99,17 @@ describe('AdminOrdersPage', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideAppIcons(),
-        { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
     router = TestBed.inject(Router);
     harness = await RouterTestingHarness.create();
-    loader = TestbedHarnessEnvironment.documentRootLoader(harness.fixture);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.verify();
+    vi.unstubAllGlobals();
+  });
 
   it('asks the API for exactly what the URL says and shows it in the filters', async () => {
     const request = await open(
@@ -120,9 +135,7 @@ describe('AdminOrdersPage', () => {
       pageSize: '24',
     });
 
-    const status = await loader.getHarness(MatSelectHarness);
-
-    await expect(status.getValueText()).resolves.toBe(
+    expect(statusSelect().textContent?.trim()).toBe(
       // Completed reads "Confirmed": every seller confirmed, nothing has shipped.
       'Paid, in progress, Confirmed, Refunded, Needs attention'
     );
@@ -140,13 +153,24 @@ describe('AdminOrdersPage', () => {
 
   it('writes a status choice to the URL and starts again at page 1', async () => {
     await open('/admin/orders?page=3');
-    const status = await loader.getHarness(MatSelectHarness);
-    await status.open();
 
-    const choosing = status.clickOptions({ text: 'Partially refunded' });
+    expect({
+      name: host().querySelector(':scope label[for="order-status"]')?.textContent?.trim(),
+      placeholder: statusSelect().textContent?.trim(),
+    }).toStrictEqual({ name: 'Status', placeholder: 'All statuses' });
+
+    statusSelect().click();
+    await harness.fixture.whenStable();
+
+    expect(document.querySelector('[role="listbox"]')?.getAttribute('aria-multiselectable')).toBe(
+      'true'
+    );
+
+    const option = await vi.waitFor(() => statusOption('Partially refunded'));
+    option.click();
     const request = await nextRequest();
     request.flush(aPagedResult([]));
-    await choosing;
+    await harness.fixture.whenStable();
 
     expect(router.url).toBe('/admin/orders?status=partially_refunded');
     expect(request.request.urlWithParams).toBe(
@@ -179,14 +203,19 @@ describe('AdminOrdersPage', () => {
       '/admin/orders?status=paid',
       aPagedResult([PAID], { pageSize: 24, totalCount: 60, totalPages: 3 })
     );
-    const paginator = await loader.getHarness(MatPaginatorHarness);
 
-    await expect(paginator.getRangeLabel()).resolves.toBe('1 – 24 of 60');
+    expect({
+      label: pager().getAttribute('aria-label'),
+      range: text(pager(), '.range'),
+      previousDisabled: pager().querySelector<HTMLButtonElement>(
+        'button[aria-label="Previous page"]'
+      )?.disabled,
+    }).toStrictEqual({ label: 'Order pages', range: '1 – 24 of 60', previousDisabled: true });
 
-    const paging = paginator.goToNextPage();
+    pager().querySelector<HTMLButtonElement>('button[aria-label="Next page"]')?.click();
     const request = await nextRequest();
     request.flush(aPagedResult([PAID], { page: 2, pageSize: 24, totalCount: 60, totalPages: 3 }));
-    await paging;
+    await harness.fixture.whenStable();
 
     expect(router.url).toBe('/admin/orders?status=paid&page=2');
     expect(request.request.params.get('page')).toBe('2');
@@ -195,7 +224,7 @@ describe('AdminOrdersPage', () => {
   it('lists each order with a link, customer, shops, total and status badges', async () => {
     await open('/admin/orders');
 
-    const rows = [...host().querySelectorAll<HTMLElement>('tr.mat-mdc-row')];
+    const rows = [...host().querySelectorAll<HTMLElement>(':scope tbody tr')];
 
     expect(rows).toHaveLength(2);
 
@@ -206,14 +235,12 @@ describe('AdminOrdersPage', () => {
     expect({
       number: link.textContent?.trim(),
       href: link.getAttribute('href'),
-      customer: text(paid, '.mat-column-customer'),
-      sellers: text(paid, '.mat-column-sellers'),
-      total: text(paid, '.mat-column-total'),
+      customer: text(paid, '.col-customer'),
+      sellers: text(paid, '.col-sellers'),
+      total: text(paid, '.col-total'),
       // The number never breaks; a long email may break only before its @.
-      numberNowrap: paid.querySelector(':scope .mat-column-number')?.classList.contains('nowrap'),
-      emailBreak: paid
-        .querySelector(':scope .mat-column-customer wbr')
-        ?.nextSibling?.textContent?.trim(),
+      numberNowrap: paid.querySelector(':scope .col-number')?.classList.contains('nowrap'),
+      emailBreak: paid.querySelector(':scope .col-customer wbr')?.nextSibling?.textContent?.trim(),
     }).toStrictEqual({
       number: 'LG-7K3M9QX2',
       href: '/admin/orders/LG-7K3M9QX2',

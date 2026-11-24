@@ -102,6 +102,9 @@ export default [
             './checkout-step.guard': ['checkoutStepGuard'],
             './core/icons/app-icons': ['provideAppIcons'],
             './core/routing/route-heading-focus': ['provideRouteHeadingFocus'],
+            // The order and admin pages' own Lucide icons (orders/order-icons.ts).
+            './order-icons': ['provideOrderIcons'],
+            '../orders/order-icons': ['provideOrderIcons'],
           },
           checkUnknownCalls: true,
         },

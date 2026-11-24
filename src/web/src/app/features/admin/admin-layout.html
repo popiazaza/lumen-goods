@@ -1,24 +1,13 @@
-<nav
-  mat-tab-nav-bar
-  class="sections"
-  aria-label="Admin sections"
-  mat-stretch-tabs="false"
-  mat-align-tabs="start"
-  [tabPanel]="panel"
->
-  @for (section of sections; track section.path) {
-    <a
-      #active="routerLinkActive"
-      mat-tab-link
-      routerLinkActive
-      [routerLink]="section.path"
-      [active]="active.isActive"
-    >
-      {{ section.label }}
-    </a>
-  }
+<nav class="sections" aria-label="Admin sections">
+  <ul>
+    @for (section of sections; track section.path) {
+      <li>
+        <a routerLinkActive="active" ariaCurrentWhenActive="page" [routerLink]="section.path">
+          {{ section.label }}
+        </a>
+      </li>
+    }
+  </ul>
 </nav>
 
-<mat-tab-nav-panel #panel>
-  <router-outlet />
-</mat-tab-nav-panel>
+<router-outlet />

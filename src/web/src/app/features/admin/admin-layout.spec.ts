@@ -1,7 +1,5 @@
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { MatTabNavBarHarness } from '@angular/material/tabs/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { AdminLayout } from './admin-layout';
@@ -12,13 +10,15 @@ class StubPage {}
 describe('AdminLayout', () => {
   let harness: RouterTestingHarness;
 
-  const tabs = (): Promise<MatTabNavBarHarness> =>
-    TestbedHarnessEnvironment.loader(harness.fixture).getHarness(MatTabNavBarHarness);
-  const activeLabel = async (): Promise<string> => {
-    const bar = await tabs();
-    const link = await bar.getActiveLink();
-    return link.getLabel();
-  };
+  const nav = () =>
+    (harness.routeNativeElement as HTMLElement).querySelector(
+      'nav[aria-label="Admin sections"]'
+    ) as HTMLElement;
+  const links = () => [...nav().querySelectorAll('a')];
+  const current = () =>
+    links()
+      .filter((link) => link.getAttribute('aria-current') === 'page')
+      .map((link) => link.textContent?.trim());
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -41,37 +41,33 @@ describe('AdminLayout', () => {
     harness = await RouterTestingHarness.create();
   });
 
-  it('links every admin section as a tab, marking the current one', async () => {
+  it('links every admin section, marking the current one', async () => {
     await harness.navigateByUrl('/admin/orders');
 
-    const bar = await tabs();
-    const links = await bar.getLinks();
-    const labels = await Promise.all(links.map((link) => link.getLabel()));
-    const anchors = [...(harness.routeNativeElement as HTMLElement).querySelectorAll('a')];
-
-    expect(labels).toStrictEqual(['Products', 'Orders', 'Partners']);
-    expect(anchors.map((anchor) => anchor.getAttribute('href'))).toStrictEqual([
+    expect(links().map((link) => link.textContent?.trim())).toStrictEqual([
+      'Products',
+      'Orders',
+      'Partners',
+    ]);
+    expect(links().map((anchor) => anchor.getAttribute('href'))).toStrictEqual([
       '/admin/products',
       '/admin/orders',
       '/admin/partners',
     ]);
-    expect(anchors.map((anchor) => anchor.getAttribute('aria-selected'))).toStrictEqual([
-      'false',
-      'true',
-      'false',
-    ]);
-    await expect(activeLabel()).resolves.toBe('Orders');
+    expect(current()).toStrictEqual(['Orders']);
   });
 
-  it('keeps a section active on its detail pages and moves between sections', async () => {
+  it('keeps a section current on its detail pages and moves between sections', async () => {
     await harness.navigateByUrl('/admin/products/p-7');
 
-    await expect(activeLabel()).resolves.toBe('Products');
+    expect(current()).toStrictEqual(['Products']);
 
-    const bar = await tabs();
-    await bar.clickLink({ label: 'Partners' });
+    links()
+      .find((link) => link.textContent?.trim() === 'Partners')
+      ?.click();
+    await harness.fixture.whenStable();
 
     expect(TestBed.inject(Router).url).toBe('/admin/partners');
-    await expect(activeLabel()).resolves.toBe('Partners');
+    expect(current()).toStrictEqual(['Partners']);
   });
 });
